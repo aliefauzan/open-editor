@@ -159,7 +159,12 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     'out-dir': { type: 'string' },
     overwrite: { type: 'boolean' },
   },
-  'audio-qa': { ...COMMON, seq: { type: 'string' }, loudness: { type: 'string' }, kit: { type: 'string' } },
+  'audio-qa': {
+    ...COMMON,
+    seq: { type: 'string' },
+    loudness: { type: 'string' },
+    kit: { type: 'string' },
+  },
   'export-captions': {
     ...COMMON,
     seq: { type: 'string' },
@@ -227,7 +232,8 @@ const seqArg = (values: Parsed['values']) =>
 function targetArg(values: Parsed['values'], io: Io) {
   const file = values['output'];
   const dir = values['out-dir'];
-  if (file !== undefined && dir !== undefined) throw new UsageError('pass -o <file> or --out-dir <dir>, not both');
+  if (file !== undefined && dir !== undefined)
+    throw new UsageError('pass -o <file> or --out-dir <dir>, not both');
   return {
     ...(typeof file === 'string' ? { target: { file: resolve(io.cwd, file) } } : {}),
     ...(typeof dir === 'string' ? { target: { dir: resolve(io.cwd, dir) } } : {}),
@@ -236,10 +242,15 @@ function targetArg(values: Parsed['values'], io: Io) {
 }
 
 /** `a-b` with whole numbers (`--range-ms`), or seconds with decimals (`--length`). */
-function span(v: string | boolean | undefined, name: string, scale: number): [number, number] | undefined {
+function span(
+  v: string | boolean | undefined,
+  name: string,
+  scale: number,
+): [number, number] | undefined {
   if (v === undefined) return undefined;
   const m = typeof v === 'string' ? /^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/.exec(v) : null;
-  if (!m || (scale === 1 && /\./.test(v as string))) throw new UsageError(`--${name} takes <from>-<to>`);
+  if (!m || (scale === 1 && /\./.test(v as string)))
+    throw new UsageError(`--${name} takes <from>-<to>`);
   const a = Math.round(Number(m[1]) * scale);
   const b = Math.round(Number(m[2]) * scale);
   if (b <= a) throw new UsageError(`--${name}: <to> must be after <from>`);
@@ -599,28 +610,51 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const e = await engineFor(values, io);
       const id = await resolveProject(e, ref);
       if (sub === 'search') {
-        const sources = typeof values['source'] === 'string' ? values['source'].split(',') : undefined;
+        const sources =
+          typeof values['source'] === 'string' ? values['source'].split(',') : undefined;
         const limit = int(values['limit'], 'limit');
         const r = await runJob<{
-          candidates: { id: string; title: string; author?: string; license: string; source: string }[];
+          candidates: {
+            id: string;
+            title: string;
+            author?: string;
+            license: string;
+            source: string;
+          }[];
         }>(
           e,
           'assets.search',
-          { projectId: id, query: arg, ...(sources ? { sources } : {}), ...(limit === undefined ? {} : { limit }) },
+          {
+            projectId: id,
+            query: arg,
+            ...(sources ? { sources } : {}),
+            ...(limit === undefined ? {} : { limit }),
+          },
           io,
           json,
         );
         out(
           r,
-          r.candidates.map((c) => `${c.id}\t${c.license}\t${c.title}${c.author ? ` (${c.author})` : ''}\n`).join(''),
+          r.candidates
+            .map((c) => `${c.id}\t${c.license}\t${c.title}${c.author ? ` (${c.author})` : ''}\n`)
+            .join(''),
         );
         return 0;
       }
       if (sub === 'fetch' || sub === 'cutout') {
-        const r = await runJob<{ mediaId: string; license?: string; warning?: string; version: number }>(
+        const r = await runJob<{
+          mediaId: string;
+          license?: string;
+          warning?: string;
+          version: number;
+        }>(
           e,
           `assets.${sub}`,
-          { projectId: id, ...(sub === 'fetch' ? { candidateId: arg } : { mediaId: arg }), actor: 'cli' },
+          {
+            projectId: id,
+            ...(sub === 'fetch' ? { candidateId: arg } : { mediaId: arg }),
+            actor: 'cli',
+          },
           io,
           json,
         );
@@ -655,11 +689,21 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const e = await engineFor(values, io);
       const id = await resolveProject(e, positionals[0]!);
       const sequenceId =
-        typeof values['seq'] === 'string' ? values['seq'] : (await e.getProject(id)).sequences[0]?.id;
-      if (!sequenceId) throw new VoxError('NOT_FOUND', `Project ${id} has no sequence`, 'Add one with `vox op addSequence`');
+        typeof values['seq'] === 'string'
+          ? values['seq']
+          : (await e.getProject(id)).sequences[0]?.id;
+      if (!sequenceId)
+        throw new VoxError(
+          'NOT_FOUND',
+          `Project ${id} has no sequence`,
+          'Add one with `vox op addSequence`',
+        );
       const b = await e.compile(id, sequenceId, { mode });
       const buildDir = await e.writeBuild(b);
-      out({ sequenceId, mode, buildDir, warnings: b.warnings }, `${buildDir}\n${b.warnings.map((w) => `warning: ${String(w)}\n`).join('')}`);
+      out(
+        { sequenceId, mode, buildDir, warnings: b.warnings },
+        `${buildDir}\n${b.warnings.map((w) => `warning: ${String(w)}\n`).join('')}`,
+      );
       return 0;
     }
     case 'preview': {
@@ -680,7 +724,11 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const e = await engineFor(values, io);
       const id = await resolveProject(e, positionals[0]!);
       const at = raw.split(',').map(Number);
-      const paths = await e.frames(id, typeof values['seq'] === 'string' ? values['seq'] : undefined, at);
+      const paths = await e.frames(
+        id,
+        typeof values['seq'] === 'string' ? values['seq'] : undefined,
+        at,
+      );
       out(
         at.map((t, i) => ({ atMs: t, path: paths[i] })),
         paths.map((p, i) => `${at[i]}\t${p}\n`).join(''),
@@ -693,7 +741,8 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const quality = oneOf(values['quality'], 'quality', ['draft', 'standard', 'high'] as const);
       const captions = oneOf(values['captions'], 'captions', ['burn', 'none'] as const);
       const loudness = oneOf(values['loudness'], 'loudness', LOUDNESS);
-      if (values['all'] === true && values['seq'] !== undefined) throw new UsageError('pass --seq or --all, not both');
+      if (values['all'] === true && values['seq'] !== undefined)
+        throw new UsageError('pass --seq or --all, not both');
       const e = await engineFor(values, io);
       const id = await resolveProject(e, positionals[0]!);
       const r = await runJob<RenderOut>(
@@ -742,8 +791,12 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       );
       const lines = [
         ...(r.checks ?? []).map((c) => `${c.status.toUpperCase().padEnd(4)}\t${c.id}\n`),
-        ...(Array.isArray(r.files) ? r.files : []).map((f) => `${(f.status ?? '').toUpperCase().padEnd(4)}\t${f.path ?? ''}\n`),
-        ...(r.listen ?? []).map((l) => `listen ${l.timecode ?? `${l.atMs} ms`}\t${l.kind}: ${l.listenFor}\n`),
+        ...(Array.isArray(r.files) ? r.files : []).map(
+          (f) => `${(f.status ?? '').toUpperCase().padEnd(4)}\t${f.path ?? ''}\n`,
+        ),
+        ...(r.listen ?? []).map(
+          (l) => `listen ${l.timecode ?? `${l.atMs} ms`}\t${l.kind}: ${l.listenFor}\n`,
+        ),
         `${r.outDir}\n`,
       ];
       out(r, lines.join(''));
@@ -752,14 +805,23 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     case 'export-captions':
     case 'export-timeline': {
       need(positionals, 1, '<project>');
-      const format = cmd === 'export-captions' ? oneOf(values['format'], 'format', ['srt', 'vtt'] as const) : undefined;
-      if (cmd === 'export-captions' && !format) throw new UsageError('--format srt|vtt is required');
+      const format =
+        cmd === 'export-captions'
+          ? oneOf(values['format'], 'format', ['srt', 'vtt'] as const)
+          : undefined;
+      if (cmd === 'export-captions' && !format)
+        throw new UsageError('--format srt|vtt is required');
       const e = await engineFor(values, io);
       const id = await resolveProject(e, positionals[0]!);
       const r = await runJob<{ path: string; layersDir?: string }>(
         e,
         cmd === 'export-captions' ? 'exportCaptions' : 'exportTimeline',
-        { projectId: id, ...seqArg(values), ...(format ? { format } : {}), ...targetArg(values, io) },
+        {
+          projectId: id,
+          ...seqArg(values),
+          ...(format ? { format } : {}),
+          ...targetArg(values, io),
+        },
         io,
         json,
       );
@@ -771,16 +833,23 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const e = await engineFor(values, io);
       const id = await resolveProject(e, positionals[0]!);
       const lines = await e.credits(id);
-      out(lines, lines.length ? lines.map((l) => `${l.attribution}\n`).join('') : 'no archive assets used\n');
+      out(
+        lines,
+        lines.length ? lines.map((l) => `${l.attribution}\n`).join('') : 'no archive assets used\n',
+      );
       return 0;
     }
     case 'quick': {
       need(positionals, 1, '<url|path>');
       const raw = positionals[0]!;
-      const input = classifyUrl(raw) !== 'invalid' || /^[a-z][a-z0-9+.-]*:/i.test(raw) || isAbsolute(raw) ? raw : resolve(io.cwd, raw);
+      const input =
+        classifyUrl(raw) !== 'invalid' || /^[a-z][a-z0-9+.-]*:/i.test(raw) || isAbsolute(raw)
+          ? raw
+          : resolve(io.cwd, raw);
       const count = int(values['count'], 'count') ?? 3;
       const [minMs, maxMs] = span(values['length'], 'length', 1000) ?? [30_000, 60_000];
-      const outDir = typeof values['out-dir'] === 'string' ? resolve(io.cwd, values['out-dir']) : undefined;
+      const outDir =
+        typeof values['out-dir'] === 'string' ? resolve(io.cwd, values['out-dir']) : undefined;
       if (outDir && values['render'] !== true) throw new UsageError('--out-dir needs --render');
       const name =
         typeof values['name'] === 'string'
@@ -798,19 +867,36 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         json,
       );
       const media = ing.media.find((m) => m.kind === 'video');
-      if (!media) throw new VoxError('MEDIA_UNSUPPORTED', `${raw} is not a video`, 'Pass a video file or link');
+      if (!media)
+        throw new VoxError(
+          'MEDIA_UNSUPPORTED',
+          `${raw} is not a video`,
+          'Pass a video file or link',
+        );
       for (const kind of ['shots', 'transcribe', 'facetrack'])
         await runJob(e, kind, { projectId: p.id, mediaId: media.mediaId, actor: 'cli' }, io, json);
       const q = await runJob<{
         clips: { sequenceId: string; name: string; startMs: number; endMs: number; text: string }[];
         scorer: string;
         note?: string;
-      }>(e, 'quickClips', { projectId: p.id, mediaId: media.mediaId, count, minMs, maxMs, actor: 'cli' }, io, json);
+      }>(
+        e,
+        'quickClips',
+        { projectId: p.id, mediaId: media.mediaId, count, minMs, maxMs, actor: 'cli' },
+        io,
+        json,
+      );
       const files: { sequenceId: string; mp4: string; srt: string }[] = [];
       if (values['render'] === true) {
         for (const c of q.clips) {
           const target = outDir ? { target: { dir: outDir } } : {};
-          const r = await runJob<RenderOut>(e, 'render', { projectId: p.id, sequenceId: c.sequenceId, ...target }, io, json);
+          const r = await runJob<RenderOut>(
+            e,
+            'render',
+            { projectId: p.id, sequenceId: c.sequenceId, ...target },
+            io,
+            json,
+          );
           const srt = await runJob<{ path: string }>(
             e,
             'exportCaptions',
@@ -823,7 +909,9 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       }
       const lines = [
         `project ${p.id} (${name}); scorer ${q.scorer}\n`,
-        ...q.clips.map((c) => `${c.name}\t${c.sequenceId}\t${c.startMs}-${c.endMs} ms\t${c.text}\n`),
+        ...q.clips.map(
+          (c) => `${c.name}\t${c.sequenceId}\t${c.startMs}-${c.endMs} ms\t${c.text}\n`,
+        ),
         ...(q.note ? [`note: ${q.note}\n`] : []),
         ...files.flatMap((f) => [`${f.mp4}\n`, `${f.srt}\n`]),
       ];

@@ -20,7 +20,10 @@ async function seeded(e: Engine, tracked = true): Promise<string> {
   for (const d of ['media', 'shots', 'facetracks']) await mkdir(join(dir, d), { recursive: true });
   await copyFile(HEAD, join(dir, 'media', 'm_head.mp4'));
   await copyFile(join(FX, 'shots', 'talking-head-20s.json'), join(dir, 'shots', 'm_head.json'));
-  await copyFile(join(FX, 'facetracks', 'talking-head-20s.json'), join(dir, 'facetracks', 'm_head.json'));
+  await copyFile(
+    join(FX, 'facetracks', 'talking-head-20s.json'),
+    join(dir, 'facetracks', 'm_head.json'),
+  );
   const op = (o: unknown) => e.applyOp(p.id, o as never, { actor: 'cli' });
   await op({
     op: 'addMedia',
@@ -34,7 +37,9 @@ async function seeded(e: Engine, tracked = true): Promise<string> {
         height: 1080,
         hasAudio: true,
         fps: { num: 30, den: 1 },
-        ...(tracked ? { shotsPath: 'shots/m_head.json', facetrackPath: 'facetracks/m_head.json' } : {}),
+        ...(tracked
+          ? { shotsPath: 'shots/m_head.json', facetrackPath: 'facetracks/m_head.json' }
+          : {}),
         origin: { type: 'upload' },
         tags: [],
       },
@@ -44,7 +49,15 @@ async function seeded(e: Engine, tracked = true): Promise<string> {
   const place = (startMs: number, inMs: number, frame: Frame) =>
     op({
       op: 'placeClip',
-      args: { sequenceId: 'seq_a', trackId: 'V1', mediaId: 'm_head', startMs, inMs, durationMs: 3000, frame },
+      args: {
+        sequenceId: 'seq_a',
+        trackId: 'V1',
+        mediaId: 'm_head',
+        startMs,
+        inMs,
+        durationMs: 3000,
+        frame,
+      },
     });
   await place(0, 2000, { mode: 'facetrack', stability: 'follow' });
   await place(3000, 9000, { mode: 'auto' });
@@ -55,7 +68,10 @@ const html = (b: { files: Map<string, string | Uint8Array> }) => String(b.files.
 
 describe('facetrack path provider (9b)', () => {
   test('facetrack and auto clips compile to the builder keyframes; stability recompiles', async () => {
-    const e = openEngine({ projectsDir: join(tempDir('vox-framing-'), 'Projects'), stylesDirs: [REPO_STYLES] });
+    const e = openEngine({
+      projectsDir: join(tempDir('vox-framing-'), 'Projects'),
+      stylesDirs: [REPO_STYLES],
+    });
     const id = await seeded(e);
     const p = await e.getProject(id);
     const seq = p.sequences[0]!;
@@ -86,7 +102,11 @@ describe('facetrack path provider (9b)', () => {
       id,
       {
         op: 'updateClip',
-        args: { sequenceId: 'seq_a', itemId: first.id, frame: { mode: 'facetrack', stability: 'locked' } },
+        args: {
+          sequenceId: 'seq_a',
+          itemId: first.id,
+          frame: { mode: 'facetrack', stability: 'locked' },
+        },
       } as never,
       { actor: 'cli' },
     );
@@ -95,7 +115,10 @@ describe('facetrack path provider (9b)', () => {
   });
 
   test('a clip whose media has no facetrack keeps its static crop', async () => {
-    const e = openEngine({ projectsDir: join(tempDir('vox-framing-'), 'Projects'), stylesDirs: [REPO_STYLES] });
+    const e = openEngine({
+      projectsDir: join(tempDir('vox-framing-'), 'Projects'),
+      stylesDirs: [REPO_STYLES],
+    });
     const id = await seeded(e, false);
     const got = html(await e.compile(id, 'seq_a', { mode: 'render' }));
     expect(got).not.toContain("tl.to(byId('");

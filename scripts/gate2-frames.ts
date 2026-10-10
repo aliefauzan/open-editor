@@ -34,14 +34,26 @@ export interface ClipFrames {
 }
 
 /** The source counter box (40, 40, 640×40) framed `contain` on the canvas. */
-function counterCrop(src: { width: number; height: number }, canvas: { width: number; height: number }) {
+function counterCrop(
+  src: { width: number; height: number },
+  canvas: { width: number; height: number },
+) {
   const s = Math.min(canvas.width / src.width, canvas.height / src.height);
   const x0 = (canvas.width - src.width * s) / 2;
   const y0 = (canvas.height - src.height * s) / 2;
-  return [Math.round(x0 + 40 * s), Math.round(y0 + 40 * s), Math.round(640 * s), Math.floor(40 * s)] as const;
+  return [
+    Math.round(x0 + 40 * s),
+    Math.round(y0 + 40 * s),
+    Math.round(640 * s),
+    Math.floor(40 * s),
+  ] as const;
 }
 
-export async function checkQuickFrames(e: Engine, projectId: string, work: string): Promise<ClipFrames[]> {
+export async function checkQuickFrames(
+  e: Engine,
+  projectId: string,
+  work: string,
+): Promise<ClipFrames[]> {
   const p = await e.getProject(projectId);
   const clips = p.sequences.flatMap((s) => {
     const it = s.videoTracks[0]?.items[0];
@@ -60,22 +72,39 @@ export async function checkQuickFrames(e: Engine, projectId: string, work: strin
     } as never,
     { actor: 'cli' },
   );
-  if (r.results.some((x) => x.status !== 'succeeded')) throw new Error(`updateClip failed: ${JSON.stringify(r.results)}`);
+  if (r.results.some((x) => x.status !== 'succeeded'))
+    throw new Error(`updateClip failed: ${JSON.stringify(r.results)}`);
   const out: ClipFrames[] = [];
   try {
     for (const { s, it } of clips) {
       const media = p.media.find((m) => m.id === it.mediaId)!;
       const file = join(work, `${s.id}.mp4`);
       const job = (await e.jobs.wait(
-        e.jobs.start('render', { projectId, sequenceId: s.id, quality: 'draft', target: { file }, overwrite: true }),
+        e.jobs.start('render', {
+          projectId,
+          sequenceId: s.id,
+          quality: 'draft',
+          target: { file },
+          overwrite: true,
+        }),
       )) as JobInfo;
       if (job.status !== 'done') throw new Error(`render ${s.id}: ${JSON.stringify(job.error)}`);
       const { frames } = await probeFrames(file);
-      const raw = await grayStream(file, counterCrop({ width: media.width!, height: media.height! }, s.canvas), CELLS, 1);
+      const raw = await grayStream(
+        file,
+        counterCrop({ width: media.width!, height: media.height! }, s.canvas),
+        CELLS,
+        1,
+      );
       const { num, den } = s.canvas.fps;
       const first = Math.round((it.inMs * num) / (den * 1000));
       const reference = media.cfrPath ?? media.path;
-      const refRaw = await grayStream(join(e.projectsDir, projectId, reference), [40, 40, 640, 40], CELLS, 1);
+      const refRaw = await grayStream(
+        join(e.projectsDir, projectId, reference),
+        [40, 40, 640, 40],
+        CELLS,
+        1,
+      );
       const expectedAt = (k: number) => decodeBits(refRaw.subarray(k * CELLS, (k + 1) * CELLS));
       const rep: ClipFrames = {
         sequenceId: s.id,
@@ -117,13 +146,20 @@ async function main(argv: string[]): Promise<number> {
   });
   const { 'projects-dir': projectsDir, project, out } = values;
   if (!projectsDir || !project || !out) {
-    throw new Error('Usage: gate2-frames.ts --projects-dir <dir> --project <id> --out <report.json> [--work <dir>]');
+    throw new Error(
+      'Usage: gate2-frames.ts --projects-dir <dir> --project <id> --out <report.json> [--work <dir>]',
+    );
   }
-  const e = openEngine({ projectsDir, stylesDirs: [join(REPO, 'styles')], config: async () => ({}) });
+  const e = openEngine({
+    projectsDir,
+    stylesDirs: [join(REPO, 'styles')],
+    config: async () => ({}),
+  });
   const work = values.work ?? mkdtempSync(join(tmpdir(), 'vox-gate2-frames-'));
   mkdirSync(work, { recursive: true });
   const clips = await checkQuickFrames(e, project, work);
-  const pass = clips.length > 0 && clips.every((c) => c.mismatches.length === 0 && c.checked === c.frames);
+  const pass =
+    clips.length > 0 && clips.every((c) => c.mismatches.length === 0 && c.checked === c.frames);
   writeFileSync(
     out,
     `${JSON.stringify({ projectId: project, pass, clips: clips.map((c) => ({ ...c, mismatches: c.mismatches.slice(0, 20) })) }, null, 2)}\n`,

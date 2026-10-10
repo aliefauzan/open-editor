@@ -12,7 +12,11 @@ import { REPO, REPO_STYLES } from '../export/project.ts';
 
 const CUTS = join(REPO, 'packages/engine/test/fixtures/out/cuts-2shot.mp4');
 const MODEL = 'blaze_face_full_range.tflite';
-const modelSources = [process.env['VOX_TEST_MODELS_DIR'], `${REPO}py/cache/models`, `${REPO}../../py/cache/models`];
+const modelSources = [
+  process.env['VOX_TEST_MODELS_DIR'],
+  `${REPO}py/cache/models`,
+  `${REPO}../../py/cache/models`,
+];
 
 describe('facetrack path provider on cuts-2shot (local)', () => {
   test('tracked clips compile to the builder keyframes; stability recompiles', async () => {
@@ -24,14 +28,22 @@ describe('facetrack path provider on cuts-2shot (local)', () => {
       copyFileSync(join(src, MODEL), join(tools['models']!, MODEL));
     }
     const projectsDir = join(tempDir('vox-fp-'), 'Projects');
-    const e = openEngine({ projectsDir, stylesDirs: [REPO_STYLES], tools, config: async () => ({}) });
+    const e = openEngine({
+      projectsDir,
+      stylesDirs: [REPO_STYLES],
+      tools,
+      config: async () => ({}),
+    });
     const run = async <R>(kind: string, args: unknown): Promise<R> => {
       const info = (await e.jobs.wait(e.jobs.start(kind, args))) as JobInfo<R>;
       if (info.status !== 'done') throw new Error(`${kind}: ${JSON.stringify(info.error)}`);
       return info.result!;
     };
     const p = await e.createProject('cuts');
-    const ing = await run<{ media: { mediaId: string }[] }>('ingest', { projectId: p.id, inputs: [CUTS] });
+    const ing = await run<{ media: { mediaId: string }[] }>('ingest', {
+      projectId: p.id,
+      inputs: [CUTS],
+    });
     const mediaId = ing.media[0]!.mediaId;
     await run('shots', { projectId: p.id, mediaId });
     await run('facetrack', { projectId: p.id, mediaId });
@@ -43,7 +55,15 @@ describe('facetrack path provider on cuts-2shot (local)', () => {
     ] as const) {
       await op({
         op: 'placeClip',
-        args: { sequenceId: 'seq_a', trackId: 'V1', mediaId, startMs, inMs: startMs, durationMs: 2000, frame: { mode } },
+        args: {
+          sequenceId: 'seq_a',
+          trackId: 'V1',
+          mediaId,
+          startMs,
+          inMs: startMs,
+          durationMs: 2000,
+          frame: { mode },
+        },
       });
     }
     const seq = (await e.getProject(p.id)).sequences[0]!;
@@ -64,7 +84,11 @@ describe('facetrack path provider on cuts-2shot (local)', () => {
     const first = seq.videoTracks[0]!.items[0]!;
     await op({
       op: 'updateClip',
-      args: { sequenceId: 'seq_a', itemId: first.id, frame: { mode: 'facetrack', stability: 'follow' } },
+      args: {
+        sequenceId: 'seq_a',
+        itemId: first.id,
+        frame: { mode: 'facetrack', stability: 'follow' },
+      },
     });
     expect(await html(e)).not.toBe(got);
   }, 300_000);

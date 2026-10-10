@@ -161,11 +161,17 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
     tools,
     signal,
     redact,
-    docText: () => Promise.reject(new VoxError('MEDIA_UNSUPPORTED', 'Not an image.', 'Pick an image.')),
+    docText: () =>
+      Promise.reject(new VoxError('MEDIA_UNSUPPORTED', 'Not an image.', 'Pick an image.')),
   });
   const tempIn = async (dir: string, ext: string) => {
     await mkdir(join(dir, 'cache', 'assets'), { recursive: true, mode: 0o700 });
-    return join(dir, 'cache', 'assets', `.vox-part-${process.pid}-${randomBytes(6).toString('hex')}${ext}`);
+    return join(
+      dir,
+      'cache',
+      'assets',
+      `.vox-part-${process.pid}-${randomBytes(6).toString('hex')}${ext}`,
+    );
   };
   const addOne = async (
     args: { projectId: string; actor?: z.infer<typeof ActorSchema> },
@@ -277,7 +283,11 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
       }
       const models = tools['models'];
       if (!models) {
-        throw new VoxError('TOOL_MISSING', 'No tools folder for the cutout model.', 'Run vox doctor.');
+        throw new VoxError(
+          'TOOL_MISSING',
+          'No tools folder for the cutout model.',
+          'Run vox doctor.',
+        );
       }
       ctx.progress(0.02, 'cutout model');
       const modelPath = await ensureModel(join(models, 'rembg'), CUTOUT_MODEL, {
@@ -301,66 +311,75 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
           },
         );
         ctx.progress(0.85, 'adding');
-        return await addOne(args, ctx, out, { ...src.origin }, {
-          description: `Cutout of ${src.id}`,
-          tags: ['cutout'],
-        });
+        return await addOne(
+          args,
+          ctx,
+          out,
+          { ...src.origin },
+          {
+            description: `Cutout of ${src.id}`,
+            tags: ['cutout'],
+          },
+        );
       } finally {
         await unlink(out).catch(() => undefined);
       }
     },
   });
 
-  runner.register<z.infer<typeof AssetsGenerateJobArgsSchema>, AssetMediaResult & { provider: string }>(
-    'assets.generate',
-    {
-      args: AssetsGenerateJobArgsSchema,
-      gpu: true,
-      async run(args, ctx) {
-        const dir = deps.dirOf(args.projectId);
-        await deps.store(args.projectId);
-        if (deps.providers.list().length === 0) throw noProvider();
-        const p = deps.providers.get(args.provider);
-        if (!p) {
-          throw new VoxError(
-            'NOT_FOUND',
-            `No image provider ${args.provider}.`,
-            `Use one of: ${deps.providers.list().map((x) => x.id).join(', ')}`,
-          );
-        }
-        ctx.progress(0.05, `generating with ${p.id}`);
-        const file = await p.generate(
-          {
-            prompt: args.prompt,
-            width: args.width,
-            height: args.height,
-            ...(args.seed !== undefined ? { seed: args.seed } : {}),
-          },
-          { signal: ctx.signal, onProgress: (x) => ctx.progress(0.05 + 0.8 * x) },
+  runner.register<
+    z.infer<typeof AssetsGenerateJobArgsSchema>,
+    AssetMediaResult & { provider: string }
+  >('assets.generate', {
+    args: AssetsGenerateJobArgsSchema,
+    gpu: true,
+    async run(args, ctx) {
+      const dir = deps.dirOf(args.projectId);
+      await deps.store(args.projectId);
+      if (deps.providers.list().length === 0) throw noProvider();
+      const p = deps.providers.get(args.provider);
+      if (!p) {
+        throw new VoxError(
+          'NOT_FOUND',
+          `No image provider ${args.provider}.`,
+          `Use one of: ${deps.providers
+            .list()
+            .map((x) => x.id)
+            .join(', ')}`,
         );
-        if (typeof file !== 'string' || !isAbsolute(file)) {
-          throw new VoxError(
-            'TOOL_FAILED',
-            `Image provider ${p.id} returned no absolute file path.`,
-            'Check the provider.',
-          );
-        }
-        // Work on a copy: the provider's file stays the provider's.
-        const tmp = await tempIn(dir, '.img');
-        try {
-          await copyFile(file, tmp);
-          const r = await addOne(args, ctx, tmp, {
-            type: 'generated',
-            prompt: args.prompt,
-            author: p.id,
-          });
-          return { ...r, provider: p.id };
-        } finally {
-          await unlink(tmp).catch(() => undefined);
-        }
-      },
+      }
+      ctx.progress(0.05, `generating with ${p.id}`);
+      const file = await p.generate(
+        {
+          prompt: args.prompt,
+          width: args.width,
+          height: args.height,
+          ...(args.seed !== undefined ? { seed: args.seed } : {}),
+        },
+        { signal: ctx.signal, onProgress: (x) => ctx.progress(0.05 + 0.8 * x) },
+      );
+      if (typeof file !== 'string' || !isAbsolute(file)) {
+        throw new VoxError(
+          'TOOL_FAILED',
+          `Image provider ${p.id} returned no absolute file path.`,
+          'Check the provider.',
+        );
+      }
+      // Work on a copy: the provider's file stays the provider's.
+      const tmp = await tempIn(dir, '.img');
+      try {
+        await copyFile(file, tmp);
+        const r = await addOne(args, ctx, tmp, {
+          type: 'generated',
+          prompt: args.prompt,
+          author: p.id,
+        });
+        return { ...r, provider: p.id };
+      } finally {
+        await unlink(tmp).catch(() => undefined);
+      }
     },
-  );
+  });
 }
 
 export const CutoutRequestSchema = z.strictObject({

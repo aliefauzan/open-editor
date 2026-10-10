@@ -118,7 +118,6 @@ export function engineProject(seq: SpikeSequence): Project {
   ]);
 }
 
-
 /**
  * Fills a project folder for {@link engineProject}: the sources linked into `media/`, the phone
  * clip's CFR copy in `cfr/`, the transcript in `transcripts/m_spike.json`. Returns the transcript.

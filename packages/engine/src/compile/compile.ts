@@ -895,9 +895,7 @@ export async function compileSequence(
   const overlays = overlayLayer(ctx, durationMs);
   if (overlays.length) layers.push(layerDiv('track-overlays', overlays));
   const cap =
-    opts.captions !== false && keep(ctx, 'captions')
-      ? captionLayer(ctx, captions, durationMs)
-      : '';
+    opts.captions !== false && keep(ctx, 'captions') ? captionLayer(ctx, captions, durationMs) : '';
   if (cap) layers.push(layerDiv('track-captions', [cap]));
   else ctx.kept.delete('captions');
   const missing = [...(ctx.only ?? [])].filter((id) => !ctx.kept.has(id));

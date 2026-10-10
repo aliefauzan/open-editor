@@ -75,10 +75,16 @@ export interface QuickApiDeps {
   dirOf(projectId: string): string;
 }
 
-async function readJson<T>(dir: string, rel: string | undefined, schema: z.ZodType<T>): Promise<T | undefined> {
+async function readJson<T>(
+  dir: string,
+  rel: string | undefined,
+  schema: z.ZodType<T>,
+): Promise<T | undefined> {
   if (!rel) return undefined;
   try {
-    const r = schema.safeParse(JSON.parse(await readFile(await resolveProjectPath(dir, rel), 'utf8')));
+    const r = schema.safeParse(
+      JSON.parse(await readFile(await resolveProjectPath(dir, rel), 'utf8')),
+    );
     return r.success ? r.data : undefined;
   } catch {
     return undefined;
@@ -108,7 +114,11 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
           'Pick a video from the media list.',
         );
       }
-      const transcript: Transcript | undefined = await readJson(dir, media.transcriptPath, TranscriptSchema);
+      const transcript: Transcript | undefined = await readJson(
+        dir,
+        media.transcriptPath,
+        TranscriptSchema,
+      );
       if (!transcript) {
         throw new VoxError(
           'VALIDATION',
@@ -117,7 +127,11 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         );
       }
       const shots: Shot[] | undefined = await readJson(dir, media.shotsPath, ShotListSchema);
-      const detections: Detections | undefined = await readJson(dir, media.facetrackPath, DetectionsSchema);
+      const detections: Detections | undefined = await readJson(
+        dir,
+        media.facetrackPath,
+        DetectionsSchema,
+      );
       const peaks: Peaks | undefined = await readJson(dir, media.peaksPath, PeaksSchema);
       const sourceFps = media.fps ?? DEFAULT_FPS;
 
@@ -139,12 +153,23 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
             {
               mediaId: media.id,
               ...(args.prompt !== undefined ? { prompt: args.prompt } : {}),
-              candidates: cands.map((c, index) => ({ index, startMs: c.startMs, endMs: c.endMs, text: c.text })),
+              candidates: cands.map((c, index) => ({
+                index,
+                startMs: c.startMs,
+                endMs: c.endMs,
+                text: c.text,
+              })),
             },
             { signal: ctx.signal },
           );
-          if (!Array.isArray(got) || got.length !== cands.length || !got.every((x) => Number.isFinite(x))) {
-            throw new Error(`returned ${Array.isArray(got) ? got.length : 'no'} scores for ${cands.length} candidates`);
+          if (
+            !Array.isArray(got) ||
+            got.length !== cands.length ||
+            !got.every((x) => Number.isFinite(x))
+          ) {
+            throw new Error(
+              `returned ${Array.isArray(got) ? got.length : 'no'} scores for ${cands.length} candidates`,
+            );
           }
           scores = got;
           scorer = chosen.id;
@@ -165,11 +190,19 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         ops.push(
           {
             op: 'addSequence',
-            args: { name, id: sequenceId, canvas: { width: 1080, height: 1920, fps }, styleId: 'base' },
+            args: {
+              name,
+              id: sequenceId,
+              canvas: { width: 1080, height: 1920, fps },
+              styleId: 'base',
+            },
           },
           {
             op: 'updateSequence',
-            args: { sequenceId, sourceRange: { mediaId: media.id, inMs: c.startMs, outMs: c.endMs } },
+            args: {
+              sequenceId,
+              sourceRange: { mediaId: media.id, inMs: c.startMs, outMs: c.endMs },
+            },
           },
           {
             op: 'placeClip',
@@ -186,10 +219,23 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
           },
           {
             op: 'setCaptions',
-            args: { sequenceId, enabled: true, sourceTrackIds: ['A1'], preset: 'base/plain', maxWords: 3 },
+            args: {
+              sequenceId,
+              enabled: true,
+              sourceTrackIds: ['A1'],
+              preset: 'base/plain',
+              maxWords: 3,
+            },
           },
         );
-        return { sequenceId, name, startMs: c.startMs, endMs: c.endMs, text: c.text, score: scores[i]! };
+        return {
+          sequenceId,
+          name,
+          startMs: c.startMs,
+          endMs: c.endMs,
+          text: c.text,
+          score: scores[i]!,
+        };
       });
       const version = await applyJobOps(store, ops, {
         actor: args.actor ?? 'user',

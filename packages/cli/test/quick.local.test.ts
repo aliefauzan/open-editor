@@ -8,7 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { run } from '../src/main.ts';
 
-const HEAD = fileURLToPath(new URL('../../engine/test/fixtures/assets/media/talking-head-20s.mp4', import.meta.url));
+const HEAD = fileURLToPath(
+  new URL('../../engine/test/fixtures/assets/media/talking-head-20s.mp4', import.meta.url),
+);
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
 
 describe('vox quick --render (step 13)', () => {
@@ -27,12 +29,17 @@ describe('vox quick --render (step 13)', () => {
       },
     );
     expect(code, stderr + stdout).toBe(0);
-    const r = JSON.parse(stdout) as { clips: unknown[]; scorer: string; files: { mp4: string; srt: string }[] };
+    const r = JSON.parse(stdout) as {
+      clips: unknown[];
+      scorer: string;
+      files: { mp4: string; srt: string }[];
+    };
     expect(r.clips).toHaveLength(3);
     expect(r.scorer).toBe('heuristic');
     const names = readdirSync(out).sort();
     expect(names.filter((n) => n.endsWith('.mp4'))).toHaveLength(3);
     expect(names.filter((n) => n.endsWith('.srt'))).toHaveLength(3);
-    for (const f of r.files) expect(readFileSync(f.srt, 'utf8')).toMatch(/^1\n\d\d:\d\d:\d\d,\d{3} --> /);
+    for (const f of r.files)
+      expect(readFileSync(f.srt, 'utf8')).toMatch(/^1\n\d\d:\d\d:\d\d,\d{3} --> /);
   }, 900_000);
 });

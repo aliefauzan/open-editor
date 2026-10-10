@@ -134,7 +134,8 @@ describe('searchAssets', () => {
   });
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-  const fake = (calls: { url: string; ua: string }[], empty = false): GetJson =>
+  const fake =
+    (calls: { url: string; ua: string }[], empty = false): GetJson =>
     async (url, headers) => {
       calls.push({ url, ua: headers['user-agent'] ?? '' });
       const host = new URL(url).host;
@@ -160,7 +161,9 @@ describe('searchAssets', () => {
       'commons.wikimedia.org',
     ]);
     expect(calls.every((c) => c.ua === 'VoxStudio/0.0.0 (https://example.org/c)')).toBe(true);
-    expect(readdirSync(join(dir, 'cache', 'assets')).filter((n) => n.endsWith('.json'))).toHaveLength(1);
+    expect(
+      readdirSync(join(dir, 'cache', 'assets')).filter((n) => n.endsWith('.json')),
+    ).toHaveLength(1);
     const b = await searchAssets(env, { query: ' lisbon tram ' });
     expect(b.cached).toBe(true);
     expect(calls).toHaveLength(2);
@@ -173,7 +176,12 @@ describe('searchAssets', () => {
   test('an empty result says "no results" and substitutes nothing', async () => {
     const calls: { url: string; ua: string }[] = [];
     const r = await searchAssets(
-      { projectDir: dir, version: '0.0.0', getJson: fake(calls, true), commonsThrottle: async () => {} },
+      {
+        projectDir: dir,
+        version: '0.0.0',
+        getJson: fake(calls, true),
+        commonsThrottle: async () => {},
+      },
       { query: 'zzqqxxnotathing' },
     );
     expect(r.candidates).toEqual([]);
@@ -225,8 +233,7 @@ describe('archive download: private-address check (S29)', () => {
   const resolver: Resolver = async (host) => {
     if (host === PUBLIC_HOST) return [PUBLIC_IP];
     if (host === 'archive-internal.test') return ['127.0.0.1'];
-    if (host === 'mixed.test')
-      return [PUBLIC_IP, '10.0.0.5'];
+    if (host === 'mixed.test') return [PUBLIC_IP, '10.0.0.5'];
     throw new VoxError('NET_DNS', `no ${host}`, 'x');
   };
   beforeAll(async () => {

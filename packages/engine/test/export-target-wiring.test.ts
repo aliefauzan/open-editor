@@ -21,8 +21,20 @@ const fakeHf: HyperframesRun = async (args) => {
   const html = readFileSync(join(dir, 'index.html'), 'utf8');
   const dur = Number(/data-duration="([\d.]+)"/.exec(html)?.[1] ?? '1');
   execFileSync('ffmpeg', [
-    '-v', 'error', '-y', '-f', 'lavfi', '-i', `testsrc2=size=1080x1920:rate=30:duration=${dur}`,
-    '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', out,
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `testsrc2=size=1080x1920:rate=30:duration=${dur}`,
+    '-c:v',
+    'libx264',
+    '-preset',
+    'ultrafast',
+    '-pix_fmt',
+    'yuv420p',
+    out,
   ]);
 };
 
@@ -49,15 +61,22 @@ describe('render wiring', () => {
     expect(a[a.indexOf('--fps') + 1]).toBe('30');
     const probe = execFileSync(
       'ffprobe',
-      ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name', '-of', 'csv=p=0', r.result!.files[0]!.path],
+      [
+        '-v',
+        'error',
+        '-show_entries',
+        'stream=codec_type,codec_name',
+        '-of',
+        'csv=p=0',
+        r.result!.files[0]!.path,
+      ],
       { encoding: 'utf8' },
     );
     expect(probe.trim().split('\n').sort()).toEqual(['aac,audio', 'h264,video']);
   }, 60_000);
 
   test('--captions none leaves the caption layer out of the render build; burn keeps it', async () => {
-    const html = () =>
-      readFileSync(join(fx.dir, 'build', 'seq_a-render', 'index.html'), 'utf8');
+    const html = () => readFileSync(join(fx.dir, 'build', 'seq_a-render', 'index.html'), 'utf8');
     await run('render', { projectId: fx.projectId, quality: 'draft', captions: 'none' });
     expect(html()).not.toContain('id="captions"');
     await run('render', { projectId: fx.projectId, quality: 'draft', captions: 'burn' });
@@ -76,7 +95,11 @@ describe('render wiring', () => {
   test('bad combinations fail at start', () => {
     let err: unknown;
     try {
-      fx.e.jobs.start('render', { projectId: fx.projectId, all: true, target: { file: '/tmp/a.mp4' } });
+      fx.e.jobs.start('render', {
+        projectId: fx.projectId,
+        all: true,
+        target: { file: '/tmp/a.mp4' },
+      });
     } catch (e) {
       err = e;
     }
@@ -166,7 +189,13 @@ describe('credits (step 8)', () => {
       fx.projectId,
       {
         op: 'placeClip',
-        args: { sequenceId: 'seq_a', trackId: 'V2', mediaId: 'm_used1', startMs: 2000, durationMs: 500 },
+        args: {
+          sequenceId: 'seq_a',
+          trackId: 'V2',
+          mediaId: 'm_used1',
+          startMs: 2000,
+          durationMs: 500,
+        },
       } as never,
       { actor: 'cli' },
     );

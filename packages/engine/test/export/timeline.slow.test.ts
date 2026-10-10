@@ -19,17 +19,23 @@ function otioCheck(path: string): {
   tracks: number;
   clips: { track: number; name: string; targetUrl: string; exists: boolean }[];
 } {
-  const out = execFileSync('uv', ['run', '--project', join(REPO, 'py'), 'python', '-I', '-m', 'vox_py.timeline'], {
-    input: JSON.stringify({ mode: 'check', path }),
-    encoding: 'utf8',
-    cwd: join(REPO, 'py'),
-  });
+  const out = execFileSync(
+    'uv',
+    ['run', '--project', join(REPO, 'py'), 'python', '-I', '-m', 'vox_py.timeline'],
+    {
+      input: JSON.stringify({ mode: 'check', path }),
+      encoding: 'utf8',
+      cwd: join(REPO, 'py'),
+    },
+  );
   return JSON.parse(out) as ReturnType<typeof otioCheck>;
 }
 
 function streamInfo(file: string): Record<string, string> {
   const out = JSON.parse(
-    execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', file], { encoding: 'utf8' }),
+    execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', file], {
+      encoding: 'utf8',
+    }),
   ) as { streams: Record<string, string>[] };
   return out.streams[0]!;
 }

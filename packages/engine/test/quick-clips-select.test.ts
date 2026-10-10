@@ -15,12 +15,29 @@ import {
 } from '../src/stages/quickClips.ts';
 
 const F30 = { num: 30, den: 1 };
-const w = (text: string, startMs: number, endMs: number): TranscriptWord => ({ text, startMs, endMs, kind: 'word' });
-const pause = (startMs: number, endMs: number): TranscriptWord => ({ text: '', startMs, endMs, kind: 'pause' });
+const w = (text: string, startMs: number, endMs: number): TranscriptWord => ({
+  text,
+  startMs,
+  endMs,
+  kind: 'word',
+});
+const pause = (startMs: number, endMs: number): TranscriptWord => ({
+  text: '',
+  startMs,
+  endMs,
+  kind: 'pause',
+});
 
 describe('sentence units and boundaries', () => {
   test('units end at sentence punctuation or at a pause of 700 ms or more', () => {
-    const words = [w('One', 0, 200), w('two.', 250, 500), w('Three', 600, 800), pause(800, 1500), w('four', 1500, 1700), w('five?', 1750, 2000)];
+    const words = [
+      w('One', 0, 200),
+      w('two.', 250, 500),
+      w('Three', 600, 800),
+      pause(800, 1500),
+      w('four', 1500, 1700),
+      w('five?', 1750, 2000),
+    ];
     expect(sentenceUnits(words).map((u) => [u.text, u.startMs, u.endMs])).toEqual([
       ['One two.', 0, 500],
       ['Three', 600, 800],
@@ -48,8 +65,16 @@ describe('sentence units and boundaries', () => {
   test('edge pauses are trimmed: a clip ends at its last word', () => {
     const t: Transcript = {
       language: 'en',
-      words: [w('Hello', 200, 600), w('there.', 650, 1000), pause(1000, 3000), w('Bye.', 3000, 3400)],
-      speechRegions: [{ startMs: 200, endMs: 1000 }, { startMs: 3000, endMs: 3400 }],
+      words: [
+        w('Hello', 200, 600),
+        w('there.', 650, 1000),
+        pause(1000, 3000),
+        w('Bye.', 3000, 3400),
+      ],
+      speechRegions: [
+        { startMs: 200, endMs: 1000 },
+        { startMs: 3000, endMs: 3400 },
+      ],
     };
     const c = quickCandidates(t, { minMs: 500, maxMs: 1500, sourceFps: F30 });
     expect(c.map((x) => [x.startMs, x.endMs])).toEqual([
@@ -65,7 +90,10 @@ function twoCandidates(firstA: string, firstB: string): { t: Transcript; cands: 
   const t: Transcript = {
     language: 'en',
     words,
-    speechRegions: [{ startMs: 1000, endMs: 2000 }, { startMs: 11000, endMs: 12000 }],
+    speechRegions: [
+      { startMs: 1000, endMs: 2000 },
+      { startMs: 11000, endMs: 12000 },
+    ],
   };
   return { t, cands: quickCandidates(t, { minMs: 900, maxMs: 1500, sourceFps: F30 }) };
 }
@@ -82,7 +110,9 @@ describe('heuristic signals (D-15)', () => {
     const { t, cands } = twoCandidates('Plain words.', 'Plain words.');
     const peaks = new Array<number>(1300).fill(0.3);
     for (let i = 1100; i < 1200; i++) peaks[i] = i % 20 < 10 ? 0.9 : 0.02; // B swings loud/quiet
-    const { scores, signals } = heuristicScores(cands, t, { peaks: { peaksPerSecond: 100, peaks } });
+    const { scores, signals } = heuristicScores(cands, t, {
+      peaks: { peaksPerSecond: 100, peaks },
+    });
     expect(signals.map((s) => s.energy)).toEqual([0, 1]);
     expect(pickClips(cands, scores, 1)).toEqual([1]);
   });
@@ -91,7 +121,10 @@ describe('heuristic signals (D-15)', () => {
     for (const hook of ['Why does this work?', 'We saved 40 hours.', 'Three things matter.']) {
       const { t, cands } = twoCandidates('Plain words.', hook);
       const { scores, signals } = heuristicScores(cands, t);
-      expect(signals.map((s) => s.hook), hook).toEqual([0, 1]);
+      expect(
+        signals.map((s) => s.hook),
+        hook,
+      ).toEqual([0, 1]);
       expect(pickClips(cands, scores, 1)).toEqual([1]);
     }
   });
@@ -122,7 +155,11 @@ describe('heuristic signals (D-15)', () => {
     const t: Transcript = {
       language: 'en',
       words: [w('A', 0, 500), w('b.', 2100, 2500), w('C', 10000, 10500), w('d.', 10600, 12500)],
-      speechRegions: [{ startMs: 0, endMs: 500 }, { startMs: 2100, endMs: 2500 }, { startMs: 10000, endMs: 12500 }],
+      speechRegions: [
+        { startMs: 0, endMs: 500 },
+        { startMs: 2100, endMs: 2500 },
+        { startMs: 10000, endMs: 12500 },
+      ],
     };
     const cands = quickCandidates(t, { minMs: 2000, maxMs: 3000, sourceFps: F30 });
     const { signals } = heuristicScores(cands, t);

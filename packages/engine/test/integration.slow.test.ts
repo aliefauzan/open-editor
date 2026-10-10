@@ -55,7 +55,8 @@ function lumaSpread(file: string, sec: number): number {
 describe('engine integration (step 9)', () => {
   test(`fixture → ingest → transcribe (${realTranscribe ? 'mlx-whisper' : 'seeded'}) → edit → draft render + SRT`, async () => {
     const toolsDir =
-      process.env['VOX_TOOLS_DIR'] ?? join(homedir(), 'Library', 'Application Support', 'Vox Studio', 'tools');
+      process.env['VOX_TOOLS_DIR'] ??
+      join(homedir(), 'Library', 'Application Support', 'Vox Studio', 'tools');
     const e = openEngine({
       projectsDir: join(tempDir('vox-integration-'), 'Projects'),
       stylesDirs: [REPO_STYLES],
@@ -63,11 +64,17 @@ describe('engine integration (step 9)', () => {
       config: async () => ({}),
     });
     const p = await e.createProject('Integration');
-    const ing = await job<{ media: { mediaId: string }[] }>(e, 'ingest', { projectId: p.id, inputs: [HEAD] });
+    const ing = await job<{ media: { mediaId: string }[] }>(e, 'ingest', {
+      projectId: p.id,
+      inputs: [HEAD],
+    });
     const mediaId = ing.media[0]!.mediaId;
     const op = async (o: unknown) => {
       const r = await e.applyOp(p.id, o as never, { actor: 'cli' });
-      expect(r.results.every((x) => x.status === 'succeeded'), JSON.stringify(r.results)).toBe(true);
+      expect(
+        r.results.every((x) => x.status === 'succeeded'),
+        JSON.stringify(r.results),
+      ).toBe(true);
     };
     if (realTranscribe) {
       await job(e, 'transcribe', { projectId: p.id, mediaId });
@@ -77,11 +84,16 @@ describe('engine integration (step 9)', () => {
       copyFileSync(HEAD_TRANSCRIPT, join(dir, 'transcripts', `${mediaId}.json`));
       await op({
         op: 'updateMedia',
-        args: { mediaId, patch: { transcriptPath: `transcripts/${mediaId}.json`, transcriptRev: 'seed' } },
+        args: {
+          mediaId,
+          patch: { transcriptPath: `transcripts/${mediaId}.json`, transcriptRev: 'seed' },
+        },
       });
     }
     const m = (await e.getProject(p.id)).media.find((x) => x.id === mediaId)!;
-    const t = JSON.parse(readFileSync(join(e.projectsDir, p.id, m.transcriptPath!), 'utf8')) as Transcript;
+    const t = JSON.parse(
+      readFileSync(join(e.projectsDir, p.id, m.transcriptPath!), 'utf8'),
+    ) as Transcript;
     const words = t.words.filter((w) => w.kind === 'word');
     expect(words.length).toBeGreaterThan(20);
 
@@ -89,13 +101,29 @@ describe('engine integration (step 9)', () => {
     const place = (startMs: number, inMs: number, durationMs: number) =>
       op({
         op: 'placeClip',
-        args: { sequenceId: 'seq_main', trackId: 'V1', mediaId, startMs, inMs, durationMs, withAudio: true, frame: { mode: 'cover' } },
+        args: {
+          sequenceId: 'seq_main',
+          trackId: 'V1',
+          mediaId,
+          startMs,
+          inMs,
+          durationMs,
+          withAudio: true,
+          frame: { mode: 'cover' },
+        },
       });
     await place(0, 0, 4000);
     await place(4000, 9000, 3000);
     await op({
       op: 'addScene',
-      args: { sequenceId: 'seq_main', trackId: 'V2', startMs: 500, durationMs: 1500, template: 'base/title', variables: { title: 'Vox' } },
+      args: {
+        sequenceId: 'seq_main',
+        trackId: 'V2',
+        startMs: 500,
+        durationMs: 1500,
+        template: 'base/title',
+        variables: { title: 'Vox' },
+      },
     });
     await op({ op: 'setCaptions', args: { sequenceId: 'seq_main', enabled: true } });
 
@@ -114,7 +142,11 @@ describe('engine integration (step 9)', () => {
     expect(pr.dur).toBeLessThan(7.15);
     for (const t of [1, 3.5, 6]) expect(lumaSpread(file, t), `frame at ${t} s`).toBeGreaterThan(8);
 
-    const srt = await job<{ path: string }>(e, 'exportCaptions', { projectId: p.id, format: 'srt', target: { dir: out } });
+    const srt = await job<{ path: string }>(e, 'exportCaptions', {
+      projectId: p.id,
+      format: 'srt',
+      target: { dir: out },
+    });
     const text = readFileSync(srt.path, 'utf8');
     expect(text).toMatch(/^1\n00:00:00,\d{3} --> 00:00:0\d,\d{3}\n\S/);
     const chunks = await e.captions(p.id, 'seq_main');

@@ -17,7 +17,11 @@ import type { JobInfo } from '../packages/engine/src/jobs.ts';
 const REPO = new URL('../', import.meta.url).pathname;
 const FX = join(REPO, 'packages', 'engine', 'test', 'fixtures');
 export const OFFLINE_MEDIA = join(FX, 'assets', 'media', 'talking-head-20s.mp4');
-const SEEDS = { transcripts: 'transcriptPath', shots: 'shotsPath', facetracks: 'facetrackPath' } as const;
+const SEEDS = {
+  transcripts: 'transcriptPath',
+  shots: 'shotsPath',
+  facetracks: 'facetrackPath',
+} as const;
 
 export interface OfflineProject {
   projectId: string;
@@ -43,7 +47,10 @@ export async function makeOfflineProject(e: Engine, name = 'Offline'): Promise<O
     await copyFile(src, join(dir, rel));
     patch[field] = rel;
     if (folder === 'transcripts') {
-      patch['transcriptRev'] = createHash('sha256').update(await readFile(src)).digest('hex').slice(0, 16);
+      patch['transcriptRev'] = createHash('sha256')
+        .update(await readFile(src))
+        .digest('hex')
+        .slice(0, 16);
     }
   }
   const op = async (o: unknown) => {
@@ -80,8 +87,13 @@ async function main(argv: string[]): Promise<void> {
     strict: true,
   });
   const projectsDir = values['projects-dir'];
-  if (!projectsDir) throw new Error('Usage: make-offline-project.ts --projects-dir <dir> [--name <name>]');
-  const e = openEngine({ projectsDir, stylesDirs: [join(REPO, 'styles')], config: async () => ({}) });
+  if (!projectsDir)
+    throw new Error('Usage: make-offline-project.ts --projects-dir <dir> [--name <name>]');
+  const e = openEngine({
+    projectsDir,
+    stylesDirs: [join(REPO, 'styles')],
+    config: async () => ({}),
+  });
   process.stdout.write(`${JSON.stringify(await makeOfflineProject(e, values.name))}\n`);
 }
 

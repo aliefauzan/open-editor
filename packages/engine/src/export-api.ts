@@ -35,7 +35,8 @@ const LOUDNESS = z.enum(['youtube', 'tiktok', 'broadcast']);
 // ---- HyperFrames runs ----
 
 /** Env keys a HyperFrames child may see: no API keys (e.g. `snapshot --describe` reads one). */
-const ENV_KEEP = /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|LANG|LC_[A-Z]+|TZ|PUPPETEER_[A-Z_]+|PRODUCER_[A-Z_]+|HYPERFRAMES_[A-Z_]+|CHROME_PATH|XDG_[A-Z_]+)$/;
+const ENV_KEEP =
+  /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|LANG|LC_[A-Z]+|TZ|PUPPETEER_[A-Z_]+|PRODUCER_[A-Z_]+|HYPERFRAMES_[A-Z_]+|CHROME_PATH|XDG_[A-Z_]+)$/;
 
 export function hyperframesEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
@@ -66,7 +67,9 @@ export const runHyperframes: HyperframesRun = (args, o) =>
     o.signal?.addEventListener('abort', onAbort, { once: true });
     child.on('error', (e) => {
       o.signal?.removeEventListener('abort', onAbort);
-      reject(new VoxError('TOOL_MISSING', `HyperFrames did not start: ${e.message}`, 'Run vox doctor.'));
+      reject(
+        new VoxError('TOOL_MISSING', `HyperFrames did not start: ${e.message}`, 'Run vox doctor.'),
+      );
     });
     child.on('close', (code) => {
       o.signal?.removeEventListener('abort', onAbort);
@@ -168,7 +171,10 @@ export const RenderJobArgsSchema = z
     loudness: LOUDNESS.default('youtube'),
   })
   .refine((a) => !(a.all && a.sequenceId), 'pass sequenceId or all, not both')
-  .refine((a) => !(a.all && a.target && 'file' in a.target), '--all writes into a folder (--out-dir)')
+  .refine(
+    (a) => !(a.all && a.target && 'file' in a.target),
+    '--all writes into a folder (--out-dir)',
+  )
   .refine((a) => !(a.all && a.range), '--range-ms takes one sequence');
 export type RenderJobArgs = z.input<typeof RenderJobArgsSchema>;
 
@@ -249,7 +255,11 @@ export function pickSequence(p: Project, sequenceId?: string): Sequence {
   if (sequenceId) return findSeq(p, sequenceId);
   const s = p.sequences[0];
   if (!s) {
-    throw new VoxError('NOT_FOUND', `Project ${p.id} has no sequence`, 'Add one with `vox op addSequence`');
+    throw new VoxError(
+      'NOT_FOUND',
+      `Project ${p.id} has no sequence`,
+      'Add one with `vox op addSequence`',
+    );
   }
   return s;
 }
@@ -336,7 +346,9 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
     args: RenderJobArgsSchema as unknown as z.ZodType<z.output<typeof RenderJobArgsSchema>>,
     async run(args, ctx) {
       const p = await read(args.projectId);
-      const seqs = args.all ? p.sequences.filter((s) => seqEndMs(s) > 0) : [pickSequence(p, args.sequenceId)];
+      const seqs = args.all
+        ? p.sequences.filter((s) => seqEndMs(s) > 0)
+        : [pickSequence(p, args.sequenceId)];
       if (seqs.length === 0) {
         throw new VoxError('VALIDATION', 'No sequence has content to render', 'Add clips first');
       }
@@ -350,7 +362,12 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
 
   // ---- frames (compiled stills at canvas size, cached by build hash and time) ----
 
-  async function frames(projectId: string, sequenceId: string | undefined, atMs: number[], signal?: AbortSignal) {
+  async function frames(
+    projectId: string,
+    sequenceId: string | undefined,
+    atMs: number[],
+    signal?: AbortSignal,
+  ) {
     const p = await read(projectId);
     const s = pickSequence(p, sequenceId);
     const dir = deps.dirOf(projectId);
@@ -358,12 +375,16 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
     const { createHash } = await import('node:crypto');
     const h = createHash('sha256');
     for (const [k, v] of [...build.files.entries()].sort(([a], [b]) => (a < b ? -1 : 1)))
-      h.update(k).update('\0').update(typeof v === 'string' ? v : Buffer.from(v as Uint8Array));
+      h.update(k)
+        .update('\0')
+        .update(typeof v === 'string' ? v : Buffer.from(v as Uint8Array));
     for (const [k, v] of [...build.links.entries()].sort(([a], [b]) => (a < b ? -1 : 1)))
       h.update(k).update('\0').update(String(v));
     const key = h.digest('hex').slice(0, 24);
     const cacheDir = join(dir, 'cache', 'frames', s.id, key);
-    const times = atMs.map((t) => Math.min(snap(t, s.canvas.fps), Math.max(0, build.durationMs - 1)));
+    const times = atMs.map((t) =>
+      Math.min(snap(t, s.canvas.fps), Math.max(0, build.durationMs - 1)),
+    );
     const want = times.map((t) => join(cacheDir, `${t}.png`));
     const missing = times.filter((_, i) => !existsSync(want[i]!));
     if (missing.length) {
@@ -476,7 +497,11 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
           type: st.style.sfx?.[name]?.type ?? 'cut',
         }));
         if (files.length === 0) {
-          throw new VoxError('VALIDATION', `Style ${args.kit} has no SFX`, 'Pick a style with an sfx kit');
+          throw new VoxError(
+            'VALIDATION',
+            `Style ${args.kit} has no SFX`,
+            'Pick a style with an sfx kit',
+          );
         }
         const outDir = join(dir, 'renders', 'qa');
         await mkdir(outDir, { recursive: true });
@@ -507,7 +532,11 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
           {
             mix: r.out,
             stems: { sfx: r.stems!.sfx, speech: r.stems!.speech },
-            cues: build.cues.cues.map((c) => ({ atMs: c.atMs, type: c.type, hero: c.type === 'hero' })),
+            cues: build.cues.cues.map((c) => ({
+              atMs: c.atMs,
+              type: c.type,
+              hero: c.type === 'hero',
+            })),
             fps,
             target: LOUDNESS_TARGETS[args.loudness],
             outDir,
@@ -544,7 +573,8 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
             license: m.origin.license ?? 'unknown',
             ...(m.origin.licenseUrl ? { licenseUrl: m.origin.licenseUrl } : {}),
             ...(m.origin.url ? { url: m.origin.url } : {}),
-            attribution: m.origin.attribution ?? `${m.origin.author ?? 'Unknown'}, ${m.origin.license ?? ''}`,
+            attribution:
+              m.origin.attribution ?? `${m.origin.author ?? 'Unknown'}, ${m.origin.license ?? ''}`,
             sequenceIds: [s.id],
           });
         }
@@ -556,23 +586,34 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
       const s = pickSequence(p, sequenceId);
       const build = await deps.compile(projectId, s.id, { mode: 'preview' });
       const buildDir = writeBuildTo(build, buildDirFor(deps.dirOf(projectId), s.id));
-      return { command: 'npx', args: ['hyperframes', 'play', buildDir], buildDir, sequenceId: s.id };
+      return {
+        command: 'npx',
+        args: ['hyperframes', 'play', buildDir],
+        buildDir,
+        sequenceId: s.id,
+      };
     },
   };
 }
 
 const cancelled = (): VoxError =>
-  new VoxError('CANCELLED', 'The render was cancelled.', 'Nothing was written; render again when ready.');
+  new VoxError(
+    'CANCELLED',
+    'The render was cancelled.',
+    'Nothing was written; render again when ready.',
+  );
 
 const byNumber = (a: string, b: string): number => {
   const n = (x: string) => Number(/(\d+(?:\.\d+)?)/.exec(x)?.[1] ?? 0);
   return n(a) - n(b) || (a < b ? -1 : 1);
 };
 
-export type AudioQaResult = { mode: 'mix' | 'kit'; pass: boolean; outDir: string; png: string } & Record<
-  string,
-  unknown
->;
+export type AudioQaResult = {
+  mode: 'mix' | 'kit';
+  pass: boolean;
+  outDir: string;
+  png: string;
+} & Record<string, unknown>;
 
 // ---- OTIO ----
 
@@ -616,11 +657,22 @@ function layerPlan(
   for (const t of s.videoTracks) {
     if (t.hidden) continue;
     for (const it of t.items) {
-      if (it.type === 'scene') out.push({ id: it.id, startMs: it.startMs, durationMs: it.durationMs, track: `Scenes ${t.id}` });
+      if (it.type === 'scene')
+        out.push({
+          id: it.id,
+          startMs: it.startMs,
+          durationMs: it.durationMs,
+          track: `Scenes ${t.id}`,
+        });
       if (it.transitionIn) {
         const { before } = blendHalf(it.startMs, it.transitionIn.durationMs, s.canvas.fps);
         const start = Math.max(0, it.startMs - before);
-        out.push({ id: `${it.id}-tx`, startMs: start, durationMs: it.transitionIn.durationMs, track: `Transitions ${t.id}` });
+        out.push({
+          id: `${it.id}-tx`,
+          startMs: start,
+          durationMs: it.transitionIn.durationMs,
+          track: `Transitions ${t.id}`,
+        });
       }
     }
   }
@@ -654,7 +706,10 @@ async function exportTimeline(
   });
   const layersFor = (otio: string) => join(dirname(otio), `${basename(otio, '.otio')}-layers`);
   const plannedLayers = layersFor(prepared.finalPath);
-  const tmpLayers = join(dirname(prepared.finalPath), `.vox-layers-${randomBytes(6).toString('hex')}`);
+  const tmpLayers = join(
+    dirname(prepared.finalPath),
+    `.vox-layers-${randomBytes(6).toString('hex')}`,
+  );
   try {
     if (existsSync(plannedLayers) && !args.overwrite) {
       throw new VoxError(
@@ -680,7 +735,10 @@ async function exportTimeline(
           startFrame: f(it.startMs),
           durationFrames: Math.max(1, f(it.startMs + it.durationMs) - f(it.startMs)),
           sourceFrame: frame(it.inMs, rate),
-          sourceDurationFrames: Math.max(1, Math.round((it.durationMs * rate.num) / rate.den / 1000)),
+          sourceDurationFrames: Math.max(
+            1,
+            Math.round((it.durationMs * rate.num) / rate.den / 1000),
+          ),
           mediaRate: { num: rate.num, den: rate.den },
         });
       }
@@ -697,7 +755,19 @@ async function exportTimeline(
       });
       const bdir = writeBuildTo(build, buildDirFor(dir, `${s.id}-layers`));
       await hf(
-        ['render', bdir, '-o', join(tmpLayers, file), '--format', 'mov', '--fps', fpsArg(fps), '--strict-all', '--frames-cache-dir', 'off'],
+        [
+          'render',
+          bdir,
+          '-o',
+          join(tmpLayers, file),
+          '--format',
+          'mov',
+          '--fps',
+          fpsArg(fps),
+          '--strict-all',
+          '--frames-cache-dir',
+          'off',
+        ],
         { signal: ctx.signal },
       );
       const list = layerTracks.get(l.track) ?? [];
@@ -724,7 +794,10 @@ async function exportTimeline(
           startFrame: f(it.startMs),
           durationFrames: Math.max(1, f(it.startMs + it.durationMs) - f(it.startMs)),
           sourceFrame: frame(it.inMs, rate),
-          sourceDurationFrames: Math.max(1, Math.round((it.durationMs * rate.num) / rate.den / 1000)),
+          sourceDurationFrames: Math.max(
+            1,
+            Math.round((it.durationMs * rate.num) / rate.den / 1000),
+          ),
           mediaRate: { num: rate.num, den: rate.den },
         });
       }
@@ -734,7 +807,10 @@ async function exportTimeline(
     const writeOtio = async (out: string, layersDir: string) => {
       const fix = (c: OtioClip) =>
         c.path.startsWith(plannedLayers) ? { ...c, path: join(layersDir, basename(c.path)) } : c;
-      const tmpOut = join(dirname(prepared.tempPath), `.vox-otio-${randomBytes(6).toString('hex')}.otio`);
+      const tmpOut = join(
+        dirname(prepared.tempPath),
+        `.vox-otio-${randomBytes(6).toString('hex')}.otio`,
+      );
       try {
         await runPyTool(
           'timeline',
@@ -782,7 +858,13 @@ async function exportTimeline(
     }
     await rename(tmpLayers, layersDir);
     const clipCount = tracks.reduce((n, t) => n + t.clips.length, 0);
-    return { path: written, layersDir, sequenceId: s.id, clips: clipCount, layers: plan.map((l) => l.id) };
+    return {
+      path: written,
+      layersDir,
+      sequenceId: s.id,
+      clips: clipCount,
+      layers: plan.map((l) => l.id),
+    };
   } catch (e) {
     await prepared.discard();
     throw e;

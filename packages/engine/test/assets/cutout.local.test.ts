@@ -13,7 +13,8 @@ import { templates } from '../helpers/templates.ts';
 const repo = new URL('../../../../', import.meta.url).pathname;
 const FACE = `${repo}packages/engine/test/fixtures/assets/faces/face-a.jpg`;
 const toolsHome =
-  process.env['VOX_TOOLS_DIR'] ?? join(homedir(), 'Library', 'Application Support', 'Vox Studio', 'tools');
+  process.env['VOX_TOOLS_DIR'] ??
+  join(homedir(), 'Library', 'Application Support', 'Vox Studio', 'tools');
 const MODEL = join(toolsHome, 'models', 'rembg', 'u2net.onnx');
 
 describe('assets.cutout (local)', () => {

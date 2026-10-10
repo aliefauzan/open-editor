@@ -38,7 +38,9 @@ describe('make-offline-project (step 10)', () => {
     const clip = seq.videoTracks[0]!.items[0]!;
     expect(clip.type === 'media' && clip.frame?.mode).toBe('auto');
 
-    const html = String((await again.compile(r.projectId, r.sequenceId, { mode: 'render' })).files.get('index.html'));
+    const html = String(
+      (await again.compile(r.projectId, r.sequenceId, { mode: 'render' })).files.get('index.html'),
+    );
     expect(html.split(`tl.to(byId('${clip.id}')`).length - 1).toBeGreaterThan(1);
     expect(again.jobs.list(r.projectId)).toEqual([]);
   }, 60_000);

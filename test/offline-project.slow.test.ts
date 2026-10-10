@@ -19,7 +19,11 @@ describe('make-offline-project CLI + draft render (step 10)', () => {
       { encoding: 'utf8' },
     );
     const r = JSON.parse(out) as OfflineProject;
-    const e = openEngine({ projectsDir, stylesDirs: [join(ROOT, 'styles')], config: async () => ({}) });
+    const e = openEngine({
+      projectsDir,
+      stylesDirs: [join(ROOT, 'styles')],
+      config: async () => ({}),
+    });
     const file = join(tempDir('vox-offline-out-'), 'offline.mp4');
     const job = (await e.jobs.wait(
       e.jobs.start('render', { projectId: r.projectId, quality: 'draft', target: { file } }),
@@ -27,13 +31,19 @@ describe('make-offline-project CLI + draft render (step 10)', () => {
     expect(job.status, JSON.stringify(job.error)).toBe('done');
     expect(job.result!.files[0]!.path).toBe(file);
     const probe = JSON.parse(
-      execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], {
-        encoding: 'utf8',
-      }),
+      execFileSync(
+        'ffprobe',
+        ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file],
+        {
+          encoding: 'utf8',
+        },
+      ),
     ) as { streams: Record<string, string | number>[]; format: { duration: string } };
     const v = probe.streams.find((s) => s['codec_type'] === 'video')!;
     expect([v['width'], v['height'], v['codec_name']]).toEqual([1080, 1920, 'h264']);
-    expect(probe.streams.some((s) => s['codec_type'] === 'audio' && s['codec_name'] === 'aac')).toBe(true);
+    expect(
+      probe.streams.some((s) => s['codec_type'] === 'audio' && s['codec_name'] === 'aac'),
+    ).toBe(true);
     expect(Math.abs(Number(probe.format.duration) - 20)).toBeLessThan(0.2);
     expect(e.jobs.list(r.projectId).map((j) => j.kind)).toEqual(['render']);
   }, 600_000);

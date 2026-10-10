@@ -51,11 +51,7 @@ import {
   type TrackPath,
   type TrackPathOptions,
 } from './stages/facetrack.ts';
-import {
-  createImageProviders,
-  registerAssetJobs,
-  type ImageProvider,
-} from './assets-api.ts';
+import { createImageProviders, registerAssetJobs, type ImageProvider } from './assets-api.ts';
 import type { GetJson } from './stages/assets.ts';
 import {
   registerExportJobs,
@@ -711,8 +707,12 @@ export function openEngine(opts: EngineOptions): Engine {
       }
     }
     return (m, clip, seq) => {
-      if (!clip.frame || (clip.frame.mode !== 'facetrack' && clip.frame.mode !== 'auto')) return undefined;
-      const o = trackOptionsFromFrame(clip.frame, { width: seq.canvas.width, height: seq.canvas.height });
+      if (!clip.frame || (clip.frame.mode !== 'facetrack' && clip.frame.mode !== 'auto'))
+        return undefined;
+      const o = trackOptionsFromFrame(clip.frame, {
+        width: seq.canvas.width,
+        height: seq.canvas.height,
+      });
       const path = paths.get(keyOf(m.id, o));
       if (!path) return undefined;
       return applyClipFraming(path, {
@@ -733,8 +733,14 @@ export function openEngine(opts: EngineOptions): Engine {
     frames: (projectId, sequenceId, atMs) => exports.frames(projectId, sequenceId, atMs),
     credits: (projectId) => exports.credits(projectId),
     preview: (projectId, sequenceId) => exports.preview(projectId, sequenceId),
-    imageProviders: { register: (p) => imageProviders.register(p), list: () => imageProviders.list() },
-    quickClips: { registerScorer: (id, fn) => quick.registerScorer(id, fn), scorers: () => quick.scorers() },
+    imageProviders: {
+      register: (p) => imageProviders.register(p),
+      list: () => imageProviders.list(),
+    },
+    quickClips: {
+      registerScorer: (id, fn) => quick.registerScorer(id, fn),
+      scorers: () => quick.scorers(),
+    },
     mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
     async doctor(o = {}) {
       return doctor({

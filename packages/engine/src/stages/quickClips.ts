@@ -64,7 +64,9 @@ export function sentenceUnits(words: readonly TranscriptWord[]): SentenceUnit[] 
     const w = words[idx[k]!]!;
     const next = k + 1 < idx.length ? words[idx[k + 1]!]! : undefined;
     const ends =
-      next === undefined || SENTENCE_END.test(w.text.trim()) || next.startMs - w.endMs >= SENTENCE_PAUSE_MS;
+      next === undefined ||
+      SENTENCE_END.test(w.text.trim()) ||
+      next.startMs - w.endMs >= SENTENCE_PAUSE_MS;
     if (!ends) continue;
     const ws = idx.slice(start, k + 1).map((i) => words[i]!);
     units.push({
@@ -198,13 +200,17 @@ export function heuristicScores(
   t: Transcript,
   extra: { peaks?: Peaks | undefined; detections?: Detections | undefined } = {},
 ): { scores: number[]; signals: QuickSignals[] } {
-  const variances = cands.map((c) => (extra.peaks ? loudnessVariance(extra.peaks, c.startMs, c.endMs) : 0));
+  const variances = cands.map((c) =>
+    extra.peaks ? loudnessVariance(extra.peaks, c.startMs, c.endMs) : 0,
+  );
   const lo = Math.min(...variances);
   const hi = Math.max(...variances);
   const signals = cands.map((c, i): QuickSignals => {
     const len = c.endMs - c.startMs;
     return {
-      speech: overlapMs(t.speechRegions, c.startMs, c.endMs) / len - 0.5 * longPauses(t.words, c.startMs, c.endMs),
+      speech:
+        overlapMs(t.speechRegions, c.startMs, c.endMs) / len -
+        0.5 * longPauses(t.words, c.startMs, c.endMs),
       energy: hi > lo ? (variances[i]! - lo) / (hi - lo) : 0,
       hook: hasHook(c.firstSentence) ? 1 : 0,
       coverage: extra.detections ? faceCoverage(extra.detections, c.startMs, c.endMs) : 0,
@@ -214,10 +220,19 @@ export function heuristicScores(
 }
 
 /** Step 4: best score first (ties: earlier start), skipping overlaps, up to `count`. */
-export function pickClips(cands: readonly Candidate[], scores: readonly number[], count: number): number[] {
+export function pickClips(
+  cands: readonly Candidate[],
+  scores: readonly number[],
+  count: number,
+): number[] {
   const order = cands
     .map((_, i) => i)
-    .sort((a, b) => scores[b]! - scores[a]! || cands[a]!.startMs - cands[b]!.startMs || cands[a]!.endMs - cands[b]!.endMs);
+    .sort(
+      (a, b) =>
+        scores[b]! - scores[a]! ||
+        cands[a]!.startMs - cands[b]!.startMs ||
+        cands[a]!.endMs - cands[b]!.endMs,
+    );
   const picked: number[] = [];
   for (const i of order) {
     if (picked.length >= count) break;
@@ -258,9 +273,18 @@ export function createQuickClipScorers(): QuickClipScorers & {
   return {
     registerScorer(id, fn) {
       if (!SCORER_ID.test(id) || id === HEURISTIC) {
-        throw new VoxError('VALIDATION', `Invalid scorer id ${JSON.stringify(id)}`, 'Use lowercase letters, digits, ".", "_" or "-".');
+        throw new VoxError(
+          'VALIDATION',
+          `Invalid scorer id ${JSON.stringify(id)}`,
+          'Use lowercase letters, digits, ".", "_" or "-".',
+        );
       }
-      if (fns.has(id)) throw new VoxError('VALIDATION', `A scorer named ${id} is already registered`, 'Register each scorer once, under its own id.');
+      if (fns.has(id))
+        throw new VoxError(
+          'VALIDATION',
+          `A scorer named ${id} is already registered`,
+          'Register each scorer once, under its own id.',
+        );
       fns.set(id, fn);
     },
     scorers: () => [...fns.keys()],
@@ -272,7 +296,11 @@ export function createQuickClipScorers(): QuickClipScorers & {
       }
       const fn = fns.get(id);
       if (!fn) {
-        throw new VoxError('NOT_FOUND', `No quick clips scorer named ${id}`, `Use "${HEURISTIC}" or one of: ${[...fns.keys()].join(', ') || '(none registered)'}.`);
+        throw new VoxError(
+          'NOT_FOUND',
+          `No quick clips scorer named ${id}`,
+          `Use "${HEURISTIC}" or one of: ${[...fns.keys()].join(', ') || '(none registered)'}.`,
+        );
       }
       return { id, fn };
     },

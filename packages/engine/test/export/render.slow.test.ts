@@ -17,13 +17,15 @@ async function run<T = R>(e: Engine, kind: string, args: unknown): Promise<JobIn
   return (await e.jobs.wait(e.jobs.start(kind, args))) as JobInfo<T>;
 }
 
-function probe(file: string): { v: Record<string, string>; a?: Record<string, string>; dur: number } {
+function probe(file: string): {
+  v: Record<string, string>;
+  a?: Record<string, string>;
+  dur: number;
+} {
   const out = JSON.parse(
-    execFileSync(
-      'ffprobe',
-      ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file],
-      { encoding: 'utf8' },
-    ),
+    execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], {
+      encoding: 'utf8',
+    }),
   ) as { streams: Record<string, string>[]; format: { duration: string } };
   return {
     v: out.streams.find((s) => s['codec_type'] === 'video')!,
@@ -36,7 +38,21 @@ function probe(file: string): { v: Record<string, string>; a?: Record<string, st
 function lumaStats(file: string, sec: number): { mean: number; spread: number } {
   const buf = execFileSync(
     'ffmpeg',
-    ['-v', 'error', '-ss', String(sec), '-i', file, '-frames:v', '1', '-vf', 'scale=64:114,format=gray', '-f', 'rawvideo', '-'],
+    [
+      '-v',
+      'error',
+      '-ss',
+      String(sec),
+      '-i',
+      file,
+      '-frames:v',
+      '1',
+      '-vf',
+      'scale=64:114,format=gray',
+      '-f',
+      'rawvideo',
+      '-',
+    ],
     { maxBuffer: 1 << 20 },
   );
   const px = [...buf];
@@ -91,9 +107,17 @@ describe('export targets on render (step 8c)', () => {
   test('-o file, no replace without overwrite, --out-dir twice gives (2)', async () => {
     const out = tempDir('vox-render-out-');
     const file = join(out, 'a.mp4');
-    const a = await run(fx.e, 'render', { projectId: fx.projectId, quality: 'draft', target: { file } });
+    const a = await run(fx.e, 'render', {
+      projectId: fx.projectId,
+      quality: 'draft',
+      target: { file },
+    });
     expect(a.result?.files[0]?.path).toBe(file);
-    const again = await run(fx.e, 'render', { projectId: fx.projectId, quality: 'draft', target: { file } });
+    const again = await run(fx.e, 'render', {
+      projectId: fx.projectId,
+      quality: 'draft',
+      target: { file },
+    });
     expect(again.error?.code).toBe('EXPORT_PATH');
     const over = await run(fx.e, 'render', {
       projectId: fx.projectId,
@@ -102,8 +126,16 @@ describe('export targets on render (step 8c)', () => {
       overwrite: true,
     });
     expect(over.status).toBe('done');
-    const d1 = await run(fx.e, 'render', { projectId: fx.projectId, quality: 'draft', target: { dir: out } });
-    const d2 = await run(fx.e, 'render', { projectId: fx.projectId, quality: 'draft', target: { dir: out } });
+    const d1 = await run(fx.e, 'render', {
+      projectId: fx.projectId,
+      quality: 'draft',
+      target: { dir: out },
+    });
+    const d2 = await run(fx.e, 'render', {
+      projectId: fx.projectId,
+      quality: 'draft',
+      target: { dir: out },
+    });
     expect(d1.result?.files[0]?.path).toBe(join(out, 'Demo-Main.mp4'));
     expect(d2.result?.files[0]?.path).toBe(join(out, 'Demo-Main (2).mp4'));
     expect(readdirSync(out).sort()).toEqual(['Demo-Main (2).mp4', 'Demo-Main.mp4', 'a.mp4']);
@@ -127,7 +159,11 @@ describe('export targets on render (step 8c)', () => {
 
   test('a cancelled render leaves no file in the target folder', async () => {
     const out = tempDir('vox-render-cancel-');
-    const id = fx.e.jobs.start('render', { projectId: fx.projectId, quality: 'draft', target: { dir: out } });
+    const id = fx.e.jobs.start('render', {
+      projectId: fx.projectId,
+      quality: 'draft',
+      target: { dir: out },
+    });
     await new Promise<void>((res) => {
       const off = fx.e.on('job.progress', (x) => {
         if (x.jobId === id && (x.message ?? '').includes('rendering picture')) {
@@ -153,12 +189,25 @@ describe('export targets on render (step 8c)', () => {
       fx.projectId,
       {
         op: 'placeClip',
-        args: { sequenceId: 'seq_b', trackId: 'V1', mediaId: 'm_head', startMs: 0, inMs: 5000, durationMs: 1000, withAudio: true },
+        args: {
+          sequenceId: 'seq_b',
+          trackId: 'V1',
+          mediaId: 'm_head',
+          startMs: 0,
+          inMs: 5000,
+          durationMs: 1000,
+          withAudio: true,
+        },
       } as never,
       { actor: 'cli' },
     );
     const out = tempDir('vox-render-all-');
-    const r = await run(fx.e, 'render', { projectId: fx.projectId, quality: 'draft', all: true, target: { dir: out } });
+    const r = await run(fx.e, 'render', {
+      projectId: fx.projectId,
+      quality: 'draft',
+      all: true,
+      target: { dir: out },
+    });
     expect(r.status, JSON.stringify(r.error)).toBe('done');
     expect(readdirSync(out).sort()).toEqual(['Demo-Main.mp4', 'Demo-Second.mp4']);
     expect(probe(join(out, 'Demo-Second.mp4')).dur).toBeLessThan(1.2);

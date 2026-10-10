@@ -64,8 +64,14 @@ beforeAll(async () => {
   const dir = join(projects, p.id);
   await mkdir(join(dir, 'media'), { recursive: true });
   await mkdir(join(dir, 'transcripts'), { recursive: true });
-  await copyFile(join(FX, 'assets', 'media', 'talking-head-20s.mp4'), join(dir, 'media', 'm_head.mp4'));
-  await copyFile(join(FX, 'transcripts', 'talking-head-20s.json'), join(dir, 'transcripts', 'm_head.json'));
+  await copyFile(
+    join(FX, 'assets', 'media', 'talking-head-20s.mp4'),
+    join(dir, 'media', 'm_head.mp4'),
+  );
+  await copyFile(
+    join(FX, 'transcripts', 'talking-head-20s.json'),
+    join(dir, 'transcripts', 'm_head.json'),
+  );
   const media = {
     id: 'm_head',
     kind: 'video',
@@ -90,11 +96,25 @@ beforeAll(async () => {
           { op: 'addSequence', args: { name: 'Main', id: 'seq_a', styleId: 'base' } },
           {
             op: 'placeClip',
-            args: { sequenceId: 'seq_a', trackId: 'V1', mediaId: 'm_head', startMs: 0, durationMs: 2000, withAudio: true },
+            args: {
+              sequenceId: 'seq_a',
+              trackId: 'V1',
+              mediaId: 'm_head',
+              startMs: 0,
+              durationMs: 2000,
+              withAudio: true,
+            },
           },
           {
             op: 'addScene',
-            args: { sequenceId: 'seq_a', trackId: 'V2', startMs: 500, durationMs: 1000, template: 'base/title', variables: { title: 'Hi' } },
+            args: {
+              sequenceId: 'seq_a',
+              trackId: 'V2',
+              startMs: 500,
+              durationMs: 1000,
+              template: 'base/title',
+              variables: { title: 'Hi' },
+            },
           },
           { op: 'setCaptions', args: { sequenceId: 'seq_a', enabled: true } },
         ],
@@ -102,7 +122,10 @@ beforeAll(async () => {
     } as never,
     { actor: 'cli' },
   );
-  expect(r.results.every((x) => x.status === 'succeeded'), JSON.stringify(r.results)).toBe(true);
+  expect(
+    r.results.every((x) => x.status === 'succeeded'),
+    JSON.stringify(r.results),
+  ).toBe(true);
 }, 60_000);
 
 describe('vox render / export-* targets', () => {
@@ -116,22 +139,42 @@ describe('vox render / export-* targets', () => {
     expect(existsSync(out)).toBe(true);
     const again = await vox(['render', projectId, '-o', out, '--json']);
     expect(again.code).toBe(1);
-    expect((JSON.parse(again.stdout) as { error: { code: string } }).error.code).toBe('EXPORT_PATH');
+    expect((JSON.parse(again.stdout) as { error: { code: string } }).error.code).toBe(
+      'EXPORT_PATH',
+    );
     expect((await vox(['render', projectId, '-o', out, '--overwrite'])).code).toBe(0);
   }, 60_000);
 
   test('render --out-dir twice gives "(2)"; --range-ms and --captions none pass through', async () => {
     const dir = tmp();
-    const a = await vox(['render', projectId, '--out-dir', dir, '--range-ms', '0-1000', '--captions', 'none']);
+    const a = await vox([
+      'render',
+      projectId,
+      '--out-dir',
+      dir,
+      '--range-ms',
+      '0-1000',
+      '--captions',
+      'none',
+    ]);
     expect(a.code, a.stderr).toBe(0);
     expect(a.stdout).toMatch(/Cli-Main\.mp4\t1000 ms\n$/);
     const b = await vox(['render', projectId, '--out-dir', dir, '--json']);
-    expect((JSON.parse(b.stdout) as { files: { path: string }[] }).files[0]!.path).toBe(join(dir, 'Cli-Main (2).mp4'));
+    expect((JSON.parse(b.stdout) as { files: { path: string }[] }).files[0]!.path).toBe(
+      join(dir, 'Cli-Main (2).mp4'),
+    );
   }, 60_000);
 
   test('export-captions -o writes SRT and VTT; --format is required', async () => {
     const dir = tmp();
-    const srt = await vox(['export-captions', projectId, '--format', 'srt', '-o', join(dir, 'c.srt')]);
+    const srt = await vox([
+      'export-captions',
+      projectId,
+      '--format',
+      'srt',
+      '-o',
+      join(dir, 'c.srt'),
+    ]);
     expect(srt.code, srt.stderr).toBe(0);
     expect(readFileSync(join(dir, 'c.srt'), 'utf8')).toMatch(/^1\n00:00:00,\d{3} --> /);
     const vtt = await vox(['export-captions', projectId, '--format', 'vtt', '--out-dir', dir]);
@@ -189,7 +232,8 @@ describe('vox compile / preview / credits / assets generate', () => {
     expect(r.code, r.stderr).toBeLessThanOrEqual(1);
     expect(r.stderr).not.toMatch(/TypeError/);
     const outDir = r.stdout.trim().split('\n').at(-1)!;
-    for (const f of ['qa.json', 'qa.png', 'LISTEN.md']) expect(existsSync(join(outDir, f)), f).toBe(true);
+    for (const f of ['qa.json', 'qa.png', 'LISTEN.md'])
+      expect(existsSync(join(outDir, f)), f).toBe(true);
     expect(r.stdout).toMatch(/^(PASS|FAIL|WARN|SKIP)\s*\t\S+/m);
   }, 120_000);
 

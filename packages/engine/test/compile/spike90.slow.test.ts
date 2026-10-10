@@ -11,7 +11,14 @@ import { grayStream, probeFrames } from '../../../../spike/bench/lib.ts';
 import { COUNTER_CROP, makeMainSequence } from '../../../../spike/lib/model.ts';
 import { build } from './fixture.ts';
 import { render, writeBuild } from './hf.ts';
-import { BAND, LAND_CROP, PHONE_SRC, SPIKE_SRC, engineProject, spikeProjectDir } from './spike90-project.ts';
+import {
+  BAND,
+  LAND_CROP,
+  PHONE_SRC,
+  SPIKE_SRC,
+  engineProject,
+  spikeProjectDir,
+} from './spike90-project.ts';
 
 describe.skipIf(!existsSync(SPIKE_SRC) || !existsSync(PHONE_SRC))(
   'spike 90 s fixture through the engine (step 12)',

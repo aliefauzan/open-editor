@@ -81,22 +81,33 @@ describe('caption edit round trip (step 13)', () => {
       fx.projectId,
       {
         op: 'setCaptions',
-        args: { sequenceId: fx.seq, overrides: [{ wordKey: word.key, text: NEW_WORD, startMs: nudged }] },
+        args: {
+          sequenceId: fx.seq,
+          overrides: [{ wordKey: word.key, text: NEW_WORD, startMs: nudged }],
+        },
       } as never,
       { actor: 'cli' },
     );
     expect(r.results[0]!.status, JSON.stringify(r.results)).toBe('succeeded');
 
     const after = await fx.e.captions(fx.projectId, fx.seq);
-    const edited = after.flatMap((c) => c.lines.flatMap((l) => l.words)).find((w) => w.key === word.key)!;
+    const edited = after
+      .flatMap((c) => c.lines.flatMap((l) => l.words))
+      .find((w) => w.key === word.key)!;
     expect(edited.text).toBe(NEW_WORD);
     expect(Math.abs(edited.startMs - nudged)).toBeLessThanOrEqual(34); // on the frame grid
-    const editedChunk = after.find((c) => c.lines.some((l) => l.words.some((w) => w.key === word.key)))!;
+    const editedChunk = after.find((c) =>
+      c.lines.some((l) => l.words.some((w) => w.key === word.key)),
+    )!;
     expect(editedChunk.startMs).toBe(edited.startMs);
 
     const out = tempDir('vox-caption-srt-');
     const job = (await fx.e.jobs.wait(
-      fx.e.jobs.start('exportCaptions', { projectId: fx.projectId, format: 'srt', target: { dir: out } }),
+      fx.e.jobs.start('exportCaptions', {
+        projectId: fx.projectId,
+        format: 'srt',
+        target: { dir: out },
+      }),
     )) as JobInfo<{ path: string }>;
     expect(job.status, JSON.stringify(job.error)).toBe('done');
     const srt = readFileSync(job.result!.path, 'utf8');

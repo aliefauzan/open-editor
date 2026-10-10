@@ -21,8 +21,20 @@ const fakeHf: HyperframesRun = async (args) => {
   const html = readFileSync(join(args[1]!, 'index.html'), 'utf8');
   const dur = Number(/data-duration="([\d.]+)"/.exec(html)?.[1] ?? '1');
   execFileSync('ffmpeg', [
-    '-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=gray:size=1080x1920:rate=30:duration=${dur}`,
-    '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', out,
+    '-v',
+    'error',
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=gray:size=1080x1920:rate=30:duration=${dur}`,
+    '-c:v',
+    'libx264',
+    '-preset',
+    'ultrafast',
+    '-pix_fmt',
+    'yuv420p',
+    out,
   ]);
 };
 
@@ -55,7 +67,8 @@ describe('audioQa job', () => {
     const q = r.result!;
     expect(q.mode).toBe('mix');
     expect(q.outDir).toBe(join(fx.dir, 'renders', 'qa', 'seq_a'));
-    for (const f of ['qa.json', 'qa.png', 'LISTEN.md']) expect(existsSync(join(q.outDir, f))).toBe(true);
+    for (const f of ['qa.json', 'qa.png', 'LISTEN.md'])
+      expect(existsSync(join(q.outDir, f))).toBe(true);
     expect(q.targetLufs).toBe(-14);
     expect(q.checks.map((c) => c.id)).toEqual([
       'cueTiming',
@@ -108,7 +121,14 @@ describe('loudness against renders (step 8e)', () => {
       const file = r.result!.files[0]!.path;
       const q = await runPyTool(
         'audioqa',
-        { mix: file, stems: { sfx: file }, cues: [], fps: 30, target: -12, outDir: tempDir('vox-qa-') },
+        {
+          mix: file,
+          stems: { sfx: file },
+          cues: [],
+          fps: 30,
+          target: -12,
+          outDir: tempDir('vox-qa-'),
+        },
         z.looseObject({ checks: z.array(z.looseObject({ id: z.string(), status: z.string() })) }),
         { pyProject: repoPyProject() },
       );
