@@ -777,3 +777,43 @@ happens to a temp file when the engine process itself is killed.
 **Consequences**: Phase 04 wires these into ingest and must sniff and analyse the engine's own copy
 in `media/` (not the user's path: no TOCTOU); phase 05 into render/exportCaptions/exportTimeline.
 Adding an image or audio type later means one sniff signature plus its demuxer whitelist and a test.
+
+## D-26 · 2026-10-11 · phase 11 (early G1, D-19) · Agent utility details: Keychain keys, usage shape, upper bound, local error type
+
+**Context**: Early package G1 builds phase 11's pure utilities (`loop/envelope.ts`, `loop/repair.ts`,
+`config/mask.ts`, `config/keychain.ts`, `providers/prices.ts`). The specs leave these open.
+**Decision**:
+- **Keychain keys are printable ASCII only** (0x20–0x7e). `security find-generic-password -w` prints a
+  non-ASCII password as hex, which cannot be told from a real hex key, so a non-ASCII key is refused at
+  `set` (`CONFIG_INVALID`). Control characters are refused anyway: a newline would start a second
+  `security -i` command. Arguments to `security -i` are double-quoted with `\` and `"` escaped
+  (checked against the real Keychain). `set` failures keep no stderr in `cause`.
+- **No `-T`/`-A` access flags** on writes: the creating binary (`/usr/bin/security`) is trusted by
+  default and reads go through the same binary, so no prompt appeared on the M5. Phase 11 revisits this
+  only if the app or CLI hit a prompt (phase 11 "Risks": `security` prompts).
+- **`keychain:` refs are bound to their provider**: `resolveApiKey(ref, deps, providerId)` refuses a
+  ref naming another provider. `env:NAME` accepts any upper-case name (a shared config could point an
+  attacker's `baseUrl` at `env:AWS_SECRET_ACCESS_KEY`); phase 11 decides whether to allow-list names or
+  warn when a config is imported or shared. Plain `http:` to a non-loopback host is not rejected.
+- **`baseUrl` rule** (S17): http(s) only; no userinfo, no fragment, no key-like query parameter (names
+  compared without case and separators: `api_key`, `apiKey`, `accessToken`; `&` and `;` separators),
+  no key-like or opaque 24+ character path segment, no segment after a key-named one (`/key/<v>`).
+- **Masking**: `sk-`, `sk-or-`, `sk-ant-`, `sk-proj-` prefixes are shown, other keys show only the last
+  four, keys under 24 characters show nothing (`…`).
+- **Usage shape for cost math**: `inputTokens` is the total input including cache reads and writes,
+  `outputTokens` the total including reasoning (AI SDK convention). Providers that report them
+  separately (Anthropic) are normalised by the provider adapter. Reasoning bills at `reasoningPerMTok`
+  else the output price; cache reads/writes at their price else the input price.
+- **Upper bound** (S23) uses the dearest rate that could apply (max of input, cache read, cache write;
+  max of output, reasoning), so it never under-counts. A reported cost of 0 with real usage on a
+  priced model is not trusted (BYOK accounting); usage × price is used.
+- **Local providers**: `ollama`, `apple` and the `lmstudio` preset cost 0 with no table entry; `9router`
+  and other gateways are not local.
+- **Text tool-call detection** returns `{kind, tool}`; it matches only known tool names (plus bare
+  markers such as `<tool_call>`), scans at most 200,000 characters, and is linear. The loop owns the
+  "one correction per step" counter. The repair also accepts a leading prose/code fence and tries up to
+  5 `{` starts.
+- **Local error type**: `packages/agent/src/errors.pending.ts` (`UtilError`, same constructor shape as
+  `VoxError`) until phase 11 swaps in `VoxError`. Codes to append to `ERROR_CODES`: `CONFIG_INVALID`,
+  `KEYCHAIN_FAILED`, `PRICE_MISSING`.
+**Why**: Smallest options that keep S17, S21, S23 and S30 testable now without importing `@vox/engine`.
