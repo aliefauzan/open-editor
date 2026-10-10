@@ -1,0 +1,27 @@
+{
+  "name": "stack",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "Test stand-in for vox/stack: 2-3 panels stacked vertically.",
+  "useWhen": ["tests"],
+  "durationMs": { "min": 500, "default": 3000, "max": 10000 },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "panels": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "properties": { "template": { "type": "string" }, "variables": { "type": "object" } },
+          "required": ["template", "variables"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["panels"],
+    "additionalProperties": false
+  },
+  "slots": { "panels/*": "template" }
+}

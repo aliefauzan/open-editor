@@ -23,8 +23,30 @@ import { newId } from './model/ids.ts';
 import { SCHEMA_VERSION, type Project } from './model/schema.ts';
 import { findSeq, tracksOf } from './ops/core.ts';
 import type { OpCall } from './ops/index.ts';
-import { emptyTemplateLookup, type TemplateLookup } from './ops/templates.ts';
-import { ensureProjectsDir, isProjectId, projectDirFor } from './paths.ts';
+import type { TemplateLookup } from './ops/templates.ts';
+import { ensureProjectsDir, isProjectId, projectDirFor, resolveProjectPath } from './paths.ts';
+import { cueList } from './audio/cues.ts';
+import { renderMix, type LoudnessPreset, type MixResult } from './audio/graph.ts';
+import {
+  applyRange,
+  compileSequence,
+  type BuildResult,
+  type CompileOptions,
+  type FramingProvider,
+} from './compile/compile.ts';
+import { buildDirFor, writeBuildTo } from './compile/write.ts';
+import { renderLayerBuild } from './render/layers.ts';
+import { search as geoSearch, type Place } from './geo/search.ts';
+import { chunkLines, deriveCaptions, type CaptionChunk } from './model/captions.ts';
+import { TranscriptSchema, type Transcript } from './model/schema.ts';
+import { registryTemplateLookup } from './styles/lookup.ts';
+import {
+  loadStyleRegistry,
+  type ResolvedStyle,
+  type StyleProblem,
+  type StyleRegistry,
+  type StyleSummary,
+} from './styles/registry.ts';
 
 export const version = '0.0.0';
 
@@ -167,6 +189,47 @@ export {
 } from './ops/index.ts';
 export { computeWordKinds } from './text/fillers.ts';
 export {
+  captionsToSrt,
+  captionsToVtt,
+  chunkLines,
+  deriveCaptions,
+  type CaptionChunk,
+  type CaptionWord,
+  type TranscriptOf,
+} from './model/captions.ts';
+export type {
+  BuildResult,
+  CompileMode,
+  CompileOptions,
+  FramingProvider,
+} from './compile/compile.ts';
+export { cueList, type Cue, type CueDropReason, type CueList } from './audio/cues.ts';
+export { renderLayerBuild, type LayerRenderOptions } from './render/layers.ts';
+export {
+  DENOISE_FILTERS,
+  LOUDNESS_TARGETS,
+  loudnormPass1,
+  loudnormPass2,
+  mixGraph,
+  renderMix,
+  TRUE_PEAK_DBTP,
+  type LoudnessPreset,
+  type LoudnormMeasure,
+  type MixGraph,
+  type MixInput,
+  type MixOptions,
+  type MixResult,
+  type StemKind,
+} from './audio/graph.ts';
+export type { Place } from './geo/search.ts';
+export type {
+  ResolvedStyle,
+  StyleProblem,
+  StyleRegistry,
+  StyleSummary,
+  TemplateDef,
+} from './styles/registry.ts';
+export {
   checkRelativePath,
   ensureProjectsDir,
   isProjectId,
@@ -181,13 +244,26 @@ export {
 /** External tool paths (ffmpeg, ffprobe, yt-dlp, deno, uv, py env, Chrome); filled in by phase 04. */
 export type ToolPaths = Readonly<Record<string, string | undefined>>;
 
+/** `engine.mix` options: the output WAV, the loudness preset, optional stems and range. */
+export interface MixRequest {
+  out: string;
+  preset?: LoudnessPreset;
+  normalize?: boolean;
+  stemsDir?: string;
+  range?: { startMs: number; endMs: number };
+}
+
 export interface EngineOptions {
   projectsDir: string;
   /** Searched in order; a duplicate style id is an error (spec 2). */
   stylesDirs: readonly string[];
   tools?: ToolPaths;
-  /** Template metadata lookup; phase 03 plugs the registry in. */
+  /** Template metadata lookup; default: the style registry over `stylesDirs`. */
   templates?: TemplateLookup;
+  /** Trust of a style outside the built-in folder (S8); default untrusted. */
+  isTrusted?: (styleId: string, dir: string) => boolean;
+  /** Crop path provider for `facetrack`/`auto` clips (phase 05 plugs in the facetrack path). */
+  framing?: FramingProvider;
   now?: () => Date;
   migrations?: Readonly<Record<number, Migration>>;
   lockTimeoutMs?: number;
@@ -216,7 +292,7 @@ export interface SequenceViewItem {
 export interface SequenceView {
   version: number;
   items: SequenceViewItem[];
-  /** Chunk text; empty until phase 03 plugs in deriveCaptions. */
+  /** Chunk text (lines joined by a space), from deriveCaptions. */
   captions: { startMs: number; endMs: number; text: string }[];
 }
 
@@ -240,13 +316,46 @@ export interface Engine {
   history(projectId: string, opts?: { sinceVersion?: number }): Promise<HistoryEntry[]>;
   snapshot(projectId: string, name: string): Promise<SnapshotInfo>;
   listSnapshots(projectId: string): Promise<SnapshotInfo[]>;
+  compile(projectId: string, sequenceId: string, opts: CompileOptions): Promise<BuildResult>;
+  /** Writes a build to `build/<sequenceId>/` of its project; returns that folder. */
+  writeBuild(result: BuildResult): Promise<string>;
+  /**
+   * The final audio mix of a sequence (engine spec "Audio"): a WAV at `out`, two-pass `loudnorm` to
+   * the preset (default youtube), and the stems when `stemsDir` is given.
+   */
+  mix(projectId: string, sequenceId: string, opts: MixRequest): Promise<MixResult>;
+  /**
+   * Chosen layers (scene item ids, `<itemId>-tx`, `overlay-<name>`, `captions`) to a ProRes 4444 MOV
+   * with alpha at `out` (engine spec "Layer renderer"); returns `out`.
+   */
+  renderLayers(
+    projectId: string,
+    sequenceId: string,
+    layers: string[],
+    opts: { out: string; range?: { startMs: number; endMs: number } },
+  ): Promise<string>;
+  captions(projectId: string, sequenceId: string): Promise<CaptionChunk[]>;
+  styles: {
+    list(): StyleSummary[];
+    get(styleId: string): ResolvedStyle;
+    problems(): StyleProblem[];
+    /** `vox` when installed and valid, else `base` (the style new projects get). */
+    defaultId(): string;
+    /** Re-reads the style folders (after a style is added or edited). */
+    reload(): void;
+  };
+  geo: { search(query: string, opts?: { limit?: number }): Place[] };
   /** Subscribe; returns the unsubscribe function. */
   on<K extends keyof EngineEvents>(event: K, handler: (e: EngineEvents[K]) => void): () => void;
 }
 
 const USER: UndoOptions = { actor: 'user' };
 
-export function sequenceView(p: Project, sequenceId: string): SequenceView {
+export function sequenceView(
+  p: Project,
+  sequenceId: string,
+  captions: readonly CaptionChunk[] = [],
+): SequenceView {
   const s = findSeq(p, sequenceId);
   const media = new Map(p.media.map((m) => [m.id, m]));
   const items: (SequenceViewItem & { order: number })[] = [];
@@ -275,14 +384,28 @@ export function sequenceView(p: Project, sequenceId: string): SequenceView {
     }
   });
   items.sort((a, b) => a.startMs - b.startMs || a.order - b.order || (a.id < b.id ? -1 : 1));
-  return { version: p.version, items: items.map(({ order: _o, ...rest }) => rest), captions: [] };
+  return {
+    version: p.version,
+    items: items.map(({ order: _o, ...rest }) => rest),
+    captions: captions.map((c) => ({
+      startMs: c.startMs,
+      endMs: c.endMs,
+      text: chunkLines(c).join(' '),
+    })),
+  };
 }
 
 export function openEngine(opts: EngineOptions): Engine {
   const emitter = new EventEmitter();
   const stores = new Map<string, Promise<ProjectStore>>();
+  let reg: StyleRegistry | undefined;
+  const registry = (): StyleRegistry =>
+    (reg ??= loadStyleRegistry({
+      stylesDirs: opts.stylesDirs,
+      ...(opts.isTrusted ? { isTrusted: opts.isTrusted } : {}),
+    }));
   const storeOpts = {
-    templates: opts.templates ?? emptyTemplateLookup,
+    templates: opts.templates ?? registryTemplateLookup(registry),
     ...(opts.now ? { now: opts.now } : {}),
     ...(opts.migrations ? { migrations: opts.migrations } : {}),
     ...(opts.lockTimeoutMs !== undefined ? { lock: { timeoutMs: opts.lockTimeoutMs } } : {}),
@@ -333,6 +456,22 @@ export function openEngine(opts: EngineOptions): Engine {
         return opened;
       })(),
     );
+
+  /** Transcripts of the project's media, read from `transcriptPath` (unreadable ones are skipped). */
+  const transcripts = async (projectId: string, p: Project): Promise<Map<string, Transcript>> => {
+    const out = new Map<string, Transcript>();
+    for (const m of p.media) {
+      if (!m.transcriptPath) continue;
+      try {
+        const file = await resolveProjectPath(dirOf(projectId), m.transcriptPath);
+        const r = TranscriptSchema.safeParse(JSON.parse(await readFile(file, 'utf8')));
+        if (r.success) out.set(m.id, r.data);
+      } catch {
+        continue;
+      }
+    }
+    return out;
+  };
 
   return {
     projectsDir: opts.projectsDir,
@@ -407,7 +546,110 @@ export function openEngine(opts: EngineOptions): Engine {
     },
 
     async view(projectId, sequenceId) {
-      return sequenceView(await (await store(projectId)).read(), sequenceId);
+      const p = await (await store(projectId)).read();
+      findSeq(p, sequenceId);
+      const tr = await transcripts(projectId, p);
+      return sequenceView(
+        p,
+        sequenceId,
+        deriveCaptions(p, sequenceId, (m) => tr.get(m.id)),
+      );
+    },
+
+    async captions(projectId, sequenceId) {
+      const p = await (await store(projectId)).read();
+      findSeq(p, sequenceId);
+      const tr = await transcripts(projectId, p);
+      return deriveCaptions(p, sequenceId, (m) => tr.get(m.id));
+    },
+
+    async compile(projectId, sequenceId, o) {
+      const p = await (await store(projectId)).read();
+      const tr = await transcripts(projectId, p);
+      return compileSequence(
+        {
+          project: p,
+          projectDir: dirOf(projectId),
+          sequenceId,
+          registry: registry(),
+          transcriptOf: (m) => tr.get(m.id),
+          ...(opts.framing ? { framing: opts.framing } : {}),
+        },
+        o,
+      );
+    },
+
+    async writeBuild(result) {
+      return writeBuildTo(result, buildDirFor(result.projectDir, result.sequenceId));
+    },
+
+    async renderLayers(projectId, sequenceId, layers, o) {
+      const p = await (await store(projectId)).read();
+      const tr = await transcripts(projectId, p);
+      const b = await compileSequence(
+        {
+          project: p,
+          projectDir: dirOf(projectId),
+          sequenceId,
+          registry: registry(),
+          transcriptOf: (m) => tr.get(m.id),
+          ...(opts.framing ? { framing: opts.framing } : {}),
+        },
+        { mode: 'render', layers, ...(o.range ? { range: o.range } : {}) },
+      );
+      return renderLayerBuild(b, {
+        buildDir: buildDirFor(dirOf(projectId), `${sequenceId}-layers`),
+        out: o.out,
+      });
+    },
+
+    async mix(projectId, sequenceId, o) {
+      const p = await (await store(projectId)).read();
+      const s0 = findSeq(p, sequenceId);
+      const s = o.range ? applyRange(s0, o.range, []) : s0;
+      const reg = registry();
+      const ends = [...s.videoTracks, ...s.audioTracks].flatMap((t) =>
+        t.items.map((i) => i.startMs + i.durationMs),
+      );
+      return renderMix(
+        {
+          seq: s,
+          media: p.media,
+          projectDir: dirOf(projectId),
+          cues: cueList(
+            s,
+            registryTemplateLookup(() => reg),
+          ).cues,
+          sfxFiles: reg.get(s.styleId).files.sfx,
+          durationMs: o.range ? o.range.endMs - o.range.startMs : Math.max(0, ...ends),
+          preset: o.preset ?? 'youtube',
+        },
+        o,
+      );
+    },
+
+    styles: {
+      list: () => registry().list(),
+      get: (id) => registry().get(id),
+      problems: () => registry().problems(),
+      defaultId: () =>
+        registry()
+          .list()
+          .some((s) => s.id === 'vox')
+          ? 'vox'
+          : 'base',
+      reload: () => {
+        reg = undefined;
+      },
+    },
+
+    geo: {
+      search(query, o = {}) {
+        if (typeof query !== 'string' || query.trim() === '') {
+          throw new VoxError('VALIDATION', 'Empty place query', 'Pass a place name, e.g. "lisbon"');
+        }
+        return geoSearch(query, o);
+      },
     },
 
     async undo(projectId, o = USER) {

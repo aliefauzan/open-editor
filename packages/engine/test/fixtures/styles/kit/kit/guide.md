@@ -1,0 +1,3 @@
+## Templates
+
+Kit test templates.

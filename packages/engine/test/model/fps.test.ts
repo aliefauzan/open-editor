@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { FPS_SET, frame, isFpsInSet, ms, snap, snapToSource } from '../../src/model/fps.ts';
+import {
+  blendHalf,
+  FPS_SET,
+  frame,
+  isFpsInSet,
+  ms,
+  snap,
+  snapToSource,
+} from '../../src/model/fps.ts';
 
 const TEN_HOURS_MS = 10 * 3600 * 1000;
 
@@ -52,5 +60,32 @@ describe('frame grid', () => {
     expect(snapToSource(1000, undefined, seq)).toBe(1000);
     // any source rate works, even outside the fixed set
     expect(snapToSource(100, { num: 90000, den: 1 }, seq)).toBe(100);
+  });
+});
+
+describe('blendHalf (D-12 crossfade overlap)', () => {
+  test('half a 15-frame crossfade is 8 whole frames each side, on the grid', () => {
+    const f30 = { num: 30, den: 1 };
+    // 250 ms (half of 500) is 7.5 frames at 30 fps: an off-grid start shifted the source by a frame
+    expect(blendHalf(ms(2161, f30), 500, f30)).toEqual({
+      before: ms(2161, f30) - ms(2153, f30),
+      after: ms(2169, f30) - ms(2161, f30),
+    });
+  });
+
+  test('every rate in the set: incoming start and outgoing end land on frames', () => {
+    for (const fps of FPS_SET) {
+      for (const cutF of [1, 37, 1000, 107892]) {
+        const cut = ms(cutF, fps);
+        for (const d of [ms(6, fps), ms(15, fps), ms(16, fps)]) {
+          const { before, after } = blendHalf(cut, d, fps);
+          const h = Math.ceil(frame(d, fps) / 2);
+          expect(frame(cut - before, fps)).toBe(cutF - h);
+          expect(snap(cut - before, fps)).toBe(cut - before);
+          expect(frame(cut + after, fps)).toBe(cutF + h);
+          expect(snap(cut + after, fps)).toBe(cut + after);
+        }
+      }
+    }
   });
 });

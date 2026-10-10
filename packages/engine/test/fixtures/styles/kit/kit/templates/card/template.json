@@ -1,0 +1,16 @@
+{
+  "name": "card",
+  "version": "2.1.0",
+  "kind": "scene",
+  "description": "Test card: a photo slot and a title; its hook writes a data file.",
+  "useWhen": ["tests"],
+  "durationMs": { "min": 500, "default": 3000, "max": 10000 },
+  "variables": {
+    "type": "object",
+    "properties": { "title": { "type": "string" }, "photo": { "type": "string" } },
+    "required": ["title"],
+    "additionalProperties": false
+  },
+  "slots": { "photo": "image" },
+  "sfxCues": [{ "name": "hit", "atMs": 300, "sfx": "pop", "type": "hero" }]
+}

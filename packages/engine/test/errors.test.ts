@@ -58,4 +58,10 @@ describe('VoxError', () => {
       expect(ERROR_CODES).toContain(c);
     expect(new Set(ERROR_CODES).size).toBe(ERROR_CODES.length);
   });
+
+  test('compile codes are known (phase 03)', async () => {
+    const { ERROR_CODES } = await import('../src/errors.ts');
+    for (const c of ['MEDIA_MISSING', 'TEMPLATE_VERSION', 'HOOK_UNTRUSTED'])
+      expect(ERROR_CODES).toContain(c);
+  });
 });

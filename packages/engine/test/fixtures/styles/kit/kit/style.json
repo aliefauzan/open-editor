@@ -1,0 +1,33 @@
+{
+  "id": "kit",
+  "name": "Kit",
+  "version": "0.1.0",
+  "description": "Test-only child of base for compile tests.",
+  "status": "active",
+  "extends": "base",
+  "source": {
+    "type": "extracted",
+    "reference": "fixture.mp4"
+  },
+  "trusted": false,
+  "tokens": {
+    "colors": {
+      "accent": "#ff5500",
+      "kit": "#123456"
+    }
+  },
+  "templates": ["stack", "card", "swatch"],
+  "transitions": [],
+  "sfx": {
+    "pop": {
+      "path": "assets/sfx/pop.wav",
+      "type": "appear",
+      "source": "generated test tone (ffmpeg sine)",
+      "licence": "CC0"
+    }
+  },
+  "captions": {
+    "default": "kit/loud",
+    "presets": ["kit/loud", "base/plain"]
+  }
+}

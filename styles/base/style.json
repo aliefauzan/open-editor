@@ -1,0 +1,39 @@
+{
+  "id": "base",
+  "name": "Base",
+  "version": "1.0.0",
+  "description": "The engine's neutral root style: plain titles, free text over picture, placeholders, a crossfade and a dip to black, and plain word-by-word captions. Every other style extends it.",
+  "status": "active",
+  "source": { "type": "builtin" },
+  "trusted": true,
+  "tokens": {
+    "colors": {
+      "paper": "#f4f1ea",
+      "ink": "#111111",
+      "accent": "#2f6fed",
+      "shade": "rgb(0 0 0 / 55%)",
+      "caption": "#ffffff",
+      "captionStroke": "#000000"
+    },
+    "fonts": {
+      "display": { "family": "Inter", "file": "assets/fonts/Inter-Variable.ttf", "weight": 700 },
+      "body": { "family": "Inter", "file": "assets/fonts/Inter-Variable.ttf", "weight": 400 },
+      "caption": {
+        "family": "IBM Plex Mono",
+        "file": "assets/fonts/IBMPlexMono-Regular.ttf",
+        "weight": 400
+      }
+    },
+    "motion": { "easing": "power2.out", "frameHold": 1, "jitterPx": 0, "entrance": "fade" }
+  },
+  "captions": { "default": "base/plain", "presets": ["base/plain"] },
+  "templates": ["title", "text-overlay", "placeholder"],
+  "transitions": ["crossfade", "dip-to-black"],
+  "overlays": [],
+  "pacing": {
+    "beatMs": { "min": 1500, "target": 3500, "max": 8000 },
+    "speakerRatio": { "min": 0.3, "max": 0.9 }
+  },
+  "imagery": { "searchHints": [], "generateSuffix": "" },
+  "sfx": {}
+}

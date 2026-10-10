@@ -1,0 +1,20 @@
+{
+  "name": "text-overlay",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "Free text over the picture below it (the \"add text\" feature): one block of text on a soft dark band, at the top, middle or bottom of the frame. Transparent elsewhere, so the video underneath stays visible.",
+  "useWhen": ["a fact, name or label should sit on top of the footage", "the user adds text"],
+  "durationMs": { "min": 500, "default": 3000, "max": 15000 },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "minLength": 1, "maxLength": 160 },
+      "position": { "enum": ["top", "middle", "bottom"], "default": "bottom" },
+      "align": { "enum": ["left", "center"], "default": "center" }
+    },
+    "required": ["text"],
+    "additionalProperties": false
+  },
+  "slots": {},
+  "minEntranceMs": 800
+}

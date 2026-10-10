@@ -1,0 +1,19 @@
+{
+  "name": "title",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "A full-frame title card: a large headline and an optional smaller line under it, on the style's paper colour. The headline rises and fades in.",
+  "useWhen": ["a section or topic starts", "the clip needs a cover or end card"],
+  "durationMs": { "min": 800, "default": 2500, "max": 8000 },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+      "subtitle": { "type": "string", "maxLength": 120 }
+    },
+    "required": ["title"],
+    "additionalProperties": false
+  },
+  "slots": {},
+  "minEntranceMs": 1200
+}
