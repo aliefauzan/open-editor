@@ -1,0 +1,35 @@
+{
+  "id": "base",
+  "name": "Base",
+  "version": "1.0.0",
+  "description": "Test root style.",
+  "status": "active",
+  "source": { "type": "builtin" },
+  "trusted": true,
+  "tokens": {
+    "colors": { "paper": "#ffffff", "ink": "#111111", "accentSoft": "rgb(10 20 30 / 50%)" },
+    "fonts": {
+      "display": { "family": "Test Display", "file": "assets/fonts/display.ttf", "weight": 700 },
+      "body": { "family": "Test Body", "file": "assets/fonts/body.ttf", "weight": 400 },
+      "caption": { "family": "Test Mono", "file": "assets/fonts/caption.ttf", "weight": 400 }
+    },
+    "motion": { "easing": "power2.out", "frameHold": 1, "jitterPx": 0, "entrance": "fade" }
+  },
+  "captions": { "default": "base/plain", "presets": ["base/plain"] },
+  "templates": ["title"],
+  "transitions": ["crossfade"],
+  "overlays": [{ "name": "grain", "default": false }],
+  "pacing": {
+    "beatMs": { "min": 1500, "target": 3000, "max": 6000 },
+    "speakerRatio": { "min": 0.3, "max": 0.8 }
+  },
+  "imagery": { "searchHints": [], "generateSuffix": "" },
+  "sfx": {
+    "tap": {
+      "path": "assets/sfx/tap.wav",
+      "type": "appear",
+      "source": "recorded for this project",
+      "licence": "project"
+    }
+  }
+}

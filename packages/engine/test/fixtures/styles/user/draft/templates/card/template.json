@@ -1,0 +1,13 @@
+{
+  "name": "card",
+  "version": "0.1.0",
+  "kind": "scene",
+  "description": "A card.",
+  "useWhen": ["a quote"],
+  "durationMs": { "min": 1000, "default": 2000, "max": 5000 },
+  "variables": {
+    "type": "object",
+    "properties": { "quote": { "type": "string", "maxLength": 120 } }
+  },
+  "slots": {}
+}
