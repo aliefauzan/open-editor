@@ -76,3 +76,4 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 ## Manual steps (filled by the AI)
 
 <!-- format: - [ ] phase NN · step · what to do · where the AI left the instructions -->
+- [ ] phase 04 · step 15 (optional; needed at GATE 2) · run `vox ingest <project> <url>` once each for one real YouTube URL, the Instagram reel URL and the TikTok URL from "Inputs" above; note any `LOGIN_REQUIRED` or impersonation error · `plan/log/phase-04.md` "MANUAL STEPS", `vox doctor` for tool status
