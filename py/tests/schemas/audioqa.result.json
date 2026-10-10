@@ -10,8 +10,21 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "schemaVersion", "mode", "pass", "note", "fps", "targetLufs", "durationMs", "checks",
-        "cues", "onsets", "listen", "png", "files", "thresholds", "outDir"
+        "schemaVersion",
+        "mode",
+        "pass",
+        "note",
+        "fps",
+        "targetLufs",
+        "durationMs",
+        "checks",
+        "cues",
+        "onsets",
+        "listen",
+        "png",
+        "files",
+        "thresholds",
+        "outDir"
       ],
       "properties": {
         "schemaVersion": { "const": 1 },
@@ -78,7 +91,15 @@
         "png": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["file", "width", "height", "rows", "markerScanY", "markerWidthPx", "markers"],
+          "required": [
+            "file",
+            "width",
+            "height",
+            "rows",
+            "markerScanY",
+            "markerWidthPx",
+            "markers"
+          ],
           "properties": {
             "file": { "const": "qa.png" },
             "width": { "type": "integer", "minimum": 1 },
@@ -227,8 +248,18 @@
     "loudness": {
       "type": "object",
       "required": [
-        "id", "rule", "status", "integratedLufs", "targetLufs", "deltaLu", "toleranceLu",
-        "truePeakDbtp", "maxTruePeakDbtp", "clippedSamples", "parts", "failures"
+        "id",
+        "rule",
+        "status",
+        "integratedLufs",
+        "targetLufs",
+        "deltaLu",
+        "toleranceLu",
+        "truePeakDbtp",
+        "maxTruePeakDbtp",
+        "clippedSamples",
+        "parts",
+        "failures"
       ],
       "properties": {
         "id": { "const": "loudness" },
@@ -257,7 +288,17 @@
     "kit": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schemaVersion", "mode", "styleId", "pass", "note", "files", "sheet", "thresholds", "outDir"],
+      "required": [
+        "schemaVersion",
+        "mode",
+        "styleId",
+        "pass",
+        "note",
+        "files",
+        "sheet",
+        "thresholds",
+        "outDir"
+      ],
       "properties": {
         "schemaVersion": { "const": 1 },
         "mode": { "const": "kit" },
@@ -284,7 +325,14 @@
                   "required": ["id", "pass", "rule"],
                   "properties": {
                     "id": {
-                      "enum": ["notSynthesised", "oneEvent", "notNoiseBed", "cleanEdges", "peak", "length"]
+                      "enum": [
+                        "notSynthesised",
+                        "oneEvent",
+                        "notNoiseBed",
+                        "cleanEdges",
+                        "peak",
+                        "length"
+                      ]
                     },
                     "pass": { "type": "boolean" },
                     "rule": { "type": "string" }
