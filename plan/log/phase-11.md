@@ -54,8 +54,8 @@ U+2028/U+2029 line splitting, malformed fake script, unsafe `maxTokens`). Not do
 
 ## Early steps (D-19) — g1-agent-utils
 
-Package G1 (pure agent utilities). Branch `early/g1-agent-utils`, merged to main (see the merge
-commit below). Imports nothing from `@vox/engine`; errors use a local `UtilError` shim (D-26).
+Package G1 (pure agent utilities). Branch `early/g1-agent-utils`, merged to main (merge commit f6a0ce7, pushed; worktree removed).
+Imports nothing from `@vox/engine`; errors use a local `UtilError` shim (D-26).
 
 **Steps done**
 - Step 5 in full: `loop/envelope.ts` (`escapeData`, `wrapData`; S21, also the S34 `vision` source).
