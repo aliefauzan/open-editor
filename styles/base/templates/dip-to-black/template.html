@@ -37,7 +37,7 @@
           var tl = gsap.timeline({ paused: true });
           tl.fromTo(black, { opacity: 0 }, { opacity: 1, duration: half, ease: 'none' }, 0);
           tl.to(black, { opacity: 0, duration: half, ease: 'none' }, half);
-          mount.register(tl);
+          window.__timelines[mount.key] = mount.register(tl);
         })();
       </script>
     </template>

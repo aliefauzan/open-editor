@@ -27,7 +27,7 @@
       <script>
         (function () {
           var mount = vox.mount('__ID__');
-          mount.register(gsap.timeline({ paused: true }));
+          window.__timelines[mount.key] = mount.register(gsap.timeline({ paused: true }));
         })();
       </script>
     </template>

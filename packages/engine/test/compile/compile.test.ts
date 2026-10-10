@@ -21,9 +21,14 @@ import {
   varsOf,
 } from './fixture.ts';
 
-const index = (b: { files: Map<string, string | Uint8Array> }) => b.files.get('index.html') as string;
+const index = (b: { files: Map<string, string | Uint8Array> }) =>
+  b.files.get('index.html') as string;
 
-function sceneProject(styleId: string, items: ReturnType<typeof scene>[], extra: Partial<Project['sequences'][number]> = {}): Project {
+function sceneProject(
+  styleId: string,
+  items: ReturnType<typeof scene>[],
+  extra: Partial<Project['sequences'][number]> = {},
+): Project {
   return baseProject(
     {
       ...emptySequence('seq_s', F30),
@@ -37,12 +42,15 @@ function sceneProject(styleId: string, items: ReturnType<typeof scene>[], extra:
 }
 
 describe('snapshots (step 7)', () => {
-  test.each(['render', 'preview'] as const)('%s build matches the snapshot and reruns byte-identical', async (mode) => {
-    const a = serialise(await build(mainProject(), { mode }));
-    const b = serialise(await build(mainProject(), { mode }));
-    expect(b).toBe(a);
-    await expect(a).toMatchFileSnapshot(`__snapshots__/main.${mode}.txt`);
-  });
+  test.each(['render', 'preview'] as const)(
+    '%s build matches the snapshot and reruns byte-identical',
+    async (mode) => {
+      const a = serialise(await build(mainProject(), { mode }));
+      const b = serialise(await build(mainProject(), { mode }));
+      expect(b).toBe(a);
+      await expect(a).toMatchFileSnapshot(`__snapshots__/main.${mode}.txt`);
+    },
+  );
 });
 
 describe('layers and tracks (step 9)', () => {
@@ -73,7 +81,9 @@ describe('layers and tracks (step 9)', () => {
     if (music.type === 'media') music.volume = 1.5;
     const html = index(await build(p, { mode: 'preview' }));
     expect(html).toMatch(/<audio id="it_m1" src="audio\/m_music\.m4a"[^>]*data-volume="1"/);
-    expect(html).toContain(`tl.fromTo(byId('it_m1'), { volume: 1 }, { volume: 0, duration: 1, ease: 'none' }, 5);`);
+    expect(html).toContain(
+      `tl.fromTo(byId('it_m1'), { volume: 1 }, { volume: 0, duration: 1, ease: 'none' }, 5);`,
+    );
     // it_v1 starts 1000 ms into m_a: 1 s + 1 ms in preview, exact in render
     expect(html).toMatch(/<video id="it_v1" src="media\/m_a\.mp4"[^>]*data-media-start="1\.001"/);
     const render = index(await build(p));
@@ -131,19 +141,29 @@ describe('hooks (step 8, S8)', () => {
   test('ctx.readAsset rejects .. and absolute paths', () => {
     const dir = `${KIT}/kit`;
     expect(readStyleAsset(dir, 'assets/data/places.csv').toString()).toContain('lisbon');
-    for (const bad of ['../kitdraft/style.json', '/etc/hosts', 'assets/../../kitdraft/style.json']) {
-      expect(() => readStyleAsset(dir, bad)).toThrow(expect.objectContaining({ code: 'PATH_INVALID' }));
+    for (const bad of [
+      '../kitdraft/style.json',
+      '/etc/hosts',
+      'assets/../../kitdraft/style.json',
+    ]) {
+      expect(() => readStyleAsset(dir, bad)).toThrow(
+        expect.objectContaining({ code: 'PATH_INVALID' }),
+      );
     }
   });
 
   test("an untrusted style's own hook fails with HOOK_UNTRUSTED and never runs", async () => {
-    const p = sceneProject('kitdraft', [scene('it_n', 'kitdraft/note', '1.0.0', 0, 2000, { label: 'n' })]);
+    const p = sceneProject('kitdraft', [
+      scene('it_n', 'kitdraft/note', '1.0.0', 0, 2000, { label: 'n' }),
+    ]);
     await expect(build(p, { mode: 'render' }, registry(['kit']))).rejects.toMatchObject({
       code: 'HOOK_UNTRUSTED',
       details: { template: 'kitdraft/note', styleId: 'kitdraft' },
     });
     // kit itself untrusted: its hook does not run either
-    await expect(build(sceneProject('kit', [card()]), { mode: 'render' }, registry())).rejects.toMatchObject({
+    await expect(
+      build(sceneProject('kit', [card()]), { mode: 'render' }, registry()),
+    ).rejects.toMatchObject({
       code: 'HOOK_UNTRUSTED',
     });
   });
@@ -180,10 +200,18 @@ describe('stack panels and token scoping (step 9)', () => {
   test('an inherited template takes the sequence style tokens; an unrelated style keeps its own', async () => {
     const title = scene('it_t', 'base/title', '1.0.0', 0, 2000, { title: 'x' });
     const swatch = scene('it_w', 'kit/swatch', '1.0.0', 2000, 2000, { label: 'w' });
-    const inKit = await build(sceneProject('kitdraft', [title, swatch]), { mode: 'render' }, registry());
+    const inKit = await build(
+      sceneProject('kitdraft', [title, swatch]),
+      { mode: 'render' },
+      registry(),
+    );
     // base/title in a kitdraft sequence: kitdraft's accent
     expect(instance(inKit, 'it_t')).toContain('--tok-color-accent: #00aa00;');
-    const inBase = await build(sceneProject('base', [title, swatch]), { mode: 'render' }, registry());
+    const inBase = await build(
+      sceneProject('base', [title, swatch]),
+      { mode: 'render' },
+      registry(),
+    );
     expect(instance(inBase, 'it_t')).toContain('--tok-color-accent: #2f6fed;');
     // kit/swatch in a base sequence: kit's own tokens
     expect(instance(inBase, 'it_w')).toContain('--tok-color-accent: #ff5500;');
@@ -214,7 +242,10 @@ describe('D-15 compile details (step 9b)', () => {
     expect(words.slice(0, 5)).toEqual(['THIS', 'IS', 'VOX', 'IT', 'HAS']);
     expect(b.files.get('captions.srt')).toBe(captionsToSrt(b.captions));
     expect(b.files.get('captions.srt')).toContain('this is Vox.');
-    expect(presetText(b.captions, { case: 'lower', stripPunctuation: false })[0]!.lines[0]!.words[2]!.text).toBe('vox.');
+    expect(
+      presetText(b.captions, { case: 'lower', stripPunctuation: false })[0]!.lines[0]!.words[2]!
+        .text,
+    ).toBe('vox.');
   });
 
   test('facetrack, auto and manual keyframes become a transform; cover/contain use object-fit', async () => {
@@ -243,9 +274,13 @@ describe('D-15 compile details (step 9b)', () => {
     expect(html).toContain(
       `tl.to(byId('it_f'), { x: -1166.667, y: -960, scale: 2, duration: 1, ease: 'none' }, 0);`,
     );
-    expect(html).toContain(`tl.to(byId('it_m'), { x: -1166.667, y: -960, scale: 2, duration: 1, ease: 'none' }, 2);`);
+    expect(html).toContain(
+      `tl.to(byId('it_m'), { x: -1166.667, y: -960, scale: 2, duration: 1, ease: 'none' }, 2);`,
+    );
     // static manual crop: x = 0.2 → 540 - 0.2 × 3413.333
-    expect(html).toMatch(/<video id="it_s"[^>]*transform: translate\(-142\.667px, 0px\) scale\(1\);"/);
+    expect(html).toMatch(
+      /<video id="it_s"[^>]*transform: translate\(-142\.667px, 0px\) scale\(1\);"/,
+    );
     expect(html).toMatch(/<video id="it_c"[^>]*object-fit: contain;"/);
   });
 });
@@ -266,7 +301,9 @@ describe('range', () => {
     const b = await build(mainProject(), { mode: 'render', range: { startMs: 1000, endMs: 4000 } });
     expect(b.durationMs).toBe(3000);
     const html = index(b);
-    expect(html).toMatch(/<video id="it_v1"[^>]*data-start="0" data-duration="2" data-media-start="2"/);
+    expect(html).toMatch(
+      /<video id="it_v1"[^>]*data-start="0" data-duration="2" data-media-start="2"/,
+    );
     expect(html).not.toContain('id="it_t1"');
     expect(b.warnings).toContain('it_t1: scene starts before the range; dropped');
   });

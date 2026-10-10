@@ -70,7 +70,7 @@
           label.textContent = mount.vars.label;
           label.style.fontSize = Math.round(w * 0.045) + 'px';
           root.querySelector('.p-tag').style.fontSize = Math.round(w * 0.03) + 'px';
-          mount.register(gsap.timeline({ paused: true }));
+          window.__timelines[mount.key] = mount.register(gsap.timeline({ paused: true }));
         })();
       </script>
     </template>

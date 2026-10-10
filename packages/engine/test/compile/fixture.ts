@@ -150,7 +150,11 @@ export function mainProject(styleId = 'base'): Project {
   ]);
 }
 
-export function input(p: Project, reg: StyleRegistry = registry(), extra: Partial<CompileInput> = {}): CompileInput {
+export function input(
+  p: Project,
+  reg: StyleRegistry = registry(),
+  extra: Partial<CompileInput> = {},
+): CompileInput {
   return {
     project: p,
     projectDir: PROJECT_DIR,
@@ -171,13 +175,18 @@ export async function build(
 }
 
 const stable = (abs: string) =>
-  abs.startsWith(PROJECT_DIR) ? `<project>/${relative(PROJECT_DIR, abs)}` : `<repo>/${relative(REPO, abs)}`;
+  abs.startsWith(PROJECT_DIR)
+    ? `<project>/${relative(PROJECT_DIR, abs)}`
+    : `<repo>/${relative(REPO, abs)}`;
 
 /** Every file and link of a build in path order, absolute sources made machine-independent. */
 export function serialise(b: BuildResult): string {
   const files = [...b.files]
     .sort(([a], [c]) => (a < c ? -1 : 1))
-    .map(([path, content]) => `=== ${path}\n${typeof content === 'string' ? content : `<${content.length} bytes>`}`);
+    .map(
+      ([path, content]) =>
+        `=== ${path}\n${typeof content === 'string' ? content : `<${content.length} bytes>`}`,
+    );
   const links = [...b.links]
     .sort(([a], [c]) => (a < c ? -1 : 1))
     .map(([path, from]) => `${path} <- ${stable(from)}`);

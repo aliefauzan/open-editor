@@ -69,7 +69,7 @@
               0,
             );
           }
-          mount.register(tl);
+          window.__timelines[mount.key] = mount.register(tl);
         })();
       </script>
     </template>

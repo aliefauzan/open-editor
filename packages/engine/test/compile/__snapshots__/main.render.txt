@@ -54,7 +54,7 @@ clips!
         <div id="it_o1" class="clip host" data-composition-id="it_o1" data-composition-src="scenes/it_o1.html" data-start="3" data-duration="2.5" data-track-index="2" data-width="1080" data-height="1920"></div>
       </div>
       <div id="track-captions" class="layer">
-        <div id="captions" class="clip host" data-composition-id="captions" data-composition-src="scenes/captions.html" data-start="0" data-duration="6" data-track-index="99" data-width="1080" data-height="1920"></div>
+        <div id="captions" class="clip host" data-composition-id="captions" data-composition-src="scenes/captions.html" data-track-kind="captions" data-start="0" data-duration="6" data-track-index="99" data-width="1080" data-height="1920"></div>
       </div>
     </div>
     <script>
@@ -187,7 +187,7 @@ clips!
             tl.set(el, { opacity: 1 }, c.startMs / 1000);
             tl.set(el, { opacity: 0 }, c.endMs / 1000);
           }
-          mount.register(tl);
+          window.__timelines[mount.key] = mount.register(tl);
         })();
       </script>
     </template>
@@ -285,7 +285,7 @@ clips!
               0,
             );
           }
-          mount.register(tl);
+          window.__timelines[mount.key] = mount.register(tl);
         })();
       </script>
     </template>
@@ -402,7 +402,7 @@ clips!
             tl.fromTo(bar, { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: ease }, 0.2);
             tl.fromTo(sub, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: ease }, 0.35);
           }
-          mount.register(tl);
+          window.__timelines[mount.key] = mount.register(tl);
         })();
       </script>
     </template>
@@ -468,7 +468,7 @@ clips!
           var tl = gsap.timeline({ paused: true });
           tl.fromTo(black, { opacity: 0 }, { opacity: 1, duration: half, ease: 'none' }, 0);
           tl.to(black, { opacity: 0, duration: half, ease: 'none' }, half);
-          mount.register(tl);
+          window.__timelines[mount.key] = mount.register(tl);
         })();
       </script>
     </template>

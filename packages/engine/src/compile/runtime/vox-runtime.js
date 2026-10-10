@@ -54,12 +54,17 @@
       if (chain.indexOf(cid) < 0) chain.push(cid);
     }
     var keys = chain.indexOf(id) >= 0 ? [id] : chain.length ? chain : [id];
+    // Templates write `window.__timelines[mount.key] = mount.register(tl);` so `hyperframes lint`
+    // sees the registration (inlined preview templates are not exempt from its static check).
     return {
       root: root,
       vars: vars(root),
       keys: keys,
+      key: keys[0],
       register: function (tl) {
+        window.__timelines = window.__timelines || {};
         for (var k = 0; k < keys.length; k++) window.__timelines[keys[k]] = tl;
+        return tl;
       },
     };
   }

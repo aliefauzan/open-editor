@@ -96,7 +96,7 @@
             tl.set(el, { opacity: 1 }, c.startMs / 1000);
             tl.set(el, { opacity: 0 }, c.endMs / 1000);
           }
-          mount.register(tl);
+          window.__timelines[mount.key] = mount.register(tl);
         })();
       </script>
     </template>

@@ -5,7 +5,11 @@ import type { Item, Sequence } from '../../src/model/schema.ts';
 import { mapTemplateLookup, type TemplateInfo } from '../../src/ops/templates.ts';
 import { emptySequence, F30, NTSC, track } from '../helpers/project.ts';
 
-const tpl = (id: string, kind: TemplateInfo['kind'], sfxCues: TemplateInfo['sfxCues']): TemplateInfo => ({
+const tpl = (
+  id: string,
+  kind: TemplateInfo['kind'],
+  sfxCues: TemplateInfo['sfxCues'],
+): TemplateInfo => ({
   id,
   version: '1.0.0',
   kind,
@@ -54,7 +58,10 @@ describe('cue list (step 13c)', () => {
       { atMs: 1900, sfx: 'thump', type: 'land', itemId: 'it_1', cueName: 'land' },
     ]);
     // NTSC: 1000 + 900 ms snaps to frame 57 = 1902 ms
-    const n = cueList({ ...seqWith([sc('it_1', 't/pop', 1001)]), canvas: { width: 1080, height: 1920, fps: NTSC } }, lookup);
+    const n = cueList(
+      { ...seqWith([sc('it_1', 't/pop', 1001)]), canvas: { width: 1080, height: 1920, fps: NTSC } },
+      lookup,
+    );
     expect(n.cues.map((c) => c.atMs)).toEqual([1001, 1902]);
   });
 
@@ -77,9 +84,14 @@ describe('cue list (step 13c)', () => {
   });
 
   test('sfxOff and sequence.sfx false drop cues as muted', () => {
-    const off = cueList(seqWith([sc('it_1', 't/pop', 0, { sfxOff: ['land'] } as Partial<Item>)]), lookup);
+    const off = cueList(
+      seqWith([sc('it_1', 't/pop', 0, { sfxOff: ['land'] } as Partial<Item>)]),
+      lookup,
+    );
     expect(off.cues.map((c) => c.cueName)).toEqual(['in']);
-    expect(off.dropped).toEqual([{ cue: expect.objectContaining({ cueName: 'land' }), reason: 'muted' }]);
+    expect(off.dropped).toEqual([
+      { cue: expect.objectContaining({ cueName: 'land' }), reason: 'muted' },
+    ]);
     const none = cueList(seqWith([sc('it_1', 't/pop', 0)], { sfx: false }), lookup);
     expect(none.cues).toEqual([]);
     expect(none.dropped.map((d) => d.reason)).toEqual(['muted', 'muted']);
@@ -88,19 +100,27 @@ describe('cue list (step 13c)', () => {
   test('two cues 50 ms apart: the second is dropped as spacing', () => {
     const l = cueList(seqWith([sc('it_1', 't/near', 0)]), lookup);
     expect(l.cues.map((c) => c.cueName)).toEqual(['a']);
-    expect(l.dropped).toEqual([{ cue: expect.objectContaining({ cueName: 'b' }), reason: 'spacing' }]);
+    expect(l.dropped).toEqual([
+      { cue: expect.objectContaining({ cueName: 'b' }), reason: 'spacing' },
+    ]);
   });
 
   test('two hero cues 3 s apart: the second is dropped as hero-spacing; 4 s apart both stay', () => {
     const l = cueList(seqWith([sc('it_1', 't/hero', 0), sc('it_2', 't/hero', 3000)]), lookup);
     expect(l.cues.map((c) => c.itemId)).toEqual(['it_1']);
-    expect(l.dropped).toEqual([{ cue: expect.objectContaining({ itemId: 'it_2' }), reason: 'hero-spacing' }]);
+    expect(l.dropped).toEqual([
+      { cue: expect.objectContaining({ itemId: 'it_2' }), reason: 'hero-spacing' },
+    ]);
     const ok = cueList(seqWith([sc('it_1', 't/hero', 0), sc('it_2', 't/hero', 4000)]), lookup);
     expect(ok.cues.map((c) => c.itemId)).toEqual(['it_1', 'it_2']);
   });
 
   test('cues.json is byte-identical on rerun', () => {
-    const s = seqWith([sc('it_1', 't/pop', 0), sc('it_2', 't/hero', 2500), sc('it_3', 't/near', 6000)]);
+    const s = seqWith([
+      sc('it_1', 't/pop', 0),
+      sc('it_2', 't/hero', 2500),
+      sc('it_3', 't/near', 6000),
+    ]);
     expect(cuesJson(cueList(s, lookup))).toBe(cuesJson(cueList(structuredClone(s), lookup)));
   });
 });

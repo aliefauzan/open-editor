@@ -666,7 +666,7 @@ function captionLayer(ctx: Ctx, chunks: CaptionChunk[], durMs: number): string {
     vars,
     durMs,
   );
-  return `<div id="captions" class="clip host" data-composition-id="captions"${src} data-start="0" data-duration="${secOf(ctx, durMs)}" data-track-index="99" data-width="${ctx.seq.canvas.width}" data-height="${ctx.seq.canvas.height}"></div>`;
+  return `<div id="captions" class="clip host" data-composition-id="captions"${src} data-track-kind="captions" data-start="0" data-duration="${secOf(ctx, durMs)}" data-track-index="99" data-width="${ctx.seq.canvas.width}" data-height="${ctx.seq.canvas.height}"></div>`;
 }
 
 /** Preview `<audio>`: audio-track clips (muted tracks skipped) and kept SFX cues. */

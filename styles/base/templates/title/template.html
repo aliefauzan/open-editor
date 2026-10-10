@@ -88,7 +88,7 @@
             tl.fromTo(bar, { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: ease }, 0.2);
             tl.fromTo(sub, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: ease }, 0.35);
           }
-          mount.register(tl);
+          window.__timelines[mount.key] = mount.register(tl);
         })();
       </script>
     </template>

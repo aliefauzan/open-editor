@@ -20,7 +20,7 @@
         (function () {
           var mount = vox.mount('__ID__');
           if (mount.vars.photo) mount.root.querySelector('.c-photo').src = mount.vars.photo;
-          mount.register(gsap.timeline({ paused: true }));
+          window.__timelines[mount.key] = mount.register(gsap.timeline({ paused: true }));
         })();
       </script>
     </template>

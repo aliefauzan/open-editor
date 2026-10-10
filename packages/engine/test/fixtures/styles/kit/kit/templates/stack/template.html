@@ -35,7 +35,7 @@
           var mount = vox.mount('__ID__');
           var panels = mount.root.querySelectorAll('[data-vox-panel]');
           for (var i = 0; i < panels.length; i++) panels[i].style.top = i * 33 + '%';
-          mount.register(gsap.timeline({ paused: true }));
+          window.__timelines[mount.key] = mount.register(gsap.timeline({ paused: true }));
         })();
       </script>
     </template>
