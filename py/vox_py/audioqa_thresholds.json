@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "note": "Pass/fail limits live under `checks`. They are never loosened to make a check pass (R3); changing one needs a plan DECISIONS entry. `analysis` holds measurement settings, not limits. The loudness target is not stored here: it comes from the request (D-15), only the tolerance is.",
+  "checks": {
+    "cueTiming": { "toleranceFrames": 1 },
+    "spacing": { "minGapMs": 120 },
+    "sfxUnderSpeech": { "minMarginLu": 6 },
+    "loudness": {
+      "toleranceLu": 1,
+      "maxTruePeakDbtp": -1,
+      "clipLevel": 0.9997,
+      "clipMinRun": 3
+    },
+    "kit": {
+      "maxPeakEnergyShare": 0.9,
+      "maxOnsets": 1,
+      "noiseFlatness": 0.35,
+      "noiseFrameFraction": 0.9,
+      "edgeMs": 5,
+      "edgeMaxDbfs": -40,
+      "maxPeakDbfs": -1,
+      "maxLengthMs": 3000
+    }
+  },
+  "analysis": {
+    "sampleRateHz": 48000,
+    "truePeakRateHz": 192000,
+    "maxMixSeconds": 600,
+    "onsetHopMs": 1,
+    "onsetFloorDbfs": -50,
+    "onsetRiseDb": 12,
+    "onsetLookbackMs": 10,
+    "onsetSilenceMs": 50,
+    "onsetRearmDropDb": 15,
+    "cueMatchWindowMs": 250,
+    "overlapWindowMs": 200,
+    "speechFrameMs": 20,
+    "speechFrameFloorDbfs": -50,
+    "speechActiveMinFraction": 0.5,
+    "peakHalfWidthHz": 30,
+    "flatnessFrame": 2048,
+    "flatnessHop": 1024,
+    "flatnessActiveFloorDbfs": -50
+  }
+}
