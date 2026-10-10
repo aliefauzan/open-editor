@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/transcribe.request",
+  "title": "vox_py.transcribe request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["audioPath"],
+  "properties": {
+    "audioPath": { "type": "string", "minLength": 1 },
+    "language": { "type": ["string", "null"], "minLength": 1 },
+    "fillers": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "modelPath": { "type": "string", "minLength": 1 },
+    "ffmpeg": { "type": "string", "minLength": 1 },
+    "formatWhitelist": { "type": "string", "minLength": 1 }
+  }
+}

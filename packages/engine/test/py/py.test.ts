@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { isVoxError } from '../../src/errors.pending.ts';
+import { isVoxError } from '../../src/errors.ts';
 import { pyArgv, pyEnv, repoPyProject, runPyTool, type PyBridgeOptions } from '../../src/py.ts';
 import { createRedactor, REDACTED } from '../../src/redact.ts';
 

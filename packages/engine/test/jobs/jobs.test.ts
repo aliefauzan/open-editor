@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { isVoxError, VoxError } from '../../src/errors.pending.ts';
+import { isVoxError, VoxError } from '../../src/errors.ts';
 import { createJobRunner, type JobContext, type JobEventName } from '../../src/jobs.ts';
 import { createRedactor, REDACTED } from '../../src/redact.ts';
 

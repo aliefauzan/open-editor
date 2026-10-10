@@ -48,7 +48,7 @@ captioned clips with editable subtitles and no AI key (D-11).
   `vox audio-qa [--loudness preset]` per engine "Audio QA" (stems + mix through ffmpeg PCM, numpy
   onset/loudness checks, loudness against the chosen target ±1 LU; the thresholds file stores the
   tolerance, not the target, D-15;
-  `qa.json`, `qa.png` via ffmpeg `showwavespic` + `drawbox`/`drawtext`, `LISTEN.md`), and `--kit
+  `qa.json`, `qa.png` drawn with numpy and numbered cue markers (no `drawtext`, D-27), `LISTEN.md`), and `--kit
   <styleId>` for the SFX rules (styles spec) with a kit sheet image.
 - Facetrack path provider (moved from 04): plugs 04's facetrack path builder into 03's compile
   path-provider interface, replacing 03's fixture stub, so `facetrack` and `auto` clips compile with

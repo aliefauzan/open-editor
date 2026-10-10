@@ -8,7 +8,7 @@ import { homedir, hostname } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
-import { VoxError } from './errors.pending.ts';
+import { VoxError } from './errors.ts';
 
 // Agent sections (providers, roles, limits) follow agent spec "Configuration and keys"; phase 11
 // tightens them (key refs, baseUrl without credentials). Unknown keys are kept, never dropped.

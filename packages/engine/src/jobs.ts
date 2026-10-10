@@ -5,14 +5,14 @@
 // Left for phase 04 step 1b: baseVersion + one `batch` with `jobId`, JOB_CONFLICT (needs 02 applyOp).
 
 import type { z } from 'zod';
-import { isVoxError, VoxError } from './errors.pending.ts';
+import { isVoxError, VoxError, type ErrorCode } from './errors.ts';
 import { redactor as sharedRedactor, type Redactor } from './redact.ts';
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
 
 /** Serialisable, redacted error of a failed job. */
 export interface JobError {
-  code: string;
+  code: ErrorCode;
   message: string;
   hint: string;
   details?: Record<string, unknown>;

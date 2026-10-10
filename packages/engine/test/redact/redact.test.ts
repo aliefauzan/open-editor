@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 import { createRedactor, REDACTED, redactor } from '../../src/redact.ts';
 
 // R4 canary key: must never survive redaction.
@@ -127,7 +127,7 @@ describe('redact on structured values', () => {
     expect(JSON.stringify(out.details)).not.toContain('CANARY');
     expect(out.stack ?? '').not.toContain('CANARY');
 
-    const nested = r.redact(new VoxError('X', 'm', 'h', { cause: inner }));
+    const nested = r.redact(new VoxError('VALIDATION', 'm', 'h', { cause: inner }));
     expect((nested.cause as Error).message).toBe(`inner ${REDACTED}`);
     expect(nested.cause).toBeInstanceOf(Error);
     expect(inner.message).toContain('CANARY');
@@ -177,7 +177,9 @@ describe('redact: wider coverage (review fixes)', () => {
   });
 
   it('redacts an object cause of a VoxError', () => {
-    const e = new VoxError('X', 'm', 'h', { cause: { url: `https://x.test/?key=${CANARY}` } });
+    const e = new VoxError('VALIDATION', 'm', 'h', {
+      cause: { url: `https://x.test/?key=${CANARY}` },
+    });
     expect(JSON.stringify(r.redact(e).cause)).not.toContain('CANARY');
   });
 

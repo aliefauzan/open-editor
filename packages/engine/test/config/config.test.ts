@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configPath, readConfig, writeConfig } from '../../src/config.ts';
-import { isVoxError } from '../../src/errors.pending.ts';
+import { isVoxError } from '../../src/errors.ts';
 
 let home: string;
 let scratch: string[] = [];

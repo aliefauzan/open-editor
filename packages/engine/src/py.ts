@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { z } from 'zod';
-import { VoxError } from './errors.pending.ts';
+import { VoxError, type ErrorCode } from './errors.ts';
 import { redactor as sharedRedactor, type Redactor } from './redact.ts';
 
 export const STDERR_TAIL_LINES = 40;
@@ -315,7 +315,7 @@ export function runPyTool<S extends z.ZodType>(
     const settle = (code: number | null, signal: NodeJS.Signals | null): z.output<S> => {
       const cause = tail.length > 0 ? tail.join('\n') : undefined;
       const fail = (
-        codeName: string,
+        codeName: ErrorCode,
         message: string,
         hint: string,
         details: Record<string, unknown>,
