@@ -20,7 +20,7 @@ import {
   type CaptionChunk,
   type TranscriptOf,
 } from '../model/captions.ts';
-import { frame, type Fps } from '../model/fps.ts';
+import { blendHalf, frame, type Fps } from '../model/fps.ts';
 import type {
   Item,
   Keyframe,
@@ -522,17 +522,17 @@ function placements(ctx: Ctx, items: readonly Item[]): Map<string, Placed> {
     if (!tr) continue;
     const def = ctx.input.registry.template(tr.template);
     if (!def?.blendsShots) continue;
-    const half = Math.ceil(tr.durationMs / 2);
+    const { before, after } = blendHalf(it.startMs, tr.durationMs, ctx.seq.canvas.fps);
     const inc = out.get(it.id);
     if (inc) {
-      const shift = Math.min(half, inc.inMs, inc.startMs);
+      const shift = Math.min(before, inc.inMs, inc.startMs);
       inc.startMs -= shift;
       inc.inMs -= shift;
       inc.durationMs += shift;
     }
     const prev = items.find((x) => endOf(x) === it.startMs);
     const out1 = prev ? out.get(prev.id) : undefined;
-    if (out1) out1.durationMs += half;
+    if (out1) out1.durationMs += after;
     const start = inc ? inc.startMs : it.startMs;
     ctx.script.push(
       `tl.fromTo(byId('${it.id}'), { opacity: 0 }, { opacity: 1, duration: ${secOf(ctx, tr.durationMs)}, ease: 'none' }, ${secOf(ctx, start)});`,
@@ -579,8 +579,8 @@ async function transitionLayer(
     if (!tr) continue;
     const def = requireDef(ctx, tr.template, it.id);
     const id = `${it.id}-tx`;
-    const half = Math.ceil(tr.durationMs / 2);
-    const start = Math.max(0, it.startMs - half);
+    const { before } = blendHalf(it.startMs, tr.durationMs, ctx.seq.canvas.fps);
+    const start = Math.max(0, it.startMs - before);
     const src = emitInstance(
       ctx,
       id,
@@ -748,7 +748,8 @@ function applyRange(
       if (next.type === 'media') next.inMs += head;
       if (
         next.transitionIn &&
-        (head > 0 || it.startMs - Math.ceil(next.transitionIn.durationMs / 2) < a)
+        (head > 0 ||
+          it.startMs - blendHalf(it.startMs, next.transitionIn.durationMs, s.canvas.fps).before < a)
       ) {
         warnings.push(`${it.id}: transition cut by the range start; dropped`);
         delete next.transitionIn;

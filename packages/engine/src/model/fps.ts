@@ -42,6 +42,21 @@ export function frameMs(fps: Fps): number {
   return Math.max(1, ms(1, fps));
 }
 
+/**
+ * A shot-blending transition of `durationMs` at the cut `cutMs` (D-12): the incoming clip starts
+ * `before` ms early and the outgoing clip runs `after` ms longer. Each is half the transition in whole
+ * frames (rounded up), so the overlapped clips stay on the frame grid.
+ */
+export function blendHalf(
+  cutMs: number,
+  durationMs: number,
+  fps: Fps,
+): { before: number; after: number } {
+  const c = frame(cutMs, fps);
+  const h = Math.ceil(frame(durationMs, fps) / 2);
+  return { before: cutMs - ms(c - h, fps), after: ms(c + h, fps) - cutMs };
+}
+
 /** Snap a source offset (`inMs`) to the source's grid; media with no fps use the sequence grid. */
 export function snapToSource(t: number, sourceFps: Fps | undefined, sequenceFps: Fps): number {
   return snap(t, sourceFps ?? sequenceFps);
