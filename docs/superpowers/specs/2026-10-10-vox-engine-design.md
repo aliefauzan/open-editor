@@ -464,6 +464,7 @@ workflow exposes a small set directly and the rest through `describe_tool`/`call
 | `updateSequence`, `duplicateSequence`, `removeSequence` | update covers name, canvas (re-snaps on fps change), styleId, sfx, overlays |
 | `addTrack`, `updateTrack`, `removeTrack`, `reorderTracks` | tracks |
 | `placeClip` | put a media clip on a track at a time (`withAudio`, `onOverlap`) |
+| `updateClip` | change a media clip's `frame`, `motion`, `volume`, fades or `denoise` (plan D-18) |
 | `addScene`, `updateScene` | add/edit a scene clip; `updateScene` may switch to a compatible template: every required variable of the target exists in the scene's variables with the same JSON-Schema type, and slot kinds (`media`, `geo`, `template`) match by key; variables the target does not declare are dropped and listed in the result |
 | `moveItem` | change track and/or start time (`onOverlap`) |
 | `trimItem` | change start/in/duration from either edge |
@@ -492,6 +493,61 @@ one undo entry. With
 and writes nothing: no history entry, version unchanged. That list is the review list
 the app and the agent show before applying.
 
+Arguments (plan D-18). The exported zod schema of each op (`src/ops/`, one export per op,
+`<opName>Args`) is the contract; the shapes below summarise it. Times are timeline ms,
+except `inMs` (source ms).
+
+- `addMedia { media }` (the caller picks `media.id`), `updateMedia { mediaId, patch }`
+  (every field except `id` and `kind`; `null` clears an optional field), `removeMedia
+  { mediaId }`, `replaceMedia { mediaId, withMediaId }` (reports `clamped` item ids).
+- `addSequence { name, id?, canvas?, styleId? }` (default 1080×1920, 30/1, `base`; reports
+  `sequenceId`), `updateSequence { sequenceId, name?, canvas?, styleId?, sfx?, overlays?,
+  sourceRange? }` (`null` clears `overlays`/`sourceRange`), `duplicateSequence
+  { sequenceId, name? }` (new ids, link groups kept; reports `sequenceId`),
+  `removeSequence { sequenceId }`.
+- `addTrack { sequenceId, kind: 'video' | 'audio', name? }` (next free `V<n>`/`A<n>`, on
+  top), `updateTrack { sequenceId, trackId, name?, locked?, hidden?, muted?, syncLock? }`,
+  `removeTrack { sequenceId, trackId }` (empty tracks only, else `TRACK_NOT_EMPTY`),
+  `reorderTracks { sequenceId, kind, trackIds }` (a permutation).
+- `placeClip { sequenceId, trackId, mediaId, startMs, inMs = 0, durationMs?, withAudio?,
+  audioTrackId = 'A1', onOverlap = 'error', frame?, motion?, volume?, fadeInMs?,
+  fadeOutMs?, denoise? }`: `durationMs` defaults to the rest of the media and is required
+  for images.
+- `updateClip { sequenceId, itemId, frame?, motion?, volume?, fadeInMs?, fadeOutMs?,
+  denoise? }` (plan D-18): a media clip's own settings (inspector sliders; `null` clears).
+- `addScene { sequenceId, trackId, startMs, durationMs?, template, variables, sfxOff?,
+  onOverlap }` (duration defaults to the template's), `updateScene { sequenceId, itemId,
+  template?, variables?, sfxOff? }` (`variables` replaces the object; reports
+  `droppedVariables` on a template switch).
+- `moveItem { sequenceId, itemId, startMs?, trackId?, onOverlap, unlinked? }` (linked
+  items move by the same time delta and stay on their tracks), `trimItem { sequenceId,
+  itemId, edge: 'start' | 'end', toMs, unlinked? }`, `splitItem { sequenceId, itemId, atMs,
+  unlinked? }` (the right parts get new ids and one new shared `linkId`), `removeItem
+  { sequenceId, itemId, unlinked? }`.
+- `rippleDelete { sequenceId, trackId, startMs, endMs }`: cuts the range on the track,
+  every sync-locked track and the tracks of items linked to a cut item, and closes the
+  gap. A media clip across a range edge is trimmed (or split around the range); a scene is
+  shortened.
+- `link { sequenceId, itemIds }` (two or more, new `linkId`), `unlink { sequenceId,
+  itemIds }`, `setTransition { sequenceId, itemId, transition: { template, durationMs } |
+  null }`.
+- `setCaptions { sequenceId, enabled?, sourceTrackIds?, preset?, maxWords?, maxLines?,
+  maxCharsPerLine?, gapFillMs?, autoEmphasis?, position?, overrides?, resetWords? }`: the
+  first call creates the track (`enabled: true`, `sourceTrackIds: ['A1']`, preset
+  `base/plain`, `position.yPct` 75 until the preset supplies it, other defaults as in
+  "Schema"); `overrides` upserts by `wordKey` and merges the given fields; `resetWords`
+  removes overrides; overrides whose `transcriptRev` no longer matches are dropped.
+- `removePauses`, `removeWords` as above; they report `ranges`, dry run or not.
+- `pasteItems { sequenceId, atMs, items: { trackId, item }[], trackMap?, onOverlap }`: the
+  earliest item lands at `atMs`; ids and `linkId`s are new.
+- `restoreSnapshot { name }`; `batch { ops: { op, args }[] }` (no nested `batch`, no
+  `dryRun` inside).
+
+`onOverlap: 'overwrite'` trims, splits or removes the items under the new range on the
+target track only (their linked items are left alone). `'insert'` first splits items
+that span `startMs` on the target tracks and every sync-locked track, then shifts every
+item at or after `startMs` on those tracks by the new duration.
+
 Rules enforced by every operation (invalid input throws `VoxError` with `code`,
 `message`, `hint`):
 
@@ -518,7 +574,7 @@ stable keys:
 
 | Key | Entity |
 |---|---|
-| `project` | name, meta |
+| `project` | id, name, meta without `updatedAt` (stamped on every write, never undone; plan D-18) |
 | `media:<mediaId>` | a MediaItem |
 | `sequence:<seqId>` | sequence fields + ordered track ids |
 | `track:<seqId>/<trackId>` | track fields (no items) |
@@ -595,7 +651,9 @@ ApplyResult {
   version: number
   changes: { key: string; before: Entity | null; after: Entity | null }[]
   results: { op: string; status: 'succeeded' | 'failed' | 'conflicted'
-             error?: VoxError; items?: Item[] }[]   // items: touched items' new state
+             error?: VoxError; items?: Item[]       // items: touched items' new state,
+                                                    // each with its trackId
+             report?: unknown }[]  // op output, e.g. removePauses ranges (plan D-18)
 }
 ```
 
@@ -639,7 +697,8 @@ On load, before anything else:
   bump the version; it only logs a line to `logs/engine.log`.
 - Any other gap fails with `HISTORY_CORRUPT` and a hint to restore from `snapshots/`.
 
-`history.jsonl` rotates at 5,000 entries into `history/<firstVersion>.jsonl.gz`;
+`history.jsonl` rotates at 5,000 entries: all but the newest 500 move into
+`history/<firstVersion>.jsonl.gz`, so undo works across a rotation (plan D-18);
 rotation also writes `history/snapshot-<version>.json`.
 
 The desktop app (spec 4) also watches `project.json` so that a `vox op` from a terminal
@@ -1220,7 +1279,8 @@ the child process. The CLI is a thin wrapper over this API; every command suppor
 
 ## Error handling
 
-- All failures raise `VoxError { code, message, hint, cause? }`. The CLI prints
+- All failures raise `VoxError { code, message, hint, cause?, details? }` (`details`:
+  structured data such as conflicting keys and item ids; plan D-18). The CLI prints
   `hint`; `--json` prints the object. Exit code 1.
 - External tool failures (yt-dlp, ffmpeg, Python, HyperFrames) capture the last 40
   lines of stderr into `cause`, after passing it through the engine's redactor

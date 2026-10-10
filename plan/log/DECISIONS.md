@@ -432,3 +432,36 @@ timings are estimates placed inside `silencedetect` speech regions (`say` has no
 
 **Why**: `drawtext` is unavailable and installing a different ffmpeg build would break "Homebrew ffmpeg
 only" (D-05). A barcode is easier and more reliable to read than OCR.
+
+## D-18 · 2026-10-11 · phase 02 · Contract details fixed while building the model, ops and history
+
+**Context**: Phase 02 freezes `project.json`, the ops, `HistoryEntry`, `ApplyResult`, `engine.view` and
+the path rule (R2). The spec names every op but not all argument shapes, and a few behaviours were open.
+**Decision** (engine spec "Edit operations", "History", "Write order", "Error handling" updated):
+- **Op arguments**: the exported zod schema `<opName>Args` in `src/ops/` is the contract; the spec gains
+  an "Arguments" list. New op `updateClip` (a media clip's `frame`, `motion`, `volume`, fades,
+  `denoise`): sliders and framing in the inspector need it and the table had no op for it.
+  `setCaptions` overrides are upserted by `wordKey` with field merge; `resetWords` removes them.
+  `rippleDelete` takes a `trackId` and also cuts linked items' tracks; scenes in a cut range are
+  shortened. `onOverlap: 'insert'` splits items spanning the insert point.
+- **`ApplyResult`**: each `results[]` entry may carry `report` (op output: `ranges` for
+  `removePauses`/`removeWords`, `droppedVariables`, `clamped`, new `sequenceId`); `items` are entities
+  `Item & { trackId }`. `undo`, `redo` and `undoRun` also return an `ApplyResult`; nothing to undo or
+  redo throws `NOTHING_TO_UNDO` / `NOTHING_TO_REDO`.
+- **`VoxError`** gains optional `details` (structured data: conflicting `keys`, `itemIds`, `trackId`,
+  matching project ids). Validation codes: `VALIDATION`, `NOT_FOUND`, `OVERLAP`, `MEDIA_BOUNDS`,
+  `TRACK_KIND`, `MEDIA_IN_USE`, `TRACK_NOT_EMPTY`, `TEMPLATE_UNKNOWN`, `TEMPLATE_INCOMPATIBLE`,
+  `VARIABLES_INVALID`, `DURATION_BOUNDS`, `SFX_UNKNOWN`, `PATH_INVALID`; plus `SNAPSHOT_EXISTS`,
+  `SCHEMA_UNSUPPORTED` (older schema with no migration step), `PROJECT_NOT_FOUND`, `PROJECT_AMBIGUOUS`.
+- **Ids**: prefix + 8 base-36 time digits + 4 random (`p_`, `m_`, `seq_`, `it_`, `ln_`), so they sort by
+  creation; `project.json` stores `media` and `sequences` sorted by id (normalise/denormalise order).
+- **History**: the `project` entity holds `id`, `name`, `meta` without `updatedAt` (stamped on every
+  write, never undone), so unrelated edits never conflict on `project`. Rotation moves all but the
+  newest 500 entries into `history/<firstVersion>.jsonl.gz`, so undo keeps working across a rotation.
+- **Projects**: `createProject` writes version 0 with no sequence and an empty history; `vox new` adds
+  its 9:16 sequence with one `addSequence` op (actor `cli`). `deleteProject` takes the lock and removes
+  the project folder. Snapshot names are `[A-Za-z0-9._-]`, never replaced (`SNAPSHOT_EXISTS`).
+- **Captions default** `position.yPct` 75 until phase 03's preset supplies it.
+
+**Why**: Smallest choices that keep the phase-02 done-when and give phase 03, 04, 08 and 11 one stable
+target. Nothing here changes a frozen contract.
