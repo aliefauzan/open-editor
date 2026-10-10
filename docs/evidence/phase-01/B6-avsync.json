@@ -1,0 +1,161 @@
+{
+  "item": 2,
+  "name": "av-sync",
+  "pass": true,
+  "attempt": 1,
+  "pairs": 21,
+  "maxAbsOffsetMs": 0.35,
+  "meanOffsetMs": 0.09,
+  "frameMs": 33.33,
+  "missingFlash": 0,
+  "missingClick": 0,
+  "pairList": [
+    {
+      "f": 21,
+      "flashF": 21,
+      "onsetMs": 700.02,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 65,
+      "flashF": 65,
+      "onsetMs": 2166.69,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 270,
+      "flashF": 270,
+      "onsetMs": 9000.02,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 288,
+      "flashF": 288,
+      "onsetMs": 9599.69,
+      "offsetMs": -0.31,
+      "amp": 1.13
+    },
+    {
+      "f": 377,
+      "flashF": 377,
+      "onsetMs": 12567.02,
+      "offsetMs": 0.35,
+      "amp": 1.129
+    },
+    {
+      "f": 405,
+      "flashF": 405,
+      "onsetMs": 13500.35,
+      "offsetMs": 0.35,
+      "amp": 1.129
+    },
+    {
+      "f": 442,
+      "flashF": 442,
+      "onsetMs": 14733.69,
+      "offsetMs": 0.35,
+      "amp": 1.129
+    },
+    {
+      "f": 470,
+      "flashF": 470,
+      "onsetMs": 15667.02,
+      "offsetMs": 0.35,
+      "amp": 1.129
+    },
+    {
+      "f": 565,
+      "flashF": 565,
+      "onsetMs": 18833.69,
+      "offsetMs": 0.35,
+      "amp": 1.129
+    },
+    {
+      "f": 720,
+      "flashF": 720,
+      "onsetMs": 24000.02,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 807,
+      "flashF": 807,
+      "onsetMs": 26899.69,
+      "offsetMs": -0.31,
+      "amp": 1.127
+    },
+    {
+      "f": 875,
+      "flashF": 875,
+      "onsetMs": 29166.69,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 1037,
+      "flashF": 1037,
+      "onsetMs": 34566.69,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 1099,
+      "flashF": 1099,
+      "onsetMs": 36633.35,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 1140,
+      "flashF": 1140,
+      "onsetMs": 38000.02,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 2007,
+      "flashF": 2007,
+      "onsetMs": 66899.69,
+      "offsetMs": -0.31,
+      "amp": 1.127
+    },
+    {
+      "f": 2116,
+      "flashF": 2116,
+      "onsetMs": 70533.35,
+      "offsetMs": 0.02,
+      "amp": 1.13
+    },
+    {
+      "f": 2136,
+      "flashF": 2136,
+      "onsetMs": 71200.33,
+      "offsetMs": 0.33,
+      "amp": 1.13
+    },
+    {
+      "f": 2292,
+      "flashF": 2292,
+      "onsetMs": 76400.33,
+      "offsetMs": 0.33,
+      "amp": 1.13
+    },
+    {
+      "f": 2381,
+      "flashF": 2381,
+      "onsetMs": 79366.98,
+      "offsetMs": 0.31,
+      "amp": 1.13
+    },
+    {
+      "f": 2640,
+      "flashF": 2640,
+      "onsetMs": 88000.02,
+      "offsetMs": 0.02,
+      "amp": 0.449
+    }
+  ]
+}

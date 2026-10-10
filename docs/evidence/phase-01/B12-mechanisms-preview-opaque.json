@@ -1,0 +1,326 @@
+{
+  "item": 7,
+  "side": "preview",
+  "pass": true,
+  "vars": {
+    "pass": true,
+    "instances": 10,
+    "worstDist": 4
+  },
+  "tokens": {
+    "pass": true,
+    "instances": 10,
+    "worstDist": 1
+  },
+  "mutedVideo": {
+    "pass": true,
+    "videos": 50,
+    "audios": 49
+  },
+  "volumeTween": {
+    "pass": true,
+    "atSeek88": 0.4,
+    "expected88": 0.4,
+    "duringPlayGain": {
+      "t": 88,
+      "gain": 0.4,
+      "expected": 0.4,
+      "gainBeforeFade": 1,
+      "gainSets": 337
+    },
+    "note": "el.volume reads 1 during play (WebAudio routing); the gain node values are checked"
+  },
+  "mode": "opaque",
+  "attempt": 1,
+  "electron": "44.7.0",
+  "chrome": "152.0.7977.130",
+  "box": {
+    "w": 450,
+    "h": 800,
+    "scaleFactor": 2
+  },
+  "loadBefore": {
+    "load": [
+      9.78,
+      9.25,
+      10.47
+    ],
+    "cores": 10
+  },
+  "loadAfter": {
+    "load": [
+      6.96,
+      8.12,
+      9.81
+    ],
+    "cores": 10
+  },
+  "note": "other phases were running on this machine during the measurement (load averages above)",
+  "wallS": 135.8,
+  "error": null,
+  "blockedNetworkRequests": 0,
+  "notFound": [],
+  "consoleErrors": [],
+  "points": [
+    {
+      "f": 345,
+      "id": "s7",
+      "what": "swatch",
+      "expect": "#0080ff",
+      "got": [
+        0,
+        128,
+        255
+      ],
+      "dist": 0,
+      "ok": true
+    },
+    {
+      "f": 345,
+      "id": "s7",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        232,
+        68,
+        47
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 645,
+      "id": "s1",
+      "what": "swatch",
+      "expect": "#ff00ff",
+      "got": [
+        255,
+        0,
+        255
+      ],
+      "dist": 0,
+      "ok": true
+    },
+    {
+      "f": 645,
+      "id": "s1",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        46,
+        111,
+        237
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 990,
+      "id": "s2",
+      "what": "swatch",
+      "expect": "#00ffff",
+      "got": [
+        1,
+        255,
+        255
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 990,
+      "id": "s2",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        232,
+        68,
+        47
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3",
+      "what": "swatch",
+      "expect": "#ffff00",
+      "got": [
+        255,
+        255,
+        4
+      ],
+      "dist": 4,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        232,
+        68,
+        47
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3-p1",
+      "what": "swatch",
+      "expect": "#40ff40",
+      "got": [
+        63,
+        255,
+        63
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3-p1",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        46,
+        111,
+        237
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3-p2",
+      "what": "swatch",
+      "expect": "#4040ff",
+      "got": [
+        64,
+        64,
+        255
+      ],
+      "dist": 0,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3-p2",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        232,
+        68,
+        47
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 1725,
+      "id": "s4",
+      "what": "swatch",
+      "expect": "#00ff00",
+      "got": [
+        1,
+        255,
+        0
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 1725,
+      "id": "s4",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        46,
+        111,
+        237
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 2045,
+      "id": "s8",
+      "what": "swatch",
+      "expect": "#ff0080",
+      "got": [
+        255,
+        0,
+        128
+      ],
+      "dist": 0,
+      "ok": true
+    },
+    {
+      "f": 2045,
+      "id": "s8",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        46,
+        111,
+        237
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 2445,
+      "id": "s5",
+      "what": "swatch",
+      "expect": "#ff8000",
+      "got": [
+        255,
+        128,
+        1
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 2445,
+      "id": "s5",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        46,
+        111,
+        237
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 2535,
+      "id": "s6",
+      "what": "swatch",
+      "expect": "#8000ff",
+      "got": [
+        128,
+        0,
+        255
+      ],
+      "dist": 0,
+      "ok": true
+    },
+    {
+      "f": 2535,
+      "id": "s6",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        232,
+        68,
+        47
+      ],
+      "dist": 1,
+      "ok": true
+    }
+  ]
+}

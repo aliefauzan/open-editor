@@ -14,9 +14,9 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | vitest | 5.0.3 | MIT | 00 | tiers by file name: `*.slow.test.ts` (`VOX_SLOW=1`), `*.local.test.ts` (never on CI) |
 | ESLint, `@eslint/js`, typescript-eslint, eslint-config-prettier | 10.12.0, 10.0.1, 8.71.1, 10.1.8 | MIT / BSD-2 / Apache-2.0 | 00 | flat config `eslint.config.js` |
 | Prettier | 3.9.10 | MIT | 00 | |
-| `hyperframes` CLI + `@hyperframes/player` | 0.8.145 (candidate; confirmed by GATE 1) | Apache-2.0 | 01 | player needs `sandbox-origin="opaque"`; `--strict-all` is a `render` flag, lint has `--json` only |
-| GSAP | version bundled with the pinned HyperFrames (vendored) | GSAP standard licence (free, incl. commercial) | 03 | record exact version and licence text location |
-| Electron | TBD (01) | MIT | 01 | same version in spike and app |
+| `hyperframes` CLI + `@hyperframes/player` | 0.8.145 (exact; confirmed by GATE 1, D-29) | Apache-2.0 | 01 | player needs `sandbox-origin="opaque"`; `--strict-all` is a `render` flag, lint has `--json` only |
+| GSAP | 3.15.0 (exact; vendored into builds) | GSAP standard licence (free, incl. commercial) | 01 | licence: `gsap/package.json` `license` field → https://gsap.com/standard-license (no licence file in the package) |
+| Electron | 44.7.0 (exact; Chromium 152.0.7977.130) | MIT | 01 | same version in spike and app |
 | electron-vite, electron-builder | TBD (08, 09) | MIT | 08/09 | |
 | React, react-dom | 19.3.0 (exact, `apps/desktop` devDependencies; `@types/react`, `@types/react-dom` 19.3.0) | MIT | 08 (early U1, D-19) | GATE 4 bench prototype; phase 08 keeps or bumps it for the app |
 | Zustand, Tailwind, shadcn/ui | TBD (08) | MIT | 08 | |
@@ -41,7 +41,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | ffmpeg / ffprobe | Homebrew's current version (D-05); `vox doctor` records the version it ran with | LGPL/GPL (external binary, not redistributed) | Homebrew's own checks; the app never downloads it |
 | yt-dlp + `yt-dlp-ejs` | latest at install; `yt-dlp -U` | Unlicense | yt-dlp verifies its own releases; the build must support `--impersonate` (TikTok, D-13; `vox doctor` checks it) |
 | deno | TBD (09) | MIT | SHA-256 |
-| Chrome for HyperFrames | the one the pinned HyperFrames CLI installs | BSD + others | HyperFrames' installer |
+| Chrome for HyperFrames | the one the pinned HyperFrames CLI installs (0.8.145: chrome-headless-shell 152.0.7977.30) | BSD + others | HyperFrames' installer |
 
 ## Native (Swift)
 

@@ -63,7 +63,7 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 
 | Gate | Question | Evidence file | Your answer |
 |---|---|---|---|
-| GATE 1 | | | |
+| GATE 1 | Decided by the numbers (D-29): all 9 items pass → whole-sequence render, opaque-sandbox preview, NTSC go, no pre-render cache (fps margin 20.8 %). No answer needed; you may overrule. | `docs/SPIKE_RESULTS.md` | |
 | GATE 2 | | | |
 | GATE 3 | | | |
 | GATE 4 | | | |

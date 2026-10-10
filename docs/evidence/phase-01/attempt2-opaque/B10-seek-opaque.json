@@ -1,0 +1,800 @@
+{
+  "item": 4,
+  "part": "seek to a cut",
+  "pass": true,
+  "mode": "opaque",
+  "attempt": 2,
+  "electron": "44.7.0",
+  "chrome": "152.0.7977.130",
+  "box": {
+    "w": 450,
+    "h": 800,
+    "scaleFactor": 2
+  },
+  "loadBefore": {
+    "load": [
+      7.33,
+      9.35,
+      12.09
+    ],
+    "cores": 10
+  },
+  "loadAfter": {
+    "load": [
+      9.07,
+      8.82,
+      11.44
+    ],
+    "cores": 10
+  },
+  "note": "other phases were running on this machine during the measurement (load averages above)",
+  "wallS": 135.1,
+  "error": null,
+  "blockedNetworkRequests": 0,
+  "notFound": [],
+  "consoleErrors": [],
+  "seek": {
+    "pass": true,
+    "seekAt": "frame midpoint (f+0.5)/fps",
+    "seeks": 40,
+    "cutsTested": 20,
+    "wrongFrame": 0,
+    "over300": 0,
+    "latencyMs": {
+      "n": 40,
+      "p50": 33,
+      "p95": 37,
+      "max": 44
+    },
+    "atCutLatencyMs": {
+      "n": 20,
+      "p50": 33,
+      "p95": 44,
+      "max": 44
+    },
+    "list": [
+      {
+        "f": 33,
+        "ok": true,
+        "ms": 35,
+        "got": 1768,
+        "expected": 1768,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 32,
+        "ok": true,
+        "ms": 34,
+        "got": 731,
+        "expected": 731,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 110,
+        "ok": true,
+        "ms": 31,
+        "got": 2338,
+        "expected": 2338,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 109,
+        "ok": true,
+        "ms": 35,
+        "got": 1965,
+        "expected": 1965,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 175,
+        "ok": true,
+        "ms": 32,
+        "got": 1717,
+        "expected": 1717,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 174,
+        "ok": true,
+        "ms": 16,
+        "got": 409,
+        "expected": 409,
+        "src": "spike",
+        "captures": 1
+      },
+      {
+        "f": 246,
+        "ok": true,
+        "ms": 33,
+        "got": 2616,
+        "expected": 2616,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 245,
+        "ok": true,
+        "ms": 31,
+        "got": 596,
+        "expected": 596,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 324,
+        "ok": true,
+        "ms": 31,
+        "got": 1939,
+        "expected": 1939,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 323,
+        "ok": true,
+        "ms": 34,
+        "got": 2675,
+        "expected": 2675,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 392,
+        "ok": true,
+        "ms": 32,
+        "got": 1427,
+        "expected": 1427,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 391,
+        "ok": true,
+        "ms": 32,
+        "got": 2174,
+        "expected": 2174,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 458,
+        "ok": true,
+        "ms": 33,
+        "got": 588,
+        "expected": 588,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 457,
+        "ok": true,
+        "ms": 30,
+        "got": 1515,
+        "expected": 1515,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 738,
+        "ok": true,
+        "ms": 33,
+        "got": 548,
+        "expected": 548,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 737,
+        "ok": true,
+        "ms": 33,
+        "got": 1457,
+        "expected": 1457,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 815,
+        "ok": true,
+        "ms": 44,
+        "got": 1283,
+        "expected": 1283,
+        "src": "spike",
+        "captures": 3
+      },
+      {
+        "f": 814,
+        "ok": true,
+        "ms": 29,
+        "got": 2167,
+        "expected": 2167,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 867,
+        "ok": true,
+        "ms": 35,
+        "got": 1192,
+        "expected": 1192,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 866,
+        "ok": true,
+        "ms": 28,
+        "got": 81,
+        "expected": 81,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 918,
+        "ok": true,
+        "ms": 33,
+        "got": 975,
+        "expected": 975,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 917,
+        "ok": true,
+        "ms": 35,
+        "got": 1040,
+        "expected": 1040,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1089,
+        "ok": true,
+        "ms": 31,
+        "got": 2570,
+        "expected": 2570,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1088,
+        "ok": true,
+        "ms": 33,
+        "got": 1019,
+        "expected": 1019,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1408,
+        "ok": true,
+        "ms": 35,
+        "got": 44,
+        "expected": 44,
+        "src": "phone",
+        "captures": 2
+      },
+      {
+        "f": 1407,
+        "ok": true,
+        "ms": 37,
+        "got": 415,
+        "expected": 415,
+        "src": "phone",
+        "captures": 2
+      },
+      {
+        "f": 1531,
+        "ok": true,
+        "ms": 34,
+        "got": 207,
+        "expected": 207,
+        "src": "phone",
+        "captures": 2
+      },
+      {
+        "f": 1530,
+        "ok": true,
+        "ms": 33,
+        "got": 346,
+        "expected": 346,
+        "src": "phone",
+        "captures": 2
+      },
+      {
+        "f": 1881,
+        "ok": true,
+        "ms": 31,
+        "got": 972,
+        "expected": 972,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1880,
+        "ok": true,
+        "ms": 33,
+        "got": 1342,
+        "expected": 1342,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1963,
+        "ok": true,
+        "ms": 33,
+        "got": 434,
+        "expected": 434,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1962,
+        "ok": true,
+        "ms": 20,
+        "got": 238,
+        "expected": 238,
+        "src": "spike",
+        "captures": 1
+      },
+      {
+        "f": 2032,
+        "ok": true,
+        "ms": 34,
+        "got": 2050,
+        "expected": 2050,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2031,
+        "ok": true,
+        "ms": 33,
+        "got": 1224,
+        "expected": 1224,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2129,
+        "ok": true,
+        "ms": 33,
+        "got": 1973,
+        "expected": 1973,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2128,
+        "ok": true,
+        "ms": 33,
+        "got": 2592,
+        "expected": 2592,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2229,
+        "ok": true,
+        "ms": 32,
+        "got": 254,
+        "expected": 254,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2228,
+        "ok": true,
+        "ms": 33,
+        "got": 1140,
+        "expected": 1140,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2306,
+        "ok": true,
+        "ms": 32,
+        "got": 1216,
+        "expected": 1216,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2305,
+        "ok": true,
+        "ms": 33,
+        "got": 973,
+        "expected": 973,
+        "src": "spike",
+        "captures": 2
+      }
+    ]
+  },
+  "seekedge": {
+    "pass": true,
+    "seekAt": "frame start f/fps",
+    "seeks": 40,
+    "cutsTested": 20,
+    "wrongFrame": 0,
+    "over300": 0,
+    "latencyMs": {
+      "n": 40,
+      "p50": 31,
+      "p95": 36,
+      "max": 36
+    },
+    "atCutLatencyMs": {
+      "n": 20,
+      "p50": 32,
+      "p95": 36,
+      "max": 36
+    },
+    "list": [
+      {
+        "f": 33,
+        "ok": true,
+        "ms": 28,
+        "got": 1768,
+        "expected": 1768,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 32,
+        "ok": true,
+        "ms": 31,
+        "got": 731,
+        "expected": 731,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 110,
+        "ok": true,
+        "ms": 29,
+        "got": 2338,
+        "expected": 2338,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 109,
+        "ok": true,
+        "ms": 30,
+        "got": 1965,
+        "expected": 1965,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 175,
+        "ok": true,
+        "ms": 28,
+        "got": 1717,
+        "expected": 1717,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 174,
+        "ok": true,
+        "ms": 33,
+        "got": 409,
+        "expected": 409,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 246,
+        "ok": true,
+        "ms": 32,
+        "got": 2616,
+        "expected": 2616,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 245,
+        "ok": true,
+        "ms": 36,
+        "got": 596,
+        "expected": 596,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 324,
+        "ok": true,
+        "ms": 18,
+        "got": 1939,
+        "expected": 1939,
+        "src": "spike",
+        "captures": 1
+      },
+      {
+        "f": 323,
+        "ok": true,
+        "ms": 28,
+        "got": 2675,
+        "expected": 2675,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 392,
+        "ok": true,
+        "ms": 36,
+        "got": 1427,
+        "expected": 1427,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 391,
+        "ok": true,
+        "ms": 15,
+        "got": 2174,
+        "expected": 2174,
+        "src": "spike",
+        "captures": 1
+      },
+      {
+        "f": 458,
+        "ok": true,
+        "ms": 28,
+        "got": 588,
+        "expected": 588,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 457,
+        "ok": true,
+        "ms": 31,
+        "got": 1515,
+        "expected": 1515,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 738,
+        "ok": true,
+        "ms": 30,
+        "got": 548,
+        "expected": 548,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 737,
+        "ok": true,
+        "ms": 29,
+        "got": 1457,
+        "expected": 1457,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 815,
+        "ok": true,
+        "ms": 35,
+        "got": 1283,
+        "expected": 1283,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 814,
+        "ok": true,
+        "ms": 31,
+        "got": 2167,
+        "expected": 2167,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 867,
+        "ok": true,
+        "ms": 35,
+        "got": 1192,
+        "expected": 1192,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 866,
+        "ok": true,
+        "ms": 30,
+        "got": 81,
+        "expected": 81,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 918,
+        "ok": true,
+        "ms": 30,
+        "got": 975,
+        "expected": 975,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 917,
+        "ok": true,
+        "ms": 27,
+        "got": 1040,
+        "expected": 1040,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1089,
+        "ok": true,
+        "ms": 33,
+        "got": 2570,
+        "expected": 2570,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1088,
+        "ok": true,
+        "ms": 33,
+        "got": 1019,
+        "expected": 1019,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1408,
+        "ok": true,
+        "ms": 35,
+        "got": 44,
+        "expected": 44,
+        "src": "phone",
+        "captures": 2
+      },
+      {
+        "f": 1407,
+        "ok": true,
+        "ms": 32,
+        "got": 415,
+        "expected": 415,
+        "src": "phone",
+        "captures": 2
+      },
+      {
+        "f": 1531,
+        "ok": true,
+        "ms": 33,
+        "got": 207,
+        "expected": 207,
+        "src": "phone",
+        "captures": 2
+      },
+      {
+        "f": 1530,
+        "ok": true,
+        "ms": 32,
+        "got": 346,
+        "expected": 346,
+        "src": "phone",
+        "captures": 2
+      },
+      {
+        "f": 1881,
+        "ok": true,
+        "ms": 27,
+        "got": 972,
+        "expected": 972,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1880,
+        "ok": true,
+        "ms": 30,
+        "got": 1342,
+        "expected": 1342,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1963,
+        "ok": true,
+        "ms": 32,
+        "got": 434,
+        "expected": 434,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 1962,
+        "ok": true,
+        "ms": 28,
+        "got": 238,
+        "expected": 238,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2032,
+        "ok": true,
+        "ms": 29,
+        "got": 2050,
+        "expected": 2050,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2031,
+        "ok": true,
+        "ms": 33,
+        "got": 1224,
+        "expected": 1224,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2129,
+        "ok": true,
+        "ms": 32,
+        "got": 1973,
+        "expected": 1973,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2128,
+        "ok": true,
+        "ms": 32,
+        "got": 2592,
+        "expected": 2592,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2229,
+        "ok": true,
+        "ms": 28,
+        "got": 254,
+        "expected": 254,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2228,
+        "ok": true,
+        "ms": 31,
+        "got": 1140,
+        "expected": 1140,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2306,
+        "ok": true,
+        "ms": 32,
+        "got": 1216,
+        "expected": 1216,
+        "src": "spike",
+        "captures": 2
+      },
+      {
+        "f": 2305,
+        "ok": true,
+        "ms": 33,
+        "got": 973,
+        "expected": 973,
+        "src": "spike",
+        "captures": 2
+      }
+    ]
+  }
+}

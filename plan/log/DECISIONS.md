@@ -880,3 +880,43 @@ phase 02 contracts freeze (R2 rows "02"):
 **Why**: Review findings (code, TypeScript, type design, security S1/S25/S36/S22) on the phase 02
 diff. Each option is the smallest that keeps done-when #6 (no lost or corrupt project under kill)
 and S36 testable, and an `ApplyResult` must be plain data for the app's IPC (phase 08).
+
+## D-29 · 2026-10-11 · phase 01 · GATE 1: all nine items pass; whole-sequence render, opaque preview, NTSC go, no pre-render cache
+
+**Decision**: GATE 1 is decided by its numbers (D-10). Measured on the M5 with HyperFrames 0.8.145,
+GSAP 3.15.0 and Electron 44.7.0 (Chromium 152), under the bench lock, in the final run
+`pnpm -C spike bench:all` (load averages 5.7–11.9 on 10 cores):
+
+- 1 cuts: 0 mismatches over 43 cuts and 2700 frames (VFR clip included) · 2 A/V: max 0.35 ms ·
+  3 render: 0.67× real time (60.5 s for 90 s, `--quality draft --strict-all`) · 5 peak RSS 2.07 GB ·
+  9 NTSC 30000/1001: 0 mismatches, A/V max 0.4 ms.
+- 4 preview, opaque sandbox: min 26.4 fps per 1 s window, max stall 83 ms, seek to a cut max 53 ms
+  with 0 wrong frames in 80 seeks, picture and `<audio>` within 1 frame of the clock during play and
+  after 8 seek + play cycles (p95 16.3 / 0 ms and 23.8 / 0 ms), 0 network requests. Attempt 1 failed
+  (a measuring error, plus stale pictures for about 1 s after 1 in 40 seeks); attempts 2 and 3 and
+  the final run passed after the fixes below.
+- 6 op → preview: scene-only patch max 31 ms; full reload max 757 ms (both under 1 s).
+- 7 mechanisms: per-instance vars (10 instances), scoped tokens, muted video + separate audio, GSAP
+  volume tween all work in render and preview.
+- Heavy-scene fps margin: 20.8 % (29 fps), the same in three runs.
+- 8 fillers (recorded only): "um" and "uh" survive with and without the filler `initial_prompt`.
+
+Outcome (engine spec "Spike"): HyperFrames renders whole sequences (no hybrid export). The preview
+keeps `sandbox-origin="opaque"` (no `allow-same-origin` fallback, no app "Preview fallback").
+NTSC go: `canvas.fps` keeps 30000/1001. No pre-render cache (margin ≥ 20 %). Pins: R5 rows for
+HyperFrames, GSAP, Electron and the HyperFrames Chrome.
+
+The preview build needs these helpers (`spike/templates/vox-preview.js`). Phase 03 compile and
+phase 10a preview carry them over:
+- `data-media-start` of preview videos 1 ms late (Chromium truncates `currentTime` to whole µs);
+- pre-cue of the next clip and paused exact-frame sync (runtime tolerances: 0.5 s first sync, 40 ms);
+- inactive videos stay visible at opacity 0 (with `visibility:hidden` a paused video showed an older
+  picture for about 1 s after a seek);
+- after a reload, seek to the saved playhead only once every template is mounted (`vox-playhead`);
+- the scene-only patch path (`vox-patch`) for op → preview.
+
+The margin is close to the 20 % bar. If phase 10a measures under 20 % on the real styles, the
+pre-render cache comes back (D-15 rule), as a new DECISIONS entry.
+
+**Why**: The outcome list in the engine spec selects the outcome from the numbers (D-10, D-15).
+Evidence: `docs/SPIKE_RESULTS.md`, `docs/evidence/phase-01/`.
