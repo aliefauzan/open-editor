@@ -1,0 +1,20 @@
+{
+  "name": "title",
+  "version": "1.2.0",
+  "kind": "scene",
+  "description": "A full-frame title.",
+  "useWhen": ["a section starts"],
+  "durationMs": { "min": 1000, "default": 2500, "max": 8000 },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "maxLength": 60 },
+      "photo": { "type": "string" }
+    },
+    "required": ["text"],
+    "additionalProperties": false
+  },
+  "slots": { "photo": "image" },
+  "sfxCues": [{ "name": "in", "atMs": "entrance", "sfx": "tap", "type": "appear" }],
+  "minEntranceMs": 2000
+}

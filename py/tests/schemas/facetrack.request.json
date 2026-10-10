@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/facetrack.request",
+  "title": "vox_py.facetrack request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["videoPath", "faceModelPath"],
+  "properties": {
+    "videoPath": { "type": "string", "minLength": 1 },
+    "faceModelPath": { "type": "string", "minLength": 1 },
+    "ffmpeg": { "type": "string", "minLength": 1 },
+    "ffprobe": { "type": "string", "minLength": 1 },
+    "formatWhitelist": { "type": "string", "minLength": 1 },
+    "sampleFps": { "type": "number", "exclusiveMinimum": 0, "maximum": 60 },
+    "shortSide": { "type": "integer", "minimum": 64, "maximum": 1080 },
+    "minFaceScore": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 }
+  }
+}

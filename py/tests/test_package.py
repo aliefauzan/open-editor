@@ -25,7 +25,7 @@ def test_models_folder_documents_future_contents():
     assert "silero_vad.onnx" in readme and "SHA-256" in readme
 
 
-def test_built_wheel_ships_model_placeholder(tmp_path):
+def test_built_wheel_ships_the_vendored_vad_model_and_licence(tmp_path):
     subprocess.run(
         ["uv", "build", "--wheel", "--out-dir", str(tmp_path), str(PROJECT)],
         check=True,
@@ -33,5 +33,6 @@ def test_built_wheel_ships_model_placeholder(tmp_path):
     )
     wheel = next(tmp_path.glob("vox_py-*.whl"))
     names = zipfile.ZipFile(wheel).namelist()
-    assert "vox_py/models/placeholder.onnx" in names
-    assert "vox_py/models/LICENSE.placeholder" in names
+    assert "vox_py/models/silero_vad.onnx" in names
+    assert "vox_py/models/LICENSE.silero" in names
+    assert "vox_py/models/placeholder.onnx" not in names

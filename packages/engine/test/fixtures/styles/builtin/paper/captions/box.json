@@ -1,0 +1,8 @@
+{
+  "name": "box",
+  "description": "Boxed captions.",
+  "case": "upper",
+  "stripPunctuation": true,
+  "safeArea": { "bottomPct": 25, "rightPct": 10 },
+  "position": { "yPct": 70 }
+}
