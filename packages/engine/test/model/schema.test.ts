@@ -89,7 +89,9 @@ describe('project.json schema', () => {
     const b = newId('it_');
     expect(a).toMatch(/^it_[0-9a-z]{12}$/);
     expect(a < b || a.slice(0, 11) === b.slice(0, 11)).toBe(true);
-    expect(new Set(Array.from({ length: 1000 }, () => newId('m_'))).size).toBe(1000);
+    const many = Array.from({ length: 100000 }, () => newId('m_'));
+    expect(new Set(many).size).toBe(100000);
+    expect([...many].sort()).toEqual(many);
   });
 
   test('ProjectSchema is exported for tools', () => {

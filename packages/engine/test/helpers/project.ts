@@ -102,7 +102,7 @@ export function richProject(fps: Fps = F30): Project {
       mediaId: 'm_video',
       startMs: 5000,
       durationMs: 3000,
-      inMs: 8000,
+      inMs: 8008, // frame 240 of the 29.97 source
       linkId: 'ln_2',
     },
   ];
@@ -133,7 +133,7 @@ export function richProject(fps: Fps = F30): Project {
       mediaId: 'm_video',
       startMs: 5000,
       durationMs: 3000,
-      inMs: 8000,
+      inMs: 8008, // frame 240 of the 29.97 source
       linkId: 'ln_2',
     },
   ];
