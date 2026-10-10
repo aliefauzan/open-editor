@@ -689,3 +689,143 @@ tokens are spelled.
 work for a partial child (`vox style new --extends`), keep projects on a built-in style unchanged when a
 user installs a duplicate id, and keep token values from injecting CSS or HTML into builds. Review
 (typescript-reviewer, twice) found the self-declared trust, the Ajv `$id` cache and `url()` in values.
+
+## D-24 · 2026-10-11 · phase 04 (early E4) · Shot list and facetrack crop path details
+
+**Context**: Early package E4 (D-19) builds phase 04's `stages/shots.ts` (step 9c core) and the TS
+facetrack path builder `stages/facetrack.ts` (step 12c). The spec fixes the rules (shot resets,
+hysteresis, stability, trackSpeed, 300 ms pins, cache key) but not the crop coordinates or the numbers
+behind "smooth", "follow" and the speeds.
+**Decision**:
+- **Shots**: `scdet=threshold=10` then `metadata=mode=print:key=lavfi.scd.time:file=-`; the cut time is
+  each printed `pts_time` rounded to ms. The proxy is read as is; the original (no proxy) gets
+  `scale=-2:360` first in the same graph. Cuts at 0 or at/after `durationMs` are dropped; the list is
+  contiguous from 0 to `MediaItem.durationMs`. No minimum shot length. Errors: `TOOL_MISSING`,
+  `TOOL_FAILED` (stderr tail in `cause`), `CANCELLED` (codes shared with E2/E3).
+- **Crop coordinates**: `x`, `y` = crop centre, normalised to the source frame (0..1, origin top-left);
+  `scale` = zoom relative to the cover crop of the sequence aspect (1 = largest crop of that aspect that
+  fits the source). The tracked path pans at scale 1 and keeps the crop inside the source. User pins
+  are clamped to scale 1..8 and to a centre that keeps the crop inside the source.
+- **Subject per shot**: a class (face, then body and saliency in `auto`) counts when present in at
+  least 25 % of the shot's samples (at least one), so a stray detection does not take a shot. The
+  target is the box centre. A face or body is followed by nearest centre within the box's size; a
+  subject unmatched for 1 s is replaced by the largest box (a pinned face by its index). Hysteresis
+  compares box areas (> 1.3×) over a continuous 1 s while the subject is matched; losing the subject
+  restarts the count. Each shot reports `subject`, effective `stability`, `switchesAtMs` and
+  `faceIndexMissing`, so a fallback is never silent.
+- **`faceIndex`**: index in left-to-right order of the faces in the shot's first sample with faces; a
+  shot with fewer faces uses the largest (`faceIndexMissing: true`). A pinned face never switches by
+  hysteresis. `faceIndex` is added to the cache key, because it changes the path.
+- **Stability**: `locked` = the subject centre stays within ±10 % of the crop size of the mid-range
+  centre over the whole shot → one static crop at that centre; otherwise the shot is `smooth`.
+  `smooth` and `follow` are an exponential follow with time constant 0.4 s and 0.1 s. **trackSpeed**
+  caps crop speed at 0.5 / 1 / 2 crop sizes per second (slow / normal / fast).
+- **Path shape**: source-time keyframes, linear between keyframes; each shot has a keyframe at its
+  start (on the new subject) and a hold at `endMs - 1`; values rounded to 4 decimals; repeated values
+  pruned. Repeated sample times keep the last sample.
+- **Pins**: a user keyframe holds the crop at its time and blends linearly to and from the tracked path
+  over 300 ms on both sides (the spec names only the blend back; a one-sided pin would jump at the pin).
+  Two pins up to 600 ms apart join directly. A blend never crosses a shot boundary. Pin times are
+  item-relative (`source = inMs + atMs`), so a start trim that shifts `atMs` keeps the pin on its frame.
+- **Cache key**: SHA-256 over (path version 1, media hash, aspect reduced by gcd, mode, stability
+  default `smooth`, trackSpeed default `normal`, `faceIndex`, optional `inputsHash` of the shots and
+  detections files).
+
+**Why**: Smallest choices that make the D-15 fixture tests pass on synthetic and real detections
+(`cuts-2shot`, `podcast-2face`); coordinates relative to the cover crop let compile emit translate +
+scale directly.
+
+## D-25 · 2026-10-11 · early e3-media-export (phases 04, 05) · Accepted file types, proxy size, ingest and export temp files
+
+**Context**: Early package E3 (D-19) built ingest sniffing/analysis helpers and export targets. The
+spec leaves a few choices open: which image and audio types count as media, what "540p" means for a
+vertical video, how a silent track's loudness is stored, which audio a CFR copy keeps, and what
+happens to a temp file when the engine process itself is killed.
+**Decision** (simplest option each; specs unchanged):
+- **Accepted types, from content only**: video MP4/MOV/M4V (ISO BMFF, not HEIF/AVIF brands) and
+  WebM/MKV; audio WAV, MP3, AAC (ADTS), M4A, OGG, FLAC; images PNG and JPEG only (GIF, WebP, HEIC, AVI
+  and anything else → `MEDIA_UNSUPPORTED` with a hint to convert); documents: PDF from content, plain
+  UTF-8 text only under `.txt`/`.md`/`.fountain`. A head that decodes as UTF-8 text is never media,
+  whatever signature it carries (`<!--ftypisom--><html>` stays markup). SVG, HTML, XML (DASH/SMIL), HLS,
+  PLS and concat lists are never accepted; markup is judged only when the text opens with `<`, so a
+  note that mentions `<script>` in its body is still a document.
+- **ffmpeg inputs** get `-f <demuxer>` (forced, no probing) in addition to the spec's
+  `-format_whitelist` and `-protocol_whitelist file,pipe`; MOV/MP4 also pin `-enable_drefs 0
+  -use_absolute_path 0` (ffmpeg's defaults, pinned). Images use `png_pipe`/`jpeg_pipe` (`image2` is not
+  whitelisted; it would win the probe for a `.jpg` name). Stream selectors are `V` (not `v`), so a
+  cover picture (attached_pic) is never taken for the video.
+- **Limits**: ffprobe runs time out after 120 s, loudness after max(120 s, duration / 4); pictures
+  over 8192 × 8192 and videos with no readable frame rate are `MEDIA_UNSUPPORTED`.
+- **Proxy "540p"** means the shorter side is 540 px (never upscaled), so a 1080×1920 reel gets a
+  540×960 proxy, matching how `-S res:1080` treats vertical video. Preset `veryfast` (preview only).
+- **CFR copy audio**: copied when MP4 can hold it (aac, mp3, alac, ac3, eac3, opus, flac), otherwise
+  AAC 256k (e.g. PCM from a MOV, Vorbis from a WebM). Spec says "audio copied"; this is the fallback.
+- **Silence**: `ebur128` true peak `-inf` is stored as `-144` dB so `MediaItem.loudness` stays a finite
+  number (integrated loudness already floors at −70 LUFS).
+- **NTSC fallback**: with the integer-rate set (GATE 1 item 9 failed), a CFR NTSC source also gets a CFR
+  copy at the nearest integer rate (`cfr.reason: 'integer-rate'`); other non-fixed rates are stored as is.
+- **ffmpeg outputs use `-y` into a temp the engine has just created** (O_EXCL | O_NOFOLLOW) and then
+  moved into place; not `-n`, because ffmpeg 8 exits 0 when `-n` refuses an existing file.
+- **Temp files**: one no-replace move (`fs/no-replace.ts`: `link` + `unlink`; without hard links an
+  O_EXCL placeholder + `rename`). Export temps are `.vox-tmp-<host6>-<pid>-<rand>.<ext>` in the target
+  folder (short, so a long final name never passes NAME_MAX; stems capped at 150 UTF-8 bytes); before
+  the move the temp must still be the file created (same dev/ino, one link), else `EXPORT_PATH`. A
+  temp left by a killed engine is removed by the next export into that folder only when it carries
+  this host's tag and its pid answers ESRCH. Ingest copies write `.vox-part-<pid>-<rand>-<name>` beside
+  the destination; phase 04 sweeps those in `media/`. Without a target the `renders/` name gets `-2`,
+  `-3` … (folder targets get ` (2)`, ` (3)` …), so no mode ever replaces a file.
+**Consequences**: Phase 04 wires these into ingest and must sniff and analyse the engine's own copy
+in `media/` (not the user's path: no TOCTOU); phase 05 into render/exportCaptions/exportTimeline.
+Adding an image or audio type later means one sniff signature plus its demuxer whitelist and a test.
+
+## D-26 · 2026-10-11 · phase 11 (early G1, D-19) · Agent utility details: Keychain keys, usage shape, upper bound, local error type
+
+**Context**: Early package G1 builds phase 11's pure utilities (`loop/envelope.ts`, `loop/repair.ts`,
+`config/mask.ts`, `config/keychain.ts`, `providers/prices.ts`). The specs leave these open.
+**Decision**:
+- **Keychain keys are printable ASCII only** (0x20–0x7e). `security find-generic-password -w` prints a
+  non-ASCII password as hex, which cannot be told from a real hex key, so a non-ASCII key is refused at
+  `set` (`CONFIG_INVALID`). Control characters are refused anyway: a newline would start a second
+  `security -i` command. Arguments to `security -i` are double-quoted with `\` and `"` escaped
+  (checked against the real Keychain). `set` failures keep no stderr in `cause`.
+- **No `-T`/`-A` access flags** on writes: the creating binary (`/usr/bin/security`) is trusted by
+  default and reads go through the same binary, so no prompt appeared on the M5. Phase 11 revisits this
+  only if the app or CLI hit a prompt (phase 11 "Risks": `security` prompts).
+- **`keychain:` refs are bound to their provider**: `resolveApiKey(ref, deps, providerId)` refuses a
+  ref naming another provider. `env:NAME` accepts any upper-case name (a shared config could point an
+  attacker's `baseUrl` at `env:AWS_SECRET_ACCESS_KEY`); phase 11 decides whether to allow-list names or
+  warn when a config is imported or shared. Plain `http:` to a non-loopback host is not rejected.
+- **`baseUrl` rule** (S17): http(s) only; no userinfo, no fragment, no key-like query parameter (names
+  compared without case and separators: `api_key`, `apiKey`, `accessToken`; `&` and `;` separators),
+  no key-like or opaque 24+ character path segment, no segment after a key-named one (`/key/<v>`).
+- **Masking**: `sk-`, `sk-or-`, `sk-ant-`, `sk-proj-` prefixes are shown, other keys show only the last
+  four, keys under 24 characters show nothing (`…`).
+- **Usage shape for cost math**: `inputTokens` is the total input including cache reads and writes,
+  `outputTokens` the total including reasoning (AI SDK convention). Providers that report them
+  separately (Anthropic) are normalised by the provider adapter. Reasoning bills at `reasoningPerMTok`
+  else the output price; cache reads/writes at their price else the input price.
+- **Upper bound** (S23) uses the dearest rate that could apply (max of input, cache read, cache write;
+  max of output, reasoning), so it never under-counts. A reported cost of 0 with real usage on a
+  priced model is not trusted (BYOK accounting); usage × price is used.
+- **Local providers**: `ollama`, `apple` and the `lmstudio` preset cost 0 with no table entry; `9router`
+  and other gateways are not local.
+- **Text tool-call detection** returns `{kind, tool}`; it matches only known tool names (plus bare
+  markers such as `<tool_call>`), scans at most 200,000 characters, and is linear. The loop owns the
+  "one correction per step" counter. The repair also accepts a leading prose/code fence and tries up to
+  5 `{` starts.
+- **Local error type**: `packages/agent/src/errors.pending.ts` (`UtilError`, same constructor shape as
+  `VoxError`) until phase 11 swaps in `VoxError`. Codes to append to `ERROR_CODES`: `CONFIG_INVALID`,
+  `KEYCHAIN_FAILED`, `PRICE_MISSING`.
+**Why**: Smallest options that keep S17, S21, S23 and S30 testable now without importing `@vox/engine`.
+
+## D-27 · 2026-10-11 · early package p2-audioqa · qa.png is drawn with numpy, not ffmpeg `drawtext`
+
+**Decision**: The engine spec drew `qa.png` with ffmpeg `showwavespic` + `drawbox`/`drawtext`. Homebrew ffmpeg 8.1.2 has no `drawtext` (D-17), so `py/vox_py/audioqa.py` draws the picture itself with numpy and writes the PNG with `zlib` (no Pillow, no new pin beyond numpy). The simplest way to label a cue without a font: a vertical marker plus the cue number in a built-in 3x5 pixel font (the same for the kit sheet colours). `qa.json` holds the legend: `png.markers[{cue, x, hero}]` maps each number to its cue, `png.markerScanY` is a pixel row where only markers cross, and `cues[]` has the details. Details fixed with it:
+- **Picture**: 1600 px wide ("canvas size" in 05 step 8d means this fixed size, recorded in `png.width`/`png.height`), a 40 px header with numbered markers (red; hero cues magenta), then one 120 px waveform row each for the SFX stem, the speech stem and the mix; green ticks mark the detected SFX onsets. `--kit` writes `kit-<styleId>.png` (strip green/red by verdict, waveform, spectrogram per file, 1200 px wide) and `kit-<styleId>.json`.
+- **Request** (03's `cues.json` does not exist yet, so a plain request): `{ mix, stems: { sfx, speech? }, cues: [{ atMs, type, hero }], fps, target, outDir }`; `target` is the loudness target in LUFS (the engine maps the `--loudness` preset to it, D-15), `fps` 23 to 61. Kit: `{ mode: "kit", styleId, files: [{ path, type }], outDir }`. The result is the `qa.json` content plus `outDir`. Inputs over 600 s are `INPUT_TOO_LONG`; kit files are decoded only up to 4 s (a longer file fails `length`).
+- **Measurements**: loudness is BS.1770-4 (K-weighting as a 16384-tap FIR of the two biquads, 400 ms blocks, 75 % overlap, -70 LUFS and -10 LU gates), within 0.03 LU of ffmpeg `ebur128` on the fixtures (a test checks 0.1); true peak is the largest sample after ffmpeg resamples to 192 kHz (4x), within 0.4 dB of `ebur128`; clipped = a run of at least 3 samples at or above 0.9997 full scale. An SFX onset is a 1 ms peak-envelope frame above -50 dBFS that follows 50 ms of silence or is 12 dB above the loudest frame of the preceding 10 ms, and the detector re-arms after the envelope falls 15 dB under that hit's peak; a tail is not a hit, a hit on a tail is. Each cue takes the best order-preserving onset within 250 ms (fewest unmatched cues, then least summed delta); `cueTiming` needs the onset within 1 frame (1000/fps ms); `oneEventPerCue` fails on any onset no cue owns (a second event inside a cue's sample, or a stray hit); `spacing` is onset-to-onset under 120 ms; `sfxUnderSpeech` compares K-weighted mean squares of the SFX and speech stems in the 200 ms after each onset, only where at least half of the 20 ms speech frames are above -50 dBFS, and fails under 6 LU; a missing speech stem marks that check `skipped`.
+- **Kit checks** (styles spec "SFX rules"): not synthesised = no spectral peak (+-30 Hz) above 90 % of the energy; one event = exactly one onset (a `move` swell counts as one onset, same rule for every type); not a noise bed = fewer than 90 % of active 2048-sample frames with periodogram flatness at or above 0.35 (white noise measures 0.56, a real recording under 0.01); clean edges = first and last 5 ms at or below -40 dBFS peak; peak at or below -1 dBFS; length at most 3000 ms. Limitation: a band-limited noise bed has low flatness and passes that rule; the owner's ear check (GATE 3) covers it.
+- **Thresholds file**: `py/vox_py/audioqa_thresholds.json` keeps pass/fail limits under `checks` (never loosened, R3) and measurement settings under `analysis`; it stores the ±1 LU tolerance and no target (D-15).
+- Spec edits made with this entry: engine "Audio QA" (`qa.png` sentence, request and kit sheet), phase 05 deliverables line, R5 numpy row.
+
+**Why**: One option that works with the ffmpeg on the M5 and stays in numpy, which the tool already needs. Pillow or a bundled font would add a pin for a picture that only needs lines and digits. A vision model reads the numbers next to the markers and takes the legend from `qa.json`.

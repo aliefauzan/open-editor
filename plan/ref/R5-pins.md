@@ -21,7 +21,8 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | React | 19.x (exact TBD 08) | MIT | 08 | |
 | Zustand, Tailwind, shadcn/ui | TBD (08) | MIT | 08 | |
 | `@xzdarcy/react-timeline-editor` | TBD (08, GATE 4) | MIT | 08 | dropped if GATE 4 fails |
-| zod | 4.6.5 (exact, `packages/agent`) | MIT | 11 (early N1, D-22) | Apple helper protocol schemas; `z.int()` limits are safe integers |
+| zod | 4.6.5 (exact, `packages/agent`, `packages/engine`) | MIT | 11 (early N1, D-22); 04 (early E4) | Apple helper protocol schemas; `z.int()` limits are safe integers; engine: detections and shot list schemas |
+| ajv | 8.20.0 (exact, `packages/engine`) | MIT | 04 (early E4) | `ajv/dist/2020.js`; test-only use: zod ↔ Python JSON Schema agreement (`py/tests/schemas/`) |
 | `ai` (Vercel AI SDK) | 7.0.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@openrouter/ai-sdk-provider` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
@@ -60,7 +61,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | pypdf (document text) | 6.19.0 | BSD-3-Clause | 04 |
 | onnxruntime (Silero VAD speech gate; no torch, D-15) | 1.30.0 | MIT | 04 |
 | Silero VAD `silero_vad.onnx`, vendored at `py/vox_py/models/` with its licence (upstream release URL + SHA-256, D-15) | v6.2.3, commit `5cd7945676eb32225748052e2e6a0580e4686a08`, <https://github.com/snakers4/silero-vad/blob/v6.2.3/src/silero_vad/data/silero_vad.onnx>; SHA-256 `1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3` | MIT | 04 |
-| numpy (audio QA analysis; `qa.png` drawn with ffmpeg `showspectrumpic`/`showwavespic`) | TBD (05) | BSD-3-Clause | 05 |
+| numpy (audio QA analysis; `qa.png` and the kit sheet drawn with numpy and written with `zlib`, no Pillow, D-27) | 2.5.3 (exact in `py/pyproject.toml`; already in `py/uv.lock` for onnxruntime and mediapipe) | BSD-3-Clause | 05 (set early, p2-audioqa) |
 | `otio-fcpx-xml-adapter` | TBD (05 if GATE 2 needs it, else 14) | Apache-2.0 | 05 / 14 |
 | mflux + Z-Image-Turbo | TBD (14) | MIT + Apache-2.0 | 14 |
 | `pyobjc-framework-Vision` (facetrack body + saliency fallback in v1; Part C OCR reuses it, D-15) | 12.2.2 | MIT | 04 |
