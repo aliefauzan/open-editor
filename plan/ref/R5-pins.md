@@ -21,6 +21,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | React | 19.x (exact TBD 08) | MIT | 08 | |
 | Zustand, Tailwind, shadcn/ui | TBD (08) | MIT | 08 | |
 | `@xzdarcy/react-timeline-editor` | TBD (08, GATE 4) | MIT | 08 | dropped if GATE 4 fails |
+| zod | 4.6.5 (exact, `packages/agent`) | MIT | 11 (early N1, D-22) | Apple helper protocol schemas; `z.int()` limits are safe integers |
 | `ai` (Vercel AI SDK) | 7.0.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@openrouter/ai-sdk-provider` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
@@ -44,8 +45,8 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 
 | Component | Pin | Licence | Set in | Notes |
 |---|---|---|---|---|
-| Swift toolchain (Xcode or command-line tools) | 26.x or newer (macOS 26+ SDK; the M5 has Xcode 27.0) | Apple SDK licence | 11 | builds `native/apple-llm`; `local` tier, never on CI (D-16) |
-| Apple Foundation Models framework | system framework, macOS 26+ | Apple SDK licence | 11 | needs Apple Intelligence on; not redistributed (our helper links it) |
+| Swift toolchain (Xcode or command-line tools) | any macOS 26+ SDK; built and tested with Swift 6.4, Xcode 27.0, macOS 27.0 SDK on the M5 | Apple SDK licence | 11 (early N1, D-22) | builds `native/apple-llm` (tools 6.0, Swift 6 mode, `.macOS(.v14)`); `local` tier, never on CI (D-16) |
+| Apple Foundation Models framework | system framework, macOS 26+ | Apple SDK licence | 11 (early N1, D-22) | needs Apple Intelligence on; not redistributed; weak-linked (`-weak_framework`) so the helper starts on macOS 14/15; context 8,192 tokens on macOS 27 (4,096 before) |
 
 ## Python (`py/uv.lock`)
 

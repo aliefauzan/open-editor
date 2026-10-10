@@ -575,3 +575,51 @@ them on the fixtures showed two facts the spec guessed, and left some formats op
 
 **Why**: Smallest changes that make the D-15 fixture tests pass on real models; the clipping rule
 keeps the spec's intent (no invented words over music or silence) without losing real first words.
+
+## D-22 · 2026-10-11 · phase 11 (early N1, D-19) · Apple helper protocol details
+
+**Context**: The agent spec fixes the helper's request (`{ system, messages, schema?, maxTokens,
+temperature }`), its answers (`{ text }` or `{ json }` plus `{ usage }`) and the `--status` values, but
+not the exact line shapes, the error line, the usage fields, line splitting or which JSON Schema
+keywords survive. Early package N1 builds `native/apple-llm` and the fake helper now, so phase 11's
+`apple.ts` gets one fixed target. Facts measured on the M5 (macOS 27.0, Xcode 27.0, Swift 6.4).
+**Decision** (agent spec "Apple on-device model" updated):
+- **Lines**: request `{ id?, system, messages: [{ role: 'user'|'assistant', content }], schema?,
+  maxTokens, temperature }`; the last message must be from the user; unknown fields are rejected;
+  `maxTokens` is a positive safe integer (the helper caps it at the context size). `id` is optional
+  and echoed on the answer. Answers: `{ id?, text, usage }`, `{ id?, json, usage }` or
+  `{ id?, error: { code, message } }`, one stdout line per request, in request order.
+  `usage` is `{ inputTokens, outputTokens, estimated }`. The zod schemas in
+  `packages/agent/src/providers/apple-protocol.ts` are the contract; zod, the Swift helper and the
+  fake reject the same cases (shared table `test/helpers/apple-cases.ts`).
+- **Line splitting**: lines end at `\n` only. Every writer (`encodeAppleRequest`, the helper, the
+  fake) escapes U+2028/U+2029; readers split with `JsonLineSplitter` (same module), never
+  `node:readline`, which also splits on U+2028/U+2029 and `\r`. A lone surrogate escape (valid JSON,
+  valid in JS strings) becomes U+FFFD in the helper instead of failing the line.
+- **Error codes**: `badRequest` (invalid line or schema), `unavailable` (status not `ready`, read
+  per request; also the framework's assets-unavailable error), `contextOverflow`, `guardrail`
+  (guardrail or refusal), `generation` (anything else). Messages are the framework's short
+  description. The helper keeps serving after an error and exits 0 when stdin closes. It has no
+  per-request timeout: the provider kills a helper that does not answer in time.
+- **`--status`**: one line `{ status, contextSize }`, exit 0; the framework's `.available` is
+  `ready`. Unknown arguments exit 2 with usage on stderr. The M5 reports `ready` with a context of
+  **8,192** tokens on macOS 27 (the SDK documents 4,096 before macOS 27); the probe still decides the
+  roles.
+- **Usage**: the framework's token counts on macOS 27+ (`Response.usage`); otherwise, or when they
+  are 0, an estimate of 4 UTF-16 units per token (`estimated: true`).
+- **Schema subset**: `object` (property order kept, not in `required` or nullable → optional),
+  `array` (`minItems`/`maxItems`), `string` (`enum`/`const` strings → choices), `integer`
+  (`minimum`/`maximum`; `exclusiveMinimum`/`exclusiveMaximum` moved inward by 1; zod's ±(2^53−1)
+  bounds dropped), `number` (`minimum`/`maximum`), `boolean`, `anyOf` (null branches → optional).
+  Contradictory bounds (minimum above maximum) and negative item counts are dropped. Schema names
+  are unique paths (`Root_seqs_item`), with a `_2`, `_3`, … suffix on a collision. Dropped: `oneOf`,
+  `allOf`, `$ref`, `maxLength`, `pattern`, `format`, `additionalProperties`, number exclusive bounds;
+  a node with no expressible type becomes a string. The caller still validates with zod.
+- **Messages**: `system` becomes the session instructions, earlier turns become transcript
+  prompt/response entries, the last user message is the prompt; one fresh session per request.
+- **Start on macOS 14/15**: FoundationModels is weak-linked (`-weak_framework` linker flag), checked by
+  the local test with `otool -l`.
+- **Test tier**: the real-helper build and smoke test is `apple-helper.local.test.ts` (local tier,
+  D-16), not `slow` as phase 11 step 12 says: it needs this Mac, not just time.
+**Why**: Smallest choices that make the fake and the real helper interchangeable for phase 11's
+`apple.ts` and its tests; the 8k context is a measured fact the spec guessed as "about 4k".
