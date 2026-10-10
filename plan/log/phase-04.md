@@ -139,3 +139,80 @@ per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
   `PY_TOOL_FAILED`/engine codes; spec/plan text now says the clipping rule (D-21).
 - **Branch**: `early/p1-py-tools`, merged into main with `--no-ff` right after this commit and pushed;
   worktree removed.
+
+## Early steps (D-19) — e4-shots-facetrack
+
+- **Steps done**: 9c core (`detectShots`: ffmpeg `scdet=threshold=10` on the proxy, or on the original
+  scaled to 360p in the same graph, cut times from `metadata=mode=print` on stdout, contiguous
+  `{startMs,endMs}[]` from 0 to `durationMs`), 12c (TS crop path builder on the `vox_py.facetrack`
+  detections: shot resets, hysteresis > 30 % for a continuous 1 s, locked/smooth/follow, 10 % dead
+  zone, trackSpeed cap, `auto` fallback face → body → saliency → centre, `faceIndex`, user keyframes
+  pinned with a 300 ms blend, output `{atMs,x,y,scale}`, cache key). Decisions: D-24.
+- **Files** (branch `early/e4-shots-facetrack`): `packages/engine/src/stages/{shots,facetrack}.ts`,
+  `src/errors.pending.ts` (D-19 shim, byte-identical copy), tests
+  `packages/engine/test/stages/{shots.test,shots.slow.test,facetrack.test,facetrack-schema.test,facetrack.local.test,facetrack-synth}.ts`.
+  Dependencies `zod` 4.6.5 and `ajv` 8.20.0 exact in `packages/engine/package.json` (same pins as 02;
+  ajv only in the zod ↔ JSON Schema agreement test). Local types mirror spec `frame.*` (no 02 model
+  import).
+- **Detection format**: aligned with P1 / D-21 (`py/tests/schemas/facetrack.result.json`); no mismatch.
+  The zod `DetectionsSchema` and the Python JSON Schema (ajv 2020) agree on 14 good/bad cases.
+- **Tests**: 70 new vitest tests: shots 16 fast (argv, parse, real ffmpeg on a generated 3-shot clip,
+  `TOOL_MISSING`, `TOOL_FAILED` with stderr tail, abort → `CANCELLED`) + 2 slow (`cuts-2shot.mp4`
+  cuts within 1 frame, proxy and 360p path); facetrack 38 (no drift across a cut in every stability,
+  hysteresis 0.5 s no switch / 1.5 s switch after 1 s, locked dead zone, trackSpeed, 300 ms blend,
+  blends never cross a cut, cache key); schema agreement 14; local 2 on real MediaPipe/Vision
+  detections (`cuts-2shot`: face, face, saliency in `auto`; `podcast-2face`: one switch at 8000 ms,
+  face B area 1.68× face A). Root `pnpm typecheck` clean, `pnpm test` 268 passed, 1 skipped (14 files).
+- **Review**: ecc:typescript-reviewer. Fixed: `trackSpeed`/`stability` read from the prototype chain,
+  a challenge interrupted by losing the subject now restarts its 1 s, a lost pinned face is picked
+  again by index, repeated sample times (keep last), `Math.min(...spread)` on hour-long shots, pins
+  clamped to scale 1..8 and a crop inside the source, `inputsHash` in the cache key. Left (LOW):
+  scdet can fire on two adjacent frames (no minimum shot length), a stream `start_time` offset is
+  trusted to ffmpeg's normalisation, the blend is linear, the detections schema is parsed per call.
+- **Error codes**: uses `VALIDATION` (02), `TOOL_MISSING`, `CANCELLED` (E2) and `TOOL_FAILED` (E3). No
+  new codes.
+- **Left for phase 04**: switch the local `frame.*` types to 02's model types and the shim to
+  `errors.ts`; move the ffmpeg runner onto E3's shared runner (`stages/media/run.ts`); the `shots` job
+  kind, writing `shots/<mediaId>.json`, `MediaItem.shotsPath`, reuse on rerun; the facetrack job (P1
+  tool via `py.ts`, detections file) and path cache storage under the cache key; CLI `vox shots` /
+  `vox facetrack`; ingest with `{proxies:false}` uses the 360p path; offline seeded fixture files.
+  For phase 05: the compile path provider (`applyClipFraming` per item → translate + scale).
+- **Branch**: `early/e4-shots-facetrack` at a6a3b55 (main merged in, incl. P1), pushed; worktree kept.
+  Merge state: ready, waiting for 02 (merge after 02).
+
+## Early steps (D-19) — e3-media-export
+
+- **Steps done**: 6 (content sniffing, S6: type from the first 4 KiB, text heads never media,
+  `MEDIA_UNSUPPORTED` with what was found and the accepted types), 7 (S5 argv: `-protocol_whitelist
+  file,pipe`, per-type `-format_whitelist`, forced `-f`, MOV drefs pinned off, `V` stream selectors;
+  shared child runner with AbortSignal, timeout, stderr tail, redact hook), 8 (S2 safe copy: folder
+  walk without following links, bounded; O_NOFOLLOW source, `within` check, no-replace temp + move,
+  SHA-256), measuring part of 9b (probe, D-15 VFR rule, fixed-set snapping incl. the GATE 1 integer
+  fallback, ebur128 loudness; proxy 540p and CFR copy argv). Decision: D-25.
+- **Files** (branch `early/e3-media-export`): `packages/engine/src/stages/media/{sniff,ffargs,run,copy,analyze,proxy}.ts`,
+  `src/fs/no-replace.ts`, `src/errors.pending.ts` (D-19 shim, byte-identical copy), tests
+  `packages/engine/test/media/{sniff,ffargs,run,copy,analyze,proxy}.test.ts`, `analyze.slow.test.ts`,
+  `helpers.ts`. No new dependencies.
+- **Tests**: 166 new fast tests (sniff 50, ffargs 20, run 11, copy 15, analyze 50, proxy 20 with a
+  cover-art mp4) + 5 slow (`phone-vfr-20s.mp4` VFR at 30000/1001, CFR copy pts spread < 0.5 ms, proxy
+  540×960; `ntsc-2997-20s.mp4` 30000/1001 with no copy, integer-only copy at 30/1; talking-head proxy
+  960×540, keyframes 0.5 s apart). Hostile files are generated in temp folders (make.sh untouched).
+  Root `pnpm typecheck` and `pnpm lint` clean, `pnpm test` 242 passed (12 files), `VOX_SLOW=1` media 5
+  passed, `uv run --project py pytest` 4 passed.
+- **Review**: security (S2/S5/S6/S32) and TypeScript reviewers, no CRITICAL. Fixed: text polyglots with
+  a media signature (`<!--ftyp…`, `<!--free…`) were sniffed as MOV; cover art taken for the video
+  (`v:0` → `V:0`); no ffprobe timeout; unbounded folder walk and copy size; half-written copy on a hard
+  kill; `inputsAreWhitelisted` accepted any whitelist and no `-f`; flaky pgrep/sleep tests (now pid via
+  `onSpawn` and polling); throwing redactor; ANSI escapes in the stderr tail. Left (LOW): keyframe
+  rounding at 25 fps (13 = 0.52 s), SAR ignored in proxy size, metadata kept on the CFR copy, hard
+  links with nlink > 1 copied, strict r = avg compare (spec), non-integer rotation, PATH-resolved tool
+  binaries until phase 04 passes the tools folder, child env not reduced.
+- **Error codes** (new, in the shim): `MEDIA_UNSUPPORTED`, `TOOL_MISSING`, `TOOL_FAILED`, `CANCELLED`
+  (same meaning as E2), `EXPORT_PATH` (phase 05). Also uses `VALIDATION`, `NOT_FOUND`, `PATH_INVALID`.
+- **Left for phase 04**: shim → `errors.ts`; `addMedia` / ingest wiring (sniff and analyse the engine's
+  copy in `media/`, never the user's path; sweep `.vox-part-*`), cache keys, jobs and CLI flags; write
+  the proxy / CFR copy / image re-encode into an O_EXCL temp then move it (rule in `proxy.ts`); pass the
+  tools folder and `engine.redactor.redact` to `runTool`; use 02's `model/fps.ts` and model types in
+  place of the local `Fps`; audio m4a, thumbnails and peaks; E4's shots runner onto `run.ts`.
+- **Branch**: `early/e3-media-export` at a4d3a88, pushed; worktree kept. Merge state: ready, waiting
+  for 02 (merge after 02).

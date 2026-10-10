@@ -18,10 +18,11 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | GSAP | version bundled with the pinned HyperFrames (vendored) | GSAP standard licence (free, incl. commercial) | 03 | record exact version and licence text location |
 | Electron | TBD (01) | MIT | 01 | same version in spike and app |
 | electron-vite, electron-builder | TBD (08, 09) | MIT | 08/09 | |
-| React | 19.x (exact TBD 08) | MIT | 08 | |
+| React, react-dom | 19.3.0 (exact, `apps/desktop` devDependencies; `@types/react`, `@types/react-dom` 19.3.0) | MIT | 08 (early U1, D-19) | GATE 4 bench prototype; phase 08 keeps or bumps it for the app |
 | Zustand, Tailwind, shadcn/ui | TBD (08) | MIT | 08 | |
-| `@xzdarcy/react-timeline-editor` | TBD (08, GATE 4) | MIT | 08 | dropped if GATE 4 fails |
-| zod | 4.6.5 (exact, `packages/agent`) | MIT | 11 (early N1, D-22) | Apple helper protocol schemas; `z.int()` limits are safe integers |
+| `@xzdarcy/react-timeline-editor` | 1.0.0 (exact, `apps/desktop`; candidate until GATE 4 is recorded) | MIT | 08 (early U1, D-19) | dropped if GATE 4 fails; bench `docs/evidence/phase-08/A1-timeline-bench.json` |
+| zod | 4.6.5 (exact, `packages/agent`, `packages/engine`) | MIT | 11 (early N1, D-22); 04 (early E4) | Apple helper protocol schemas; `z.int()` limits are safe integers; engine: detections and shot list schemas |
+| ajv | 8.20.0 (exact, `packages/engine`) | MIT | 04 (early E4) | `ajv/dist/2020.js`; test-only use: zod ↔ Python JSON Schema agreement (`py/tests/schemas/`) |
 | `ai` (Vercel AI SDK) | 7.0.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@openrouter/ai-sdk-provider` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
@@ -29,7 +30,8 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | `@ai-sdk/openai-compatible` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `d3-geo`, `topojson-client` | `d3-geo@3.1.1` (with `d3-array@3.2.4`, `internmap@2.0.3` inlined), `topojson-client@3.1.0`; bundled with `esbuild@0.25.10` (one file each, not minified) | ISC (d3-geo also carries GeographicLib MIT text) | 07 (vendored early by A1, D-19) | `styles/vox/templates/map-route/vendor/{d3-geo,topojson-client}.mjs` + `LICENSES.md` (tarball and file SHA-256); hooks are self-contained |
 | OpenCode Zen, 9router, LM Studio presets | no package (`@ai-sdk/openai-compatible` with a base URL) | — | 11 | base URLs in the agent spec presets table |
-| Playwright | TBD (08) | Apache-2.0 | 08 | Electron E2E (first used by the 08 smoke test, D-16) |
+| Playwright | 1.64.0 (exact, `apps/desktop`; Chromium 156.0.8078.4, browser revision 1248) | Apache-2.0 | 08 (early U1, D-19) | GATE 4 bench driver (headless shell); Electron E2E (first used by the 08 smoke test, D-16) |
+| vite | 8.3.4 (exact, `apps/desktop`) | MIT | 08 (early U1, D-19) | builds the GATE 4 prototype; electron-vite (08) must accept it or the pin moves |
 
 ## External tools (first-run setup, phase 09; dev uses PATH)
 
@@ -60,7 +62,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | pypdf (document text) | 6.19.0 | BSD-3-Clause | 04 |
 | onnxruntime (Silero VAD speech gate; no torch, D-15) | 1.30.0 | MIT | 04 |
 | Silero VAD `silero_vad.onnx`, vendored at `py/vox_py/models/` with its licence (upstream release URL + SHA-256, D-15) | v6.2.3, commit `5cd7945676eb32225748052e2e6a0580e4686a08`, <https://github.com/snakers4/silero-vad/blob/v6.2.3/src/silero_vad/data/silero_vad.onnx>; SHA-256 `1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3` | MIT | 04 |
-| numpy (audio QA analysis; `qa.png` drawn with ffmpeg `showspectrumpic`/`showwavespic`) | TBD (05) | BSD-3-Clause | 05 |
+| numpy (audio QA analysis; `qa.png` and the kit sheet drawn with numpy and written with `zlib`, no Pillow, D-27) | 2.5.3 (exact in `py/pyproject.toml`; already in `py/uv.lock` for onnxruntime and mediapipe) | BSD-3-Clause | 05 (set early, p2-audioqa) |
 | `otio-fcpx-xml-adapter` | TBD (05 if GATE 2 needs it, else 14) | Apache-2.0 | 05 / 14 |
 | mflux + Z-Image-Turbo | TBD (14) | MIT + Apache-2.0 | 14 |
 | `pyobjc-framework-Vision` (facetrack body + saliency fallback in v1; Part C OCR reuses it, D-15) | 12.2.2 | MIT | 04 |
