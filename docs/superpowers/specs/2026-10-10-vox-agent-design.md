@@ -83,8 +83,11 @@ subscription may be used through a gateway is set by that service's terms, not b
   `usage` is estimated from the text when the framework reports no token counts.
   `vox-apple-llm --status` prints availability (`ready`, `notEnabled`, `notEligible`,
   `modelNotReady`, `unsupportedOS`) and the context size.
+  Exact line shapes (optional echoed `id`, error line and codes, usage fields, `\n`-only
+  line splitting, the JSON Schema subset): D-22; the zod schemas in
+  `packages/agent/src/providers/apple-protocol.ts` are the contract.
 - The helper exposes no tool calls, so the agent uses it in plan mode, and the probe
-  decides its roles. With its context of about 4k tokens it usually only passes the
+  decides its roles. With its context of 4k tokens (8k on macOS 27, D-22) it usually only passes the
   `fast` role (scoring quick-clip candidates, image queries); it can fill `editor` only if
   it passes the probe. Cost is 0.
 - The helper never reads files or the network; it gets only the request text.

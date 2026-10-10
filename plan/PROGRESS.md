@@ -6,8 +6,8 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | Phase | Title | Prereq | Status | Started | Finished | One-line result | Log |
 |---|---|---|---|---|---|---|---|
 | 00 | Foundation | — | [x] | 2026-10-10 23:40 | 2026-10-11 00:25 | Monorepo, fixtures, seed media, CI green (macos-14); no `drawtext`, barcode counter (D-17) | log/phase-00.md |
-| 01 | Spike + GATE 1 | 00 | [ ] | | | | log/phase-01.md |
-| 02 | Engine: model, ops, history | 00 | [ ] | | | | log/phase-02.md |
+| 01 | Spike + GATE 1 | 00 | [~] | 2026-10-11 00:18 | | | log/phase-01.md |
+| 02 | Engine: model, ops, history | 00 | [x] | 2026-10-11 00:17 | 2026-10-11 02:26 | Model, 29 ops + `batch`, history store (kill-safe), lock, `vox new/op/undo/redo/history/snapshot/paths`; applyOp p95 22.9 ms; contracts frozen (D-28) | log/phase-02.md |
 | 03 | Engine: styles loader, `base`, compile, captions, audio | 01, 02 | [ ] | | | | log/phase-03.md |
 | 04 | Engine: jobs, Python bridge, ingest, transcribe, facetrack | 01, 02 | [ ] | | | | log/phase-04.md |
 | 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [ ] | | | | log/phase-05.md |
@@ -39,7 +39,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | Plan review 4 + owner answers applied | — | [x] | D-16 | checked-in seed media + `SEEDS.json`, `tap.wav` in 00, 10a prereq 06 + 09, GATE 2 platform fallback, GATE 3/6 3-round exit, gates inside a phase, Apple helper `notBuilt`, no second account or friend required, CI fast/slow split |
 | Competitor teardown changes applied | — | [x] | D-15 | CapCut 9.4.1 teardown: rational fps + VFR copy, loudness match + export targets, VAD speech gate, word kinds, `shots`, `auto` framing + keyframes, `CaptionChunk`, pause/word removal, `coalesceKey`, `JOB_CONFLICT`, agent tool surface, aliases, sub-runs, replay tests; specs and plan updated, `schemaVersion` stays 2 |
 | GATE 1 — HyperFrames go/hybrid, preview strategy, opaque sandbox | 01 | [ ] | | |
-| Contracts frozen: `project.json`, ops, `HistoryEntry`, path rule | 02 | [ ] | | also the transcript file format, `ApplyResult`, `engine.view` / `SequenceView` and `SCHEMA_TOO_NEW` (R2 rows "02"); changes after this need a DECISIONS entry |
+| Contracts frozen: `project.json`, ops, `HistoryEntry`, path rule | 02 | [x] | 2026-10-11, D-28 | also the transcript file format, `ApplyResult`, `engine.view` / `SequenceView` and `SCHEMA_TOO_NEW` (R2 rows "02"); changes after this need a DECISIONS entry |
 | GATE 2 — engine done-when (URL → MP4 by CLI, `vox quick`, Instagram/TikTok/file ingest, export folder, audio QA, OTIO in Resolve) | 05 | [ ] | | |
 | Contracts frozen: Engine API + events, engine CLI | 05 | [ ] | | R2 rows "frozen after 05" |
 | GATE 3 — `vox` side-by-side sheet approved + ear check of `LISTEN.md` | 07 | [ ] | | |

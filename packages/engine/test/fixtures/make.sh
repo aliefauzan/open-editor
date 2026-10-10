@@ -2,6 +2,7 @@
 # Offline fixture generator (plan phase 00, R7, D-15, D-16).
 #
 #   make.sh               build every generated fixture into out/ (gitignored) and transcripts/spike-90s.json
+#   make.sh --audio-qa    build ONLY the audio QA set (out/audio/, about 7 s)
 #   make.sh --seed-media  build ONLY the checked-in seed media (talking-head-20s .mp4/.mov/.webm) into
 #                         assets/media/ and write assets/media/SEEDS.json. Run once on the M5 and commit.
 #
@@ -92,8 +93,132 @@ seed_media() {
   echo "seed media written to $dir"
 }
 
+# ---- audio QA set (plan 05 step 8d0, R7, D-14, D-16): out/audio/ ----
+# Cases (mono 48 kHz stems `<case>.sfx.wav` and `<case>.speech.wav`, stereo mix `<case>.wav`, and
+# `<case>.cues.json` with the cue list, fps and loudness target):
+#   good, bad-late (cue 3 three frames late), bad-double-hit (two hits in one sample),
+#   bad-close-cues (two cues 50 ms apart), bad-sfx-over-speech (SFX as loud as speech), bad-clipped.
+# Kit set: kit-beep, kit-noise-bed, kit-click-start, kit-double-hit (all mono 48 kHz).
+# Gains are fixed numbers chosen with wide margins: `say` timing and level may move between macOS versions.
+AUDIO_FPS=30
+AUDIO_TARGET=-14
+AUDIO_LEN=13
+AUDIO_CUES_MS=(500 2900 5800 8300 9600 11500) # hero, in speech, silence, speech, speech, hero
+AUDIO_SFX_GAIN=-6        # dB on tap.wav in the good mix (well under the speech it overlaps)
+AUDIO_SFX_GAIN_LOUD=8    # dB: SFX about as loud as the speech it overlaps
+
+# lufs FILE -> integrated loudness (ebur128), one number.
+lufs() {
+  ffmpeg -nostdin -hide_banner -nostats -i "$1" -af ebur128 -f null - 2>&1 |
+    awk '/Integrated loudness:/ { s = 1 } s && /I:/ { print $2; exit }'
+}
+
+# sfx_stem OUT GAIN_DB T1_MS T2_MS ... -> mono 48 kHz stem: tap.wav at each time, AUDIO_LEN seconds.
+sfx_stem() {
+  local out="$1" gain="$2"; shift 2
+  local n=$# i=0 labels="" mix="" joined="" t
+  for t in "$@"; do
+    labels+="[s$i]"
+    mix+="[s$i]adelay=${t}[d$i];"
+    joined+="[d$i]"
+    i=$((i + 1))
+  done
+  "${FF[@]}" -i "$ASSETS/sfx/tap.wav" \
+    -filter_complex "[0]asplit=$n$labels;${mix}${joined}amix=inputs=$n:normalize=0:duration=longest,volume=${gain}dB,apad,atrim=0:$AUDIO_LEN,aformat=sample_fmts=s16:channel_layouts=mono" \
+    -ar 48000 -c:a pcm_s16le "$out"
+}
+
+# mix_case OUT SPEECH SFX -> stereo mix at the target loudness, limited to -2 dBFS peaks.
+mix_case() {
+  local out="$1" speech="$2" sfx="$3" raw="$TMP/mix-raw.wav" g
+  local lim="alimiter=limit=0.794:attack=5:release=50:level=0"
+  "${FF[@]}" -i "$speech" -i "$sfx" -filter_complex "amix=inputs=2:normalize=0:duration=longest" -c:a pcm_f32le "$raw"
+  g="$(awk -v t="$AUDIO_TARGET" -v i="$(lufs "$raw")" 'BEGIN { printf "%.2f", t - i }')"
+  "${FF[@]}" -i "$raw" -af "volume=${g}dB,$lim" -ac 2 -c:a pcm_s16le "$out"
+  # The limiter lowers the level a little: one more pass with the residual error.
+  g="$(awk -v t="$AUDIO_TARGET" -v i="$(lufs "$out")" -v g="$g" 'BEGIN { printf "%.2f", g + t - i }')"
+  "${FF[@]}" -i "$raw" -af "volume=${g}dB,$lim" -ac 2 -c:a pcm_s16le "$out"
+}
+
+# cues_json OUT TIME_MS... -> cues file: first and last cue are hero, the types of the others cycle.
+cues_json() {
+  local out="$1"; shift
+  local types=(appear land cut move) n=$# i=0 t sep="" ty
+  {
+    printf '{ "fps": %s, "target": %s, "cues": [
+' "$AUDIO_FPS" "$AUDIO_TARGET"
+    for t in "$@"; do
+      if [ "$i" = 0 ] || [ "$i" = "$((n - 1))" ]; then ty=hero; else ty="${types[$(((i - 1) % 4))]}"; fi
+      printf '%s  { "atMs": %s, "type": "%s", "hero": %s }' "$sep" "$t" "$ty" "$([ "$ty" = hero ] && echo true || echo false)"
+      sep=$',
+'
+      i=$((i + 1))
+    done
+    printf '
+] }
+'
+  } > "$out"
+}
+
+# audio_case NAME SFX_GAIN_DB CUES_FILE SFX_TIME_MS...
+audio_case() {
+  local name="$1" gain="$2" cues_file="$3"; shift 3
+  cp "$TMP/speech.wav" "$OUT/audio/$name.speech.wav"
+  sfx_stem "$OUT/audio/$name.sfx.wav" "$gain" "$@"
+  mix_case "$OUT/audio/$name.wav" "$OUT/audio/$name.speech.wav" "$OUT/audio/$name.sfx.wav"
+  cp "$cues_file" "$OUT/audio/$name.cues.json"
+}
+
+audio_qa_set() {
+  local A="$OUT/audio" c=("${AUDIO_CUES_MS[@]}")
+  mkdir -p "$A"
+  # Speech stem: two `say` utterances at fixed start times (1.5 s and 7 s).
+  say -v "$VOICE" -r 185 -o "$TMP/a1.aiff" "The quick brown fox jumps over the lazy dog by the river."
+  say -v "$VOICE" -r 185 -o "$TMP/a2.aiff" "Editors add a short sound to every important cut in the video."
+  "${FF[@]}" -i "$TMP/a1.aiff" -i "$TMP/a2.aiff" \
+    -filter_complex "[0]aresample=48000,aformat=channel_layouts=mono,adelay=1500[a];[1]aresample=48000,aformat=channel_layouts=mono,adelay=7000[b];[a][b]amix=inputs=2:normalize=0:duration=longest,apad,atrim=0:$AUDIO_LEN" \
+    -ar 48000 -ac 1 -c:a pcm_s16le "$TMP/speech.wav"
+
+  cues_json "$TMP/cues-good.json" "${c[@]}"
+  cues_json "$TMP/cues-close.json" "${c[0]}" "${c[1]}" "${c[2]}" "$((c[2] + 50))" "${c[3]}" "${c[4]}" "${c[5]}"
+
+  audio_case good "$AUDIO_SFX_GAIN" "$TMP/cues-good.json" "${c[@]}"
+  # cue 3 (5800 ms) is 3 frames (100 ms) late
+  audio_case bad-late "$AUDIO_SFX_GAIN" "$TMP/cues-good.json" "${c[0]}" "${c[1]}" "$((c[2] + 100))" "${c[3]}" "${c[4]}" "${c[5]}"
+  # cue 3 plays a sample with two hits, 250 ms apart
+  audio_case bad-double-hit "$AUDIO_SFX_GAIN" "$TMP/cues-good.json" "${c[@]}" "$((c[2] + 250))"
+  # two cues 50 ms apart (a fourth cue at 5850 ms)
+  audio_case bad-close-cues "$AUDIO_SFX_GAIN" "$TMP/cues-close.json" "${c[0]}" "${c[1]}" "${c[2]}" "$((c[2] + 50))" "${c[3]}" "${c[4]}" "${c[5]}"
+  # SFX about as loud as the speech
+  audio_case bad-sfx-over-speech "$AUDIO_SFX_GAIN_LOUD" "$TMP/cues-good.json" "${c[@]}"
+  # mix clipped at 0 dBFS: the good mix plus 8 dB, hard-clipped by the 16-bit conversion
+  audio_case bad-clipped "$AUDIO_SFX_GAIN" "$TMP/cues-good.json" "${c[@]}"
+  "${FF[@]}" -i "$A/good.wav" -af "volume=8dB" -c:a pcm_s16le "$A/bad-clipped.wav"
+
+  # Kit set (mono 48 kHz). The beep and the noise bed start and end in 6 ms of digital silence with
+  # short fades, so only the rule under test fails (the edge rule needs the first and last 5 ms quiet).
+  "${FF[@]}" -f lavfi -i "sine=f=1000:d=0.3:r=48000,volume=-6dB,afade=t=in:d=0.02,afade=t=out:st=0.28:d=0.02,adelay=6,apad=pad_dur=0.006" \
+    -ac 1 -c:a pcm_s16le "$A/kit-beep.wav"
+  "${FF[@]}" -f lavfi -i "anoisesrc=d=2:c=white:r=48000:seed=7,volume=-12dB,afade=t=in:d=0.02,afade=t=out:st=1.98:d=0.02,adelay=6,apad=pad_dur=0.006" \
+    -ac 1 -c:a pcm_s16le "$A/kit-noise-bed.wav"
+  # the tap cut 20 ms in: starts mid-decay with no fade-in (a click at the first sample)
+  "${FF[@]}" -i "$ASSETS/sfx/tap.wav" -af "atrim=start=0.02,asetpts=PTS-STARTPTS,volume=6dB" \
+    -ac 1 -c:a pcm_s16le "$A/kit-click-start.wav"
+  # two hits, 250 ms apart, in one sample
+  "${FF[@]}" -i "$ASSETS/sfx/tap.wav" -i "$ASSETS/sfx/tap.wav" \
+    -filter_complex "[1]adelay=250[b];[0][b]amix=inputs=2:normalize=0:duration=longest" \
+    -ac 1 -c:a pcm_s16le "$A/kit-double-hit.wav"
+}
+
 if [ "${1:-}" = "--seed-media" ]; then
   seed_media
+  exit 0
+fi
+
+if [ "${1:-}" = "--audio-qa" ]; then
+  mkdir -p "$OUT"
+  audio_qa_set
+  echo "audio QA set written to $OUT/audio"
   exit 0
 fi
 
@@ -192,5 +317,7 @@ awk 'BEGIN {
   regions = regions (regions == "" ? "" : ", ") sprintf("{ \"startMs\": %d, \"endMs\": %d }", regStart, t)
   printf "\n  ],\n  \"speechRegions\": [ %s ]\n}\n", regions
 }' > "$DIR/transcripts/spike-90s.json"
+
+audio_qa_set
 
 echo "fixtures written to $OUT"
