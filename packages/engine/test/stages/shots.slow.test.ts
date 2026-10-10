@@ -42,7 +42,11 @@ describe('shots on cuts-2shot.mp4 (phase 04 step 9c)', () => {
 
   test('the no-proxy path (original scaled to 360p) gives the same shot list within 1 frame', async () => {
     const proxyLike = await detectShots({ input: clip, durationMs: truth.durationMs });
-    const scaled = await detectShots({ input: clip, durationMs: truth.durationMs, scaleTo360: true });
+    const scaled = await detectShots({
+      input: clip,
+      durationMs: truth.durationMs,
+      scaleTo360: true,
+    });
     expectMatches(scaled);
     expect(scaled).toHaveLength(proxyLike.length);
     scaled.forEach((s, i) => {

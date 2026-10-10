@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "ajv": "8.20.0",
     "zod": "4.6.5"
   }
 }

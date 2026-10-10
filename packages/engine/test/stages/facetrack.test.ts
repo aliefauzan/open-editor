@@ -36,14 +36,19 @@ describe('DetectionsSchema (vox_py.facetrack result)', () => {
     bad1.samples[0]!.faces[0]!.x = 1.5;
     expect(() => DetectionsSchema.parse(bad1)).toThrow();
     expect(() => DetectionsSchema.parse({ ...d, extra: 1 })).toThrow();
-    expect(() => DetectionsSchema.parse({ ...d, faceModel: { name: 'x', sha256: 'zz' } })).toThrow();
+    expect(() =>
+      DetectionsSchema.parse({ ...d, faceModel: { name: 'x', sha256: 'zz' } }),
+    ).toThrow();
   });
 });
 
 describe('cropSize', () => {
   test('9:16 from 16:9 keeps the full height; 16:9 from 16:9 is the whole frame; scale zooms in', () => {
     expect(cropSize({ width: 1920, height: 1080 }, VERTICAL)).toEqual({ w: 81 / 256, h: 1 });
-    expect(cropSize({ width: 1920, height: 1080 }, { width: 1280, height: 720 })).toEqual({ w: 1, h: 1 });
+    expect(cropSize({ width: 1920, height: 1080 }, { width: 1280, height: 720 })).toEqual({
+      w: 1,
+      h: 1,
+    });
     expect(cropSize({ width: 1080, height: 1080 }, { width: 1920, height: 1080 }, 2)).toEqual({
       w: 0.5,
       h: 0.28125,
@@ -99,14 +104,22 @@ describe('subject choice', () => {
   const one = [{ startMs: 0, endMs: 3000 }];
 
   test('auto falls back face → body → saliency → centre; facetrack uses faces only', () => {
-    const bodyOnly = synth(3000, () => ({ bodies: [box(0.7, 0.5, 0.2, 0.8)], saliency: box(0.2, 0.5, 0.1, 0.1) }));
+    const bodyOnly = synth(3000, () => ({
+      bodies: [box(0.7, 0.5, 0.2, 0.8)],
+      saliency: box(0.2, 0.5, 0.1, 0.1),
+    }));
     const salOnly = synth(3000, () => ({ saliency: box(0.2, 0.5, 0.1, 0.1) }));
     const empty = synth(3000, () => ({}));
     expect(buildTrackPath(bodyOnly, one, opts({ mode: 'auto' })).shots[0]?.subject).toBe('body');
-    expect(xAt(buildTrackPath(bodyOnly, one, opts({ mode: 'auto' })).keyframes, 1000)).toBeCloseTo(0.7, 3);
+    expect(xAt(buildTrackPath(bodyOnly, one, opts({ mode: 'auto' })).keyframes, 1000)).toBeCloseTo(
+      0.7,
+      3,
+    );
     expect(buildTrackPath(salOnly, one, opts({ mode: 'auto' })).shots[0]?.subject).toBe('saliency');
     expect(buildTrackPath(empty, one, opts({ mode: 'auto' })).shots[0]?.subject).toBe('centre');
-    expect(buildTrackPath(bodyOnly, one, opts({ mode: 'facetrack' })).shots[0]?.subject).toBe('centre');
+    expect(buildTrackPath(bodyOnly, one, opts({ mode: 'facetrack' })).shots[0]?.subject).toBe(
+      'centre',
+    );
   });
 
   test('a face in fewer than a quarter of the samples does not make a face shot', () => {
@@ -120,8 +133,14 @@ describe('subject choice', () => {
   test('the first subject is the largest face; faceIndex pins a face by left-to-right order', () => {
     const d = synth(3000, () => ({ faces: [box(0.75, 0.5, 0.3, 0.5), box(0.25, 0.5, 0.1, 0.2)] }));
     expect(xAt(buildTrackPath(d, one, opts()).keyframes, 1500)).toBeCloseTo(clampX(0.75), 3);
-    expect(xAt(buildTrackPath(d, one, opts({ faceIndex: 0 })).keyframes, 1500)).toBeCloseTo(clampX(0.25), 3);
-    expect(xAt(buildTrackPath(d, one, opts({ faceIndex: 1 })).keyframes, 1500)).toBeCloseTo(clampX(0.75), 3);
+    expect(xAt(buildTrackPath(d, one, opts({ faceIndex: 0 })).keyframes, 1500)).toBeCloseTo(
+      clampX(0.25),
+      3,
+    );
+    expect(xAt(buildTrackPath(d, one, opts({ faceIndex: 1 })).keyframes, 1500)).toBeCloseTo(
+      clampX(0.75),
+      3,
+    );
     const missing = buildTrackPath(d, one, opts({ faceIndex: 5 }));
     expect(missing.shots[0]?.faceIndexMissing).toBe(true);
     expect(xAt(missing.keyframes, 1500)).toBeCloseTo(clampX(0.75), 3);
@@ -131,7 +150,11 @@ describe('subject choice', () => {
     const d = synth(4000, (t) => ({
       faces: t < 1000 ? [box(0.2, 0.5, 0.1, 0.2)] : [box(0.8, 0.5, 0.1, 0.2)],
     }));
-    const path = buildTrackPath(d, [{ startMs: 0, endMs: 4000 }], opts({ stability: 'follow', trackSpeed: 'fast' }));
+    const path = buildTrackPath(
+      d,
+      [{ startMs: 0, endMs: 4000 }],
+      opts({ stability: 'follow', trackSpeed: 'fast' }),
+    );
     expect(path.shots[0]?.switchesAtMs).toEqual([2000]);
     expect(xAt(path.keyframes, 1900)).toBeCloseTo(clampX(0.2), 3);
     expect(xAt(path.keyframes, 3999)).toBeGreaterThan(0.7);
@@ -142,9 +165,17 @@ describe('hysteresis (podcast-2face)', () => {
   const one = [{ startMs: 0, endMs: 12000 }];
 
   test('0.5 s of a 1.4× larger face does not switch; 1.5 s does, after 1 s', () => {
-    const path = buildTrackPath(podcast([[3000, 3500], [7000, 8500]]), one, opts());
+    const path = buildTrackPath(
+      podcast([
+        [3000, 3500],
+        [7000, 8500],
+      ]),
+      one,
+      opts(),
+    );
     expect(path.shots[0]?.switchesAtMs).toEqual([8000]);
-    for (const t of [0, 2900, 3300, 3600, 5000, 7900]) expect(xAt(path.keyframes, t)).toBeLessThan(0.35);
+    for (const t of [0, 2900, 3300, 3600, 5000, 7900])
+      expect(xAt(path.keyframes, t)).toBeLessThan(0.35);
     expect(xAt(path.keyframes, 11999)).toBeGreaterThan(0.7);
   });
 
@@ -155,7 +186,14 @@ describe('hysteresis (podcast-2face)', () => {
   });
 
   test('a face pinned by faceIndex never switches', () => {
-    const path = buildTrackPath(podcast([[3000, 3500], [7000, 8500]]), one, opts({ faceIndex: 0 }));
+    const path = buildTrackPath(
+      podcast([
+        [3000, 3500],
+        [7000, 8500],
+      ]),
+      one,
+      opts({ faceIndex: 0 }),
+    );
     expect(path.shots[0]?.switchesAtMs).toEqual([]);
   });
 });
@@ -165,7 +203,9 @@ describe('stability', () => {
 
   test('locked: a subject inside the 10 % dead zone gives one static crop for the shot', () => {
     const jitter = 0.9 * DEAD_ZONE * crop.w;
-    const d = synth(4000, (_t, i) => ({ faces: [box(0.4 + (i % 2 ? jitter : -jitter), 0.5, 0.1, 0.2)] }));
+    const d = synth(4000, (_t, i) => ({
+      faces: [box(0.4 + (i % 2 ? jitter : -jitter), 0.5, 0.1, 0.2)],
+    }));
     const path = buildTrackPath(d, one, opts({ stability: 'locked' }));
     expect(path.shots[0]?.stability).toBe('locked');
     expect(path.keyframes).toHaveLength(2);
@@ -186,7 +226,14 @@ describe('stability', () => {
     // saliency has no identity tracking, so a step in its box is a step in the target
     const d = synth(4000, (t) => ({ saliency: box(t < 1000 ? 0.3 : 0.6, 0.5, 0.1, 0.2) }));
     const lag = (s: 'smooth' | 'follow') =>
-      Math.abs(0.6 - xAt(buildTrackPath(d, one, opts({ mode: 'auto', stability: s, trackSpeed: 'fast' })).keyframes, 1250));
+      Math.abs(
+        0.6 -
+          xAt(
+            buildTrackPath(d, one, opts({ mode: 'auto', stability: s, trackSpeed: 'fast' }))
+              .keyframes,
+            1250,
+          ),
+      );
     expect(lag('follow')).toBeLessThan(lag('smooth'));
   });
 
@@ -194,10 +241,16 @@ describe('stability', () => {
     const d = synth(8000, (t) => ({ saliency: box(t < 1000 ? 0.2 : 0.8, 0.5, 0.1, 0.2) }));
     const arrival: Record<string, number> = {};
     for (const speed of ['slow', 'normal', 'fast'] as const) {
-      const k = buildTrackPath(d, [{ startMs: 0, endMs: 8000 }], opts({ mode: 'auto', stability: 'follow', trackSpeed: speed })).keyframes;
+      const k = buildTrackPath(
+        d,
+        [{ startMs: 0, endMs: 8000 }],
+        opts({ mode: 'auto', stability: 'follow', trackSpeed: speed }),
+      ).keyframes;
       for (let i = 1; i < k.length; i++) {
         const dt = (k[i]!.atMs - k[i - 1]!.atMs) / 1000;
-        expect(Math.abs(k[i]!.x - k[i - 1]!.x)).toBeLessThanOrEqual(TRACK_SPEED[speed] * crop.w * dt + 2e-4);
+        expect(Math.abs(k[i]!.x - k[i - 1]!.x)).toBeLessThanOrEqual(
+          TRACK_SPEED[speed] * crop.w * dt + 2e-4,
+        );
       }
       arrival[speed] = k.find((f) => f.x > clampX(0.8) - 0.01)?.atMs ?? Infinity;
     }
@@ -212,7 +265,11 @@ describe('applyClipFraming (user keyframes)', () => {
   const base = clampX(0.3);
 
   test('a pin holds the crop at its time and blends back to the track over 300 ms', () => {
-    const k = applyClipFraming(path, { inMs: 0, durationMs: 6000, keyframes: [{ atMs: 2000, x: 0.7, y: 0.5, scale: 1.2 }] });
+    const k = applyClipFraming(path, {
+      inMs: 0,
+      durationMs: 6000,
+      keyframes: [{ atMs: 2000, x: 0.7, y: 0.5, scale: 1.2 }],
+    });
     expect(sampleKeyframes(k, 2000)).toEqual({ x: 0.7, y: 0.5, scale: 1.2 });
     const half = sampleKeyframes(k, 2000 + PIN_BLEND_MS / 2);
     expect(half.x).toBeCloseTo((0.7 + base) / 2, 3);
@@ -238,17 +295,32 @@ describe('applyClipFraming (user keyframes)', () => {
 
   test('a pin never blends across a cut', () => {
     const p2 = buildTrackPath(cuts2shot(), CUTS_2SHOT, opts());
-    const k = applyClipFraming(p2, { inMs: 0, durationMs: 9000, keyframes: [{ atMs: 2900, x: 0.8, y: 0.5, scale: 1 }] });
+    const k = applyClipFraming(p2, {
+      inMs: 0,
+      durationMs: 9000,
+      keyframes: [{ atMs: 2900, x: 0.8, y: 0.5, scale: 1 }],
+    });
     expect(sampleKeyframes(k, 3000).x).toBeCloseTo(sampleKeyframes(p2.keyframes, 3000).x, 3);
-    expect(sampleKeyframes(k, 2999).x).toBeCloseTo(0.8 + ((clampX(0.3) - 0.8) * 99) / PIN_BLEND_MS, 3);
+    expect(sampleKeyframes(k, 2999).x).toBeCloseTo(
+      0.8 + ((clampX(0.3) - 0.8) * 99) / PIN_BLEND_MS,
+      3,
+    );
   });
 
   test('keyframes are relative to the item start and a start trim shifts them', () => {
     const p2 = buildTrackPath(cuts2shot(), CUTS_2SHOT, opts({ mode: 'auto' }));
     const pin = { x: 0.8, y: 0.5, scale: 1.3 };
-    const a = applyClipFraming(p2, { inMs: 1000, durationMs: 7000, keyframes: [{ atMs: 3500, ...pin }] });
+    const a = applyClipFraming(p2, {
+      inMs: 1000,
+      durationMs: 7000,
+      keyframes: [{ atMs: 3500, ...pin }],
+    });
     // trim the start by 400 ms: inMs grows, the pin's relative time shrinks by the same amount
-    const b = applyClipFraming(p2, { inMs: 1400, durationMs: 6600, keyframes: [{ atMs: 3100, ...pin }] });
+    const b = applyClipFraming(p2, {
+      inMs: 1400,
+      durationMs: 6600,
+      keyframes: [{ atMs: 3100, ...pin }],
+    });
     expect(a[0]?.atMs).toBe(0);
     expect(a.at(-1)?.atMs).toBe(7000);
     expect(b.at(-1)?.atMs).toBe(6600);
@@ -271,7 +343,11 @@ describe('applyClipFraming (user keyframes)', () => {
   });
 
   test('pins outside the clip window are ignored', () => {
-    const k = applyClipFraming(path, { inMs: 0, durationMs: 1000, keyframes: [{ atMs: 5000, x: 0.9, y: 0.5, scale: 1 }] });
+    const k = applyClipFraming(path, {
+      inMs: 0,
+      durationMs: 1000,
+      keyframes: [{ atMs: 5000, x: 0.9, y: 0.5, scale: 1 }],
+    });
     expect(k.every((f) => f.x === base)).toBe(true);
   });
 });
@@ -287,7 +363,9 @@ describe('facetrackCacheKey', () => {
 
   test('same inputs → same key; the aspect is reduced (1080×1920 = 540×960)', () => {
     expect(facetrackCacheKey(k)).toBe(facetrackCacheKey({ ...k }));
-    expect(facetrackCacheKey({ ...k, aspect: { width: 540, height: 960 } })).toBe(facetrackCacheKey(k));
+    expect(facetrackCacheKey({ ...k, aspect: { width: 540, height: 960 } })).toBe(
+      facetrackCacheKey(k),
+    );
     expect(facetrackCacheKey(k)).toMatch(/^[0-9a-f]{64}$/);
   });
 
@@ -307,7 +385,9 @@ describe('facetrackCacheKey', () => {
   });
 
   test('defaults: absent stability/trackSpeed equal smooth/normal', () => {
-    expect(facetrackCacheKey({ mediaHash: k.mediaHash, aspect: k.aspect, mode: 'auto' })).toBe(facetrackCacheKey(k));
+    expect(facetrackCacheKey({ mediaHash: k.mediaHash, aspect: k.aspect, mode: 'auto' })).toBe(
+      facetrackCacheKey(k),
+    );
   });
 });
 
@@ -315,7 +395,15 @@ describe('validation and determinism', () => {
   test('shots that do not tile the media, a bad aspect or a bad faceIndex fail with VALIDATION', () => {
     const d = cuts2shot();
     const bad: unknown[] = [
-      () => buildTrackPath(d, [{ startMs: 0, endMs: 3000 }, { startMs: 2000, endMs: 9000 }], opts()),
+      () =>
+        buildTrackPath(
+          d,
+          [
+            { startMs: 0, endMs: 3000 },
+            { startMs: 2000, endMs: 9000 },
+          ],
+          opts(),
+        ),
       () => buildTrackPath(d, [{ startMs: 100, endMs: 9000 }], opts()),
       () => buildTrackPath(d, CUTS_2SHOT, opts({ aspect: { width: 0, height: 1 } })),
       () => buildTrackPath(d, CUTS_2SHOT, opts({ faceIndex: -1 })),

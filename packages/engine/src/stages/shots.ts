@@ -34,7 +34,10 @@ export const ShotListSchema = z
     }
     for (let i = 1; i < shots.length; i++) {
       if (shots[i]?.startMs !== shots[i - 1]?.endMs) {
-        ctx.addIssue({ code: 'custom', message: `shot ${i} does not start where shot ${i - 1} ends` });
+        ctx.addIssue({
+          code: 'custom',
+          message: `shot ${i} does not start where shot ${i - 1} ends`,
+        });
       }
     }
   });
@@ -52,7 +55,11 @@ const engineBug = 'This is an engine bug; please report it.';
 
 function checkInput(path: string): string {
   if (typeof path !== 'string' || path.includes('\0') || !isAbsolute(path)) {
-    throw new VoxError('VALIDATION', `shots input must be an absolute path: ${JSON.stringify(path)}`, engineBug);
+    throw new VoxError(
+      'VALIDATION',
+      `shots input must be an absolute path: ${JSON.stringify(path)}`,
+      engineBug,
+    );
   }
   return path;
 }
@@ -61,7 +68,11 @@ export function scdetArgs(opts: ScdetArgsInput): string[] {
   const input = checkInput(opts.input);
   const wl = opts.formatWhitelist ?? DEFAULT_FORMAT_WHITELIST;
   if (!/^[a-z0-9_]+(,[a-z0-9_]+)*$/.test(wl)) {
-    throw new VoxError('VALIDATION', `Invalid ffmpeg format whitelist: ${JSON.stringify(wl)}`, engineBug);
+    throw new VoxError(
+      'VALIDATION',
+      `Invalid ffmpeg format whitelist: ${JSON.stringify(wl)}`,
+      engineBug,
+    );
   }
   const graph = [
     ...(opts.scaleTo360 === true ? ['scale=-2:360'] : []),
@@ -106,7 +117,11 @@ export function parseScdetOutput(stdout: string): number[] {
 /** Contiguous shots over `[0, durationMs]`, split at each cut strictly inside it. */
 export function shotsFromCuts(cutsMs: readonly number[], durationMs: number): Shot[] {
   if (!Number.isInteger(durationMs) || durationMs <= 0) {
-    throw new VoxError('VALIDATION', `durationMs must be a positive integer, got ${durationMs}`, engineBug);
+    throw new VoxError(
+      'VALIDATION',
+      `durationMs must be a positive integer, got ${durationMs}`,
+      engineBug,
+    );
   }
   const inner = [...new Set(cutsMs.map((c) => Math.round(c)))]
     .filter((c) => c > 0 && c < durationMs)
@@ -143,7 +158,11 @@ const STDOUT_MAX = 16 * 1024 * 1024;
 const KILL_GRACE_MS = 2000;
 
 const cancelled = (): VoxError =>
-  new VoxError('CANCELLED', 'Shot detection was cancelled.', 'Nothing was written; run it again when ready.');
+  new VoxError(
+    'CANCELLED',
+    'Shot detection was cancelled.',
+    'Nothing was written; run it again when ready.',
+  );
 
 function tail(text: string): string {
   return text
@@ -201,26 +220,41 @@ function runFfmpeg(args: readonly string[], opts: DetectShotsOptions): Promise<s
       if (spawnError !== undefined) {
         if (spawnError.code === 'ENOENT') {
           return reject(
-            new VoxError('TOOL_MISSING', `ffmpeg was not found (${bin}).`, 'Install ffmpeg (brew install ffmpeg), then run vox doctor.', {
-              details: { tool: 'ffmpeg', path: bin },
-            }),
+            new VoxError(
+              'TOOL_MISSING',
+              `ffmpeg was not found (${bin}).`,
+              'Install ffmpeg (brew install ffmpeg), then run vox doctor.',
+              {
+                details: { tool: 'ffmpeg', path: bin },
+              },
+            ),
           );
         }
         return reject(
-          new VoxError('TOOL_FAILED', `Could not start ffmpeg: ${spawnError.message}`, 'Run vox doctor.', {
-            cause: spawnError,
-            details: { tool: 'ffmpeg', errno: spawnError.code },
-          }),
+          new VoxError(
+            'TOOL_FAILED',
+            `Could not start ffmpeg: ${spawnError.message}`,
+            'Run vox doctor.',
+            {
+              cause: spawnError,
+              details: { tool: 'ffmpeg', errno: spawnError.code },
+            },
+          ),
         );
       }
       const t = tail(err);
       const cause = t === '' ? undefined : redact(t);
       if (overflow) {
         return reject(
-          new VoxError('TOOL_FAILED', 'ffmpeg scene detection wrote too much output.', 'Report this as a bug.', {
-            cause,
-            details: { tool: 'ffmpeg' },
-          }),
+          new VoxError(
+            'TOOL_FAILED',
+            'ffmpeg scene detection wrote too much output.',
+            'Report this as a bug.',
+            {
+              cause,
+              details: { tool: 'ffmpeg' },
+            },
+          ),
         );
       }
       if (code !== 0) {

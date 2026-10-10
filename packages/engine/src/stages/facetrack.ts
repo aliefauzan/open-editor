@@ -5,7 +5,7 @@
 // Output: crop keyframes `{ atMs, x, y, scale }` in source-media time (`buildTrackPath`), then per
 // clip in item-relative time with the user's pins blended in (`applyClipFraming`).
 //
-// Coordinates (D-22): `x`, `y` are the crop centre, normalised to the source frame (0..1, origin
+// Coordinates (D-XX): `x`, `y` are the crop centre, normalised to the source frame (0..1, origin
 // top-left); `scale` is the zoom relative to the cover crop of the sequence aspect (1 = the largest
 // crop of that aspect that fits the source). The tracked path pans at scale 1; pins may zoom.
 //
@@ -57,12 +57,15 @@ export const DetectionsSchema = z.strictObject({
   width: z.int().positive(),
   height: z.int().positive(),
   durationMs: z.int().nonnegative(),
-  faceModel: z.strictObject({ name: z.string().min(1), sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
+  faceModel: z.strictObject({
+    name: z.string().min(1),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  }),
   samples: z.array(DetectionSampleSchema),
 });
 export type Detections = z.infer<typeof DetectionsSchema>;
 
-// ---- tuning (D-22) ----
+// ---- tuning (D-XX) ----
 
 /** Path algorithm version; part of the cache key, bump it when the output changes. */
 export const PATH_VERSION = 1;
@@ -77,7 +80,10 @@ export const DEAD_ZONE = 0.1;
 /** A subject class counts for a shot when present in at least this share of its samples. */
 export const MIN_PRESENCE = 0.25;
 /** Smoothing time constant (s) per stability. */
-export const SMOOTHING_S: Readonly<Record<'smooth' | 'follow', number>> = { smooth: 0.4, follow: 0.1 };
+export const SMOOTHING_S: Readonly<Record<'smooth' | 'follow', number>> = {
+  smooth: 0.4,
+  follow: 0.1,
+};
 /** Maximum crop speed in crop sizes per second. */
 export const TRACK_SPEED: Readonly<Record<TrackSpeed, number>> = { slow: 0.5, normal: 1, fast: 2 };
 /** A user keyframe blends to and from the tracked path over 300 ms. */
@@ -129,9 +135,14 @@ export interface ShotRange {
 // ---- helpers ----
 
 function invalid(message: string, details?: Record<string, unknown>): VoxError {
-  return new VoxError('VALIDATION', message, 'Check the framing settings, or re-run shots and facetrack for this media.', {
-    ...(details === undefined ? {} : { details }),
-  });
+  return new VoxError(
+    'VALIDATION',
+    message,
+    'Check the framing settings, or re-run shots and facetrack for this media.',
+    {
+      ...(details === undefined ? {} : { details }),
+    },
+  );
 }
 
 const r4 = (v: number): number => Math.round(v * 1e4) / 1e4;
@@ -157,7 +168,10 @@ export function cropSize(source: Aspect, aspect: Aspect, scale = 1): { w: number
 }
 
 /** The crop at `atMs` by linear interpolation; holds the first/last keyframe outside the range. */
-export function sampleKeyframes(kfs: readonly FrameKeyframe[], atMs: number): { x: number; y: number; scale: number } {
+export function sampleKeyframes(
+  kfs: readonly FrameKeyframe[],
+  atMs: number,
+): { x: number; y: number; scale: number } {
   const first = kfs[0];
   const last = kfs.at(-1);
   if (first === undefined || last === undefined) return { x: 0.5, y: 0.5, scale: 1 };
@@ -179,7 +193,8 @@ export function sampleKeyframes(kfs: readonly FrameKeyframe[], atMs: number): { 
 function largest(boxes: readonly Box[]): Box | undefined {
   let best: Box | undefined;
   for (const b of boxes) {
-    if (best === undefined || area(b) > area(best) || (area(b) === area(best) && cx(b) < cx(best))) best = b;
+    if (best === undefined || area(b) > area(best) || (area(b) === area(best) && cx(b) < cx(best)))
+      best = b;
   }
   return best;
 }
@@ -209,7 +224,10 @@ interface Tracked {
  * larger for at least 1 s takes over. A subject lost for 1 s is replaced by the largest box.
  * Samples before the first box take the first subject (no drift into the shot).
  */
-function trackBoxes(seq: readonly { atMs: number; boxes: Box[] }[], pinIndex: number | undefined): Tracked {
+function trackBoxes(
+  seq: readonly { atMs: number; boxes: Box[] }[],
+  pinIndex: number | undefined,
+): Tracked {
   const firstIdx = seq.findIndex((s) => s.boxes.length > 0);
   const firstBoxes = seq[firstIdx]?.boxes ?? [];
   let pinned = pinIndex !== undefined;
@@ -251,7 +269,9 @@ function trackBoxes(seq: readonly { atMs: number; boxes: Box[] }[], pinIndex: nu
     }
     if (!pinned && match !== undefined) {
       const cur = current;
-      const challenger = largest(s.boxes.filter((b) => b !== match && area(b) > HYSTERESIS_RATIO * area(cur)));
+      const challenger = largest(
+        s.boxes.filter((b) => b !== match && area(b) > HYSTERESIS_RATIO * area(cur)),
+      );
       if (challenger === undefined) {
         pending = null;
       } else {
@@ -278,12 +298,14 @@ function checkShots(shots: readonly ShotRange[]): void {
       throw invalid(`shot ${i} is not a valid range`, { shot: s });
     }
     const prevEnd = i === 0 ? 0 : (shots[i - 1] as ShotRange).endMs;
-    if (s.startMs !== prevEnd) throw invalid(`shot ${i} does not start where the previous one ends`, { shot: s });
+    if (s.startMs !== prevEnd)
+      throw invalid(`shot ${i} does not start where the previous one ends`, { shot: s });
   });
 }
 
 function checkOptions(o: TrackPathOptions): void {
-  if (o.mode !== 'facetrack' && o.mode !== 'auto') throw invalid(`framing mode ${String(o.mode)} has no tracked path`);
+  if (o.mode !== 'facetrack' && o.mode !== 'auto')
+    throw invalid(`framing mode ${String(o.mode)} has no tracked path`);
   checkAspect(o.aspect);
   if (o.faceIndex !== undefined && !(Number.isInteger(o.faceIndex) && o.faceIndex >= 0)) {
     throw invalid(`faceIndex must be a non-negative integer, got ${o.faceIndex}`);
@@ -298,7 +320,8 @@ function checkOptions(o: TrackPathOptions): void {
 
 /** Removes interior keyframes equal to both neighbours (output is unchanged under interpolation). */
 function prune(kfs: FrameKeyframe[]): FrameKeyframe[] {
-  const same = (a: FrameKeyframe, b: FrameKeyframe) => a.x === b.x && a.y === b.y && a.scale === b.scale;
+  const same = (a: FrameKeyframe, b: FrameKeyframe) =>
+    a.x === b.x && a.y === b.y && a.scale === b.scale;
   return kfs.filter((k, i) => {
     const p = kfs[i - 1];
     const n = kfs[i + 1];
@@ -313,14 +336,21 @@ function prune(kfs: FrameKeyframe[]): FrameKeyframe[] {
  * so the crop jumps to the new shot's subject at the cut and never drifts across it.
  * An empty shot list means one shot over the detections.
  */
-export function buildTrackPath(detections: Detections, shots: readonly ShotRange[], options: TrackPathOptions): TrackPath {
+export function buildTrackPath(
+  detections: Detections,
+  shots: readonly ShotRange[],
+  options: TrackPathOptions,
+): TrackPath {
   const parsed = DetectionsSchema.safeParse(detections);
   if (!parsed.success) {
-    throw invalid('The facetrack detections file is not valid.', { issues: parsed.error.issues.slice(0, 5) });
+    throw invalid('The facetrack detections file is not valid.', {
+      issues: parsed.error.issues.slice(0, 5),
+    });
   }
   const det = parsed.data;
   checkOptions(options);
-  const ranges: ShotRange[] = shots.length > 0 ? [...shots] : [{ startMs: 0, endMs: Math.max(1, det.durationMs) }];
+  const ranges: ShotRange[] =
+    shots.length > 0 ? [...shots] : [{ startMs: 0, endMs: Math.max(1, det.durationMs) }];
   checkShots(ranges);
 
   const stability: Stability = options.stability ?? 'smooth';
@@ -343,7 +373,13 @@ export function buildTrackPath(detections: Detections, shots: readonly ShotRange
     else if (options.mode === 'auto' && present((s) => s.bodies.length > 0)) subject = 'body';
     else if (options.mode === 'auto' && present((s) => s.saliency !== null)) subject = 'saliency';
 
-    const info: ShotFraming = { startMs: shot.startMs, endMs: shot.endMs, subject, stability, switchesAtMs: [] };
+    const info: ShotFraming = {
+      startMs: shot.startMs,
+      endMs: shot.endMs,
+      subject,
+      stability,
+      switchesAtMs: [],
+    };
     let targets: { atMs: number; x: number; y: number }[] = [];
 
     if (subject === 'face' || subject === 'body') {
@@ -364,18 +400,26 @@ export function buildTrackPath(detections: Detections, shots: readonly ShotRange
         return { atMs: s.atMs, x: cx(last), y: cy(last) };
       });
     }
-    targets = targets.map((t) => ({ atMs: t.atMs, x: clamp(t.x, xr[0], xr[1]), y: clamp(t.y, yr[0], yr[1]) }));
+    targets = targets.map((t) => ({
+      atMs: t.atMs,
+      x: clamp(t.x, xr[0], xr[1]),
+      y: clamp(t.y, yr[0], yr[1]),
+    }));
 
     let path: { atMs: number; x: number; y: number }[];
     if (targets.length === 0) {
       path = [{ atMs: shot.startMs, x: 0.5, y: 0.5 }];
     } else if (
       stability === 'locked' &&
-      (Math.max(...targets.map((t) => t.x)) - Math.min(...targets.map((t) => t.x))) / 2 <= DEAD_ZONE * crop.w + 1e-9 &&
-      (Math.max(...targets.map((t) => t.y)) - Math.min(...targets.map((t) => t.y))) / 2 <= DEAD_ZONE * crop.h + 1e-9
+      (Math.max(...targets.map((t) => t.x)) - Math.min(...targets.map((t) => t.x))) / 2 <=
+        DEAD_ZONE * crop.w + 1e-9 &&
+      (Math.max(...targets.map((t) => t.y)) - Math.min(...targets.map((t) => t.y))) / 2 <=
+        DEAD_ZONE * crop.h + 1e-9
     ) {
       const mid = (vs: number[]) => (Math.max(...vs) + Math.min(...vs)) / 2;
-      path = [{ atMs: shot.startMs, x: mid(targets.map((t) => t.x)), y: mid(targets.map((t) => t.y)) }];
+      path = [
+        { atMs: shot.startMs, x: mid(targets.map((t) => t.x)), y: mid(targets.map((t) => t.y)) },
+      ];
     } else {
       if (stability === 'locked') info.stability = 'smooth';
       const tau = SMOOTHING_S[info.stability === 'follow' ? 'follow' : 'smooth'];
@@ -414,16 +458,26 @@ export interface ClipWindow {
 
 /**
  * The tracked path for one clip, in item-relative time, with the user's keyframes as pins: a pin
- * holds the crop at its time and the crop blends to and from the tracked path over 300 ms (D-22).
+ * holds the crop at its time and the crop blends to and from the tracked path over 300 ms (D-XX).
  * Two pins up to 600 ms apart join directly. A blend never crosses a shot boundary.
  */
 export function applyClipFraming(path: TrackPath, clip: ClipWindow): FrameKeyframe[] {
-  if (!Number.isInteger(clip.inMs) || clip.inMs < 0 || !Number.isInteger(clip.durationMs) || clip.durationMs <= 0) {
-    throw invalid(`clip window must be integer ms with inMs ≥ 0 and durationMs > 0`, { inMs: clip.inMs, durationMs: clip.durationMs });
+  if (
+    !Number.isInteger(clip.inMs) ||
+    clip.inMs < 0 ||
+    !Number.isInteger(clip.durationMs) ||
+    clip.durationMs <= 0
+  ) {
+    throw invalid(`clip window must be integer ms with inMs ≥ 0 and durationMs > 0`, {
+      inMs: clip.inMs,
+      durationMs: clip.durationMs,
+    });
   }
   for (const k of clip.keyframes ?? []) {
     if (!Number.isInteger(k.atMs) || ![k.x, k.y, k.scale].every(Number.isFinite) || k.scale <= 0) {
-      throw invalid('frame keyframes need integer atMs, finite x/y and a positive scale', { keyframe: k });
+      throw invalid('frame keyframes need integer atMs, finite x/y and a positive scale', {
+        keyframe: k,
+      });
     }
   }
   const a = clip.inMs;
@@ -457,14 +511,22 @@ export function applyClipFraming(path: TrackPath, clip: ClipWindow): FrameKeyfra
     if (prev !== undefined && prev.src === t) return { x: prev.x, y: prev.y, scale: prev.scale };
     if (prev !== undefined && next !== undefined && next.src - prev.src <= 2 * PIN_BLEND_MS) {
       const u = (t - prev.src) / (next.src - prev.src);
-      return { x: lerp(prev.x, next.x, u), y: lerp(prev.y, next.y, u), scale: lerp(prev.scale, next.scale, u) };
+      return {
+        x: lerp(prev.x, next.x, u),
+        y: lerp(prev.y, next.y, u),
+        scale: lerp(prev.scale, next.scale, u),
+      };
     }
     const wPrev = prev === undefined ? 0 : 1 - (t - prev.src) / PIN_BLEND_MS;
     const wNext = next === undefined ? 0 : 1 - (next.src - t) / PIN_BLEND_MS;
     const pin = wPrev >= wNext ? prev : next;
     const w = Math.max(wPrev, wNext);
     if (pin === undefined || w <= 0) return base;
-    return { x: lerp(base.x, pin.x, w), y: lerp(base.y, pin.y, w), scale: lerp(base.scale, pin.scale, w) };
+    return {
+      x: lerp(base.x, pin.x, w),
+      y: lerp(base.y, pin.y, w),
+      scale: lerp(base.scale, pin.scale, w),
+    };
   };
 
   return prune(
@@ -479,7 +541,8 @@ export function applyClipFraming(path: TrackPath, clip: ClipWindow): FrameKeyfra
 
 /** Track options from a clip's `frame` (facetrack/auto only). */
 export function trackOptionsFromFrame(frame: Frame, aspect: Aspect): TrackPathOptions {
-  if (frame.mode !== 'facetrack' && frame.mode !== 'auto') throw invalid(`framing mode ${frame.mode} has no tracked path`);
+  if (frame.mode !== 'facetrack' && frame.mode !== 'auto')
+    throw invalid(`framing mode ${frame.mode} has no tracked path`);
   return {
     mode: frame.mode,
     aspect,
@@ -498,7 +561,7 @@ export interface FacetrackCacheKeyInput {
   mode: 'facetrack' | 'auto';
   stability?: Stability;
   trackSpeed?: TrackSpeed;
-  /** Not in the spec's key list, but it changes the path (D-22). */
+  /** Not in the spec's key list, but it changes the path (D-XX). */
   faceIndex?: number;
 }
 

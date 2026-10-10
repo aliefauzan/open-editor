@@ -43,7 +43,11 @@ describe('scdetArgs', () => {
   });
 
   test('original input without a proxy is scaled to 360p in the same filter graph', () => {
-    const args = scdetArgs({ input: '/p/media/m_1.mov', scaleTo360: true, formatWhitelist: 'mov,mp4' });
+    const args = scdetArgs({
+      input: '/p/media/m_1.mov',
+      scaleTo360: true,
+      formatWhitelist: 'mov,mp4',
+    });
     expect(args).toContain('mov,mp4');
     expect(args[args.indexOf('-vf') + 1]).toBe(
       'scale=-2:360,scdet=threshold=10,metadata=mode=print:key=lavfi.scd.time:file=-',
@@ -57,7 +61,9 @@ describe('scdetArgs', () => {
   });
 
   test('a format whitelist with odd characters is refused', () => {
-    expect(() => scdetArgs({ input: '/a.mp4', formatWhitelist: 'mov,concat;x' })).toThrow(/whitelist/);
+    expect(() => scdetArgs({ input: '/a.mp4', formatWhitelist: 'mov,concat;x' })).toThrow(
+      /whitelist/,
+    );
     expect(() => scdetArgs({ input: '/a.mp4', formatWhitelist: '' })).toThrow(/whitelist/);
   });
 });

@@ -36,7 +36,12 @@ export function synth(durationMs: number, at: (t: number, i: number) => SampleCo
     faceModel: { name: 'blaze_face_full_range', sha256: 'a'.repeat(64) },
     samples: sampleTimes(durationMs).map((t, i) => {
       const c = at(t, i);
-      return { atMs: t, faces: c.faces ?? [], bodies: c.bodies ?? [], saliency: c.saliency ?? null };
+      return {
+        atMs: t,
+        faces: c.faces ?? [],
+        bodies: c.bodies ?? [],
+        saliency: c.saliency ?? null,
+      };
     }),
   };
 }
@@ -47,7 +52,8 @@ export const centreX = (b: Box): number => b.x + b.w / 2;
 export function cuts2shot(): Detections {
   return synth(9000, (t) => {
     if (t < 3000) return { faces: [box(0.3, 0.45, 0.18, 0.4)], bodies: [box(0.3, 0.6, 0.3, 0.8)] };
-    if (t < 6000) return { faces: [box(0.66, 0.45, 0.18, 0.4)], bodies: [box(0.66, 0.6, 0.3, 0.8)] };
+    if (t < 6000)
+      return { faces: [box(0.66, 0.45, 0.18, 0.4)], bodies: [box(0.66, 0.6, 0.3, 0.8)] };
     const s = (t - 6000) / 1000;
     return { saliency: box(Math.min(0.9, 0.08 + (s * 500) / 1920), 0.48, 0.07, 0.13) };
   });
