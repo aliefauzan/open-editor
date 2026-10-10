@@ -801,9 +801,21 @@ export class ProjectStore {
   async history(opts: { sinceVersion?: number } = {}): Promise<HistoryEntry[]> {
     const since = opts.sinceVersion ?? 0;
     return this.serial(async () => {
-      if (!deepEqual(await this.readStamp(), this.fileStamp)) await this.load();
+      await this.syncFromDisk();
       return this.entries.filter((e) => e.version > since).map((e) => structuredClone(e));
     });
+  }
+
+  /** The project as on disk now (reloads when another process wrote). */
+  read(): Promise<Project> {
+    return this.serial(async () => {
+      await this.syncFromDisk();
+      return this.current;
+    });
+  }
+
+  private async syncFromDisk(): Promise<void> {
+    if (!deepEqual(await this.readStamp(), this.fileStamp)) await this.load();
   }
 
   /** Copy project.json to snapshots/<name>.json; an existing name is never replaced. */
