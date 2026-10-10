@@ -43,6 +43,8 @@ import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
 import { registerMediaJobs, type MediaApi } from './media-api.ts';
+import { registerQuickClipJobs } from './quick-api.ts';
+import type { QuickClipScorer } from './stages/quickClips.ts';
 import {
   applyClipFraming,
   trackOptionsFromFrame,
@@ -318,6 +320,23 @@ export {
   type TimelineResult,
 } from './export-api.ts';
 export {
+  QuickClipsArgsSchema,
+  quickClipFps,
+  type QuickClip,
+  type QuickClipsArgs,
+  type QuickClipsResult,
+} from './quick-api.ts';
+export {
+  HEURISTIC,
+  heuristicScores,
+  pickClips,
+  quickCandidates,
+  sentenceUnits,
+  type Candidate as QuickCandidate,
+  type QuickClipScorer,
+  type ScorerInput,
+} from './stages/quickClips.ts';
+export {
   CUTOUT_MODEL,
   type AssetMediaResult,
   type ImageProvider,
@@ -417,7 +436,7 @@ export interface Engine {
   readonly tools: ToolPaths;
   /** Shared secret redactor (S19): errors, job payloads, logs and events go through it. */
   readonly redactor: Redactor;
-  /** Job runner with the kinds `ingest`, `transcribe` (GPU), `shots`, `facetrack`. */
+  /** Job runner: `ingest`, `transcribe` (GPU), `shots`, `facetrack`, `quickClips`, `assets.*`, `render`, `frames`, `exportCaptions`, `exportTimeline`, `audioQa`. */
   readonly jobs: JobRunner;
   facetrackPath: MediaApi['facetrackPath'];
   /**
@@ -425,6 +444,11 @@ export interface Engine {
    * most recently registered one is the default of `assets.generate`.
    */
   imageProviders: { register(p: ImageProvider): void; list(): { id: string }[] };
+  /**
+   * Quick clips scorers (engine spec "Quick clips"): the job `quickClips` uses the most recently
+   * registered one unless `scorer` names another (`heuristic` = the built-in one).
+   */
+  quickClips: { registerScorer(id: string, fn: QuickClipScorer): void; scorers(): string[] };
   /** Compiled stills at canvas size (PNG paths, cached by build and time; first sequence by default). */
   frames(projectId: string, sequenceId: string | undefined, atMs: number[]): Promise<string[]>;
   /** Archive assets the sequences use, with author, licence and link (`vox credits`). */
@@ -642,9 +666,10 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.assets?.ca ? { ca: opts.assets.ca } : {}),
     ...(opts.assets?.sleep ? { sleep: opts.assets.sleep } : {}),
   });
+  const quick = registerQuickClipJobs(jobs, { store, dirOf });
   // The export jobs call the engine's own compile, mix and captions (bound once `engine` exists).
-  let self: Engine | undefined;
-  const me = (): Engine => self!;
+  const bound: { engine?: Engine } = {};
+  const me = (): Engine => bound.engine!;
   const exports = registerExportJobs(jobs, {
     tools: opts.tools ?? {},
     redactor,
@@ -709,6 +734,7 @@ export function openEngine(opts: EngineOptions): Engine {
     credits: (projectId) => exports.credits(projectId),
     preview: (projectId, sequenceId) => exports.preview(projectId, sequenceId),
     imageProviders: { register: (p) => imageProviders.register(p), list: () => imageProviders.list() },
+    quickClips: { registerScorer: (id, fn) => quick.registerScorer(id, fn), scorers: () => quick.scorers() },
     mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
     async doctor(o = {}) {
       return doctor({
@@ -926,6 +952,6 @@ export function openEngine(opts: EngineOptions): Engine {
       return () => emitter.off(event, handler);
     },
   };
-  self = engine;
+  bound.engine = engine;
   return engine;
 }

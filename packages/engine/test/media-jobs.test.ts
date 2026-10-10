@@ -62,14 +62,20 @@ afterEach(() => {
 });
 
 describe('engine.jobs', () => {
-  test('lists the media job kinds (and the asset kinds of phase 05)', () => {
+  test('lists the job kinds of the engine spec (media, assets, quick clips, export)', () => {
     expect(engine().jobs.kinds().sort()).toEqual([
       'assets.cutout',
       'assets.fetch',
       'assets.generate',
       'assets.search',
+      'audioQa',
+      'exportCaptions',
+      'exportTimeline',
       'facetrack',
+      'frames',
       'ingest',
+      'quickClips',
+      'render',
       'shots',
       'transcribe',
     ]);
