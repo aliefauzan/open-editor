@@ -829,8 +829,9 @@ renders the stems and the final mix (no picture) and checks:
 | loudness | final mix at the chosen target ±1 LU integrated (default `youtube`, −14 LUFS); true peak ≤ −1 dBTP; no clipped samples |
 
 It writes `renders/qa/<sequenceId>/qa.json` (each check with its numbers and
-pass/fail), `qa.png` (stem waveforms with a labelled marker per cue, drawn with ffmpeg
-`showwavespic` and `drawbox`/`drawtext`, so a vision model can look at it) and
+pass/fail), `qa.png` (stem and mix waveforms with a numbered marker per cue, drawn with
+numpy and written as a PNG because the ffmpeg on the M5 has no `drawtext`; `qa.json` maps each
+number to its cue; plan D-27, so a vision model can look at it) and
 `LISTEN.md`: five timecodes for a human ear check (hero cues first, then the loudest SFX
 moments, then the largest speech/SFX overlaps), each with what to listen for. The
 thresholds live in `py/vox_py/audioqa_thresholds.json`; changing one needs a plan
