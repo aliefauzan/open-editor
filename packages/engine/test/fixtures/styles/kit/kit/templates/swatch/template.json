@@ -1,0 +1,16 @@
+{
+  "name": "swatch",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "Test panel: a coloured block with a label.",
+  "useWhen": ["tests"],
+  "durationMs": { "min": 500, "default": 3000, "max": 10000 },
+  "variables": {
+    "type": "object",
+    "properties": { "label": { "type": "string", "maxLength": 20 } },
+    "required": ["label"],
+    "additionalProperties": false
+  },
+  "slots": {},
+  "sfxCues": [{ "name": "pop", "atMs": "entrance", "sfx": "pop", "type": "appear" }]
+}

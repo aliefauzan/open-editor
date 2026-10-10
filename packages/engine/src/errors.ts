@@ -54,6 +54,10 @@ export const ERROR_CODES = [
   'JOB_FAILED',
   'PY_TOOL_FAILED',
   'PY_OUTPUT_INVALID',
+  // compile (phase 03, engine spec "Compile", S8)
+  'MEDIA_MISSING',
+  'TEMPLATE_VERSION',
+  'HOOK_UNTRUSTED',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

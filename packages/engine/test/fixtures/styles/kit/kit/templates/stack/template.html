@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          background: var(--tok-color-kit);
+        }
+        .vox-panel {
+          position: absolute;
+          left: 0;
+          width: 100%;
+          height: 33%;
+          overflow: hidden;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <!--vox:panels-->
+      </div>
+      <script>
+        (function () {
+          var mount = vox.mount('__ID__');
+          var panels = mount.root.querySelectorAll('[data-vox-panel]');
+          for (var i = 0; i < panels.length; i++) panels[i].style.top = i * 33 + '%';
+          mount.register(gsap.timeline({ paused: true }));
+        })();
+      </script>
+    </template>
+  </body>
+</html>

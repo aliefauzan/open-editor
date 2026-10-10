@@ -175,7 +175,7 @@ function emphasise(units: Unit[], auto: boolean): boolean[] {
     if (!auto) return false;
     if (/\p{Nd}/u.test(u.text)) return true;
     const first = i === 0 || SENTENCE_END.test(units[i - 1]!.text);
-    return !first && /^\p{Lu}/u.test(u.text.replace(/^["'(\[¿¡]+/u, ''));
+    return !first && /^\p{Lu}/u.test(u.text.replace(/^["'([¿¡]+/u, ''));
   });
 }
 

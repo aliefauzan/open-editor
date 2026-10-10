@@ -189,7 +189,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const p = await e.createProject(name);
       const r = await e.applyOp(
         p.id,
-        { op: 'addSequence', args: { name: 'Main' } },
+        { op: 'addSequence', args: { name: 'Main', styleId: e.styles.defaultId() } },
         { actor: 'cli' },
       );
       const failed = r.results.find((x) => x.status !== 'succeeded');
