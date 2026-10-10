@@ -1,0 +1,71 @@
+# R5 — Pinned versions and licences
+
+Exact versions only. "TBD (phase NN)" means that phase picks and records it. A pin changes only when
+that component's contract tests pass on the new version (engine "Testing": HyperFrames contract tests).
+When a phase fills a row, it also updates the spec if the spec names a version.
+
+## JavaScript
+
+| Component | Pin | Licence | Set in | Notes |
+|---|---|---|---|---|
+| Node (dev) | 24.x LTS (exact in `.nvmrc`) | MIT | 00 | |
+| pnpm | TBD (00) | MIT | 00 | `packageManager` field |
+| TypeScript | TBD (00) | Apache-2.0 | 00 | |
+| vitest | TBD (00) | MIT | 00 | |
+| `hyperframes` CLI + `@hyperframes/player` | 0.8.145 (candidate; confirmed by GATE 1) | Apache-2.0 | 01 | player needs `sandbox-origin="opaque"`; `--strict-all` is a `render` flag, lint has `--json` only |
+| GSAP | version bundled with the pinned HyperFrames (vendored) | GSAP standard licence (free, incl. commercial) | 03 | record exact version and licence text location |
+| Electron | TBD (01) | MIT | 01 | same version in spike and app |
+| electron-vite, electron-builder | TBD (08, 09) | MIT | 08/09 | |
+| React | 19.x (exact TBD 08) | MIT | 08 | |
+| Zustand, Tailwind, shadcn/ui | TBD (08) | MIT | 08 | |
+| `@xzdarcy/react-timeline-editor` | TBD (08, GATE 4) | MIT | 08 | dropped if GATE 4 fails |
+| `ai` (Vercel AI SDK) | 7.0.x (exact TBD 11) | Apache-2.0 | 11 | |
+| `@openrouter/ai-sdk-provider` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
+| `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
+| `ollama-ai-provider-v2` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
+| `@ai-sdk/openai-compatible` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
+| `d3-geo`, `topojson-client` | TBD (07) | ISC | 07 | vendored as ESM in `styles/vox/templates/map-route/vendor/` (hooks are self-contained) |
+| OpenCode Zen, 9router, LM Studio presets | no package (`@ai-sdk/openai-compatible` with a base URL) | — | 11 | base URLs in the agent spec presets table |
+| Playwright | TBD (10a) | Apache-2.0 | 10a | Electron E2E |
+
+## External tools (first-run setup, phase 09; dev uses PATH)
+
+| Tool | Pin | Licence | Hash source |
+|---|---|---|---|
+| uv | TBD (09) | MIT / Apache-2.0 | bundled |
+| ffmpeg / ffprobe | Homebrew's current version (D-05); `vox doctor` records the version it ran with | LGPL/GPL (external binary, not redistributed) | Homebrew's own checks; the app never downloads it |
+| yt-dlp + `yt-dlp-ejs` | latest at install; `yt-dlp -U` | Unlicense | yt-dlp verifies its own releases |
+| deno | TBD (09) | MIT | SHA-256 |
+| Chrome for HyperFrames | the one the pinned HyperFrames CLI installs | BSD + others | HyperFrames' installer |
+
+## Native (Swift)
+
+| Component | Pin | Licence | Set in | Notes |
+|---|---|---|---|---|
+| Swift toolchain (Xcode command-line tools) | 26.x or newer (macOS 26 SDK) | Apple SDK licence | 11 | builds `native/apple-llm`; CI builds it only where the SDK exists |
+| Apple Foundation Models framework | system framework, macOS 26+ | Apple SDK licence | 11 | needs Apple Intelligence on; not redistributed (our helper links it) |
+
+## Python (`py/uv.lock`)
+
+| Package / model | Pin | Licence | Set in |
+|---|---|---|---|
+| Python | 3.12.x | PSF | 04 |
+| mlx-whisper + `mlx-community/whisper-large-v3-turbo` (revision hash) | TBD (04) | MIT | 04 |
+| mediapipe + full-range face detector `.tflite` (URL + SHA-256) | TBD (04) | Apache-2.0 | 04 |
+| rembg + permissive model (never `bria-rmbg`) | TBD (05; licence verified and quoted in log) | MIT + model licence | 05 |
+| opentimelineio | TBD (05) | Apache-2.0 | 05 |
+| pypdf (document text) | TBD (04) | BSD-3-Clause | 04 |
+| `otio-fcpx-xml-adapter` | TBD (05 if GATE 2 needs it, else 14) | Apache-2.0 | 05 / 14 |
+| mflux + Z-Image-Turbo | TBD (14) | MIT + Apache-2.0 | 14 |
+| `pyobjc-framework-Vision` | TBD (15) | MIT | 15 |
+
+## Assets
+
+| Asset | Source | Licence | Set in |
+|---|---|---|---|
+| Natural Earth 1:50m countries + populated places | naturalearthdata.com | public domain | 03 (geo search), 07 (map) |
+| Test portraits `face-a.jpg`, `face-b.jpg` (checked-in fixtures) | Wikimedia Commons, CC0 only, URL recorded in `fixtures/assets/LICENSES.md` | CC0 | 00 |
+| Fonts `base`: Inter (display, body), IBM Plex Mono (captions) | Google Fonts / upstream repos | OFL | 03 |
+| Fonts (`vox`: display, body, caption; ~40 OFL catalogue for Part C) | Google Fonts | OFL | 07, 15 |
+| Paper texture | CC0 source, URL recorded | CC0 | 07 |
+| SFX `paper-pop`, `paper-slide`, `whoosh`, `stamp`, `typewriter` | original or CC0, URL recorded | CC0 / own | 07 |
