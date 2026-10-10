@@ -12,7 +12,7 @@
 import { spawn } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 import { z } from 'zod';
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 
 export const SCDET_THRESHOLD = 10;
 export const PROTOCOL_WHITELIST = 'file,pipe';

@@ -31,6 +31,10 @@ export const ERROR_CODES = [
   'SNAPSHOT_EXISTS',
   'PROJECT_NOT_FOUND',
   'PROJECT_AMBIGUOUS',
+  // external tools and jobs (early E4: shots, facetrack)
+  'TOOL_MISSING',
+  'TOOL_FAILED',
+  'CANCELLED',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

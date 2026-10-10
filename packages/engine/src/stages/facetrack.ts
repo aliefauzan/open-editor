@@ -9,34 +9,21 @@
 // top-left); `scale` is the zoom relative to the cover crop of the sequence aspect (1 = the largest
 // crop of that aspect that fits the source). The tracked path pans at scale 1; pins may zoom.
 //
-// The local types below mirror the engine spec's `frame.*` fields; phase 04 switches them to phase
-// 02's model types. Phase 05 plugs this builder into 03's compile path-provider interface.
+// The `frame.*` types come from phase 02's model (`MediaClip.frame`). Phase 05 plugs this builder
+// into 03's compile path-provider interface.
 
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
+import type { Frame, Keyframe } from '../model/schema.ts';
 
-// ---- local mirrors of the engine spec model (MediaClip.frame) ----
+// ---- model types (MediaClip.frame, phase 02) ----
 
-export type FrameMode = 'cover' | 'contain' | 'facetrack' | 'auto' | 'manual';
-export type Stability = 'locked' | 'smooth' | 'follow';
-export type TrackSpeed = 'slow' | 'normal' | 'fast';
-export interface FrameKeyframe {
-  atMs: number;
-  x: number;
-  y: number;
-  scale: number;
-}
-export interface Frame {
-  mode: FrameMode;
-  x?: number;
-  y?: number;
-  scale?: number;
-  faceIndex?: number;
-  stability?: Stability;
-  trackSpeed?: TrackSpeed;
-  keyframes?: FrameKeyframe[];
-}
+export type { Frame };
+export type FrameMode = Frame['mode'];
+export type Stability = NonNullable<Frame['stability']>;
+export type TrackSpeed = NonNullable<Frame['trackSpeed']>;
+export type FrameKeyframe = Keyframe;
 
 // ---- detections file (vox_py.facetrack result; py/tests/schemas/facetrack.result.json) ----
 
