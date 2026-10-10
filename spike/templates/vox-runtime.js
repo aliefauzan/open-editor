@@ -32,13 +32,17 @@
     var markers = document.querySelectorAll(
       'script[data-vox-vars][data-vox-instance="' + id + '"]',
     );
+    // Claim markers, not roots: the runtime strips data-composition-id from a mounted inner root,
+    // so rootOf() is the host, which stays the same element when vox-preview.js remounts a scene.
     var root = null;
     for (var i = 0; i < markers.length && !root; i++) {
       var r = rootOf(markers[i]);
-      if (r && !claimed.has(r)) root = r;
+      if (r && !claimed.has(markers[i])) {
+        root = r;
+        claimed.add(markers[i]);
+      }
     }
     if (!root) throw new Error('vox.mount: no mounted instance ' + id);
-    claimed.add(root);
     var chain = [];
     for (
       var el = root;

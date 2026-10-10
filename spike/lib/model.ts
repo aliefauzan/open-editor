@@ -93,8 +93,8 @@ export const FLASH_CROP = [LANDSCAPE_BOX.x + 870, LANDSCAPE_BOX.y + 450, 60, 60]
 export const SWATCH_AT = { x: 60, y: 1720, size: 100 } as const;
 export const TOKEN_AT = { x: 180, y: 1720, size: 100 } as const;
 export const PANEL_BOXES = [
-  { y: 80, h: 760 },
-  { y: 860, h: 760 },
+  { x: 60, y: 80, h: 760 },
+  { x: 60, y: 860, h: 760 },
 ] as const;
 export const PANEL_SWATCH_AT = { x: 60, y: 600, size: 100 } as const;
 export const PANEL_TOKEN_AT = { x: 180, y: 600, size: 100 } as const;

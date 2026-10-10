@@ -79,6 +79,16 @@ function templateInner(name: string): string {
 }
 
 const sec = (f: number, fps: Fps): string => String(frameToSec(f, fps));
+/**
+ * Preview only: video `data-media-start` is biased by 1 ms. The runtime seeks a paused video to
+ * exactly `k / fps`; Chromium keeps media time in whole microseconds and truncates, while the
+ * frame timestamps are rounded, so for many frames (17 of 40 seeks in the spike) the element lands 1 µs before the frame
+ * and shows the previous one (phase 01 finding). 1 ms is far below one frame and keeps A/V exact
+ * enough (audio stays unbiased). Render builds inject frames and need no bias.
+ */
+const PREVIEW_VIDEO_BIAS_S = 0.001;
+const videoMediaStart = (ctx: { mode: Mode }, f: number, fps: Fps): string =>
+  ctx.mode === 'preview' ? String(frameToSec(f, fps) + PREVIEW_VIDEO_BIAS_S) : sec(f, fps);
 const json = (v: unknown): string => JSON.stringify(v).replace(/</g, '\\u003c');
 
 function tokens(style: StyleId): string {
@@ -152,7 +162,7 @@ function sceneHost(ctx: Ctx, s: SceneItem): string {
   if (s.template === 'video-slot') {
     const m = ctx.media.spike;
     extra.__SLOT_SRC__ = scenePath(ctx, videoSrc(ctx, 'spike'));
-    extra.__SLOT_START__ = sec(s.slotInF ?? 0, m.fps);
+    extra.__SLOT_START__ = videoMediaStart(ctx, s.slotInF ?? 0, m.fps);
   }
   if (s.template === 'stack') {
     const hosts = (s.panels ?? []).map((p, i) => {
@@ -172,7 +182,7 @@ function sceneHost(ctx: Ctx, s: SceneItem): string {
 function videoTag(ctx: Ctx, v: VideoItem): string {
   const fps = ctx.seq.fps;
   const cls = v.src === 'phone' ? 'full' : 'land';
-  return `<video id="${v.id}" class="${cls}" src="${videoSrc(ctx, v.src)}" data-start="${sec(v.startF, fps)}" data-duration="${sec(v.durF, fps)}" data-media-start="${sec(v.inF, ctx.media[v.src].fps)}" data-track-index="1" muted playsinline></video>`;
+  return `<video id="${v.id}" class="${cls}" src="${videoSrc(ctx, v.src)}" data-start="${sec(v.startF, fps)}" data-duration="${sec(v.durF, fps)}" data-media-start="${videoMediaStart(ctx, v.inF, ctx.media[v.src].fps)}" data-track-index="1" muted playsinline></video>`;
 }
 
 function imageTag(ctx: Ctx, i: ImageItem): string {
@@ -253,7 +263,7 @@ export function compile(seq: Sequence, mode: Mode, media: MediaSet): Build {
     links: new Map(),
     vendor: ['gsap.min.js', 'vox-runtime.js'],
   };
-  if (mode === 'preview') build.vendor.push('hyperframe.runtime.iife.js');
+  if (mode === 'preview') build.vendor.push('hyperframe.runtime.iife.js', 'vox-preview.js');
   const ctx: Ctx = { seq, mode, media, build, templates: [] };
   const fps = seq.fps;
   const durSec = frameToSec(seq.durF, fps);
@@ -352,6 +362,7 @@ export function vendorSources(): Record<string, string> {
       'hyperframe.runtime.iife.js',
     ),
     'vox-runtime.js': path.join(TEMPLATES, 'vox-runtime.js'),
+    'vox-preview.js': path.join(TEMPLATES, 'vox-preview.js'),
   };
 }
 

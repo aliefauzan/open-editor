@@ -97,8 +97,11 @@ export async function grayStream(
   return r.stdout;
 }
 
-/** Mono float32 PCM of the first audio stream. */
-export async function pcm(file: string, rate = 48000): Promise<Float32Array> {
+/**
+ * Mono float32 PCM of the first audio stream: the ffmpeg downmix, or one channel when `channel` is
+ * given (the downmix of a dual-mono stereo track is about 1.41x the source level).
+ */
+export async function pcm(file: string, rate = 48000, channel?: number): Promise<Float32Array> {
   const r = await runOk('ffmpeg', [
     '-nostdin',
     '-v',
@@ -106,8 +109,7 @@ export async function pcm(file: string, rate = 48000): Promise<Float32Array> {
     '-i',
     file,
     '-vn',
-    '-ac',
-    '1',
+    ...(channel === undefined ? ['-ac', '1'] : ['-af', `pan=mono|c0=c${channel}`]),
     '-ar',
     String(rate),
     '-f',
