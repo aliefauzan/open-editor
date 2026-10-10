@@ -49,7 +49,7 @@ def test_words_that_overlap_no_speech_region_are_dropped():
 
 def test_word_times_are_clipped_to_the_speech_region_they_overlap():
     # Whisper starts the first word after a pause early and ends the last one late (seen on
-    # speech-fillers.wav: "The" at 4000 ms, speech from 4194 ms), so times are clipped (D-NN).
+    # speech-fillers.wav: "The" at 4000 ms, speech from 4194 ms), so times are clipped (D-21).
     regions = [(300, 900), (6100, 7300)]
     words, _ = transcribe.filter_result(recorded(), regions)
     by_text = {w["text"]: w for w in words}

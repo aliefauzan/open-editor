@@ -75,7 +75,7 @@ def filter_result(
     Segments over the `no_speech_prob` / `compression_ratio` limits are dropped whole. Each word is
     clipped to the speech region it overlaps most, so its midpoint lies inside that region; a word
     that overlaps no region by at least `MIN_OVERLAP_MS` (or its whole length, if shorter) is
-    dropped. Whisper's first word after a pause often starts a few hundred ms early (D-NN).
+    dropped. Whisper's first word after a pause often starts a few hundred ms early (D-21).
     """
     words: list[dict] = []
     dropped = {"segments": 0, "words": 0}
