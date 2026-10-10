@@ -1030,3 +1030,15 @@ fixture tests (sprite and peaks sizes, retry timing) and the M5 doctor run (impe
 
 **Why**: The true-peak change is the smallest one that makes the phase 05 loudness check (step 8e)
 pass on the tiktok preset; the rest are the simplest options that meet phase 05's done-when.
+
+## D-33 · 2026-10-11 · phase 05 · Quick clips and GATE 2 checks: implementation choices
+
+**Decision**: Phase 05 settles these points that the engine spec "Quick clips" and the phase plan leave open (no contract change):
+- Heuristic signals: energy is the variance of short-term loudness (400 ms windows, 100 ms step), hook is a first sentence that is a question or holds a digit or an English cardinal number word, coverage is the share of facetrack samples with a face. Energy is min-max scaled over the candidate set (0 when all are equal); the speech score is the spec's speech ratio minus the pause penalty, unscaled.
+- A registered scorer that throws or returns a wrong number of scores falls back to the heuristic; the result names `heuristic` and carries `scorerError { scorer, message }`. An unknown `scorer` id fails with `NOT_FOUND`.
+- `quickClips` on media without a transcript fails with `VALIDATION` and the hint `vox transcribe <mediaId>`; non-video media fails with `MEDIA_UNSUPPORTED`. Quick-clip sequences take the source rate when it is in the fixed set, else `nearestFixedFps`.
+- CLI: `-o` is the short form of `--output` (a file target); `--out-dir` is a folder target; `vox quick --out-dir` needs `--render`.
+- GATE 2 frame check (done-when 10, `scripts/gate2-frames.ts`): the clip's framing is switched to `contain` in one batch (undone afterwards) so the burnt-in counter stays on screen whatever `auto` chose; expected counters are read from the media's reference picture, which is the CFR copy for a VFR source (D-15) and the source otherwise.
+- The engine integration test (step 9) runs the real `transcribe` job when the Whisper weights are in the Hugging Face cache and `CI` is unset; otherwise it seeds the checked-in transcript of the same file.
+
+**Why**: These are the simplest choices that make the selection deterministic and testable on crafted inputs, keep a broken AI scorer from blocking quick clips, and make the frame check independent of the framing choice.

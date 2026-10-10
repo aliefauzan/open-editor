@@ -1,0 +1,38 @@
+{
+  "scorer": "heuristic",
+  "note": null,
+  "clips": [
+    {
+      "name": "Clip 1",
+      "startMs": 8810,
+      "endMs": 13800,
+      "text": "Then we add captions and a few sound effects. Every change can be undone at any time."
+    },
+    {
+      "name": "Clip 2",
+      "startMs": 2922,
+      "endMs": 8420,
+      "text": "Today we turn a long video into a short clip. First, we find the best moments in the footage."
+    },
+    {
+      "name": "Clip 3",
+      "startMs": 14250,
+      "endMs": 19100,
+      "text": "Finally, we export a vertical video for your phone. That is all for this quick test."
+    }
+  ],
+  "files": [
+    {
+      "mp4": "GATE2 local-Clip 1.mp4",
+      "srt": "GATE2 local-Clip 1.srt"
+    },
+    {
+      "mp4": "GATE2 local-Clip 2.mp4",
+      "srt": "GATE2 local-Clip 2.srt"
+    },
+    {
+      "mp4": "GATE2 local-Clip 3.mp4",
+      "srt": "GATE2 local-Clip 3.srt"
+    }
+  ]
+}

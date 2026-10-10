@@ -10,7 +10,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 02 | Engine: model, ops, history | 00 | [x] | 2026-10-11 00:17 | 2026-10-11 02:26 | Model, 29 ops + `batch`, history store (kill-safe), lock, `vox new/op/undo/redo/history/snapshot/paths`; applyOp p95 22.9 ms; contracts frozen (D-28) | log/phase-02.md |
 | 03 | Engine: styles loader, `base`, compile, captions, audio | 01, 02 | [x] | 2026-10-11 03:20 | 2026-10-11 04:35 | base style, compile (render + preview), captions, audio mix + stems + cues, layers MOV; 90 s spike fixture 0 cut errors (D-30) | log/phase-03.md |
 | 04 | Engine: jobs, Python bridge, ingest, transcribe, facetrack | 01, 02 | [x] | 2026-10-11 04:43 | 2026-10-11 05:40 | Jobs on the engine (ingest, transcribe, shots, facetrack), yt-dlp + LOGIN_REQUIRED, doctor, CLI chain; seeds committed; D-31 | log/phase-04.md |
-| 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [~] | 2026-10-11 05:43 | | | log/phase-05.md |
+| 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [~] waiting: GATE 2 | 2026-10-11 05:43 | | Assets, render + mux, exports, audio QA, quick clips, CLI; local GATE 2 parts pass (A/V sync 0.69 ms, frames exact on 29.97/VFR); URLs, Resolve, Commons contact wait for the owner; D-32, D-33 | log/phase-05.md |
 | 06 | Style tooling (Part A rest) | 03 | [ ] | | | | log/phase-06.md |
 | 07 | `vox` style v1 + GATE 3 | 05, 06 | [ ] | | | | log/phase-07.md |
 | 08 | App shell + security + GATE 4 | 01, 03 | [ ] | | | | log/phase-08.md |
@@ -40,7 +40,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | Competitor teardown changes applied | — | [x] | D-15 | CapCut 9.4.1 teardown: rational fps + VFR copy, loudness match + export targets, VAD speech gate, word kinds, `shots`, `auto` framing + keyframes, `CaptionChunk`, pause/word removal, `coalesceKey`, `JOB_CONFLICT`, agent tool surface, aliases, sub-runs, replay tests; specs and plan updated, `schemaVersion` stays 2 |
 | GATE 1 — HyperFrames go/hybrid, preview strategy, opaque sandbox | 01 | [x] | 2026-10-11, D-29 | all 9 items pass: HyperFrames go (whole sequence), opaque sandbox, no Preview fallback, NTSC go, no pre-render cache (margin 20.8 %) |
 | Contracts frozen: `project.json`, ops, `HistoryEntry`, path rule | 02 | [x] | 2026-10-11, D-28 | also the transcript file format, `ApplyResult`, `engine.view` / `SequenceView` and `SCHEMA_TOO_NEW` (R2 rows "02"); changes after this need a DECISIONS entry |
-| GATE 2 — engine done-when (URL → MP4 by CLI, `vox quick`, Instagram/TikTok/file ingest, export folder, audio QA, OTIO in Resolve) | 05 | [ ] | | |
+| GATE 2 — engine done-when (URL → MP4 by CLI, `vox quick`, Instagram/TikTok/file ingest, export folder, audio QA, OTIO in Resolve) | 05 | [~] | | waiting for the owner: URLs, Resolve screenshot, Commons contact (TODO) |
 | Contracts frozen: Engine API + events, engine CLI | 05 | [ ] | | R2 rows "frozen after 05" |
 | GATE 3 — `vox` side-by-side sheet approved + ear check of `LISTEN.md` | 07 | [ ] | | |
 | GATE 4 — timeline library benchmark | 08 | [ ] | | |

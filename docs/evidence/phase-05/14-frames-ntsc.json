@@ -1,0 +1,39 @@
+{
+  "projectId": "p_mv30jfzraisp",
+  "pass": true,
+  "clips": [
+    {
+      "sequenceId": "seq_mv30jo17dn2b",
+      "fps": "30000/1001",
+      "inMs": 8175,
+      "reference": "media/m_mv30jg0cb579.mp4",
+      "firstSourceFrame": 245,
+      "frames": 131,
+      "checked": 131,
+      "mismatches": [],
+      "minMargin": 116
+    },
+    {
+      "sequenceId": "seq_mv30jo17dn2c",
+      "fps": "30000/1001",
+      "inMs": 0,
+      "reference": "media/m_mv30jg0cb579.mp4",
+      "firstSourceFrame": 0,
+      "frames": 169,
+      "checked": 169,
+      "mismatches": [],
+      "minMargin": 116
+    },
+    {
+      "sequenceId": "seq_mv30jo17dn2d",
+      "fps": "30000/1001",
+      "inMs": 12913,
+      "reference": "media/m_mv30jg0cb579.mp4",
+      "firstSourceFrame": 387,
+      "frames": 132,
+      "checked": 132,
+      "mismatches": [],
+      "minMargin": 116
+    }
+  ]
+}
