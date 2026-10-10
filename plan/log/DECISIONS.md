@@ -734,3 +734,46 @@ behind "smooth", "follow" and the speeds.
 **Why**: Smallest choices that make the D-15 fixture tests pass on synthetic and real detections
 (`cuts-2shot`, `podcast-2face`); coordinates relative to the cover crop let compile emit translate +
 scale directly.
+
+## D-25 · 2026-10-11 · early e3-media-export (phases 04, 05) · Accepted file types, proxy size, ingest and export temp files
+
+**Context**: Early package E3 (D-19) built ingest sniffing/analysis helpers and export targets. The
+spec leaves a few choices open: which image and audio types count as media, what "540p" means for a
+vertical video, how a silent track's loudness is stored, which audio a CFR copy keeps, and what
+happens to a temp file when the engine process itself is killed.
+**Decision** (simplest option each; specs unchanged):
+- **Accepted types, from content only**: video MP4/MOV/M4V (ISO BMFF, not HEIF/AVIF brands) and
+  WebM/MKV; audio WAV, MP3, AAC (ADTS), M4A, OGG, FLAC; images PNG and JPEG only (GIF, WebP, HEIC, AVI
+  and anything else → `MEDIA_UNSUPPORTED` with a hint to convert); documents: PDF from content, plain
+  UTF-8 text only under `.txt`/`.md`/`.fountain`. A head that decodes as UTF-8 text is never media,
+  whatever signature it carries (`<!--ftypisom--><html>` stays markup). SVG, HTML, XML (DASH/SMIL), HLS,
+  PLS and concat lists are never accepted; markup is judged only when the text opens with `<`, so a
+  note that mentions `<script>` in its body is still a document.
+- **ffmpeg inputs** get `-f <demuxer>` (forced, no probing) in addition to the spec's
+  `-format_whitelist` and `-protocol_whitelist file,pipe`; MOV/MP4 also pin `-enable_drefs 0
+  -use_absolute_path 0` (ffmpeg's defaults, pinned). Images use `png_pipe`/`jpeg_pipe` (`image2` is not
+  whitelisted; it would win the probe for a `.jpg` name). Stream selectors are `V` (not `v`), so a
+  cover picture (attached_pic) is never taken for the video.
+- **Limits**: ffprobe runs time out after 120 s, loudness after max(120 s, duration / 4); pictures
+  over 8192 × 8192 and videos with no readable frame rate are `MEDIA_UNSUPPORTED`.
+- **Proxy "540p"** means the shorter side is 540 px (never upscaled), so a 1080×1920 reel gets a
+  540×960 proxy, matching how `-S res:1080` treats vertical video. Preset `veryfast` (preview only).
+- **CFR copy audio**: copied when MP4 can hold it (aac, mp3, alac, ac3, eac3, opus, flac), otherwise
+  AAC 256k (e.g. PCM from a MOV, Vorbis from a WebM). Spec says "audio copied"; this is the fallback.
+- **Silence**: `ebur128` true peak `-inf` is stored as `-144` dB so `MediaItem.loudness` stays a finite
+  number (integrated loudness already floors at −70 LUFS).
+- **NTSC fallback**: with the integer-rate set (GATE 1 item 9 failed), a CFR NTSC source also gets a CFR
+  copy at the nearest integer rate (`cfr.reason: 'integer-rate'`); other non-fixed rates are stored as is.
+- **ffmpeg outputs use `-y` into a temp the engine has just created** (O_EXCL | O_NOFOLLOW) and then
+  moved into place; not `-n`, because ffmpeg 8 exits 0 when `-n` refuses an existing file.
+- **Temp files**: one no-replace move (`fs/no-replace.ts`: `link` + `unlink`; without hard links an
+  O_EXCL placeholder + `rename`). Export temps are `.vox-tmp-<host6>-<pid>-<rand>.<ext>` in the target
+  folder (short, so a long final name never passes NAME_MAX; stems capped at 150 UTF-8 bytes); before
+  the move the temp must still be the file created (same dev/ino, one link), else `EXPORT_PATH`. A
+  temp left by a killed engine is removed by the next export into that folder only when it carries
+  this host's tag and its pid answers ESRCH. Ingest copies write `.vox-part-<pid>-<rand>-<name>` beside
+  the destination; phase 04 sweeps those in `media/`. Without a target the `renders/` name gets `-2`,
+  `-3` … (folder targets get ` (2)`, ` (3)` …), so no mode ever replaces a file.
+**Consequences**: Phase 04 wires these into ingest and must sniff and analyse the engine's own copy
+in `media/` (not the user's path: no TOCTOU); phase 05 into render/exportCaptions/exportTimeline.
+Adding an image or audio type later means one sniff signature plus its demuxer whitelist and a test.
