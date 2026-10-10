@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/doctext.result",
+  "title": "vox_py.doctext result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text", "pages"],
+  "properties": {
+    "text": { "type": "string" },
+    "pages": { "type": "integer", "minimum": 0 }
+  }
+}

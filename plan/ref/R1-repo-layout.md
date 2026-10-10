@@ -21,6 +21,7 @@ videoeditor/
       src/compile/             # 03 · sequence → HyperFrames build (in memory + to disk), vendored runtime
       src/audio/               # 03 · ffmpeg mix graph, loudnorm, stems; cues.ts (cue list → build/<seq>/audio/cues.json, D-14)
       src/render/              # 03 · layer renderer (ProRes 4444 MOV) + hybrid compositor
+      src/geo/search.ts        # 03 · offline place search over data/places.json (built early by A1, D-19; pure: imports neither errors.ts nor api.ts; phase 03 wires `engine.geo.search`)
       src/stages/              # 04 · ingest (+ sources.ts: URL classification, D-13; VFR check, CFR copy, loudness, D-15), transcribe, shots.ts (ffmpeg `scdet`, no Python, D-15), facetrack (+ TS crop-path builder, D-15) · 05 · assets, render (+ mux, uses src/render), export, audioQa, quickClips
       src/text/fillers.ts      # 02 · filler word lists per language, used for word kinds (D-15)
       src/export/target.ts     # 05 · export targets {file}|{dir}: temp + rename, no silent replace (D-13, S32)
@@ -31,7 +32,7 @@ videoeditor/
       src/log.ts               # 02 · logs/engine.log, rotated at 5 MB, 3 files kept (D-16)
       src/config.ts            # 04 · ~/.vox/config.json, the only reader/writer (agent, cli, app use it)
       src/redact.ts            # 04 · secret redactor (patterns + registered key values; agent registers keys in 11)
-      data/                    # 03 · Natural Earth populated places + places index (bundled)
+      data/                    # 03 · Natural Earth populated places: places.json (format vox-places/1), build-places.mjs, NOTICE.md (bundled; A1, D-19)
       src/api.ts               # 02 (grows each phase) · the only public entry
       test/                    # unit, compile snapshots, contract tests, integration
       test/fixtures/make.sh    # 00 · offline fixtures (R7); assets/sfx/tap.wav (CC0/PD, checked in, 00)

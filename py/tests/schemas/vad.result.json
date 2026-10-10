@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/vad.result",
+  "title": "vox_py.vad result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["speechRegions", "durationMs", "model"],
+  "properties": {
+    "speechRegions": { "$ref": "#/$defs/regions" },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256"],
+      "properties": {
+        "file": { "const": "silero_vad.onnx" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  },
+  "$defs": {
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["startMs", "endMs"],
+        "properties": {
+          "startMs": { "type": "integer", "minimum": 0 },
+          "endMs": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}
