@@ -149,7 +149,9 @@ clips!
           var usable = W - 2 * side;
           // IBM Plex Mono advance is 0.6 em; leave room for 1.2x emphasis words
           var size = Math.min(W * 0.065, usable / (Math.max(1, v.maxCharsPerLine) * 0.6 * 1.2));
-          var lineH = size * 1.2 * 1.25;
+          // the line height covers a 1.2x emphasis word's content area (IBM Plex Mono ascent +
+          // descent is 1.3 em), so word boxes never leave the chunk box placed above the safe area
+          var lineH = size * 1.2 * 1.35;
           var limit = (1 - v.safeArea.bottomPct / 100) * H;
           var centre = (v.position.yPct / 100) * H;
           var normal =
