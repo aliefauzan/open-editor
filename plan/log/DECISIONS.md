@@ -958,3 +958,44 @@ Evidence: `docs/SPIKE_RESULTS.md`, `docs/evidence/phase-01/`.
 
 **Why**: Each is the simplest option that keeps phase 03's done-when (rule 6f); the frame-grid and
 caption fixes came from the step 12 and 9c tests.
+
+## D-31 · 2026-10-11 · phase 04 · Jobs, ingest, transcribe, shots, facetrack, doctor: implementation choices
+
+**Decision**: Phase 04 settles these points the specs leave open:
+- Derived files: thumbs sprite is one frame every 2 s, cells 90 px high, 10 per row; peaks are mono
+  4 kHz, the largest |sample| of every 40 samples (100 peaks per second). The m4a is extracted even
+  with `{ proxies: false }` (transcribe and the audio mix need it).
+- Network retry: 1 try + 3 retries with 1 s, 2 s, 4 s backoff; final errors (`LOGIN_REQUIRED`, `NET_BLOCKED`,
+  `CANCELLED`) stop at once.
+- Local ingest refuses files over 16 GiB.
+- Ingest cache index files: `cache/ingest/<sha256>.json` (content hash → media id),
+  `cache/media/<mediaId>.json` (the media's content hash), `cache/ingest/url-<hash>.json` (link →
+  media id and post count). A rerun reuses the media and adds no history entry.
+- yt-dlp: the engine's report and progress flags (`--newline`, `--progress-template`, `--print`) come
+  after the spec argv; the cookies flag still appears only when the config key is set (S33).
+  Recorded fixture stderr texts are reconstructed from yt-dlp's own messages (no live capture in CI).
+- Tools dir layout: `<tools>/bin` (binaries, else PATH), `<tools>/models`, `<tools>/py-env` (its
+  presence switches the bridge to packaged mode, `uv run --frozen`).
+- Whisper: `modelPath` is passed only when `<tools>/models/whisper-large-v3-turbo/weights.safetensors`
+  exists; otherwise the tool uses the pinned revision from the Hugging Face cache. Transcribe cache key
+  = sha256 of [version, media hash, repo, revision, English filler list, language]; `transcriptRev` =
+  the key's first 16 hex chars.
+- Face model: the engine downloads `blaze_face_full_range.tflite` into `<tools>/models` on first
+  facetrack (public URL through `fetchPublic`, 16 MiB cap, SHA-256 checked, temp file then rename,
+  retry as above); a SHA mismatch is `TOOL_FAILED`.
+- Jobs: the actor defaults to `user`; the CLI passes `cli`. A job's project ops go in one `batch` with
+  `{ jobId, baseVersion }`; a refused or conflicted result fails the job (`JOB_CONFLICT`).
+- `shots/<mediaId>.json` and `facetracks/<mediaId>.json` are both the output and the cache (a rerun
+  with the file present runs nothing). The facetrack path cache is `cache/facetrack/<key>.json`, key
+  over the options plus a hash of the detections and shot texts; `mediaFrames` stills are cached in
+  `cache/frames/<mediaId>-<ms>.png`.
+- Config functions (`voxHome`, `configPath`, `readConfig`, `writeConfig`) take an env argument so the
+  CLI and its tests are hermetic.
+- `vox doctor` checks: ffmpeg, ffprobe, yt-dlp, deno (warn only), node, uv, yt-dlp-ejs, yt-dlp JS
+  runtime (warn when node-only), yt-dlp impersonation (warn only: on the M5 curl_cffi 0.16.3 is
+  "unsupported"), python env imports (skipped with `--quick`), hyperframes and its Chrome, Silero VAD
+  SHA-256, face model, Whisper weights, contact. Exit code 0 when no check is `error`. The contact
+  prompt runs only on a terminal without `--json` and only while `contact` is unset.
+
+**Why**: Each is the simplest option that meets phase 04's done-when; the values come from the
+fixture tests (sprite and peaks sizes, retry timing) and the M5 doctor run (impersonation warning).
