@@ -20,7 +20,7 @@ import {
   type CaptionChunk,
   type TranscriptOf,
 } from '../model/captions.ts';
-import { frame, ms, type Fps } from '../model/fps.ts';
+import { frame, type Fps } from '../model/fps.ts';
 import type {
   Item,
   Keyframe,
@@ -442,9 +442,9 @@ function framing(ctx: Ctx, m: MediaItem, p: Placed): string {
     kfs = ctx.input.framing?.(m, p.item, ctx.seq) ?? fr?.keyframes;
   } else kfs = fr?.keyframes;
   const crop = cropSize({ width: m.width, height: m.height }, { width: W, height: H }, 1);
-  const vw = Math.round((W / crop.w) * 1000) / 1000;
-  const vh = Math.round((H / crop.h) * 1000) / 1000;
-  const base = `position: absolute; left: 0; top: 0; width: ${vw}px; height: ${vh}px; object-fit: fill; transform-origin: 0 0;`;
+  const vw = W / crop.w;
+  const vh = H / crop.h;
+  const base = `position: absolute; left: 0; top: 0; width: ${num(vw)}px; height: ${num(vh)}px; object-fit: fill; transform-origin: 0 0;`;
   const list =
     kfs && kfs.length > 0
       ? [...kfs].sort((a, b) => a.atMs - b.atMs)

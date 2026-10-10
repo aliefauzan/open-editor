@@ -16,7 +16,11 @@
       "kit": "#123456"
     }
   },
-  "templates": ["stack", "card", "swatch"],
+  "templates": [
+    "stack",
+    "card",
+    "swatch"
+  ],
   "transitions": [],
   "sfx": {
     "pop": {
@@ -25,5 +29,12 @@
       "source": "generated test tone (ffmpeg sine)",
       "licence": "CC0"
     }
+  },
+  "captions": {
+    "default": "kit/loud",
+    "presets": [
+      "kit/loud",
+      "base/plain"
+    ]
   }
 }
