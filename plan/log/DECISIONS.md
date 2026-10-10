@@ -415,3 +415,20 @@ into action-enum agent tools.
 **Why**: Fourth plan review on 2026-10-10. One HIGH finding (seed hashes of machine-dependent
 fixtures) and several gaps that auto mode could read two ways; the owner removed the friend and
 second-account requirements.
+
+## D-17 · 2026-10-10 · phase 00 · Frame counter is a binary barcode; tooling pins
+
+**Decision**: Homebrew ffmpeg 8.1.2 on the M5 has no `drawtext` filter (built without libfreetype), so the
+burnt-in frame counter of the generated fixtures (`spike-source-1080p`, `phone-vfr-20s`, `ntsc-2997-20s`)
+is a 16-bit binary barcode drawn with `geq`, not text. Position: top-left at (40, 40), 16 cells of 40 px
+(640 x 40), most significant bit first, white = 1, black = 0, value = zero-based frame index of the
+encoded video (`N`). Decode by sampling each cell's centre (`make.sh` fixture tests do this). Phase 01
+reads it by pixel sampling instead of OCR. The flash frames remain a 160 px white box at the bottom-right
+on every 60th frame; the click track fires on the same frames (period 2 s, or 60 x 1001/30000 s for NTSC).
+Other phase-00 choices: TypeScript 6.0.3 exact (typescript-eslint 8.71 supports only `<6.1`; revisit when
+it supports TS 7); test tiers by file name (`*.slow.test.ts` with `VOX_SLOW=1`, `*.local.test.ts`);
+the VFR fixture needs `-enc_time_base 1/90000` (else x264 snaps pts to 1/30 s); `transcripts/speech-fillers.json`
+timings are estimates placed inside `silencedetect` speech regions (`say` has no word timestamps).
+
+**Why**: `drawtext` is unavailable and installing a different ffmpeg build would break "Homebrew ffmpeg
+only" (D-05). A barcode is easier and more reliable to read than OCR.

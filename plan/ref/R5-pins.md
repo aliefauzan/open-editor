@@ -8,10 +8,12 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 
 | Component | Pin | Licence | Set in | Notes |
 |---|---|---|---|---|
-| Node (dev) | 24.x LTS (exact in `.nvmrc`) | MIT | 00 | |
-| pnpm | TBD (00) | MIT | 00 | `packageManager` field |
-| TypeScript | TBD (00) | Apache-2.0 | 00 | |
-| vitest | TBD (00) | MIT | 00 | |
+| Node (dev) | 24.14.0 (`.nvmrc`) | MIT | 00 | |
+| pnpm | 12.0.0 | MIT | 00 | `packageManager` field |
+| TypeScript | 6.0.3 | Apache-2.0 | 00 | exact; typescript-eslint 8.71 supports `<6.1`, so TS 7 is not used yet |
+| vitest | 5.0.3 | MIT | 00 | tiers by file name: `*.slow.test.ts` (`VOX_SLOW=1`), `*.local.test.ts` (never on CI) |
+| ESLint, `@eslint/js`, typescript-eslint, eslint-config-prettier | 10.12.0, 10.0.1, 8.71.1, 10.1.8 | MIT / BSD-2 / Apache-2.0 | 00 | flat config `eslint.config.js` |
+| Prettier | 3.9.10 | MIT | 00 | |
 | `hyperframes` CLI + `@hyperframes/player` | 0.8.145 (candidate; confirmed by GATE 1) | Apache-2.0 | 01 | player needs `sandbox-origin="opaque"`; `--strict-all` is a `render` flag, lint has `--json` only |
 | GSAP | version bundled with the pinned HyperFrames (vendored) | GSAP standard licence (free, incl. commercial) | 03 | record exact version and licence text location |
 | Electron | TBD (01) | MIT | 01 | same version in spike and app |
@@ -49,7 +51,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 
 | Package / model | Pin | Licence | Set in |
 |---|---|---|---|
-| Python | 3.12.x | PSF | 04 |
+| Python | 3.12.x (00: `py/.python-version` 3.12; resolved 3.12.13 on the M5; hatchling + pytest 9.1.1 + ruff 0.17.0 in `py/uv.lock`) | PSF | 00/04 |
 | mlx-whisper + `mlx-community/whisper-large-v3-turbo` (revision hash) | TBD (04) | MIT | 04 |
 | mediapipe + full-range face detector `.tflite` (URL + SHA-256) | TBD (04) | Apache-2.0 | 04 |
 | rembg + permissive model (never `bria-rmbg`) | TBD (05; licence verified and quoted in log) | MIT + model licence | 05 |
