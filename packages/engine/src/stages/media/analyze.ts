@@ -2,27 +2,16 @@
 // check, the CFR-copy rate, and `ebur128` loudness. ffmpeg/ffprobe always run with the whitelists of
 // the sniffed type (ffargs.ts). Phase 04's ingest decides what to write; this module only measures.
 
-import { VoxError } from '../../errors.pending.ts';
+import { VoxError } from '../../errors.ts';
+import { FPS_SET, type Fps } from '../../model/fps.ts';
 import { FORMAT_WHITELIST, ebur128Args, ffprobePtsArgs, ffprobeStreamsArgs } from './ffargs.ts';
 import { runTool, type RunOptions } from './run.ts';
 import type { MediaFormat, SniffedMedia } from './sniff.ts';
 
-/** Rational frame rate. Same shape as phase 02's `model/fps.ts` `Fps` (switch at the shim swap). */
-export interface Fps {
-  num: number;
-  den: number;
-}
+export type { Fps };
 
-/** The fixed set of sequence rates (engine spec "Time and the frame grid", D-15). */
-export const FIXED_FPS: readonly Fps[] = [
-  { num: 24, den: 1 },
-  { num: 25, den: 1 },
-  { num: 30, den: 1 },
-  { num: 60, den: 1 },
-  { num: 24000, den: 1001 },
-  { num: 30000, den: 1001 },
-  { num: 60000, den: 1001 },
-];
+/** The fixed set of sequence rates (engine spec "Time and the frame grid", D-15): 02's `FPS_SET`. */
+export const FIXED_FPS: readonly Fps[] = FPS_SET;
 
 /**
  * Which fixed-set rates a CFR copy may use: `all`, or `integer` when GATE 1 recorded the NTSC

@@ -16,7 +16,7 @@ import {
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 import {
   HOST_TAG,
   STEM_MAX_BYTES,

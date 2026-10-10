@@ -5,7 +5,7 @@ import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 
 const fx = new URL('../fixtures/', import.meta.url);
 

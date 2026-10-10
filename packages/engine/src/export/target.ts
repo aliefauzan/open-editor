@@ -15,7 +15,7 @@ import { constants } from 'node:fs';
 import { access, lstat, mkdir, open, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { EXCL_FLAGS, placeNoReplace } from '../fs/no-replace.ts';
 
 export type ExportTarget = { file: string } | { dir: string };

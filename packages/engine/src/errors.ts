@@ -31,6 +31,12 @@ export const ERROR_CODES = [
   'SNAPSHOT_EXISTS',
   'PROJECT_NOT_FOUND',
   'PROJECT_AMBIGUOUS',
+  // media ingest, external tools, export targets (early e3-media-export, D-25)
+  'MEDIA_UNSUPPORTED',
+  'TOOL_MISSING',
+  'TOOL_FAILED',
+  'CANCELLED',
+  'EXPORT_PATH',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

@@ -5,7 +5,7 @@
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
-import type { VoxError } from '../../src/errors.pending.ts';
+import type { VoxError } from '../../src/errors.ts';
 import {
   SILENCE_DB,
   analyzeMedia,

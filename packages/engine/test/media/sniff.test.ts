@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 import { sniffBytes, sniffFile } from '../../src/stages/media/sniff.ts';
 import { codeOfAsync, fixture, removeDir, tempDir } from './helpers.ts';
 

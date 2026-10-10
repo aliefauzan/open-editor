@@ -4,7 +4,7 @@
 // playlist-style demuxers that open further files are never used. Paths must be absolute.
 
 import { isAbsolute } from 'node:path';
-import { VoxError } from '../../errors.pending.ts';
+import { VoxError } from '../../errors.ts';
 import type { MediaFormat } from './sniff.ts';
 
 export const PROTOCOL_WHITELIST = 'file,pipe';

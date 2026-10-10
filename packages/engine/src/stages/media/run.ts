@@ -4,7 +4,7 @@
 // passed through `redact` (phase 04 passes `engine.redactor.redact`).
 
 import { spawn } from 'node:child_process';
-import { VoxError } from '../../errors.pending.ts';
+import { VoxError } from '../../errors.ts';
 
 export type MediaTool = 'ffmpeg' | 'ffprobe';
 

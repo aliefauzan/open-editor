@@ -8,7 +8,7 @@
 // cancel. `-n` is not used: ffmpeg 8 exits 0 when `-n` refuses an existing file, so a refused write
 // would look like success.
 
-import { VoxError } from '../../errors.pending.ts';
+import { VoxError } from '../../errors.ts';
 import { FFMPEG_BASE, checkPath, inputArgs } from './ffargs.ts';
 import type { Fps } from './analyze.ts';
 import type { MediaFormat } from './sniff.ts';

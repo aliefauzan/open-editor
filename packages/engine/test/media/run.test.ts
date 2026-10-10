@@ -2,7 +2,7 @@
 // redacted) in `cause`, missing binary → TOOL_MISSING.
 
 import { describe, expect, test } from 'vitest';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 import { runTool, tailLines } from '../../src/stages/media/run.ts';
 import { codeOfAsync, fixture } from './helpers.ts';
 

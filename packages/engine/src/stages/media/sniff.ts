@@ -9,7 +9,7 @@
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { extname } from 'node:path';
-import { VoxError } from '../../errors.pending.ts';
+import { VoxError } from '../../errors.ts';
 
 /** Demuxer families the engine opens with ffmpeg; each maps to one `-format_whitelist` (ffargs.ts). */
 export type MediaFormat =
