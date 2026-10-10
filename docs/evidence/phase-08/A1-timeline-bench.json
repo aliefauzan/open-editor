@@ -1,0 +1,205 @@
+{
+  "bench": "timeline",
+  "gate": "GATE 4",
+  "date": "2026-10-10T18:21:52.717Z",
+  "machine": {
+    "cpu": "Apple M5",
+    "cores": 10,
+    "memGB": 24,
+    "os": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:59 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8142",
+    "loadAvg1mStart": 11.1
+  },
+  "browser": {
+    "name": "Playwright Chromium",
+    "version": "156.0.8078.4",
+    "mode": "headless shell",
+    "gpuRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "pins": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@xzdarcy/react-timeline-editor": "1.0.0",
+    "playwright": "1.64.0",
+    "vite": "8.3.4"
+  },
+  "config": {
+    "items": 1000,
+    "tracks": 8,
+    "viewport": {
+      "width": 1920,
+      "height": 1080,
+      "deviceScaleFactor": 2
+    },
+    "gestureMs": 3000,
+    "attempts": 3,
+    "reactBuild": "production (vite build)",
+    "measures": "fps = rAF callbacks per second on the renderer main thread while real mouse input (about one move per frame) drags or trims a clip; the window ends after the drop renders. Raster and GPU cost are not separately timed (the headless shell composites in software)."
+  },
+  "attempts": [
+    {
+      "drag": {
+        "frames": 184,
+        "durationMs": 3066.534,
+        "fps": 60.002595764468936,
+        "p50Ms": 16.699999999999818,
+        "p95Ms": 16.700000000000728,
+        "maxMs": 16.800000000000182,
+        "over20Ms": 0,
+        "updates": 179,
+        "moves": 179
+      },
+      "trim": {
+        "frames": 184,
+        "durationMs": 3066.4339999999993,
+        "fps": 60.004552519310714,
+        "p50Ms": 16.699999999999818,
+        "p95Ms": 16.700000000000728,
+        "maxMs": 16.800000000000182,
+        "over20Ms": 0,
+        "updates": 181,
+        "moves": 181
+      },
+      "linkedDrag": {
+        "frames": 184,
+        "durationMs": 3066.5339999999997,
+        "fps": 60.00259576446894,
+        "p50Ms": 16.69999999999891,
+        "p95Ms": 16.700000000000728,
+        "maxMs": 16.80000000000109,
+        "over20Ms": 0,
+        "updates": 181,
+        "moves": 181
+      },
+      "linkedCheck": {
+        "pass": true,
+        "draggedStartMs": 34800,
+        "partnerStartMs": 34800,
+        "movedMs": 5000,
+        "followedDuringDrag": true
+      },
+      "marqueeCheck": {
+        "pass": true,
+        "expected": 50,
+        "selected": 50,
+        "domSelected": 50
+      },
+      "loadBefore": 11.0673828125,
+      "loadAfter": 10.9541015625
+    },
+    {
+      "drag": {
+        "frames": 184,
+        "durationMs": 3066.568,
+        "fps": 60.001930496894246,
+        "p50Ms": 16.699999999999818,
+        "p95Ms": 16.700000000000728,
+        "maxMs": 16.800000000000182,
+        "over20Ms": 0,
+        "updates": 181,
+        "moves": 181
+      },
+      "trim": {
+        "frames": 184,
+        "durationMs": 3066.5,
+        "fps": 60.00326104679602,
+        "p50Ms": 16.699999999999818,
+        "p95Ms": 16.799999999999272,
+        "maxMs": 16.800000000000182,
+        "over20Ms": 0,
+        "updates": 181,
+        "moves": 181
+      },
+      "linkedDrag": {
+        "frames": 184,
+        "durationMs": 3066.5339999999997,
+        "fps": 60.00259576446894,
+        "p50Ms": 16.69999999999891,
+        "p95Ms": 16.700000000000728,
+        "maxMs": 16.80000000000109,
+        "over20Ms": 0,
+        "updates": 181,
+        "moves": 181
+      },
+      "linkedCheck": {
+        "pass": true,
+        "draggedStartMs": 34800,
+        "partnerStartMs": 34800,
+        "movedMs": 5000,
+        "followedDuringDrag": true
+      },
+      "marqueeCheck": {
+        "pass": true,
+        "expected": 50,
+        "selected": 50,
+        "domSelected": 50
+      },
+      "loadBefore": 10.9541015625,
+      "loadAfter": 10.1650390625
+    },
+    {
+      "drag": {
+        "frames": 184,
+        "durationMs": 3066.5,
+        "fps": 60.00326104679602,
+        "p50Ms": 16.699999999999818,
+        "p95Ms": 16.700000000000273,
+        "maxMs": 16.800000000000182,
+        "over20Ms": 0,
+        "updates": 181,
+        "moves": 181
+      },
+      "trim": {
+        "frames": 184,
+        "durationMs": 3066.468,
+        "fps": 60.00388720834524,
+        "p50Ms": 16.699999999999818,
+        "p95Ms": 16.700000000000728,
+        "maxMs": 16.800000000000182,
+        "over20Ms": 0,
+        "updates": 181,
+        "moves": 181
+      },
+      "linkedDrag": {
+        "frames": 184,
+        "durationMs": 3066.5340000000006,
+        "fps": 60.00259576446893,
+        "p50Ms": 16.69999999999891,
+        "p95Ms": 16.700000000000728,
+        "maxMs": 16.80000000000109,
+        "over20Ms": 0,
+        "updates": 180,
+        "moves": 180
+      },
+      "linkedCheck": {
+        "pass": true,
+        "draggedStartMs": 34800,
+        "partnerStartMs": 34800,
+        "movedMs": 5000,
+        "followedDuringDrag": true
+      },
+      "marqueeCheck": {
+        "pass": true,
+        "expected": 50,
+        "selected": 50,
+        "domSelected": 50
+      },
+      "loadBefore": 10.1650390625,
+      "loadAfter": 9.4501953125
+    }
+  ],
+  "median": {
+    "dragFps": 60.002595764468936,
+    "trimFps": 60.00388720834524,
+    "linkedDragFps": 60.00259576446894
+  },
+  "checks": {
+    "linked": "3/3",
+    "marquee": "3/3",
+    "gestures": "3/3"
+  },
+  "bar": 50,
+  "pass": true,
+  "nearBar": false,
+  "outcome": "library",
+  "summary": "timeline: drag 60 fps, trim 60 fps, linked drag 60 fps (median of 3, 1,000 items / 8 tracks, Chromium headless shell); linked startMs equal 3/3; marquee 50 of 50 3/3; gestures moved 3/3; bar 50 fps -> PASS (library)"
+}
