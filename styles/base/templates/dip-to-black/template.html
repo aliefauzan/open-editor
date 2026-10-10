@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+        .d-black {
+          position: absolute;
+          inset: 0;
+          background: #000000;
+          opacity: 0;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="d-black"></div>
+      </div>
+      <script>
+        (function () {
+          var mount = vox.mount('__ID__');
+          var black = mount.root.querySelector('.d-black');
+          var half = __DUR__ / 2;
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo(black, { opacity: 0 }, { opacity: 1, duration: half, ease: 'none' }, 0);
+          tl.to(black, { opacity: 0, duration: half, ease: 'none' }, half);
+          mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .o-band {
+          position: absolute;
+          left: 8%;
+          right: 8%;
+          display: flex;
+          justify-content: center;
+        }
+        .o-text {
+          padding: 0.35em 0.6em;
+          border-radius: 0.2em;
+          background: var(--tok-color-shade);
+          color: var(--tok-color-paper);
+          font-family: var(--tok-font-display);
+          font-weight: var(--tok-font-display-weight);
+          line-height: 1.2;
+          overflow-wrap: anywhere;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="o-band"><div class="o-text"></div></div>
+      </div>
+      <script>
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var v = mount.vars;
+          var w = __W__;
+          var band = root.querySelector('.o-band');
+          var text = root.querySelector('.o-text');
+          text.textContent = v.text;
+          text.style.fontSize = Math.round(w * 0.05) + 'px';
+          var pos = v.position || 'bottom';
+          // bottom stays above the caption zone (captions sit at 75 % by default)
+          band.style.top = pos === 'top' ? '12%' : pos === 'middle' ? '42%' : '56%';
+          if (v.align === 'left') {
+            band.style.justifyContent = 'flex-start';
+            text.style.textAlign = 'left';
+          } else text.style.textAlign = 'center';
+          var ease =
+            getComputedStyle(root).getPropertyValue('--tok-motion-easing').trim() || 'power2.out';
+          var tl = gsap.timeline({ paused: true });
+          if (!v.skipEntrance) {
+            tl.fromTo(
+              text,
+              { y: w * 0.02, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.35, ease: ease },
+              0,
+            );
+          }
+          mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

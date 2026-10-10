@@ -11,10 +11,16 @@
   },
   "scripts": {
     "test": "node scripts/test.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:slow": "VOX_SLOW=1 node scripts/test.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",
+    "gsap": "3.15.0",
+    "hyperframes": "0.8.145",
     "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
   }
 }

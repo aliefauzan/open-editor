@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+      </style>
+      <!-- blendsShots: compile overlaps the two shots by the transition and fades the incoming
+           shot in on the track itself; this layer draws nothing. -->
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+      </div>
+      <script>
+        (function () {
+          var mount = vox.mount('__ID__');
+          mount.register(gsap.timeline({ paused: true }));
+        })();
+      </script>
+    </template>
+  </body>
+</html>
