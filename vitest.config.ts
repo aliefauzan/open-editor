@@ -6,7 +6,11 @@ const slow = process.env['VOX_SLOW'] === '1';
 export default defineConfig({
   test: {
     include: slow
-      ? ['packages/*/test/**/*.slow.test.ts', 'apps/*/test/**/*.slow.test.ts']
+      ? [
+          'packages/*/test/**/*.slow.test.ts',
+          'apps/*/test/**/*.slow.test.ts',
+          'test/**/*.slow.test.ts',
+        ]
       : ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.ts', 'test/**/*.test.ts'],
     exclude: slow
       ? ['**/node_modules/**']

@@ -18,3 +18,4 @@ native/**/.build/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+.vitest/

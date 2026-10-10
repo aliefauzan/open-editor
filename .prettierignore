@@ -7,3 +7,4 @@ docs/
 plan/
 .remember/
 .worktrees/
+packages/engine/test/fixtures/transcripts/spike-90s.json

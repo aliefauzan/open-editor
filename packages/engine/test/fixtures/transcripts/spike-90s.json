@@ -283,32 +283,5 @@
     { "text": "lazy", "startMs": 88690, "endMs": 88890, "kind": "word" },
     { "text": "dog", "startMs": 88980, "endMs": 89160, "kind": "word" }
   ],
-  "speechRegions": [
-    { "startMs": 500, "endMs": 3270 },
-    { "startMs": 3870, "endMs": 6840 },
-    { "startMs": 7440, "endMs": 10290 },
-    { "startMs": 10890, "endMs": 13820 },
-    { "startMs": 14420, "endMs": 17270 },
-    { "startMs": 17870, "endMs": 20800 },
-    { "startMs": 21400, "endMs": 24190 },
-    { "startMs": 24790, "endMs": 27740 },
-    { "startMs": 28340, "endMs": 31130 },
-    { "startMs": 31730, "endMs": 34720 },
-    { "startMs": 35320, "endMs": 38170 },
-    { "startMs": 38770, "endMs": 41680 },
-    { "startMs": 42280, "endMs": 45130 },
-    { "startMs": 45730, "endMs": 48580 },
-    { "startMs": 49180, "endMs": 52110 },
-    { "startMs": 52710, "endMs": 55540 },
-    { "startMs": 56140, "endMs": 59050 },
-    { "startMs": 59650, "endMs": 62480 },
-    { "startMs": 63080, "endMs": 66090 },
-    { "startMs": 66690, "endMs": 69460 },
-    { "startMs": 70060, "endMs": 73030 },
-    { "startMs": 73630, "endMs": 76480 },
-    { "startMs": 77080, "endMs": 80010 },
-    { "startMs": 80610, "endMs": 83460 },
-    { "startMs": 84060, "endMs": 86990 },
-    { "startMs": 87590, "endMs": 89250 }
-  ]
+  "speechRegions": [ { "startMs": 500, "endMs": 3270 }, { "startMs": 3870, "endMs": 6840 }, { "startMs": 7440, "endMs": 10290 }, { "startMs": 10890, "endMs": 13820 }, { "startMs": 14420, "endMs": 17270 }, { "startMs": 17870, "endMs": 20800 }, { "startMs": 21400, "endMs": 24190 }, { "startMs": 24790, "endMs": 27740 }, { "startMs": 28340, "endMs": 31130 }, { "startMs": 31730, "endMs": 34720 }, { "startMs": 35320, "endMs": 38170 }, { "startMs": 38770, "endMs": 41680 }, { "startMs": 42280, "endMs": 45130 }, { "startMs": 45730, "endMs": 48580 }, { "startMs": 49180, "endMs": 52110 }, { "startMs": 52710, "endMs": 55540 }, { "startMs": 56140, "endMs": 59050 }, { "startMs": 59650, "endMs": 62480 }, { "startMs": 63080, "endMs": 66090 }, { "startMs": 66690, "endMs": 69460 }, { "startMs": 70060, "endMs": 73030 }, { "startMs": 73630, "endMs": 76480 }, { "startMs": 77080, "endMs": 80010 }, { "startMs": 80610, "endMs": 83460 }, { "startMs": 84060, "endMs": 86990 }, { "startMs": 87590, "endMs": 89250 } ]
 }

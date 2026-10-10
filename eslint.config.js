@@ -15,13 +15,36 @@ const ENGINE_API_ONLY = group(
 );
 const nodeBuiltins = [...builtinModules.flatMap((m) => [m, `node:${m}`]), 'electron'];
 
+const EXT = '{ts,tsx,mts,cts,js,jsx,mjs,cjs}';
+// relative paths that climb into a sibling package folder
+const rel = (names, message) => ({ regex: `^(\\.\\./)+(${names})(/|$)`, message });
+
 const restrict = (...patterns) => ({ 'no-restricted-imports': ['error', { patterns }] });
 
+const CP = '^(node:)?child_process$';
 const noShell = [
   'error',
   {
+    selector: `ImportDeclaration[source.value=/${CP}/] > ImportSpecifier[imported.name=/^exec(Sync)?$/]`,
+    message: 'S26: use spawn/execFile with an argument array, never exec/execSync',
+  },
+  {
+    selector: `ImportDeclaration[source.value=/${CP}/] > :matches(ImportDefaultSpecifier, ImportNamespaceSpecifier)`,
+    message:
+      'S26: import named functions (spawn, execFile) from child_process; no default or namespace import',
+  },
+  {
+    selector: `CallExpression[callee.name='require'][arguments.0.value=/${CP}/]`,
+    message: 'S26: do not require child_process; use a named ESM import of spawn/execFile',
+  },
+  {
+    selector: `ImportExpression[source.value=/${CP}/]`,
+    message:
+      'S26: do not dynamically import child_process; use a named ESM import of spawn/execFile',
+  },
+  {
     selector:
-      'ImportDeclaration[source.value=/^(node:)?child_process$/] > ImportSpecifier[imported.name=/^exec(Sync)?$/]',
+      'MemberExpression[property.name=/^exec(Sync)?$/][object.name=/^(cp|child_process|childProcess)$/]',
     message: 'S26: use spawn/execFile with an argument array, never exec/execSync',
   },
   {
@@ -30,12 +53,8 @@ const noShell = [
   },
   {
     selector:
-      "CallExpression[callee.object.name=/^(cp|child_process|childProcess)$/][callee.property.name='exec']",
-    message: 'S26: use spawn/execFile with an argument array, never exec',
-  },
-  {
-    selector: "Property[key.name='shell'][value.value=true]",
-    message: 'S26: never spawn with shell: true',
+      "Property[key.name='shell']:not([value.value=false]), Property[key.value='shell']:not([value.value=false])",
+    message: 'S26: never spawn with a shell (only shell: false is allowed)',
   },
 ];
 
@@ -65,28 +84,54 @@ export default tseslint.config(
     },
   },
   {
-    files: ['packages/engine/**/*.{ts,js}'],
-    rules: restrict(NO_AGENT, NO_CLI, NO_DESKTOP),
-  },
-  {
-    files: ['packages/agent/**/*.{ts,js}'],
-    rules: restrict(ENGINE_API_ONLY, NO_CLI, NO_DESKTOP),
-  },
-  {
-    files: ['packages/cli/**/*.{ts,js}'],
-    rules: restrict(ENGINE_API_ONLY, NO_DESKTOP),
-  },
-  {
-    files: ['apps/desktop/src/main/**/*.{ts,tsx}'],
+    files: [`packages/engine/**/*.${EXT}`],
     rules: restrict(
-      group(['@vox/agent', '@vox/agent/*'], 'main process never imports the agent'),
-      group(['@vox/engine'], 'main may import only @vox/engine/paths'),
+      NO_AGENT,
+      NO_CLI,
+      NO_DESKTOP,
+      rel('agent|cli|apps', 'engine never reaches into other packages (R1)'),
     ),
   },
   {
-    files: ['apps/desktop/src/renderer/**/*.{ts,tsx}'],
+    files: [`packages/agent/**/*.${EXT}`],
     rules: restrict(
-      group(nodeBuiltins, 'renderer never imports Node modules'),
+      ENGINE_API_ONLY,
+      NO_CLI,
+      NO_DESKTOP,
+      rel('engine|cli|apps', 'agent imports @vox/engine only (R1)'),
+    ),
+  },
+  {
+    files: [`packages/cli/**/*.${EXT}`],
+    rules: restrict(
+      ENGINE_API_ONLY,
+      NO_DESKTOP,
+      rel('engine|agent|apps', 'cli imports @vox/engine and @vox/agent by package name (R1)'),
+    ),
+  },
+  {
+    files: [`apps/desktop/src/main/**/*.${EXT}`],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          // a bare '@vox/engine' is a path rule; the negation only works in a group of its own
+          paths: [{ name: '@vox/engine', message: 'main may import only @vox/engine/paths' }],
+          patterns: [
+            group(['@vox/agent', '@vox/agent/*'], 'main process never imports the agent'),
+            group(
+              ['@vox/engine/*', '!@vox/engine/paths'],
+              'main may import only @vox/engine/paths',
+            ),
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [`apps/desktop/src/renderer/**/*.${EXT}`],
+    rules: restrict(
+      group([...nodeBuiltins, 'node:*'], 'renderer never imports Node modules'),
       group(
         ['@vox/engine', '@vox/engine/*', '@vox/agent', '@vox/agent/*'],
         'renderer never imports engine or agent',

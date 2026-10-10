@@ -19,9 +19,12 @@ ASSETS="$DIR/assets"
 OUT="$DIR/out"
 VOICE="Samantha"
 FF=(ffmpeg -nostdin -hide_banner -loglevel error -y)
-ENC_V=(-c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -g 30 -flags:v +bitexact -fflags +bitexact)
+CRF=20
+ENC_V=(-c:v libx264 -preset veryfast -crf "$CRF" -pix_fmt yuv420p -g 30 -flags:v +bitexact -fflags +bitexact)
 ENC_A=(-c:a aac -b:a 160k -ar 48000 -ac 1 -flags:a +bitexact)
 META=(-map_metadata -1 -movflags +faststart)
+
+say -v '?' | grep -q "^$VOICE " || { echo "make.sh: macOS voice $VOICE is missing (say -v '?')" >&2; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -46,7 +49,7 @@ click_expr() {
   echo "if(lt(mod(t,$1),0.01),0.8*sin(2*PI*1000*t),0)"
 }
 
-# flash FPS_NUM FPS_DEN -> drawbox filter: white 160 px box bottom-right on frame n = k * 60 (every 2 s at 30 fps).
+# flash -> drawbox filter: white 160 px box bottom-right on frame n = k * 60 (every 2 s at 30 and 30000/1001 fps).
 flash() {
   echo "drawbox=x=iw-200:y=ih-200:w=160:h=160:color=white:t=fill:enable='eq(mod(n,60),0)'"
 }
@@ -56,13 +59,15 @@ TALKING_TEXT="Hello, and welcome to the Vox Studio demo. [[slnc 250]] Today we t
 # talking_head OUT.mp4 -> 20 s 1080p: face-a slow pan over testsrc2 + `say` speech (7 sentences).
 talking_head() {
   local out="$1"
+  CRF=33 # seeds must stay under 5 MB (D-16)
+  ENC_V=(-c:v libx264 -preset veryfast -crf "$CRF" -pix_fmt yuv420p -g 30 -flags:v +bitexact -fflags +bitexact)
   speech "$TALKING_TEXT" "$TMP/talk.wav" 20
   "${FF[@]}" \
     -f lavfi -i "testsrc2=s=1920x1080:r=30:d=20" \
     -loop 1 -framerate 30 -t 20 -i "$ASSETS/faces/face-a.jpg" \
     -i "$TMP/talk.wav" \
     -filter_complex "[1:v]scale=-2:900[f];[0:v][f]overlay=x='(W-w)/2+200*sin(2*PI*t/20)':y=90,format=yuv420p[v]" \
-    -map "[v]" -map 2:a -t 20 "${ENC_V[@]}" -crf 33 "${ENC_A[@]}" "${META[@]}" "$out"
+    -map "[v]" -map 2:a -t 20 "${ENC_V[@]}" "${ENC_A[@]}" "${META[@]}" "$out"
 }
 
 seed_media() {
@@ -138,7 +143,8 @@ NTSC_PERIOD="$(awk 'BEGIN { printf "%.6f", 60 * 1001 / 30000 }')"
   -f lavfi -i "color=c=0x303030:s=1920x1080:r=30:d=3" \
   -loop 1 -framerate 30 -t 3 -i "$ASSETS/faces/face-b.jpg" \
   -f lavfi -i "testsrc2=s=1920x1080:r=30:d=3" \
-  -filter_complex "[1:v]scale=-2:900[a];[0:v][a]overlay=x=250:y=90[s1];[3:v]scale=-2:900[b];[2:v][b]overlay=x=950:y=90[s2];[4:v]drawbox=x='mod(t*500,1700)':y=450:w=140:h=140:color=yellow:t=fill[s3];[s1][s2][s3]concat=n=3:v=1:a=0,format=yuv420p[v]" \
+  -f lavfi -i "color=c=yellow:s=140x140:r=30:d=3" \
+  -filter_complex "[1:v]scale=-2:900[a];[0:v][a]overlay=x=250:y=90[s1];[3:v]scale=-2:900[b];[2:v][b]overlay=x=950:y=90[s2];[5:v]format=yuv420p[box];[4:v][box]overlay=x='mod(t*500,1700)':y=450:eval=frame[s3];[s1][s2][s3]concat=n=3:v=1:a=0,format=yuv420p[v]" \
   -map "[v]" -t 9 "${ENC_V[@]}" -g 300 "${META[@]}" "$OUT/cuts-2shot.mp4"
 cat > "$OUT/cuts-2shot.cuts.json" <<'EOF'
 { "fps": 30, "durationMs": 9000, "cutFrames": [90, 180], "cutsMs": [3000, 6000] }

@@ -140,6 +140,31 @@ describe('make.sh', () => {
     expect(cuts.cutsMs).toEqual([3000, 6000]);
   });
 
+  test('cuts-2shot.mp4 third shot has a moving box and the cut frames differ', () => {
+    const md5 = (n: number) =>
+      execFileSync(
+        'ffmpeg',
+        [
+          '-nostdin',
+          '-v',
+          'error',
+          '-i',
+          out('cuts-2shot.mp4'),
+          '-vf',
+          `select=eq(n\\,${n}),crop=1920:300:0:400`,
+          '-frames:v',
+          '1',
+          '-f',
+          'md5',
+          '-',
+        ],
+        { encoding: 'utf8' },
+      );
+    expect(md5(200)).not.toBe(md5(260));
+    expect(md5(89)).not.toBe(md5(90));
+    expect(md5(179)).not.toBe(md5(180));
+  });
+
   test('podcast-2face.mp4 is 12 s of 1080p', () => {
     const p = probe(out('podcast-2face.mp4'));
     expect(video(p)[0]).toMatchObject({ width: 1920, height: 1080 });
