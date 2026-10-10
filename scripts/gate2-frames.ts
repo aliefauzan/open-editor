@@ -9,7 +9,7 @@
 //   node scripts/gate2-frames.ts --projects-dir <dir> --project <id> --out <report.json> [--work <dir>]
 //
 // Exit code 0 when every rendered frame decodes to its expected source frame.
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -120,7 +120,9 @@ async function main(argv: string[]): Promise<number> {
     throw new Error('Usage: gate2-frames.ts --projects-dir <dir> --project <id> --out <report.json> [--work <dir>]');
   }
   const e = openEngine({ projectsDir, stylesDirs: [join(REPO, 'styles')], config: async () => ({}) });
-  const clips = await checkQuickFrames(e, project, values.work ?? mkdtempSync(join(tmpdir(), 'vox-gate2-frames-')));
+  const work = values.work ?? mkdtempSync(join(tmpdir(), 'vox-gate2-frames-'));
+  mkdirSync(work, { recursive: true });
+  const clips = await checkQuickFrames(e, project, work);
   const pass = clips.length > 0 && clips.every((c) => c.mismatches.length === 0 && c.checked === c.frames);
   writeFileSync(
     out,

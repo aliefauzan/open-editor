@@ -184,6 +184,15 @@ describe('vox compile / preview / credits / assets generate', () => {
     expect(spawned).toHaveLength(1);
   });
 
+  test('audio-qa on a sequence prints the checks and writes qa.json, qa.png, LISTEN.md', async () => {
+    const r = await vox(['audio-qa', projectId, '--seq', 'seq_a']);
+    expect(r.code, r.stderr).toBeLessThanOrEqual(1);
+    expect(r.stderr).not.toMatch(/TypeError/);
+    const outDir = r.stdout.trim().split('\n').at(-1)!;
+    for (const f of ['qa.json', 'qa.png', 'LISTEN.md']) expect(existsSync(join(outDir, f)), f).toBe(true);
+    expect(r.stdout).toMatch(/^(PASS|FAIL|WARN|SKIP)\s*\t\S+/m);
+  }, 120_000);
+
   test('credits with no archive media; assets generate without a provider fails with a hint', async () => {
     const c = await vox(['credits', projectId]);
     expect(c.stdout).toBe('no archive assets used\n');

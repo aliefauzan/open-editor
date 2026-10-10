@@ -726,7 +726,8 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         png: string;
         checks?: { id: string; status: string }[];
         listen?: { timecode?: string; atMs: number; kind: string; listenFor: string }[];
-        files?: { path?: string; status?: string }[];
+        /** kit mode: one result per file; sequence mode: the names of the written files */
+        files?: { path?: string; status?: string }[] | Record<string, string>;
       }>(
         e,
         'audioQa',
@@ -741,7 +742,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       );
       const lines = [
         ...(r.checks ?? []).map((c) => `${c.status.toUpperCase().padEnd(4)}\t${c.id}\n`),
-        ...(r.files ?? []).map((f) => `${(f.status ?? '').toUpperCase().padEnd(4)}\t${f.path ?? ''}\n`),
+        ...(Array.isArray(r.files) ? r.files : []).map((f) => `${(f.status ?? '').toUpperCase().padEnd(4)}\t${f.path ?? ''}\n`),
         ...(r.listen ?? []).map((l) => `listen ${l.timecode ?? `${l.atMs} ms`}\t${l.kind}: ${l.listenFor}\n`),
         `${r.outDir}\n`,
       ];
