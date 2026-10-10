@@ -260,7 +260,10 @@ export async function renderMix(input: MixInput, opts: MixOptions): Promise<MixR
     measured = lastJson(
       await ffmpeg(ffArgs(graph, loudnormPass1(input.preset), ['-f', 'null', '-'])),
     );
-    await ffmpeg(ffArgs(graph, loudnormPass2(input.preset, measured), [...WAV, opts.out]));
+    // silence (no audio, or every source muted) has no integrated loudness: nothing to normalise
+    const silent = !Number.isFinite(Number(measured.input_i));
+    const post = silent ? null : loudnormPass2(input.preset, measured);
+    await ffmpeg(ffArgs(graph, post, [...WAV, opts.out]));
   }
   let stems: Record<StemKind, string> | undefined;
   if (opts.stemsDir) {

@@ -186,3 +186,14 @@ describe('audio mix render (steps 13, 13b)', () => {
     expect(Math.abs(a.i - b.i), `${a.i} vs ${b.i}`).toBeLessThanOrEqual(1);
   }, 300_000);
 });
+
+describe('audio mix of silence', () => {
+  test('a sequence with no audible source mixes to silence of its length (loudnorm skipped)', async () => {
+    const inp = input([], [], [], 2000);
+    const r = await renderMix(inp, { out: join(dir, 'silence.wav') });
+    expect(r.measured?.input_i).toBe('-inf');
+    const x = await pcm(r.out, 48000, 0);
+    expect(x.length).toBe(2 * 48000);
+    expect(x.every((v) => v === 0)).toBe(true);
+  }, 120_000);
+});
