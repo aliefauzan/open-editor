@@ -4,10 +4,19 @@ version = "0.0.0"
 description = "Vox Studio Python tools (transcribe, VAD, facetrack, ...)"
 requires-python = ">=3.12,<3.13"
 license = "MIT"
-dependencies = []
+# Exact pins (plan R5). Phase 04 tools: Silero VAD runs through onnxruntime (no torch, D-15);
+# mlx-whisper transcribes; MediaPipe Tasks finds faces; Apple Vision gives body and saliency boxes;
+# pypdf extracts document text.
+dependencies = [
+  "onnxruntime==1.30.0",
+  "mlx-whisper==0.4.3",
+  "mediapipe==1.0.0",
+  "pyobjc-framework-Vision==12.2.2",
+  "pypdf==6.19.0",
+]
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "ruff>=0.6", "jsonschema==4.26.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -23,8 +32,15 @@ include = [
   "vox_py/models/README.md",
 ]
 
+[tool.uv]
+# Vox Studio runs on Apple silicon Macs only (mlx, Apple Vision).
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "local: needs local-only resources (real models, generated fixtures); skipped when CI is set",
+]
 
 [tool.ruff]
 line-length = 100
