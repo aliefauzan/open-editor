@@ -34,7 +34,7 @@ generate previews.
   `CaptionChunk[]` into the contact sheet and passes the caption preset checks (word states,
   emphasis, safe area, `case`/`stripPunctuation`; styles spec "Testing").
 - `vox style new <styleId> [--extends vox]`: scaffold (rejects built-in ids and existing ids).
-- `vox style trust <styleId>`: sets `trusted: true` for a user style after a confirmation prompt.
+- `vox style trust <styleId>`: records trust for a user style outside its folder after a confirmation prompt; the registry reads it through `isTrusted(styleId, dir)` (a user style's own `trusted` field is ignored, D-23).
 - `engine.styles.accept(id)`, `remove(id)` (non-built-in only).
 - `TEMPLATE_VERSION` migration through `migrate(variables, fromVersion)` from trusted `build.mjs`.
 - `styles/base/previews/` generated.

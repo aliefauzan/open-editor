@@ -139,3 +139,43 @@ per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
   `PY_TOOL_FAILED`/engine codes; spec/plan text now says the clipping rule (D-21).
 - **Branch**: `early/p1-py-tools`, merged into main with `--no-ff` right after this commit and pushed;
   worktree removed.
+
+## Early steps (D-19) — e4-shots-facetrack
+
+- **Steps done**: 9c core (`detectShots`: ffmpeg `scdet=threshold=10` on the proxy, or on the original
+  scaled to 360p in the same graph, cut times from `metadata=mode=print` on stdout, contiguous
+  `{startMs,endMs}[]` from 0 to `durationMs`), 12c (TS crop path builder on the `vox_py.facetrack`
+  detections: shot resets, hysteresis > 30 % for a continuous 1 s, locked/smooth/follow, 10 % dead
+  zone, trackSpeed cap, `auto` fallback face → body → saliency → centre, `faceIndex`, user keyframes
+  pinned with a 300 ms blend, output `{atMs,x,y,scale}`, cache key). Decisions: D-24.
+- **Files** (branch `early/e4-shots-facetrack`): `packages/engine/src/stages/{shots,facetrack}.ts`,
+  `src/errors.pending.ts` (D-19 shim, byte-identical copy), tests
+  `packages/engine/test/stages/{shots.test,shots.slow.test,facetrack.test,facetrack-schema.test,facetrack.local.test,facetrack-synth}.ts`.
+  Dependencies `zod` 4.6.5 and `ajv` 8.20.0 exact in `packages/engine/package.json` (same pins as 02;
+  ajv only in the zod ↔ JSON Schema agreement test). Local types mirror spec `frame.*` (no 02 model
+  import).
+- **Detection format**: aligned with P1 / D-21 (`py/tests/schemas/facetrack.result.json`); no mismatch.
+  The zod `DetectionsSchema` and the Python JSON Schema (ajv 2020) agree on 14 good/bad cases.
+- **Tests**: 70 new vitest tests: shots 16 fast (argv, parse, real ffmpeg on a generated 3-shot clip,
+  `TOOL_MISSING`, `TOOL_FAILED` with stderr tail, abort → `CANCELLED`) + 2 slow (`cuts-2shot.mp4`
+  cuts within 1 frame, proxy and 360p path); facetrack 38 (no drift across a cut in every stability,
+  hysteresis 0.5 s no switch / 1.5 s switch after 1 s, locked dead zone, trackSpeed, 300 ms blend,
+  blends never cross a cut, cache key); schema agreement 14; local 2 on real MediaPipe/Vision
+  detections (`cuts-2shot`: face, face, saliency in `auto`; `podcast-2face`: one switch at 8000 ms,
+  face B area 1.68× face A). Root `pnpm typecheck` clean, `pnpm test` 268 passed, 1 skipped (14 files).
+- **Review**: ecc:typescript-reviewer. Fixed: `trackSpeed`/`stability` read from the prototype chain,
+  a challenge interrupted by losing the subject now restarts its 1 s, a lost pinned face is picked
+  again by index, repeated sample times (keep last), `Math.min(...spread)` on hour-long shots, pins
+  clamped to scale 1..8 and a crop inside the source, `inputsHash` in the cache key. Left (LOW):
+  scdet can fire on two adjacent frames (no minimum shot length), a stream `start_time` offset is
+  trusted to ffmpeg's normalisation, the blend is linear, the detections schema is parsed per call.
+- **Error codes**: uses `VALIDATION` (02), `TOOL_MISSING`, `CANCELLED` (E2) and `TOOL_FAILED` (E3). No
+  new codes.
+- **Left for phase 04**: switch the local `frame.*` types to 02's model types and the shim to
+  `errors.ts`; move the ffmpeg runner onto E3's shared runner (`stages/media/run.ts`); the `shots` job
+  kind, writing `shots/<mediaId>.json`, `MediaItem.shotsPath`, reuse on rerun; the facetrack job (P1
+  tool via `py.ts`, detections file) and path cache storage under the cache key; CLI `vox shots` /
+  `vox facetrack`; ingest with `{proxies:false}` uses the 360p path; offline seeded fixture files.
+  For phase 05: the compile path provider (`applyClipFraming` per item → translate + scale).
+- **Branch**: `early/e4-shots-facetrack` at a6a3b55 (main merged in, incl. P1), pushed; worktree kept.
+  Merge state: ready, waiting for 02 (merge after 02).

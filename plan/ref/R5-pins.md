@@ -21,7 +21,8 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | React | 19.x (exact TBD 08) | MIT | 08 | |
 | Zustand, Tailwind, shadcn/ui | TBD (08) | MIT | 08 | |
 | `@xzdarcy/react-timeline-editor` | TBD (08, GATE 4) | MIT | 08 | dropped if GATE 4 fails |
-| zod | 4.6.5 (exact, `packages/agent`) | MIT | 11 (early N1, D-22) | Apple helper protocol schemas; `z.int()` limits are safe integers |
+| zod | 4.6.5 (exact, `packages/agent`, `packages/engine`) | MIT | 11 (early N1, D-22); 04 (early E4) | Apple helper protocol schemas; `z.int()` limits are safe integers; engine: detections and shot list schemas |
+| ajv | 8.20.0 (exact, `packages/engine`) | MIT | 04 (early E4) | `ajv/dist/2020.js`; test-only use: zod ↔ Python JSON Schema agreement (`py/tests/schemas/`) |
 | `ai` (Vercel AI SDK) | 7.0.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@openrouter/ai-sdk-provider` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |

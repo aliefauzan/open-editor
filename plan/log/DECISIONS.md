@@ -623,3 +623,114 @@ keywords survive. Early package N1 builds `native/apple-llm` and the fake helper
   D-16), not `slow` as phase 11 step 12 says: it needs this Mac, not just time.
 **Why**: Smallest choices that make the fake and the real helper interchangeable for phase 11's
 `apple.ts` and its tests; the 8k context is a measured fact the spec guessed as "about 4k".
+
+## D-23 · 2026-10-11 · phase 03 (early E5) · Style loading: partial children, merge, chain, paths, token names
+
+**Context**: Early package E5 (D-19) builds phase 03 steps 1–2 and the token names of step 3. The styles
+spec fixes the file format but leaves open how a child file inherits, how problems surface and how
+tokens are spelled.
+**Decision** (`packages/engine/src/styles/{schema,registry,tokens}.ts`):
+- **Strict files**: `style.json`, `template.json` and `captions/<preset>.json` reject unknown keys (a typo
+  is an error, not an extension).
+- **Partial children**: a style with `extends` may leave out `tokens` (or parts of it), `pacing`,
+  `imagery`, `captions`, `overlays` and `sfx`. Merge: colours by key, fonts by role (whole `Font`),
+  texture and motion by field, pacing and imagery by field, sfx by name; `captions` and `overlays` are
+  replaced whole and inherited when absent; `guide.md` by `## ` heading (same heading replaced in place,
+  new headings appended, a non-empty preamble replaces the parent's). The merged style must pass the
+  complete `Style` schema. Own fields (`id`, `name`, `version`, `description`, `status`, `extends`,
+  `source`, `trusted`, `templates`, `transitions`) never inherit. `guide.md` is optional.
+- **Chain**: depth counts `extends` hops, at most 4 (5 styles). The chain must end in `base`; `base`
+  extends nothing. Cycle, missing parent, deeper chain, wrong root and a child of an invalid style fail
+  with `STYLE_INVALID` and `details.reason` (`extends-cycle`, `extends-missing`, `extends-depth`,
+  `extends-root`, `parent-invalid`).
+- **Search order**: the first `stylesDirs` entry holding an id wins; a later copy is rejected with
+  `STYLE_DUPLICATE` and listed in `problems()`, so it never replaces an installed style. A missing dir is
+  skipped; dot folders and folders without `style.json` are not styles; the folder name must equal `id`.
+- **Loading** is synchronous and eager. An invalid style never fails the whole load: `list()` shows valid
+  styles only, `problems()` lists rejected folders, `get(id)` throws the style's error
+  (`STYLE_NOT_FOUND` when absent). `template('<styleId>/<name>')` finds any valid style's template.
+- **Templates**: scenes and transitions both live in `templates/<name>/`; `name` equals the folder and
+  `kind` matches the list (`templates` = scene, `transitions` = transition). A cue's `sfx` must exist in
+  the declaring style's merged `sfx`. `blendsShots` only on transitions; `minEntranceMs` (positive
+  integer) only on scenes. The variables schema is checked with ajv `strictSchema` (unknown keyword or
+  format rejected; a fresh Ajv per check, so a `$id` never clashes), its root must be `type: "object"`,
+  and it may not name `skipEntrance` anywhere (D-15).
+  `TemplateDef.trusted` is the declaring style's trust (S8).
+- **Trust source (S8)**: only a style in the first `stylesDirs` entry (built-in) keeps the `trusted` value
+  of its own `style.json`. For any other style the file value is ignored; trust comes from the
+  registry option `isTrusted(styleId, dir)` (default: untrusted), so a style folder copied into
+  `~/.vox/styles` cannot trust itself. Phase 06's `vox style trust` records trust outside the folder
+  (store and format are 06's choice, e.g. `~/.vox/config.json` keyed by id plus a content hash) and
+  passes it as `isTrusted`.
+- **Caption presets**: a preset id `<styleId>/<name>` of the style itself loads `captions/<name>.json`
+  and `.html` (name equals the file); a listed preset of another style must be declared in the chain.
+  `position` is required, `safeArea` optional (`captionSafeArea()` gives 20 / 12 on 9:16, 0 / 0
+  otherwise); `bottomPct` < 100, `rightPct` < 50.
+- **Paths and values**: font files, texture, sfx, template, preset, overlay and guide files must exist
+  inside the style folder after `realpath` (a symlink out → `reason: 'path'`; real paths are returned;
+  a dangling symlink fails, never counts as absent). `style.json`, `template.json`, fixtures and previews
+  get the same check. Path strings are relative, `/`-separated, with no `..`, backslash, quote, `<`, `>`,
+  `:`, `%`, `?`, `#` or control character. Token values are allow-listed (`[A-Za-z0-9#.,()%/ +_-]`, no
+  `//`) and may call only colour and easing functions (`rgb`, `hsl`, `oklch`, `color`, `cubic-bezier`,
+  `steps`, `linear`, … and GSAP eases like `back.out(1.7)`), never `url()`, `var()` or `image-set()`;
+  font families `[A-Za-z0-9 _-]`. Nothing breaks out of the generated `<style>` block or fetches a file
+  or URL at render time. `tokenVars` re-checks its input.
+- **Token names**: `--tok-color-<key>`, `--tok-font-<role>` (quoted family) and
+  `--tok-font-<role>-weight`, `--tok-texture-grain`, `--tok-texture-paper` (`url("…")` through the
+  caller's asset URL mapper), `--tok-motion-easing|entrance|frame-hold|jitter-px`. camelCase keys become
+  kebab-case; numbers are unitless; two colour keys with one CSS name fail `STYLE_INVALID` at load. Output is sorted
+  inside the group order colour, font, texture, motion, so CSS is byte-stable.
+- **New error codes** (appended to `ERROR_CODES` at the shim swap): `STYLE_NOT_FOUND`, `STYLE_INVALID`,
+  `STYLE_DUPLICATE`.
+- **Left for phase 06**: the "text variables declare `maxLength`" rule is checked by `vox style validate`,
+  not by the loader; unknown JSON Schema formats stay a load error (no `ajv-formats`).
+
+**Why**: Smallest choices that make "child overrides parent tokens, pacing, imagery and guide sections"
+work for a partial child (`vox style new --extends`), keep projects on a built-in style unchanged when a
+user installs a duplicate id, and keep token values from injecting CSS or HTML into builds. Review
+(typescript-reviewer, twice) found the self-declared trust, the Ajv `$id` cache and `url()` in values.
+
+## D-24 · 2026-10-11 · phase 04 (early E4) · Shot list and facetrack crop path details
+
+**Context**: Early package E4 (D-19) builds phase 04's `stages/shots.ts` (step 9c core) and the TS
+facetrack path builder `stages/facetrack.ts` (step 12c). The spec fixes the rules (shot resets,
+hysteresis, stability, trackSpeed, 300 ms pins, cache key) but not the crop coordinates or the numbers
+behind "smooth", "follow" and the speeds.
+**Decision**:
+- **Shots**: `scdet=threshold=10` then `metadata=mode=print:key=lavfi.scd.time:file=-`; the cut time is
+  each printed `pts_time` rounded to ms. The proxy is read as is; the original (no proxy) gets
+  `scale=-2:360` first in the same graph. Cuts at 0 or at/after `durationMs` are dropped; the list is
+  contiguous from 0 to `MediaItem.durationMs`. No minimum shot length. Errors: `TOOL_MISSING`,
+  `TOOL_FAILED` (stderr tail in `cause`), `CANCELLED` (codes shared with E2/E3).
+- **Crop coordinates**: `x`, `y` = crop centre, normalised to the source frame (0..1, origin top-left);
+  `scale` = zoom relative to the cover crop of the sequence aspect (1 = largest crop of that aspect that
+  fits the source). The tracked path pans at scale 1 and keeps the crop inside the source. User pins
+  are clamped to scale 1..8 and to a centre that keeps the crop inside the source.
+- **Subject per shot**: a class (face, then body and saliency in `auto`) counts when present in at
+  least 25 % of the shot's samples (at least one), so a stray detection does not take a shot. The
+  target is the box centre. A face or body is followed by nearest centre within the box's size; a
+  subject unmatched for 1 s is replaced by the largest box (a pinned face by its index). Hysteresis
+  compares box areas (> 1.3×) over a continuous 1 s while the subject is matched; losing the subject
+  restarts the count. Each shot reports `subject`, effective `stability`, `switchesAtMs` and
+  `faceIndexMissing`, so a fallback is never silent.
+- **`faceIndex`**: index in left-to-right order of the faces in the shot's first sample with faces; a
+  shot with fewer faces uses the largest (`faceIndexMissing: true`). A pinned face never switches by
+  hysteresis. `faceIndex` is added to the cache key, because it changes the path.
+- **Stability**: `locked` = the subject centre stays within ±10 % of the crop size of the mid-range
+  centre over the whole shot → one static crop at that centre; otherwise the shot is `smooth`.
+  `smooth` and `follow` are an exponential follow with time constant 0.4 s and 0.1 s. **trackSpeed**
+  caps crop speed at 0.5 / 1 / 2 crop sizes per second (slow / normal / fast).
+- **Path shape**: source-time keyframes, linear between keyframes; each shot has a keyframe at its
+  start (on the new subject) and a hold at `endMs - 1`; values rounded to 4 decimals; repeated values
+  pruned. Repeated sample times keep the last sample.
+- **Pins**: a user keyframe holds the crop at its time and blends linearly to and from the tracked path
+  over 300 ms on both sides (the spec names only the blend back; a one-sided pin would jump at the pin).
+  Two pins up to 600 ms apart join directly. A blend never crosses a shot boundary. Pin times are
+  item-relative (`source = inMs + atMs`), so a start trim that shifts `atMs` keeps the pin on its frame.
+- **Cache key**: SHA-256 over (path version 1, media hash, aspect reduced by gcd, mode, stability
+  default `smooth`, trackSpeed default `normal`, `faceIndex`, optional `inputsHash` of the shots and
+  detections files).
+
+**Why**: Smallest choices that make the D-15 fixture tests pass on synthetic and real detections
+(`cuts-2shot`, `podcast-2face`); coordinates relative to the cover crop let compile emit translate +
+scale directly.
