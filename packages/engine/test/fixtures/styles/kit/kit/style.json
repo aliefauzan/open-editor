@@ -16,11 +16,7 @@
       "kit": "#123456"
     }
   },
-  "templates": [
-    "stack",
-    "card",
-    "swatch"
-  ],
+  "templates": ["stack", "card", "swatch"],
   "transitions": [],
   "sfx": {
     "pop": {
@@ -32,9 +28,6 @@
   },
   "captions": {
     "default": "kit/loud",
-    "presets": [
-      "kit/loud",
-      "base/plain"
-    ]
+    "presets": ["kit/loud", "base/plain"]
   }
 }

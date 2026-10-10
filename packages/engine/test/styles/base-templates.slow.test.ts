@@ -8,14 +8,7 @@ import { describe, expect, test } from 'vitest';
 import type { Item, Sequence } from '../../src/model/schema.ts';
 import { baseProject, emptySequence, F30, track } from '../helpers/project.ts';
 import { build, clip, media, registry, scene } from '../compile/fixture.ts';
-import {
-  frameCount,
-  lintErrors,
-  makeMedia,
-  meanLuma,
-  render,
-  writeBuild,
-} from '../compile/hf.ts';
+import { frameCount, lintErrors, makeMedia, meanLuma, render, writeBuild } from '../compile/hf.ts';
 
 const SCENE_MS = 1000;
 
@@ -73,23 +66,19 @@ describe('styles/base templates render (step 5)', () => {
     expect(scenes.length).toBeGreaterThanOrEqual(6);
   });
 
-  test(
-    'every fixture lints with zero errors and renders non-blank',
-    async () => {
-      const b = await build(project, { mode: 'render' }, undefined, { projectDir: dir });
-      expect(b.warnings).toEqual([]);
-      const out = writeBuild(b, join(dir, 'build', 'seq_base'));
-      const { errors, raw } = lintErrors(out);
-      expect(errors, raw).toEqual([]);
-      const mp4 = join(dir, 'renders', 'base.mp4');
-      const r = render(out, mp4);
-      expect(r.ok, r.log).toBe(true);
-      expect(frameCount(mp4)).toBe((total / 1000) * 30);
-      for (let i = 0; i < scenes.length; i++) {
-        const f = Math.round(((i + 0.5) * SCENE_MS * 30) / 1000);
-        expect(meanLuma(mp4, f), `${scenes[i]!.id} at frame ${f}`).toBeGreaterThan(10);
-      }
-    },
-    900_000,
-  );
+  test('every fixture lints with zero errors and renders non-blank', async () => {
+    const b = await build(project, { mode: 'render' }, undefined, { projectDir: dir });
+    expect(b.warnings).toEqual([]);
+    const out = writeBuild(b, join(dir, 'build', 'seq_base'));
+    const { errors, raw } = lintErrors(out);
+    expect(errors, raw).toEqual([]);
+    const mp4 = join(dir, 'renders', 'base.mp4');
+    const r = render(out, mp4);
+    expect(r.ok, r.log).toBe(true);
+    expect(frameCount(mp4)).toBe((total / 1000) * 30);
+    for (let i = 0; i < scenes.length; i++) {
+      const f = Math.round(((i + 0.5) * SCENE_MS * 30) / 1000);
+      expect(meanLuma(mp4, f), `${scenes[i]!.id} at frame ${f}`).toBeGreaterThan(10);
+    }
+  }, 900_000);
 });
