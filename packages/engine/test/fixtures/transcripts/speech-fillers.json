@@ -1,0 +1,35 @@
+{
+  "language": "en",
+  "words": [
+    { "text": "So,", "startMs": 0, "endMs": 434, "kind": "word" },
+    { "text": "um,", "startMs": 632, "endMs": 920, "kind": "filler" },
+    { "text": "I", "startMs": 1122, "endMs": 1194, "kind": "repeat" },
+    { "text": "think", "startMs": 1214, "endMs": 1471, "kind": "repeat" },
+    { "text": "I", "startMs": 1491, "endMs": 1564, "kind": "word" },
+    { "text": "think", "startMs": 1584, "endMs": 1841, "kind": "word" },
+    { "text": "we", "startMs": 1861, "endMs": 1980, "kind": "word" },
+    { "text": "should,", "startMs": 2000, "endMs": 2369, "kind": "word" },
+    { "text": "uh,", "startMs": 2575, "endMs": 2884, "kind": "filler" },
+    { "text": "start", "startMs": 3083, "endMs": 3459, "kind": "word" },
+    { "text": "now.", "startMs": 3479, "endMs": 3810, "kind": "word" },
+    { "text": "", "startMs": 3810, "endMs": 4216, "kind": "pause" },
+    { "text": "The", "startMs": 4216, "endMs": 4379, "kind": "word" },
+    { "text": "first", "startMs": 4399, "endMs": 4655, "kind": "word" },
+    { "text": "point", "startMs": 4675, "endMs": 4931, "kind": "word" },
+    { "text": "is", "startMs": 4951, "endMs": 5069, "kind": "word" },
+    { "text": "simple.", "startMs": 5089, "endMs": 5456, "kind": "word" },
+    { "text": "", "startMs": 5456, "endMs": 6227, "kind": "pause" },
+    { "text": "It", "startMs": 6227, "endMs": 6383, "kind": "word" },
+    { "text": "just", "startMs": 6403, "endMs": 6677, "kind": "word" },
+    { "text": "works.", "startMs": 6697, "endMs": 7110, "kind": "word" }
+  ],
+  "speechRegions": [
+    { "startMs": 0, "endMs": 434 },
+    { "startMs": 632, "endMs": 920 },
+    { "startMs": 1122, "endMs": 2369 },
+    { "startMs": 2575, "endMs": 2884 },
+    { "startMs": 3083, "endMs": 3810 },
+    { "startMs": 4216, "endMs": 5456 },
+    { "startMs": 6227, "endMs": 7110 }
+  ]
+}

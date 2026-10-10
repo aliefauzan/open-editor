@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1' # weekly slow run, Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    # Typecheck, lint, vitest (fast tier), pytest. Tests tagged `local` never run on CI (R3, D-16).
+    if: github.event_name != 'schedule'
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: py/uv.lock
+      - name: Install ffmpeg
+        run: brew install ffmpeg
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: uv run --frozen --project py pytest
+
+  slow:
+    # Fixture generation, render, E2E and packaging tests (grows with later phases).
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: py/uv.lock
+      - name: Install ffmpeg
+        run: brew install ffmpeg
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:slow

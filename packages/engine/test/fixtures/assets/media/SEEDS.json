@@ -1,0 +1,14 @@
+{
+  "talking-head-20s.mp4": {
+    "sha256": "a97e27aa749f7e68b8a91b0d6123216c67655ebb8db9862b5c4a06cf185b676e",
+    "size": 3826034
+  },
+  "talking-head-20s.mov": {
+    "sha256": "2f6892659a432bb594ab9662f4076e9ace322057889d738b0788374015c04a9f",
+    "size": 3826122
+  },
+  "talking-head-20s.webm": {
+    "sha256": "d1d7c1f88c2b1d41de25cbb2babaab85bed8a0ca8b110926a44627b5112fbe3a",
+    "size": 2984138
+  }
+}
