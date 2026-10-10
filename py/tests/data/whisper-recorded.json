@@ -4,16 +4,26 @@
   "text": " Hello there. Thanks for watching! So, um, the first point. Yeah yeah yeah yeah yeah.",
   "segments": [
     {
-      "id": 0, "start": 0.4, "end": 1.6, "text": " Hello there.",
-      "no_speech_prob": 0.05, "compression_ratio": 1.1, "avg_logprob": -0.2,
+      "id": 0,
+      "start": 0.4,
+      "end": 1.6,
+      "text": " Hello there.",
+      "no_speech_prob": 0.05,
+      "compression_ratio": 1.1,
+      "avg_logprob": -0.2,
       "words": [
         { "word": " Hello", "start": 0.4, "end": 0.82, "probability": 0.98 },
         { "word": " there.", "start": 0.82, "end": 1.6, "probability": 0.95 }
       ]
     },
     {
-      "id": 1, "start": 2.0, "end": 4.0, "text": " Thanks for watching!",
-      "no_speech_prob": 0.81, "compression_ratio": 1.0, "avg_logprob": -0.9,
+      "id": 1,
+      "start": 2.0,
+      "end": 4.0,
+      "text": " Thanks for watching!",
+      "no_speech_prob": 0.81,
+      "compression_ratio": 1.0,
+      "avg_logprob": -0.9,
       "words": [
         { "word": " Thanks", "start": 2.0, "end": 2.5, "probability": 0.4 },
         { "word": " for", "start": 2.5, "end": 2.8, "probability": 0.4 },
@@ -21,8 +31,13 @@
       ]
     },
     {
-      "id": 2, "start": 5.0, "end": 7.2, "text": " So, um, the first point.",
-      "no_speech_prob": 0.6, "compression_ratio": 2.4, "avg_logprob": -0.3,
+      "id": 2,
+      "start": 5.0,
+      "end": 7.2,
+      "text": " So, um, the first point.",
+      "no_speech_prob": 0.6,
+      "compression_ratio": 2.4,
+      "avg_logprob": -0.3,
       "words": [
         { "word": " So,", "start": 5.0, "end": 5.3, "probability": 0.9 },
         { "word": " um,", "start": 5.3, "end": 5.7, "probability": 0.7 },
@@ -33,8 +48,13 @@
       ]
     },
     {
-      "id": 3, "start": 8.0, "end": 10.0, "text": " Yeah yeah yeah yeah yeah.",
-      "no_speech_prob": 0.1, "compression_ratio": 2.41, "avg_logprob": -0.5,
+      "id": 3,
+      "start": 8.0,
+      "end": 10.0,
+      "text": " Yeah yeah yeah yeah yeah.",
+      "no_speech_prob": 0.1,
+      "compression_ratio": 2.41,
+      "avg_logprob": -0.5,
       "words": [
         { "word": " Yeah", "start": 8.0, "end": 8.4, "probability": 0.5 },
         { "word": " yeah", "start": 8.4, "end": 8.8, "probability": 0.5 },
