@@ -1,7 +1,6 @@
 // VoxError + codes (engine spec "Error handling", plan R2, D-18). Codes are never renamed.
 import { redactor } from './redact.ts';
 
-
 export const ERROR_CODES = [
   // history, write order, locking (engine spec "History")
   'STALE',

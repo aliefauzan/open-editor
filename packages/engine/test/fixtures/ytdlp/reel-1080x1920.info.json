@@ -1,8 +1,83 @@
-{"id":"DReel1080","title":"vertical reel","extractor":"Instagram","extractor_key":"Instagram","webpage_url":"https://www.instagram.com/reel/DReel1080/","original_url":"https://www.instagram.com/reel/DReel1080/","duration":12.0,"_type":"video","formats":[
-{"format_id":"dash-a","url":"https://scontent.invalid/a.mp4","ext":"m4a","protocol":"https","vcodec":"none","acodec":"mp4a.40.2","abr":128,"asr":44100,"audio_channels":2},
-{"format_id":"dash-480","url":"https://scontent.invalid/480.mp4","ext":"mp4","protocol":"https","vcodec":"avc1.4d401e","acodec":"none","width":480,"height":854,"tbr":600,"fps":30},
-{"format_id":"dash-720","url":"https://scontent.invalid/720.mp4","ext":"mp4","protocol":"https","vcodec":"avc1.4d401f","acodec":"none","width":720,"height":1280,"tbr":1500,"fps":30},
-{"format_id":"dash-1080","url":"https://scontent.invalid/1080.mp4","ext":"mp4","protocol":"https","vcodec":"avc1.640028","acodec":"none","width":1080,"height":1920,"tbr":3500,"fps":30},
-{"format_id":"dash-1440","url":"https://scontent.invalid/1440.mp4","ext":"mp4","protocol":"https","vcodec":"avc1.640032","acodec":"none","width":1440,"height":2560,"tbr":6000,"fps":30},
-{"format_id":"progressive-640","url":"https://scontent.invalid/p640.mp4","ext":"mp4","protocol":"https","vcodec":"avc1.4d401e","acodec":"mp4a.40.2","width":640,"height":1136,"tbr":900,"fps":30}
-]}
+{
+  "id": "DReel1080",
+  "title": "vertical reel",
+  "extractor": "Instagram",
+  "extractor_key": "Instagram",
+  "webpage_url": "https://www.instagram.com/reel/DReel1080/",
+  "original_url": "https://www.instagram.com/reel/DReel1080/",
+  "duration": 12.0,
+  "_type": "video",
+  "formats": [
+    {
+      "format_id": "dash-a",
+      "url": "https://scontent.invalid/a.mp4",
+      "ext": "m4a",
+      "protocol": "https",
+      "vcodec": "none",
+      "acodec": "mp4a.40.2",
+      "abr": 128,
+      "asr": 44100,
+      "audio_channels": 2
+    },
+    {
+      "format_id": "dash-480",
+      "url": "https://scontent.invalid/480.mp4",
+      "ext": "mp4",
+      "protocol": "https",
+      "vcodec": "avc1.4d401e",
+      "acodec": "none",
+      "width": 480,
+      "height": 854,
+      "tbr": 600,
+      "fps": 30
+    },
+    {
+      "format_id": "dash-720",
+      "url": "https://scontent.invalid/720.mp4",
+      "ext": "mp4",
+      "protocol": "https",
+      "vcodec": "avc1.4d401f",
+      "acodec": "none",
+      "width": 720,
+      "height": 1280,
+      "tbr": 1500,
+      "fps": 30
+    },
+    {
+      "format_id": "dash-1080",
+      "url": "https://scontent.invalid/1080.mp4",
+      "ext": "mp4",
+      "protocol": "https",
+      "vcodec": "avc1.640028",
+      "acodec": "none",
+      "width": 1080,
+      "height": 1920,
+      "tbr": 3500,
+      "fps": 30
+    },
+    {
+      "format_id": "dash-1440",
+      "url": "https://scontent.invalid/1440.mp4",
+      "ext": "mp4",
+      "protocol": "https",
+      "vcodec": "avc1.640032",
+      "acodec": "none",
+      "width": 1440,
+      "height": 2560,
+      "tbr": 6000,
+      "fps": 30
+    },
+    {
+      "format_id": "progressive-640",
+      "url": "https://scontent.invalid/p640.mp4",
+      "ext": "mp4",
+      "protocol": "https",
+      "vcodec": "avc1.4d401e",
+      "acodec": "mp4a.40.2",
+      "width": 640,
+      "height": 1136,
+      "tbr": 900,
+      "fps": 30
+    }
+  ]
+}

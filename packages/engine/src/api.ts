@@ -43,6 +43,8 @@ import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
 import { registerMediaJobs, type MediaApi } from './media-api.ts';
+import { doctor, doctorProject, type DoctorReport, type ProjectDoctorReport } from './doctor.ts';
+import { ProjectSchema } from './model/schema.ts';
 import type { Resolver } from './net/address.ts';
 import type { Dial } from './net/proxy.ts';
 import { redactor as sharedRedactor, type Redactor } from './redact.ts';
@@ -283,6 +285,7 @@ export {
   type TranscribeJobResult,
 } from './media-api.ts';
 export { classifyUrl, type UrlKind } from './stages/sources.ts';
+export type { CheckLevel, DoctorCheck, DoctorReport, ProjectDoctorReport } from './doctor.ts';
 export { LOGIN_REQUIRED_HINT } from './stages/ytdlp.ts';
 export { WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
 export type { TrackPath, TrackPathOptions, ShotFraming } from './stages/facetrack.ts';
@@ -363,6 +366,10 @@ export interface Engine {
   readonly jobs: JobRunner;
   facetrackPath: MediaApi['facetrackPath'];
   mediaFrames: MediaApi['mediaFrames'];
+  /** Tool, model and config checks (`vox doctor`); `quick` skips the Python import check. */
+  doctor(opts?: { quick?: boolean }): Promise<DoctorReport>;
+  /** Project checks (`vox doctor <project>`); `unlock` removes `project.lock`. */
+  doctorProject(projectId: string, opts?: { unlock?: boolean }): Promise<ProjectDoctorReport>;
   listProjects(): Promise<ProjectSummary[]>;
   createProject(name: string): Promise<Project>;
   getProject(id: string): Promise<Project>;
@@ -457,8 +464,17 @@ export function sequenceView(
 export function openEngine(opts: EngineOptions): Engine {
   const emitter = new EventEmitter();
   const redactor = opts.redactor ?? sharedRedactor;
-  const jobs = createJobRunner({ redactor, ...(opts.jobs?.concurrency ? { concurrency: opts.jobs.concurrency } : {}) });
-  const JOB_EVENTS: readonly JobEventName[] = ['job.started', 'job.progress', 'job.done', 'job.failed', 'job.cancelled'];
+  const jobs = createJobRunner({
+    redactor,
+    ...(opts.jobs?.concurrency ? { concurrency: opts.jobs.concurrency } : {}),
+  });
+  const JOB_EVENTS: readonly JobEventName[] = [
+    'job.started',
+    'job.progress',
+    'job.done',
+    'job.failed',
+    'job.cancelled',
+  ];
   for (const name of JOB_EVENTS) jobs.on(name, (payload) => emitter.emit(name, payload));
   const stores = new Map<string, Promise<ProjectStore>>();
   let reg: StyleRegistry | undefined;
@@ -554,6 +570,23 @@ export function openEngine(opts: EngineOptions): Engine {
     jobs,
     facetrackPath: (projectId, mediaId, o) => media.facetrackPath(projectId, mediaId, o),
     mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
+    async doctor(o = {}) {
+      return doctor({
+        tools: opts.tools ?? {},
+        config: await (opts.config ?? readConfig)(),
+        ...(o.quick ? { quick: true } : {}),
+      });
+    },
+    async doctorProject(projectId, o = {}) {
+      const dir = dirOf(projectId);
+      const st = await lstat(dir).catch(() => undefined);
+      if (!st?.isDirectory()) throw notFound(projectId);
+      // Read the file directly: a held lock must not stop the check that clears it.
+      const p = ProjectSchema.parse(JSON.parse(await readFile(join(dir, PROJECT_FILE), 'utf8')));
+      const tr = await transcripts(projectId, p);
+      if (o.unlock) stores.delete(projectId);
+      return doctorProject(dir, p, (id) => tr.get(id), o);
+    },
 
     async listProjects() {
       let names: string[];

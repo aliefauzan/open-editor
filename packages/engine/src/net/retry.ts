@@ -34,7 +34,10 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-export async function withRetry<T>(fn: (attempt: number) => Promise<T>, o: RetryOptions): Promise<T> {
+export async function withRetry<T>(
+  fn: (attempt: number) => Promise<T>,
+  o: RetryOptions,
+): Promise<T> {
   const retries = o.retries ?? RETRIES;
   const base = o.baseMs ?? BACKOFF_MS;
   const wait = o.sleep ?? sleep;

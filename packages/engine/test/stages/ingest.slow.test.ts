@@ -20,7 +20,9 @@ const NTSC = fixture('out/ntsc-2997-20s.mp4');
 let root = '';
 beforeAll(() => {
   if (!existsSync(VFR) || !existsSync(NTSC)) {
-    throw new Error('Run `bash packages/engine/test/fixtures/make.sh` first (fixtures/out is generated).');
+    throw new Error(
+      'Run `bash packages/engine/test/fixtures/make.sh` first (fixtures/out is generated).',
+    );
   }
   root = tempDir('vox-ingest-slow-');
 });
@@ -59,29 +61,34 @@ async function probeSize(path: string): Promise<{ w: number; h: number }> {
 }
 
 describe('ingest video (slow)', () => {
-  test.each(['mp4', 'mov', 'webm'])('talking-head .%s: proxy, audio, thumbs, peaks', async (ext) => {
-    const dir = await project();
-    const seen: number[] = [];
-    const r = await ingest(env(dir, { progress: (p) => seen.push(p) }), {
-      projectId: 'p',
-      inputs: [fixture(`assets/media/talking-head-20s.${ext}`)],
-    });
-    const m = MediaItemSchema.parse(r.media[0]!.media);
-    expect(m).toMatchObject({ kind: 'video', hasAudio: true, vfr: false });
-    expect(m.durationMs).toBeGreaterThan(19_000);
-    expect(m.durationMs).toBeLessThan(21_000);
-    expect(m.loudness?.integratedLufs).toBeLessThan(0);
-    for (const k of ['proxyPath', 'audioPath', 'thumbsPath', 'peaksPath'] as const) {
-      expect(existsSync(join(dir, m[k]!)), k).toBe(true);
-    }
-    expect((await probeSize(join(dir, m.proxyPath!))).h).toBeLessThanOrEqual(540);
-    const peaks = JSON.parse(await readFile(join(dir, m.peaksPath!), 'utf8')) as { peaks: number[] };
-    expect(Math.abs(peaks.peaks.length - (m.durationMs! / 1000) * PEAKS_PER_SECOND)).toBeLessThan(
-      PEAKS_PER_SECOND,
-    );
-    expect(Math.max(...peaks.peaks)).toBeGreaterThan(0.05);
-    expect(seen.at(-1)).toBeGreaterThan(0.8);
-  });
+  test.each(['mp4', 'mov', 'webm'])(
+    'talking-head .%s: proxy, audio, thumbs, peaks',
+    async (ext) => {
+      const dir = await project();
+      const seen: number[] = [];
+      const r = await ingest(env(dir, { progress: (p) => seen.push(p) }), {
+        projectId: 'p',
+        inputs: [fixture(`assets/media/talking-head-20s.${ext}`)],
+      });
+      const m = MediaItemSchema.parse(r.media[0]!.media);
+      expect(m).toMatchObject({ kind: 'video', hasAudio: true, vfr: false });
+      expect(m.durationMs).toBeGreaterThan(19_000);
+      expect(m.durationMs).toBeLessThan(21_000);
+      expect(m.loudness?.integratedLufs).toBeLessThan(0);
+      for (const k of ['proxyPath', 'audioPath', 'thumbsPath', 'peaksPath'] as const) {
+        expect(existsSync(join(dir, m[k]!)), k).toBe(true);
+      }
+      expect((await probeSize(join(dir, m.proxyPath!))).h).toBeLessThanOrEqual(540);
+      const peaks = JSON.parse(await readFile(join(dir, m.peaksPath!), 'utf8')) as {
+        peaks: number[];
+      };
+      expect(Math.abs(peaks.peaks.length - (m.durationMs! / 1000) * PEAKS_PER_SECOND)).toBeLessThan(
+        PEAKS_PER_SECOND,
+      );
+      expect(Math.max(...peaks.peaks)).toBeGreaterThan(0.05);
+      expect(seen.at(-1)).toBeGreaterThan(0.8);
+    },
+  );
 
   test('phone VFR gets a CFR copy; the proxy is made from it', async () => {
     const dir = await project();
@@ -126,7 +133,10 @@ describe('ingest links (slow, fake yt-dlp)', () => {
       origin: { type: 'url', url },
     });
     expect(a.posts).toEqual([{ url, count: 3, taken: 1 }]);
-    const b = await ingest({ ...e, existing: [a.media[0]!.media] }, { projectId: 'p', inputs: [url] });
+    const b = await ingest(
+      { ...e, existing: [a.media[0]!.media] },
+      { projectId: 'p', inputs: [url] },
+    );
     expect(b.media[0]).toMatchObject({ reused: true, media: { id: a.media[0]!.media.id } });
     expect(b.posts).toEqual([{ url, count: 3, taken: 1 }]);
     // yt-dlp ran once; the child got no proxy env vars besides what --proxy sets.

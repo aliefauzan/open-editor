@@ -13,7 +13,9 @@ import { downloadWithYtdlp } from '../../src/stages/ytdlp.ts';
 import { buildYtdlpArgs } from '../../src/stages/ytdlpArgs.ts';
 
 const FIX = fileURLToPath(new URL('../fixtures/ytdlp/', import.meta.url));
-const SOURCE = fileURLToPath(new URL('../fixtures/assets/media/talking-head-20s.mp4', import.meta.url));
+const SOURCE = fileURLToPath(
+  new URL('../fixtures/assets/media/talking-head-20s.mp4', import.meta.url),
+);
 const tools = resolveToolPaths({ toolsDir: join(tmpdir(), 'vox-no-tools'), env: process.env });
 const ytdlp = tools['yt-dlp'];
 
@@ -30,7 +32,15 @@ function simulate(infoJson: string, playlist = false): Record<string, unknown> {
   const flags = args.slice(0, cut).filter((_, i, a) => a[i] !== '-o' && a[i - 1] !== '-o');
   const r = spawnSync(
     ytdlp!,
-    [...flags, '--no-update', '--no-clean-info-json', '--load-info-json', join(FIX, infoJson), '--simulate', '-j'],
+    [
+      ...flags,
+      '--no-update',
+      '--no-clean-info-json',
+      '--load-info-json',
+      join(FIX, infoJson),
+      '--simulate',
+      '-j',
+    ],
     { encoding: 'utf8' },
   );
   expect(r.status, r.stderr).toBe(0);

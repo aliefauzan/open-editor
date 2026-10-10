@@ -8,7 +8,12 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { VoxError } from '../../src/errors.ts';
 import { MediaItemSchema } from '../../src/model/schema.ts';
-import { IngestArgsSchema, ingest, sweepPartFiles, type IngestEnv } from '../../src/stages/ingest.ts';
+import {
+  IngestArgsSchema,
+  ingest,
+  sweepPartFiles,
+  type IngestEnv,
+} from '../../src/stages/ingest.ts';
 import { codeOfAsync, fixture, removeDir, tempDir } from '../media/helpers.ts';
 
 let root = '';
@@ -125,7 +130,8 @@ describe('ingest folders and paths', () => {
 
   test('bad inputs: relative path, missing file, non-http link', async () => {
     const dir = await project();
-    const run = (input: string) => codeOfAsync(ingest(env(dir), { projectId: 'p', inputs: [input] }));
+    const run = (input: string) =>
+      codeOfAsync(ingest(env(dir), { projectId: 'p', inputs: [input] }));
     expect(await run('clip.mp4')).toBe('PATH_INVALID');
     expect(await run(join(root, 'nope.mp4'))).toBe('NOT_FOUND');
     expect(await run('ftp://example.com/a.mp4')).toBe('URL_INVALID');
@@ -199,9 +205,9 @@ describe('ingest links (fake yt-dlp)', () => {
       }),
       { projectId: 'p', inputs: ['https://www.tiktok.com/@someone/video/7000000000000000001'] },
     ).catch(() => undefined);
-    const { args } = JSON.parse((await readFile(log, "utf8")).trim().split("\n")[0]!) as {
+    const { args } = JSON.parse((await readFile(log, 'utf8')).trim().split('\n')[0]!) as {
       args: string[];
     };
-    expect(args[args.indexOf("--cookies-from-browser") + 1]).toBe("firefox");
+    expect(args[args.indexOf('--cookies-from-browser') + 1]).toBe('firefox');
   });
 });

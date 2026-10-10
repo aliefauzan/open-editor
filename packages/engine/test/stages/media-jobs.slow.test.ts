@@ -13,7 +13,10 @@ const fx = new URL('../fixtures/', import.meta.url).pathname;
 const CUTS = `${fx}out/cuts-2shot.mp4`;
 const HEAD = `${fx}assets/media/talking-head-20s.mp4`;
 const truth = (): { fps: number; cutsMs: number[] } =>
-  JSON.parse(readFileSync(`${fx}out/cuts-2shot.cuts.json`, 'utf8')) as { fps: number; cutsMs: number[] };
+  JSON.parse(readFileSync(`${fx}out/cuts-2shot.cuts.json`, 'utf8')) as {
+    fps: number;
+    cutsMs: number[];
+  };
 
 const engine = (): Engine =>
   openEngine({
@@ -29,35 +32,59 @@ async function run<R>(e: Engine, kind: string, args: unknown): Promise<R> {
   return info.result!;
 }
 
-async function ingestOne(e: Engine, input: string, proxies = true): Promise<{ pid: string; mediaId: string }> {
+async function ingestOne(
+  e: Engine,
+  input: string,
+  proxies = true,
+): Promise<{ pid: string; mediaId: string }> {
   if (!existsSync(CUTS)) throw new Error('Run `bash packages/engine/test/fixtures/make.sh` first.');
   const p = await e.createProject('chain');
-  const r = await run<{ media: { mediaId: string }[] }>(e, 'ingest', { projectId: p.id, inputs: [input], proxies });
+  const r = await run<{ media: { mediaId: string }[] }>(e, 'ingest', {
+    projectId: p.id,
+    inputs: [input],
+    proxies,
+  });
   return { pid: p.id, mediaId: r.media[0]!.mediaId };
 }
 
 describe('shots job (slow)', () => {
-  test.each([true, false])('cuts-2shot, proxies %s: every cut within 1 frame; cached rerun', async (proxies) => {
-    const e = engine();
-    const { pid, mediaId } = await ingestOne(e, CUTS, proxies);
-    const a = await run<{ shotsPath: string; cached: boolean; input: string; version: number }>(e, 'shots', {
-      projectId: pid,
-      mediaId,
-    });
-    expect(a).toMatchObject({ shotsPath: `shots/${mediaId}.json`, cached: false, input: proxies ? 'proxy' : 'original' });
-    const shots = JSON.parse(readFileSync(join(e.projectsDir, pid, a.shotsPath), 'utf8')) as { startMs: number }[];
-    const t = truth();
-    const cuts = shots.slice(1).map((s) => s.startMs);
-    expect(cuts).toHaveLength(t.cutsMs.length);
-    t.cutsMs.forEach((c, i) => expect(Math.abs(cuts[i]! - c)).toBeLessThanOrEqual(1000 / t.fps));
-    const m = (await e.getProject(pid)).media[0]!;
-    expect(m.shotsPath).toBe(a.shotsPath);
-    const hist = await e.history(pid);
-    expect(hist.at(-1)).toMatchObject({ op: 'updateMedia' });
-    const b = await run<{ cached: boolean; version: number }>(e, 'shots', { projectId: pid, mediaId });
-    expect(b).toMatchObject({ cached: true, version: a.version });
-    expect(await e.history(pid)).toHaveLength(hist.length);
-  });
+  test.each([true, false])(
+    'cuts-2shot, proxies %s: every cut within 1 frame; cached rerun',
+    async (proxies) => {
+      const e = engine();
+      const { pid, mediaId } = await ingestOne(e, CUTS, proxies);
+      const a = await run<{ shotsPath: string; cached: boolean; input: string; version: number }>(
+        e,
+        'shots',
+        {
+          projectId: pid,
+          mediaId,
+        },
+      );
+      expect(a).toMatchObject({
+        shotsPath: `shots/${mediaId}.json`,
+        cached: false,
+        input: proxies ? 'proxy' : 'original',
+      });
+      const shots = JSON.parse(readFileSync(join(e.projectsDir, pid, a.shotsPath), 'utf8')) as {
+        startMs: number;
+      }[];
+      const t = truth();
+      const cuts = shots.slice(1).map((s) => s.startMs);
+      expect(cuts).toHaveLength(t.cutsMs.length);
+      t.cutsMs.forEach((c, i) => expect(Math.abs(cuts[i]! - c)).toBeLessThanOrEqual(1000 / t.fps));
+      const m = (await e.getProject(pid)).media[0]!;
+      expect(m.shotsPath).toBe(a.shotsPath);
+      const hist = await e.history(pid);
+      expect(hist.at(-1)).toMatchObject({ op: 'updateMedia' });
+      const b = await run<{ cached: boolean; version: number }>(e, 'shots', {
+        projectId: pid,
+        mediaId,
+      });
+      expect(b).toMatchObject({ cached: true, version: a.version });
+      expect(await e.history(pid)).toHaveLength(hist.length);
+    },
+  );
 });
 
 describe('engine.mediaFrames (slow)', () => {
@@ -71,6 +98,8 @@ describe('engine.mediaFrames (slow)', () => {
     const before = statSync(b!).mtimeMs;
     const [again] = await e.mediaFrames(pid, mediaId, [5000]);
     expect(statSync(again!).mtimeMs).toBe(before);
-    await expect(e.mediaFrames(pid, mediaId, [999_999])).rejects.toMatchObject({ code: 'MEDIA_BOUNDS' });
+    await expect(e.mediaFrames(pid, mediaId, [999_999])).rejects.toMatchObject({
+      code: 'MEDIA_BOUNDS',
+    });
   });
 });

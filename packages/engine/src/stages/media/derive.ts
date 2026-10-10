@@ -124,9 +124,18 @@ export function computePeaks(pcm: Buffer): Peaks {
 }
 
 /** One PNG still of the source at `atMs` (input seek: ffmpeg decodes from the keyframe before it, so the frame is exact). */
-export function frameArgs(input: string, format: MediaFormat, atMs: number, output: string): string[] {
+export function frameArgs(
+  input: string,
+  format: MediaFormat,
+  atMs: number,
+  output: string,
+): string[] {
   if (!Number.isInteger(atMs) || atMs < 0) {
-    throw new VoxError('VALIDATION', `atMs must be a whole number ≥ 0, got ${atMs}`, 'Pass times in ms.');
+    throw new VoxError(
+      'VALIDATION',
+      `atMs must be a whole number ≥ 0, got ${atMs}`,
+      'Pass times in ms.',
+    );
   }
   return [
     ...FFMPEG_BASE,

@@ -12,7 +12,7 @@ import { TranscriptSchema, type MediaItem, type Transcript } from '../model/sche
 import { resolveProjectPath } from '../paths.ts';
 import { FILLERS, computeWordKinds } from '../text/fillers.ts';
 import { FORMAT_WHITELIST } from './media/ffargs.ts';
-import { sniffFile } from "./media/sniff.ts";
+import { sniffFile } from './media/sniff.ts';
 
 /** mlx-whisper model pin (R5; mirrors `MODEL_REPO`/`MODEL_REVISION` in `py/vox_py/transcribe.py`). */
 export const WHISPER_REPO = 'mlx-community/whisper-large-v3-turbo';
@@ -92,12 +92,21 @@ export async function transcribeMedia(
   opts: { language?: string } = {},
 ): Promise<TranscribeOutcome> {
   if (media.kind !== 'video' && media.kind !== 'audio') {
-    throw new VoxError('VALIDATION', `Media ${media.id} is a ${media.kind}, not audio or video.`, 'Transcribe a video or audio item.');
+    throw new VoxError(
+      'VALIDATION',
+      `Media ${media.id} is a ${media.kind}, not audio or video.`,
+      'Transcribe a video or audio item.',
+    );
   }
   if (media.hasAudio === false) {
-    throw new VoxError('VALIDATION', `Media ${media.id} has no audio.`, 'Pick a media item with sound.', {
-      details: { mediaId: media.id },
-    });
+    throw new VoxError(
+      'VALIDATION',
+      `Media ${media.id} has no audio.`,
+      'Pick a media item with sound.',
+      {
+        details: { mediaId: media.id },
+      },
+    );
   }
   const dir = env.projectDir;
   const key = transcribeCacheKey(await env.mediaHash(media), opts.language);
@@ -114,11 +123,20 @@ export async function transcribeMedia(
     const input = await resolveProjectPath(dir, media.audioPath ?? media.path);
     const sniffed = await sniffFile(input);
     if (sniffed.kind === 'document' || sniffed.kind === 'image') {
-      throw new VoxError('MEDIA_UNSUPPORTED', `Media ${media.id} has no audio stream to transcribe.`, 'Pick a media item with sound.');
+      throw new VoxError(
+        'MEDIA_UNSUPPORTED',
+        `Media ${media.id} has no audio stream to transcribe.`,
+        'Pick a media item with sound.',
+      );
     }
     const models = env.tools['models'];
     const modelDir = models ? join(models, WHISPER_DIR) : undefined;
-    const hasModel = modelDir ? await stat(join(modelDir, 'weights.safetensors')).then(() => true, () => false) : false;
+    const hasModel = modelDir
+      ? await stat(join(modelDir, 'weights.safetensors')).then(
+          () => true,
+          () => false,
+        )
+      : false;
     raw = await env.runTool({
       audioPath: input,
       fillers: [...(FILLERS['en'] ?? [])],
@@ -135,7 +153,10 @@ export async function transcribeMedia(
   await mkdir(join(dir, 'transcripts'), { recursive: true, mode: 0o700 });
   const file = join(dir, transcriptPath);
   const body = `${JSON.stringify(transcript, null, 1)}\n`;
-  const same = await readFile(file, 'utf8').then((t) => t === body, () => false);
+  const same = await readFile(file, 'utf8').then(
+    (t) => t === body,
+    () => false,
+  );
   if (!same) await writeAtomic(file, body);
   return {
     mediaId: media.id,

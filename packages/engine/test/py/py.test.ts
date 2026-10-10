@@ -310,7 +310,9 @@ describe('robustness', () => {
 
 describe('tool error codes (D-21)', () => {
   it('the last stderr line {"error": {code}} becomes the message, a hint and details.toolCode', async () => {
-    const err = await errorOf(runPyTool('t', { mode: 'tool-error', code: 'DOC_ENCRYPTED' }, Echo, fake()));
+    const err = await errorOf(
+      runPyTool('t', { mode: 'tool-error', code: 'DOC_ENCRYPTED' }, Echo, fake()),
+    );
     expect(isVoxError(err) && err.code).toBe('PY_TOOL_FAILED');
     if (!isVoxError(err)) return;
     expect(err.message).toContain('DOC_ENCRYPTED: pdf is encrypted');

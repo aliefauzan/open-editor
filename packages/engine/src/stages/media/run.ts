@@ -205,7 +205,10 @@ export function runTool(
           { exitCode: code, signal },
         );
       }
-      resolve({ stdout: Buffer.concat(out).toString(opts.binaryStdout ? 'latin1' : 'utf8'), stderr });
+      resolve({
+        stdout: Buffer.concat(out).toString(opts.binaryStdout ? 'latin1' : 'utf8'),
+        stderr,
+      });
     });
   });
 }

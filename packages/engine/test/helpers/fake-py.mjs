@@ -13,7 +13,8 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => (input += d));
 process.stdin.on('end', () => {
   const req = JSON.parse(input);
-  if (process.env.VOX_FAKE_PY_STARTED) writeFileSync(process.env.VOX_FAKE_PY_STARTED, JSON.stringify(req));
+  if (process.env.VOX_FAKE_PY_STARTED)
+    writeFileSync(process.env.VOX_FAKE_PY_STARTED, JSON.stringify(req));
   const answer = () => {
     if (tool === 'doctext') {
       process.stdout.write(JSON.stringify({ text: 'Slide one\n\nSlide two', pages: 2 }));
@@ -36,7 +37,9 @@ process.stdin.on('end', () => {
         }),
       );
     } else {
-      process.stderr.write(`${JSON.stringify({ error: { code: 'VALIDATION', message: `no fake for ${tool}` } })}\n`);
+      process.stderr.write(
+        `${JSON.stringify({ error: { code: 'VALIDATION', message: `no fake for ${tool}` } })}\n`,
+      );
       process.exitCode = 1;
     }
   };

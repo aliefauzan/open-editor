@@ -30,7 +30,12 @@ import {
   type TrackPath,
   type TrackPathOptions,
 } from './stages/facetrack.ts';
-import { DocTextResultSchema, IngestArgsSchema, ingest, type IngestResult } from './stages/ingest.ts';
+import {
+  DocTextResultSchema,
+  IngestArgsSchema,
+  ingest,
+  type IngestResult,
+} from './stages/ingest.ts';
 import { frameArgs } from './stages/media/derive.ts';
 import { FORMAT_WHITELIST } from './stages/media/ffargs.ts';
 import { runTool, type RunOptions } from './stages/media/run.ts';
@@ -68,7 +73,9 @@ const MediaJobArgs = z.strictObject({
   actor: ActorSchema,
 });
 export const IngestJobArgsSchema = IngestArgsSchema.extend({ actor: ActorSchema });
-export const TranscribeJobArgsSchema = MediaJobArgs.extend({ language: z.string().min(1).max(16).optional() });
+export const TranscribeJobArgsSchema = MediaJobArgs.extend({
+  language: z.string().min(1).max(16).optional(),
+});
 export const ShotsJobArgsSchema = MediaJobArgs;
 export const FacetrackJobArgsSchema = MediaJobArgs;
 export type IngestJobArgs = z.infer<typeof IngestJobArgsSchema>;
@@ -76,7 +83,13 @@ export type TranscribeJobArgs = z.infer<typeof TranscribeJobArgsSchema>;
 export type MediaJobArgs = z.infer<typeof MediaJobArgs>;
 
 export interface IngestJobResult extends Omit<IngestResult, 'media'> {
-  media: { input: string; source: string; mediaId: string; kind: MediaItem['kind']; reused: boolean }[];
+  media: {
+    input: string;
+    source: string;
+    mediaId: string;
+    kind: MediaItem['kind'];
+    reused: boolean;
+  }[];
   /** Project version after the job (unchanged when every input was reused). */
   version: number;
 }
@@ -133,7 +146,9 @@ export async function sha256File(path: string): Promise<string | undefined> {
 /** Ingest's content hash (`cache/media/<id>.json`), else the hash of the stored file. */
 export async function mediaHashOf(projectDir: string, media: MediaItem): Promise<string> {
   try {
-    const raw = JSON.parse(await readFile(join(projectDir, 'cache', 'media', `${media.id}.json`), 'utf8')) as {
+    const raw = JSON.parse(
+      await readFile(join(projectDir, 'cache', 'media', `${media.id}.json`), 'utf8'),
+    ) as {
       sha256?: unknown;
     };
     if (typeof raw.sha256 === 'string' && /^[0-9a-f]{64}$/.test(raw.sha256)) return raw.sha256;
@@ -142,9 +157,14 @@ export async function mediaHashOf(projectDir: string, media: MediaItem): Promise
   }
   const h = await sha256File(await resolveProjectPath(projectDir, media.path));
   if (!h) {
-    throw new VoxError('NOT_FOUND', `The file of media ${media.id} is missing.`, 'Ingest the media again.', {
-      details: { mediaId: media.id },
-    });
+    throw new VoxError(
+      'NOT_FOUND',
+      `The file of media ${media.id} is missing.`,
+      'Ingest the media again.',
+      {
+        details: { mediaId: media.id },
+      },
+    );
   }
   return h;
 }
@@ -152,23 +172,38 @@ export async function mediaHashOf(projectDir: string, media: MediaItem): Promise
 export function findMedia(p: Project, mediaId: string): MediaItem {
   const m = p.media.find((x) => x.id === mediaId);
   if (!m) {
-    throw new VoxError('NOT_FOUND', `No media ${mediaId} in project ${p.id}.`, 'Use a media id from the project.', {
-      details: { mediaId },
-    });
+    throw new VoxError(
+      'NOT_FOUND',
+      `No media ${mediaId} in project ${p.id}.`,
+      'Use a media id from the project.',
+      {
+        details: { mediaId },
+      },
+    );
   }
   return m;
 }
 
 function needVideo(m: MediaItem, what: string): void {
   if (m.kind !== 'video') {
-    throw new VoxError('VALIDATION', `${what} needs a video; media ${m.id} is ${m.kind}.`, 'Pick a video media item.', {
-      details: { mediaId: m.id },
-    });
+    throw new VoxError(
+      'VALIDATION',
+      `${what} needs a video; media ${m.id} is ${m.kind}.`,
+      'Pick a video media item.',
+      {
+        details: { mediaId: m.id },
+      },
+    );
   }
   if (!m.durationMs) {
-    throw new VoxError('MEDIA_UNSUPPORTED', `Media ${m.id} has no duration.`, 'Ingest the media again.', {
-      details: { mediaId: m.id },
-    });
+    throw new VoxError(
+      'MEDIA_UNSUPPORTED',
+      `Media ${m.id} has no duration.`,
+      'Ingest the media again.',
+      {
+        details: { mediaId: m.id },
+      },
+    );
   }
 }
 
@@ -181,7 +216,11 @@ async function detectionInput(
   const path = await resolveProjectPath(dir, rel);
   const s = await sniffFile(path);
   if (s.kind !== 'video') {
-    throw new VoxError('MEDIA_UNSUPPORTED', `Media ${m.id} has no readable video stream.`, 'Ingest the media again.');
+    throw new VoxError(
+      'MEDIA_UNSUPPORTED',
+      `Media ${m.id} has no readable video stream.`,
+      'Ingest the media again.',
+    );
   }
   return { path, format: s.format, input: m.proxyPath ? 'proxy' : 'original' };
 }
@@ -198,7 +237,12 @@ async function applyJobOps(
   // applyOp reports a refused op in its results (JOB_CONFLICT, a failed batch step); the job fails.
   const bad = r.results.find((x) => x.status !== 'succeeded' && x.error)?.error;
   if (bad) {
-    throw new VoxError(bad.code, bad.message, bad.hint, bad.details ? { details: bad.details } : {});
+    throw new VoxError(
+      bad.code,
+      bad.message,
+      bad.hint,
+      bad.details ? { details: bad.details } : {},
+    );
   }
   return r.version;
 }
@@ -213,7 +257,8 @@ async function readParsed<T>(path: string, schema: z.ZodType<T>): Promise<T | un
   }
 }
 
-const cancelled = (): VoxError => new VoxError('CANCELLED', 'The download was cancelled.', 'Run it again when ready.');
+const cancelled = (): VoxError =>
+  new VoxError('CANCELLED', 'The download was cancelled.', 'Run it again when ready.');
 
 /**
  * The pinned face model in `<tools>/models` (downloaded once over a checked public connection,
@@ -221,12 +266,21 @@ const cancelled = (): VoxError => new VoxError('CANCELLED', 'The download was ca
  */
 export async function ensureFaceModel(
   modelsDir: string,
-  o: { signal?: AbortSignal; net?: { resolver?: Resolver; dial?: Dial }; url?: string } = {},
+  o: {
+    signal?: AbortSignal;
+    net?: { resolver?: Resolver; dial?: Dial };
+    /** Test seams. */
+    url?: string;
+    sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  } = {},
 ): Promise<string> {
   const path = join(modelsDir, FACE_MODEL.name);
   if ((await sha256File(path)) === FACE_MODEL.sha256) return path;
   await mkdir(modelsDir, { recursive: true, mode: 0o700 });
-  const temp = join(modelsDir, `.vox-part-${process.pid}-${randomBytes(6).toString('hex')}-${FACE_MODEL.name}`);
+  const temp = join(
+    modelsDir,
+    `.vox-part-${process.pid}-${randomBytes(6).toString('hex')}-${FACE_MODEL.name}`,
+  );
   try {
     await withRetry(
       async () => {
@@ -239,7 +293,11 @@ export async function ensureFaceModel(
         });
         if (res.status !== 200) {
           res.body.resume();
-          throw new VoxError('TOOL_FAILED', `The face model download returned HTTP ${res.status}.`, 'Check the connection and run it again.');
+          throw new VoxError(
+            'TOOL_FAILED',
+            `The face model download returned HTTP ${res.status}.`,
+            'Check the connection and run it again.',
+          );
         }
         const h = createHash('sha256');
         const fh = await open(temp, 'w', 0o644);
@@ -250,7 +308,11 @@ export async function ensureFaceModel(
             size += b.length;
             if (size > FACE_MODEL.maxBytes) {
               res.body.destroy();
-              throw new VoxError('NET_TOO_LARGE', 'The face model download is too large.', 'Run vox doctor.');
+              throw new VoxError(
+                'NET_TOO_LARGE',
+                'The face model download is too large.',
+                'Run vox doctor.',
+              );
             }
             h.update(b);
             await fh.write(b);
@@ -267,7 +329,9 @@ export async function ensureFaceModel(
         }
       },
       {
-        retryable: (e) => e instanceof VoxError && (e.code === 'TOOL_FAILED' || e.code === 'NET_DNS'),
+        retryable: (e) =>
+          e instanceof VoxError && (e.code === 'TOOL_FAILED' || e.code === 'NET_DNS'),
+        ...(o.sleep ? { sleep: o.sleep } : {}),
         ...(o.signal ? { signal: o.signal } : {}),
       },
     );
@@ -328,7 +392,10 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
           // S33: the cookies opt-in comes from the user's config only.
           cookiesFromBrowser: config.ingest?.cookiesFromBrowser ?? null,
           docText: (path) =>
-            runPyTool('doctext', { path }, DocTextResultSchema, { ...py(ctx), onProgress: () => undefined }),
+            runPyTool('doctext', { path }, DocTextResultSchema, {
+              ...py(ctx),
+              onProgress: () => undefined,
+            }),
           ...(deps.net ? { net: deps.net } : {}),
         },
         ingestArgs,
@@ -340,7 +407,11 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         added.add(m.media.id);
         ops.push({ op: 'addMedia', args: { media: m.media } });
       }
-      const version = await applyJobOps(store, ops, { actor: actor ?? 'user', jobId: ctx.jobId, baseVersion });
+      const version = await applyJobOps(store, ops, {
+        actor: actor ?? 'user',
+        jobId: ctx.jobId,
+        baseVersion,
+      });
       return {
         media: r.media.map((m) => ({
           input: m.input,
@@ -381,10 +452,17 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         : [
             {
               op: 'updateMedia',
-              args: { mediaId: media.id, patch: { transcriptPath: out.transcriptPath, transcriptRev: out.transcriptRev } },
+              args: {
+                mediaId: media.id,
+                patch: { transcriptPath: out.transcriptPath, transcriptRev: out.transcriptRev },
+              },
             },
           ];
-      const version = await applyJobOps(store, ops, { actor: args.actor ?? 'user', jobId: ctx.jobId, baseVersion });
+      const version = await applyJobOps(store, ops, {
+        actor: args.actor ?? 'user',
+        jobId: ctx.jobId,
+        baseVersion,
+      });
       return {
         mediaId: media.id,
         transcriptPath: out.transcriptPath,
@@ -424,9 +502,22 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         await writeAtomic(file, `${JSON.stringify(shots)}\n`);
       }
       const ops: OpCall[] =
-        media.shotsPath === shotsPath ? [] : [{ op: 'updateMedia', args: { mediaId: media.id, patch: { shotsPath } } }];
-      const version = await applyJobOps(store, ops, { actor: args.actor ?? 'user', jobId: ctx.jobId, baseVersion });
-      return { mediaId: media.id, shotsPath, shots: shots.length, cached, input: src.input, version };
+        media.shotsPath === shotsPath
+          ? []
+          : [{ op: 'updateMedia', args: { mediaId: media.id, patch: { shotsPath } } }];
+      const version = await applyJobOps(store, ops, {
+        actor: args.actor ?? 'user',
+        jobId: ctx.jobId,
+        baseVersion,
+      });
+      return {
+        mediaId: media.id,
+        shotsPath,
+        shots: shots.length,
+        cached,
+        input: src.input,
+        version,
+      };
     },
   });
 
@@ -444,7 +535,11 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
       if (!det) {
         const models = tools['models'];
         if (!models) {
-          throw new VoxError('TOOL_MISSING', 'No tools folder for the face model.', 'Run vox doctor.');
+          throw new VoxError(
+            'TOOL_MISSING',
+            'No tools folder for the face model.',
+            'Run vox doctor.',
+          );
         }
         ctx.progress(0.02, 'face model');
         const faceModelPath = await ensureFaceModel(models, {
@@ -470,8 +565,19 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         media.facetrackPath === facetrackPath
           ? []
           : [{ op: 'updateMedia', args: { mediaId: media.id, patch: { facetrackPath } } }];
-      const version = await applyJobOps(store, ops, { actor: args.actor ?? 'user', jobId: ctx.jobId, baseVersion });
-      return { mediaId: media.id, facetrackPath, samples: det.samples.length, cached, input: src.input, version };
+      const version = await applyJobOps(store, ops, {
+        actor: args.actor ?? 'user',
+        jobId: ctx.jobId,
+        baseVersion,
+      });
+      return {
+        mediaId: media.id,
+        facetrackPath,
+        samples: det.samples.length,
+        cached,
+        input: src.input,
+        version,
+      };
     },
   });
 
@@ -520,26 +626,45 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
       if (media.kind === 'image') return atMs.map(() => join(dir, media.path));
       needVideo(media, 'Media frames');
       if (atMs.length === 0 || atMs.length > 100) {
-        throw new VoxError('VALIDATION', 'Pass 1 to 100 times.', 'Use --at-ms with up to 100 values.');
+        throw new VoxError(
+          'VALIDATION',
+          'Pass 1 to 100 times.',
+          'Use --at-ms with up to 100 values.',
+        );
       }
       const srcPath = await resolveProjectPath(dir, media.cfrPath ?? media.path);
       const s = await sniffFile(srcPath);
       if (s.kind !== 'video') {
-        throw new VoxError('MEDIA_UNSUPPORTED', `Media ${mediaId} has no readable video stream.`, 'Ingest the media again.');
+        throw new VoxError(
+          'MEDIA_UNSUPPORTED',
+          `Media ${mediaId} has no readable video stream.`,
+          'Ingest the media again.',
+        );
       }
       const framesDir = join(dir, 'cache', 'frames');
       await mkdir(framesDir, { recursive: true, mode: 0o700 });
       const out: string[] = [];
       for (const t of atMs) {
         if (!Number.isInteger(t) || t < 0 || t > media.durationMs!) {
-          throw new VoxError('MEDIA_BOUNDS', `${t} ms is outside media ${mediaId} (0–${media.durationMs} ms).`, 'Pick a time inside the media.', {
-            details: { mediaId, atMs: t },
-          });
+          throw new VoxError(
+            'MEDIA_BOUNDS',
+            `${t} ms is outside media ${mediaId} (0–${media.durationMs} ms).`,
+            'Pick a time inside the media.',
+            {
+              details: { mediaId, atMs: t },
+            },
+          );
         }
         const file = join(framesDir, `${mediaId}-${t}.png`);
-        const ok = await stat(file).then((st) => st.size > 0, () => false);
+        const ok = await stat(file).then(
+          (st) => st.size > 0,
+          () => false,
+        );
         if (!ok) {
-          const temp = join(framesDir, `.vox-part-${process.pid}-${randomBytes(6).toString('hex')}.png`);
+          const temp = join(
+            framesDir,
+            `.vox-part-${process.pid}-${randomBytes(6).toString('hex')}.png`,
+          );
           try {
             // The last frame sits just before durationMs; seek a little earlier at the very end.
             const at = Math.max(0, Math.min(t, media.durationMs! - 50));

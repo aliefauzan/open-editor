@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { link, lstat, mkdir, open, readFile, rename, rm, unlink } from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import { VoxError } from './errors.ts';
@@ -57,52 +57,64 @@ type Patch<T> = T extends readonly unknown[]
 /** A JSON merge patch (RFC 7396): objects merge, `null` removes a key, arrays and scalars replace. */
 export type ConfigPatch = Patch<Config>;
 
+/** Environment the config location is read from (`VOX_HOME`, `HOME`); default `process.env`. */
+export type ConfigEnv = Readonly<Record<string, string | undefined>>;
+
 /** `$VOX_HOME` (tests) or `~/.vox`. */
-export function voxHome(): string {
-  const env = process.env['VOX_HOME'];
-  return env && env.length > 0 ? env : join(homedir(), '.vox');
+export function voxHome(env: ConfigEnv = process.env): string {
+  const v = env['VOX_HOME'];
+  if (v && v.length > 0) return v;
+  const home = env === process.env ? homedir() : (env['HOME'] ?? homedir());
+  return join(home, '.vox');
 }
 
-export function configPath(): string {
-  return join(voxHome(), 'config.json');
+export function configPath(env: ConfigEnv = process.env): string {
+  return join(voxHome(env), 'config.json');
 }
 
-function invalid(message: string, details?: Record<string, unknown>): VoxError {
+function invalid(
+  message: string,
+  details?: Record<string, unknown>,
+  path = configPath(),
+): VoxError {
   return new VoxError(
     'CONFIG_INVALID',
     message,
-    `Fix ${configPath()} by hand, or delete it to start from defaults`,
+    `Fix ${path} by hand, or delete it to start from defaults`,
     details ? { details } : {},
   );
 }
 
-function parseConfig(value: unknown, what: string): Config {
+function parseConfig(value: unknown, what: string, path = configPath()): Config {
   const res = ConfigSchema.safeParse(value);
   if (!res.success) {
-    throw invalid(`${what} is not a valid Vox config`, {
-      issues: res.error.issues.map((i) => ({ path: i.path.map(String), message: i.message })),
-    });
+    throw invalid(
+      `${what} is not a valid Vox config`,
+      { issues: res.error.issues.map((i) => ({ path: i.path.map(String), message: i.message })) },
+      path,
+    );
   }
   return res.data;
 }
 
-export async function readConfig(): Promise<Config> {
+export async function readConfig(env: ConfigEnv = process.env): Promise<Config> {
+  const path = configPath(env);
   let text: string;
   try {
-    text = await readFile(configPath(), 'utf8');
+    text = await readFile(path, 'utf8');
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return {};
-    throw invalid(`${configPath()} cannot be read (${code ?? 'error'})`);
+    throw invalid(`${path} cannot be read (${code ?? 'error'})`, undefined, path);
   }
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
     // No cause: V8's SyntaxError quotes the file text, which may hold secrets (S19).
-    throw invalid(`${configPath()} is not valid JSON`);
+    throw invalid(`${path} is not valid JSON`, undefined, path);
   }
-  return parseConfig(json, configPath());
+  return parseConfig(json, path, path);
 }
 
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -244,7 +256,7 @@ async function writeAtomic(path: string, text: string): Promise<void> {
   }
   // Durability of the rename only; the write is already committed, so a failure here is ignored.
   try {
-    const dir = await open(voxHome(), 'r');
+    const dir = await open(dirname(path), 'r');
     try {
       await dir.sync();
     } finally {
@@ -259,13 +271,13 @@ async function writeAtomic(path: string, text: string): Promise<void> {
  * Merges `patch` into the stored config and returns the result. Keys the patch does not name are
  * kept (S17: another writer's fields are never dropped). Serialised in-process and across processes.
  */
-export function writeConfig(patch: ConfigPatch): Promise<Config> {
+export function writeConfig(patch: ConfigPatch, env: ConfigEnv = process.env): Promise<Config> {
   const run = queue.then(async () => {
-    await mkdir(voxHome(), { recursive: true, mode: 0o700 });
-    const path = configPath();
+    await mkdir(voxHome(env), { recursive: true, mode: 0o700 });
+    const path = configPath(env);
     return withFileLock(`${path}.lock`, async () => {
-      const current = await readConfig();
-      const next = parseConfig(mergePatch(current, patch), 'The updated config');
+      const current = await readConfig(env);
+      const next = parseConfig(mergePatch(current, patch), 'The updated config', path);
       await writeAtomic(path, JSON.stringify(next, null, 2) + '\n');
       return next;
     });

@@ -46,7 +46,9 @@ process.stdin.on('end', () => {
     }
     case 'tool-error': {
       process.stderr.write('Traceback-like noise\n');
-      process.stderr.write(`${JSON.stringify({ error: { code: req.code, message: 'pdf is encrypted' } })}\n`);
+      process.stderr.write(
+        `${JSON.stringify({ error: { code: req.code, message: 'pdf is encrypted' } })}\n`,
+      );
       process.exitCode = 1;
       break;
     }

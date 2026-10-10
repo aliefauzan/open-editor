@@ -402,7 +402,9 @@ export const TOOL_ERROR_HINTS: Readonly<Record<string, string>> = {
 };
 
 /** The tool's own error from the stderr tail, if its last line is the D-21 error JSON. */
-export function toolErrorOf(tail: readonly string[]): { code: string; message: string } | undefined {
+export function toolErrorOf(
+  tail: readonly string[],
+): { code: string; message: string } | undefined {
   const last = tail.at(-1)?.trim();
   if (!last?.startsWith('{')) return undefined;
   try {

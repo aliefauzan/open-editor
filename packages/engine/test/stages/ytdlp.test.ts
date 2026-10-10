@@ -19,7 +19,9 @@ import {
 
 const FIX = fileURLToPath(new URL('../fixtures/ytdlp/', import.meta.url));
 const FAKE = fileURLToPath(new URL('../helpers/fake-ytdlp.mjs', import.meta.url));
-const SOURCE = fileURLToPath(new URL('../fixtures/assets/media/talking-head-20s.mp4', import.meta.url));
+const SOURCE = fileURLToPath(
+  new URL('../fixtures/assets/media/talking-head-20s.mp4', import.meta.url),
+);
 const stderrOf = (f: string) => readFile(join(FIX, f), 'utf8');
 const toolFailed = (cause: string) =>
   new VoxError('TOOL_FAILED', 'yt-dlp failed (exit code 1).', 'x', { cause });
@@ -27,7 +29,11 @@ const toolFailed = (cause: string) =>
 describe('LOGIN_REQUIRED mapping (D-13)', () => {
   test.each([
     ['instagram-login.stderr.txt', 'https://www.instagram.com/p/DPrivate0001/', 'instagram'],
-    ['tiktok-private.stderr.txt', 'https://www.tiktok.com/@someone/video/7400000000000000001', 'tiktok'],
+    [
+      'tiktok-private.stderr.txt',
+      'https://www.tiktok.com/@someone/video/7400000000000000001',
+      'tiktok',
+    ],
     ['instagram-rate-limit.stderr.txt', 'https://www.instagram.com/reel/DRate000001/', 'instagram'],
   ])('%s → LOGIN_REQUIRED with the spec hint', async (file, url, source) => {
     const err = ytdlpFailure(toolFailed(await stderrOf(file)), url, []) as VoxError;
@@ -39,7 +45,11 @@ describe('LOGIN_REQUIRED mapping (D-13)', () => {
   test.each(['unsupported.stderr.txt', 'youtube-503.stderr.txt'])(
     '%s stays TOOL_FAILED with the local-file hint (step 14)',
     async (file) => {
-      const err = ytdlpFailure(toolFailed(await stderrOf(file)), 'https://example.com/page', []) as VoxError;
+      const err = ytdlpFailure(
+        toolFailed(await stderrOf(file)),
+        'https://example.com/page',
+        [],
+      ) as VoxError;
       expect(err.code).toBe('TOOL_FAILED');
       expect(err.hint).toBe(YTDLP_FAILED_HINT);
       expect(err.hint).toMatch(/local|file/);
@@ -70,7 +80,13 @@ describe('yt-dlp helpers', () => {
   });
 
   test('proxy variables are removed from the child env', () => {
-    const env = ytdlpEnv({ PATH: '/bin', HTTPS_PROXY: 'x', http_proxy: 'y', ALL_PROXY: 'z', NO_PROXY: '*' });
+    const env = ytdlpEnv({
+      PATH: '/bin',
+      HTTPS_PROXY: 'x',
+      http_proxy: 'y',
+      ALL_PROXY: 'z',
+      NO_PROXY: '*',
+    });
     expect(env).toEqual({ PATH: '/bin' });
   });
 
@@ -78,7 +94,10 @@ describe('yt-dlp helpers', () => {
     const r = parseYtdlpReport(
       'noise\nvox-result {"filepath":"/a/m.mp4","id":"x","width":1080,"height":1920,"playlist_count":3}\nvox-result {bad\n',
     );
-    expect(r).toEqual({ files: [{ filepath: '/a/m.mp4', id: 'x', width: 1080, height: 1920 }], count: 3 });
+    expect(r).toEqual({
+      files: [{ filepath: '/a/m.mp4', id: 'x', width: 1080, height: 1920 }],
+      count: 3,
+    });
     expect(parseProgressLine('vox-progress 25 100')).toBe(0.25);
     expect(parseProgressLine('vox-progress 25 NA')).toBeUndefined();
   });
@@ -152,7 +171,10 @@ describe('downloadWithYtdlp with a fake yt-dlp', () => {
     expect(args).toContain('--playlist-items');
     expect(args).not.toContain('--js-runtimes');
     expect(args).not.toContain('--cookies-from-browser');
-    expect(res).toMatchObject({ count: 3, files: [{ filepath: expect.stringMatching(/m_test\.mp4$/) }] });
+    expect(res).toMatchObject({
+      count: 3,
+      files: [{ filepath: expect.stringMatching(/m_test\.mp4$/) }],
+    });
     expect(progress).toContain(1);
   });
 
@@ -162,10 +184,12 @@ describe('downloadWithYtdlp with a fake yt-dlp', () => {
       tools: { 'yt-dlp': FAKE },
     });
     const { args } = calls[0]!;
-    expect(args.slice(args.indexOf('--cookies-from-browser'), args.indexOf('--cookies-from-browser') + 2)).toEqual([
-      '--cookies-from-browser',
-      'firefox',
-    ]);
+    expect(
+      args.slice(
+        args.indexOf('--cookies-from-browser'),
+        args.indexOf('--cookies-from-browser') + 2,
+      ),
+    ).toEqual(['--cookies-from-browser', 'firefox']);
     expect(args.slice(args.indexOf('--js-runtimes'), args.indexOf('--js-runtimes') + 2)).toEqual([
       '--js-runtimes',
       'node',

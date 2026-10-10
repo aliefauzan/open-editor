@@ -76,7 +76,10 @@ describe('engine.jobs', () => {
     e.on('job.done', (x) => events.push(`done:${x.kind}`));
     e.on('job.started', (x) => events.push(`started:${x.kind}`));
     const id = e.jobs.start('ingest', { projectId: p.id, inputs: [src], actor: 'cli' });
-    const info = (await e.jobs.wait(id)) as JobInfo<{ media: { mediaId: string; kind: string }[]; version: number }>;
+    const info = (await e.jobs.wait(id)) as JobInfo<{
+      media: { mediaId: string; kind: string }[];
+      version: number;
+    }>;
     expect(info.status, JSON.stringify(info.error)).toBe('done');
     expect(info.result!.media.map((m) => m.kind)).toEqual(['document', 'document']);
     expect(events).toEqual(['started:ingest', 'done:ingest']);
@@ -84,7 +87,9 @@ describe('engine.jobs', () => {
     expect(hist).toHaveLength(1);
     expect(hist[0]).toMatchObject({ actor: 'cli', jobId: id, version: 1 });
     const pdf = (await e.getProject(p.id)).media.find((m) => m.path.endsWith('.pdf'))!;
-    expect(await readFile(join(e.projectsDir, p.id, pdf.textPath!), 'utf8')).toBe('Slide one\n\nSlide two');
+    expect(await readFile(join(e.projectsDir, p.id, pdf.textPath!), 'utf8')).toBe(
+      'Slide one\n\nSlide two',
+    );
 
     const again = await e.jobs.wait(e.jobs.start('ingest', { projectId: p.id, inputs: [src] }));
     expect(again.status).toBe('done');
@@ -94,7 +99,11 @@ describe('engine.jobs', () => {
   test('ingest args are strict: a cookies setting in the args is refused (S33)', () => {
     const e = engine();
     expect(() =>
-      e.jobs.start('ingest', { projectId: 'p_x', inputs: ['https://youtu.be/x'], cookiesFromBrowser: 'chrome' }),
+      e.jobs.start('ingest', {
+        projectId: 'p_x',
+        inputs: ['https://youtu.be/x'],
+        cookiesFromBrowser: 'chrome',
+      }),
     ).toThrow(/Invalid arguments for job ingest/);
   });
 
@@ -127,7 +136,11 @@ describe('engine.jobs', () => {
     vi.stubEnv('VOX_FAKE_PY_GO', join(tmp, 'go'));
     const id = e.jobs.start('transcribe', { projectId: pid, mediaId: 'm_aud1' });
     await waitFor(join(tmp, 'started'));
-    await e.applyOp(pid, { op: 'updateMedia', args: { mediaId: 'm_aud1', patch: { description: 'mine' } } }, { actor: 'user' });
+    await e.applyOp(
+      pid,
+      { op: 'updateMedia', args: { mediaId: 'm_aud1', patch: { description: 'mine' } } },
+      { actor: 'user' },
+    );
     await writeFile(join(tmp, 'go'), '');
     const info = await e.jobs.wait(id);
     expect(info.status).toBe('failed');
@@ -145,7 +158,11 @@ describe('engine.jobs', () => {
     vi.stubEnv('VOX_FAKE_PY_GO', join(tmp, 'go'));
     const id = e.jobs.start('transcribe', { projectId: pid, mediaId: 'm_aud1' });
     await waitFor(join(tmp, 'started'));
-    await e.applyOp(pid, { op: 'updateMedia', args: { mediaId: 'm_aud2', patch: { description: 'other' } } }, { actor: 'user' });
+    await e.applyOp(
+      pid,
+      { op: 'updateMedia', args: { mediaId: 'm_aud2', patch: { description: 'other' } } },
+      { actor: 'user' },
+    );
     await writeFile(join(tmp, 'go'), '');
     const info = await e.jobs.wait(id);
     expect(info.status, JSON.stringify(info.error)).toBe('done');
@@ -156,7 +173,9 @@ describe('engine.jobs', () => {
   test('transcribe on a document is a VALIDATION failure; unknown media is NOT_FOUND', async () => {
     const e = engine();
     const pid = await projectWithAudio(e);
-    const info = await e.jobs.wait(e.jobs.start('transcribe', { projectId: pid, mediaId: 'm_none' }));
+    const info = await e.jobs.wait(
+      e.jobs.start('transcribe', { projectId: pid, mediaId: 'm_none' }),
+    );
     expect(info.error?.code).toBe('NOT_FOUND');
   });
 
@@ -165,7 +184,9 @@ describe('engine.jobs', () => {
     const secret = 'sk-or-v1-CANARY0000000000000000000000000000000000000000000000000000';
     const failed: string[] = [];
     e.on('job.failed', (x) => failed.push(JSON.stringify(x)));
-    const info = await e.jobs.wait(e.jobs.start('ingest', { projectId: 'p_nope', inputs: [`/tmp/${secret}`] }));
+    const info = await e.jobs.wait(
+      e.jobs.start('ingest', { projectId: 'p_nope', inputs: [`/tmp/${secret}`] }),
+    );
     expect(info.status).toBe('failed');
     expect(JSON.stringify(info)).not.toContain(secret);
     expect(failed.join('')).not.toContain(secret);

@@ -131,15 +131,25 @@ export function ytdlpFailure(e: unknown, url: string, refused: readonly ProxyRef
     );
   }
   if (isLoginWall(cause)) {
-    return new VoxError('LOGIN_REQUIRED', `The ${source} post needs a login.`, LOGIN_REQUIRED_HINT, {
-      cause,
-      details: { source },
-    });
+    return new VoxError(
+      'LOGIN_REQUIRED',
+      `The ${source} post needs a login.`,
+      LOGIN_REQUIRED_HINT,
+      {
+        cause,
+        details: { source },
+      },
+    );
   }
-  return new VoxError('TOOL_FAILED', `yt-dlp could not download the ${source} link.`, YTDLP_FAILED_HINT, {
-    cause,
-    details: { ...(e.details ?? {}), source },
-  });
+  return new VoxError(
+    'TOOL_FAILED',
+    `yt-dlp could not download the ${source} link.`,
+    YTDLP_FAILED_HINT,
+    {
+      cause,
+      details: { ...(e.details ?? {}), source },
+    },
+  );
 }
 
 /** Retry only plain download failures; never a login wall, a blocked host or a cancel. */
@@ -218,9 +228,14 @@ export async function downloadWithYtdlp(o: DownloadOptions): Promise<YtdlpReport
     );
     const report = parseYtdlpReport(stdout);
     if (report.files.length === 0) {
-      throw new VoxError('TOOL_FAILED', 'yt-dlp finished without a video file.', YTDLP_FAILED_HINT, {
-        details: { source: classifyUrl(o.url) },
-      });
+      throw new VoxError(
+        'TOOL_FAILED',
+        'yt-dlp finished without a video file.',
+        YTDLP_FAILED_HINT,
+        {
+          details: { source: classifyUrl(o.url) },
+        },
+      );
     }
     return report;
   } finally {

@@ -38,7 +38,10 @@ export const IngestArgsSchema = z.strictObject({
 });
 export type IngestArgs = z.infer<typeof IngestArgsSchema>;
 
-export const DocTextResultSchema = z.strictObject({ text: z.string(), pages: z.int().nonnegative() });
+export const DocTextResultSchema = z.strictObject({
+  text: z.string(),
+  pages: z.int().nonnegative(),
+});
 
 export interface IngestEnv {
   projectDir: string;
@@ -196,13 +199,22 @@ async function liveMedia(
 }
 
 const textUnsupported = (what: string) =>
-  new VoxError('MEDIA_UNSUPPORTED', `The document is not ${what}.`, 'Save it as UTF-8 text or PDF, then add it again.');
+  new VoxError(
+    'MEDIA_UNSUPPORTED',
+    `The document is not ${what}.`,
+    'Save it as UTF-8 text or PDF, then add it again.',
+  );
 
 /** Copies one local file in and builds its media item (or returns the earlier one for the same bytes). */
 async function ingestFile(
   env: IngestEnv,
   src: string,
-  o: { within?: string; origin: MediaItem['origin']; proxies: boolean; known: Map<string, MediaItem> },
+  o: {
+    within?: string;
+    origin: MediaItem['origin'];
+    proxies: boolean;
+    known: Map<string, MediaItem>;
+  },
 ): Promise<{ media: MediaItem; reused: boolean }> {
   const dir = env.projectDir;
   const id = newId('m_');
@@ -278,7 +290,12 @@ async function buildMedia(
     const ext = sniffed.format === 'png' ? 'png' : 'jpg';
     const path = join(dir, 'media', `${id}.${ext}`);
     // S6: the stored image is a fresh encode of the decoded picture, never the uploaded bytes.
-    await ffmpegInto(path, (out) => imageReencodeArgs({ input: staging, format: sniffed.format, output: out }), ro, created);
+    await ffmpegInto(
+      path,
+      (out) => imageReencodeArgs({ input: staging, format: sniffed.format, output: out }),
+      ro,
+      created,
+    );
     await unlink(staging).catch(() => undefined);
     const a = await analyzeMedia(path, { ...sniffed, ext }, ro);
     return {
@@ -301,7 +318,14 @@ async function buildMedia(
     const cfr = a.cfr;
     await ffmpegInto(
       cfrPath,
-      (out) => cfrCopyArgs({ input: path, format: sniffed.format, output: out, fps: cfr.fps, audioCodec: a.audioCodec }),
+      (out) =>
+        cfrCopyArgs({
+          input: path,
+          format: sniffed.format,
+          output: out,
+          fps: cfr.fps,
+          audioCodec: a.audioCodec,
+        }),
       ro,
       created,
     );
@@ -313,7 +337,12 @@ async function buildMedia(
   if (a.kind === 'video' && o.proxies && a.fps) {
     const fps = a.fps;
     proxyPath = join(dir, 'proxies', `${id}.mp4`);
-    await ffmpegInto(proxyPath, (out) => proxyArgs({ input: video.path, format: video.format, output: out, fps }), ro, created);
+    await ffmpegInto(
+      proxyPath,
+      (out) => proxyArgs({ input: video.path, format: video.format, output: out, fps }),
+      ro,
+      created,
+    );
     env.progress?.(0.7, 'proxy');
     if (a.durationMs) {
       const d = a.durationMs;
@@ -334,7 +363,11 @@ async function buildMedia(
         binaryStdout: true,
       });
       peaksPath = join(dir, 'peaks', `${id}.json`);
-      await writeNew(peaksPath, JSON.stringify(computePeaks(Buffer.from(stdout, 'latin1'))), created);
+      await writeNew(
+        peaksPath,
+        JSON.stringify(computePeaks(Buffer.from(stdout, 'latin1'))),
+        created,
+      );
     }
   }
   env.progress?.(0.9, 'derived files');
@@ -367,32 +400,54 @@ export async function ingest(env: IngestEnv, args: IngestArgs): Promise<IngestRe
   const proxies = args.proxies !== false;
   const out: IngestResult = { media: [], posts: [], skipped: [] };
   const total = args.inputs.length;
-  const sub = (i: number) => (p: number, m?: string) => env.progress?.((i + Math.min(1, p)) / total, m);
+  const sub = (i: number) => (p: number, m?: string) =>
+    env.progress?.((i + Math.min(1, p)) / total, m);
 
   for (const [i, input] of args.inputs.entries()) {
-    if (env.signal?.aborted) throw new VoxError('CANCELLED', 'Ingest was cancelled.', 'Run it again when ready.');
+    if (env.signal?.aborted)
+      throw new VoxError('CANCELLED', 'Ingest was cancelled.', 'Run it again when ready.');
     const progress = sub(i);
     const kind = classifyUrl(input);
     if (kind !== 'invalid') {
-      out.media.push(...(await ingestUrl({ ...env, progress }, input, kind, args, proxies, known, out)));
+      out.media.push(
+        ...(await ingestUrl({ ...env, progress }, input, kind, args, proxies, known, out)),
+      );
       continue;
     }
     if (looksLikeUrl(input)) {
-      throw new VoxError('URL_INVALID', `Not an http(s) link: ${input}`, 'Paste an http(s) link, or add the video as a local file.');
+      throw new VoxError(
+        'URL_INVALID',
+        `Not an http(s) link: ${input}`,
+        'Paste an http(s) link, or add the video as a local file.',
+      );
     }
     if (!isAbsolute(input)) {
-      throw new VoxError('PATH_INVALID', `Local paths must be absolute: ${input}`, 'Pass the full path to the file or folder.');
+      throw new VoxError(
+        'PATH_INVALID',
+        `Local paths must be absolute: ${input}`,
+        'Pass the full path to the file or folder.',
+      );
     }
     const e2 = { ...env, progress };
     const st = await lstat(input).catch(() => undefined);
     if (!st) {
-      throw new VoxError('NOT_FOUND', `No file or folder at ${input}`, 'Check the path and try again.', { details: { path: input } });
+      throw new VoxError(
+        'NOT_FOUND',
+        `No file or folder at ${input}`,
+        'Check the path and try again.',
+        { details: { path: input } },
+      );
     }
     if (st.isDirectory()) {
       const listing = await listFolderFiles(input);
       out.skipped.push(...listing.skipped);
       for (const f of listing.files) {
-        const r = await ingestFile(e2, f, { within: listing.root, origin: { type: 'upload' }, proxies, known });
+        const r = await ingestFile(e2, f, {
+          within: listing.root,
+          origin: { type: 'upload' },
+          proxies,
+          known,
+        });
         out.media.push({ input: f, source: 'file', ...r });
       }
     } else {
@@ -413,12 +468,18 @@ async function ingestUrl(
   out: IngestResult,
 ): Promise<IngestedMedia[]> {
   const href = new URL(url.trim()).href;
-  const indexPath = join(env.projectDir, 'cache', 'ingest', `url-${sha(`${href}\n${args.playlist === true}`)}.json`);
+  const indexPath = join(
+    env.projectDir,
+    'cache',
+    'ingest',
+    `url-${sha(`${href}\n${args.playlist === true}`)}.json`,
+  );
   const prior = await readJson<{ mediaIds: string[]; count: number }>(indexPath);
   if (prior) {
     const live = await Promise.all(prior.mediaIds.map((id) => liveMedia(env, known, id)));
     if (live.every((m) => m !== undefined) && live.length > 0) {
-      if (prior.count > live.length) out.posts.push({ url: href, count: prior.count, taken: live.length });
+      if (prior.count > live.length)
+        out.posts.push({ url: href, count: prior.count, taken: live.length });
       return live.map((m) => ({ input: url, source: kind, media: m!, reused: true }));
     }
   }
@@ -450,8 +511,12 @@ async function ingestUrl(
       });
       items.push({ input: url, source: kind, ...r });
     }
-    if (report.count > items.length) out.posts.push({ url: href, count: report.count, taken: items.length });
-    await writeAtomic(indexPath, JSON.stringify({ mediaIds: items.map((m) => m.media.id), count: report.count }));
+    if (report.count > items.length)
+      out.posts.push({ url: href, count: report.count, taken: items.length });
+    await writeAtomic(
+      indexPath,
+      JSON.stringify({ mediaIds: items.map((m) => m.media.id), count: report.count }),
+    );
     return items;
   } finally {
     await rm(dl, { recursive: true, force: true });
