@@ -60,7 +60,14 @@ function runElectron(out: string): Promise<{ code: number | null; ms: number }> 
     const timer = setTimeout(() => p.kill('SIGKILL'), TIMEOUT_MS);
     p.on('exit', (code) => {
       clearTimeout(timer);
-      if (code !== 0) process.stderr.write(err.split('\n').filter((l) => !l.includes('sandbox_extension')).slice(-20).join('\n'));
+      if (code !== 0)
+        process.stderr.write(
+          err
+            .split('\n')
+            .filter((l) => !l.includes('sandbox_extension'))
+            .slice(-20)
+            .join('\n'),
+        );
       resolve({ code, ms: performance.now() - t0 });
     });
   });
@@ -69,7 +76,8 @@ function runElectron(out: string): Promise<{ code: number | null; ms: number }> 
 const le = (s: Stats, bar: number) => s.p95 !== null && s.p95 <= bar;
 
 async function main() {
-  if (!existsSync(path.join(OUT, 'preview', 'index.html'))) throw new Error('run make-project.ts first');
+  if (!existsSync(path.join(OUT, 'preview', 'index.html')))
+    throw new Error('run make-project.ts first');
   const out = path.join(OUT, `preview-result-${mode}.json`);
   rmSync(out, { force: true });
   const loadBefore = load();
@@ -98,22 +106,37 @@ async function main() {
   // item 4
   const playOk = !!play && play.minFps >= 24 && play.stall.maxMs <= 200;
   const avOk =
-    !!play && !!avseek &&
-    le(play.pictureVsClockMs, frameMs) && le(play.audioVsClockMs, frameMs) &&
-    le(avseek.pictureVsClockMs, frameMs) && le(avseek.audioVsClockMs, frameMs);
+    !!play &&
+    !!avseek &&
+    le(play.pictureVsClockMs, frameMs) &&
+    le(play.audioVsClockMs, frameMs) &&
+    le(avseek.pictureVsClockMs, frameMs) &&
+    le(avseek.audioVsClockMs, frameMs);
   const seekOk = !!seek?.pass && !!seekedge?.pass;
   const item4 = playOk && avOk && seekOk && r.blocked.length === 0 && !r.error;
   const { windows, ...playSummary } = play ?? {};
   writeEvidence(`B9-preview-${mode}.json`, {
     item: 4,
     pass: item4,
-    parts: { play: playOk, avWithin1Frame: avOk, seekToCut: seekOk, noNetwork: r.blocked.length === 0 },
+    parts: {
+      play: playOk,
+      avWithin1Frame: avOk,
+      seekToCut: seekOk,
+      noNetwork: r.blocked.length === 0,
+    },
     ...env,
     play: playSummary,
     windows,
     avseek,
   });
-  writeEvidence(`B10-seek-${mode}.json`, { item: 4, part: 'seek to a cut', pass: seekOk, ...env, seek, seekedge });
+  writeEvidence(`B10-seek-${mode}.json`, {
+    item: 4,
+    part: 'seek to a cut',
+    pass: seekOk,
+    ...env,
+    seek,
+    seekedge,
+  });
   emit({
     item: 4,
     name: 'preview',
@@ -130,7 +153,11 @@ async function main() {
 
   // heavy-scene fps margin (plan D-15)
   if (play) {
-    writeEvidence(`B-fps-margin-${mode}.json`, { ...play.heavy, rule: 'margin < 20 % -> pre-render cache', ...env });
+    writeEvidence(`B-fps-margin-${mode}.json`, {
+      ...play.heavy,
+      rule: 'margin < 20 % -> pre-render cache',
+      ...env,
+    });
     emit({ name: 'fps-margin', mode, ...play.heavy, preRenderCache: play.heavy.marginPct < 20 });
   }
 
@@ -158,7 +185,13 @@ async function main() {
   // item 7, preview side
   if (mech) {
     const { points, ...m } = mech;
-    writeEvidence(`B12-mechanisms-preview-${mode}.json`, { item: 7, side: 'preview', ...m, ...env, points });
+    writeEvidence(`B12-mechanisms-preview-${mode}.json`, {
+      item: 7,
+      side: 'preview',
+      ...m,
+      ...env,
+      points,
+    });
     emit({ item: 7, name: 'mechanisms-preview', mode, pass: m.pass });
   }
   process.stdout.write(`evidence: ${path.relative(SPIKE, evidenceDir())}\n`);

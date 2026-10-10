@@ -206,6 +206,15 @@
     window.requestAnimationFrame(cue);
   })();
 
+  // Keep inactive videos composited: the runtime hides inactive clips with visibility:hidden, and a
+  // paused video that became visible again after a seek showed an older picture of that element for
+  // about 1 s in Chromium 152 (rVFC already reported the right frame; phase 01: 1-2 of 80 seeks).
+  // Inactive videos stay visible at opacity 0 instead; paused videos do not decode, so this is cheap.
+  var keepLive = document.createElement('style');
+  keepLive.textContent =
+    'video[data-start][style*="visibility: hidden"]{visibility:visible!important;opacity:0!important}';
+  document.head.appendChild(keepLive);
+
   hf.registerRuntimeDataHandler('vox-patch', patch);
   hf.registerRuntimeDataHandler('vox-playhead', seekWhenMounted);
   window.__voxPatch = patch;

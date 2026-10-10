@@ -66,7 +66,7 @@ export async function renderBuild(dir: string, out: string, seq: Sequence): Prom
     'draft',
     '--fps',
     fpsString(seq.fps),
-    '--strict',
+    '--strict-all',
     // cold run: no content-addressed frame cache from a previous attempt
     '--frames-cache-dir',
     'off',

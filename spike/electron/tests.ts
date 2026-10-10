@@ -7,6 +7,7 @@
  * - mech: vars / tokens / muted video / volume tween in the preview (item 7);
  * - reload, patch: one trimItem, op → visible update for a full reload and a scene-only patch (item 6).
  */
+import { writeFileSync } from 'node:fs';
 import { decodeBits, margin } from '../lib/barcode.ts';
 import { compile, type MediaSet } from '../lib/compile.ts';
 import { frameMs, frameToSec } from '../lib/frames.ts';
@@ -105,6 +106,10 @@ interface Rec {
   raf: [number, number][];
   vfc: [number, string, number][];
   av: [number, number, string, number, number | null, number | null][];
+  /** [wallMs, clock, videoId, event, currentTime, readyState] */
+  events?: [number, number, string, string, number, number][];
+  /** long animation frames (>= 80 ms) */
+  loaf?: unknown[];
 }
 
 /** Which video element must be on screen at frame f, and its media frame offset. */
@@ -181,14 +186,33 @@ export function analyzePlay(seq: Sequence, rec: Rec, startWall: number) {
   const raf = rec.raf.filter(([w]) => w >= startWall);
   const frameOf = (t: number) => Math.floor(t * fps + 1e-6);
   const segs = segments(plan);
-  // right video frames on screen: composition frame → first presentation wall time
+  // right video frames on screen: composition frame → first presentation wall time. A frame
+  // presented while its clip is still hidden (the pre-cue parks the next clip on its in-point up to
+  // 1 s early) is not on screen, so it counts only once the clock is within one frame of it.
+  const clockAt = (w: number): number => {
+    let lo = 0;
+    let hi = raf.length - 1;
+    if (hi < 0 || w < raf[0]![0]) return -Infinity;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (raf[mid]![0] <= w) lo = mid;
+      else hi = mid - 1;
+    }
+    return raf[lo]![1];
+  };
   const presented = new Map<number, number>();
   for (const [w, id, mt] of rec.vfc) {
     if (w < startWall) continue;
+    const clock = clockAt(w);
     const mf = Math.round(mt * fps);
     for (const sg of segs.get(id) ?? []) {
       const f = sg.startF + (mf - sg.inF);
-      if (plan[f]?.id === id && plan[f]!.startF === sg.startF && !presented.has(f))
+      if (
+        plan[f]?.id === id &&
+        plan[f]!.startF === sg.startF &&
+        clock >= (f - 1) / fps &&
+        !presented.has(f)
+      )
         presented.set(f, w);
     }
   }
@@ -328,11 +352,19 @@ async function play(h: Harness, seq: Sequence) {
   // first rAF where the clock moved: playback start
   const first = rec.raf.find(([w, t]) => w >= startWall && t > 0.0001);
   const a = analyzePlay(seq, rec, first ? first[0] : startWall);
+  if (process.env.VOX_PROBE_DUMP)
+    writeFileSync(process.env.VOX_PROBE_DUMP, JSON.stringify({ startWall, rec }));
   return {
     wallS: r1(wallS),
     startupMs: first ? Math.round(first[0] - startWall) : null,
     ...a,
-    samples: { raf: rec.raf.length, vfc: rec.vfc.length, av: rec.av.length },
+    longFrames: rec.loaf ?? [],
+    samples: {
+      raf: rec.raf.length,
+      vfc: rec.vfc.length,
+      av: rec.av.length,
+      mediaEvents: rec.events?.length ?? 0,
+    },
   };
 }
 
@@ -345,10 +377,12 @@ const ACTIVE_VIDEOS_JS = `(function(){var t=window.__player.getTime();return {t:
 async function seekTo(h: Harness, seq: Sequence, f: number, at: number, tol = 300, limit = 2000) {
   const e = expectedAt(seq, f)!;
   const crop = COUNTER_CROP[e.src as 'spike' | 'phone' | 'ntsc'];
+  const frameT0 = await h.inFrame<number>('performance.now()');
   const t0 = now();
   await h.page(`voxPage.seek(${frameToSec(f + at, seq.fps)})`);
   let caps = 0;
   const trace: [number, number, number][] = [];
+  const states: unknown[] = [];
   for (;;) {
     const c = await h.capture();
     caps++;
@@ -356,8 +390,10 @@ async function seekTo(h: Harness, seq: Sequence, f: number, at: number, tol = 30
     const flat = flatness(c, VIDEO_AREA[e.src as 'spike' | 'phone' | 'ntsc']);
     const ms = now() - t0;
     const prev = trace[trace.length - 1];
-    if (!prev || prev[1] !== last.value || prev[2] > 6 !== flat > 6)
+    if (!prev || prev[1] !== last.value || prev[2] > 6 !== flat > 6) {
       trace.push([Math.round(ms), last.value, r1(flat)]);
+      if (ms > 30) states.push([Math.round(ms), await h.inFrame<unknown>(ACTIVE_VIDEOS_JS)]);
+    }
     if (last.value === e.frame && flat > 6)
       return {
         f,
@@ -367,7 +403,14 @@ async function seekTo(h: Harness, seq: Sequence, f: number, at: number, tol = 30
         expected: e.frame,
         src: e.src,
         captures: caps,
-        ...(ms > tol ? { trace } : {}),
+        ...(ms > tol
+          ? {
+              trace,
+              states,
+              events: await h.inFrame<unknown>(`__voxProbe.events(${frameT0})`),
+              swallowed: await h.inFrame<unknown>(`__voxProbe.swallowed(${frameT0})`),
+            }
+          : {}),
       };
     if (ms > limit) {
       const media = await h.inFrame<unknown>(ACTIVE_VIDEOS_JS);

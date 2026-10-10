@@ -92,7 +92,69 @@
       if (swallowed.length < 500) swallowed.push([r4(performance.now()), String(x && x.label)]);
     };
   }
+  // media element events and long animation frames during a recording (stall diagnostics)
+  var evlog = [];
+  var MEDIA_EVENTS = [
+    'seeking',
+    'seeked',
+    'play',
+    'playing',
+    'waiting',
+    'pause',
+    'stalled',
+    'suspend',
+    'canplay',
+    'emptied',
+  ];
+  Array.prototype.slice.call(document.querySelectorAll('video')).forEach(function (v) {
+    MEDIA_EVENTS.forEach(function (name) {
+      v.addEventListener(name, function () {
+        var row = [
+          r4(performance.now()),
+          r4(player().getTime()),
+          v.id,
+          name,
+          r4(v.currentTime),
+          v.readyState,
+        ];
+        if (rec && rec.events.length < 20000) rec.events.push(row);
+        evlog.push(row);
+        if (evlog.length > 4000) evlog.splice(0, 1000);
+      });
+    });
+  });
+  if (window.PerformanceObserver) {
+    try {
+      new window.PerformanceObserver(function (list) {
+        list.getEntries().forEach(function (e) {
+          if (!rec || e.duration < 80 || rec.loaf.length > 500) return;
+          rec.loaf.push({
+            start: r4(e.startTime),
+            ms: r4(e.duration),
+            blockingMs: r4(e.blockingDuration || 0),
+            renderStart: r4(e.renderStart || 0),
+            styleAndLayoutStart: r4(e.styleAndLayoutStart || 0),
+            scripts: (e.scripts || []).map(function (x) {
+              return {
+                ms: r4(x.duration),
+                invoker: String(x.invoker),
+                src: String(x.sourceURL).slice(-60),
+                fn: String(x.sourceFunctionName),
+              };
+            }),
+          });
+        });
+      }).observe({ type: 'long-animation-frame', buffered: false });
+    } catch {
+      /* not supported */
+    }
+  }
   window.__voxProbe = {
+    events: function (sinceMs) {
+      return evlog.filter(function (x) {
+        return x[0] >= (sinceMs || 0);
+      });
+    },
     swallowed: function (sinceMs) {
       return swallowed.filter(function (x) {
         return x[0] >= (sinceMs || 0);
@@ -118,7 +180,7 @@
     start: function () {
       gen++;
       var g = gen;
-      rec = { raf: [], vfc: [], av: [], pairs: pairs(), n: 0 };
+      rec = { raf: [], vfc: [], av: [], events: [], loaf: [], pairs: pairs(), n: 0 };
       Array.prototype.slice.call(document.querySelectorAll('video')).forEach(function (v) {
         watchVideo(v, g);
       });
@@ -136,7 +198,7 @@
       var r = rec;
       rec = null;
       gen++;
-      return r ? { raf: r.raf, vfc: r.vfc, av: r.av } : null;
+      return r ? { raf: r.raf, vfc: r.vfc, av: r.av, events: r.events, loaf: r.loaf } : null;
     },
     media: function () {
       return {
