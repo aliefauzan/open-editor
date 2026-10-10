@@ -24,11 +24,11 @@ sources {"speech":["it_a1","it_a2"],"other":["it_m1"],"sfx":["it_s1:in:0","it_s1
 [s0][s1]amix=inputs=2:normalize=0:duration=longest:dropout_transition=0,apad=whole_len=288000,atrim=end_sample=288000[mix]
 --- loudnorm
 youtube
-  loudnorm=I=-14:TP=-1:LRA=11:print_format=json
-  loudnorm=I=-14:TP=-1:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000
+  loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json
+  loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000
 tiktok
-  loudnorm=I=-12:TP=-1:LRA=11:print_format=json
-  loudnorm=I=-12:TP=-1:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000
+  loudnorm=I=-12:TP=-1.5:LRA=11:print_format=json
+  loudnorm=I=-12:TP=-1.5:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000
 broadcast
-  loudnorm=I=-23:TP=-1:LRA=11:print_format=json
-  loudnorm=I=-23:TP=-1:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000
+  loudnorm=I=-23:TP=-1.5:LRA=11:print_format=json
+  loudnorm=I=-23:TP=-1.5:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000

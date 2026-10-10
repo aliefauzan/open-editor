@@ -51,6 +51,8 @@ export interface CompileOptions {
    * left out.
    */
   layers?: string[];
+  /** `false` leaves the caption layer out (`render --captions none`); default true. */
+  captions?: boolean;
 }
 
 /**
@@ -892,7 +894,10 @@ export async function compileSequence(
   }
   const overlays = overlayLayer(ctx, durationMs);
   if (overlays.length) layers.push(layerDiv('track-overlays', overlays));
-  const cap = keep(ctx, 'captions') ? captionLayer(ctx, captions, durationMs) : '';
+  const cap =
+    opts.captions !== false && keep(ctx, 'captions')
+      ? captionLayer(ctx, captions, durationMs)
+      : '';
   if (cap) layers.push(layerDiv('track-captions', [cap]));
   else ctx.kept.delete('captions');
   const missing = [...(ctx.only ?? [])].filter((id) => !ctx.kept.has(id));

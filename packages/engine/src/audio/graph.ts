@@ -3,7 +3,7 @@
 // `inMs`, denoised when `denoise` is `light` or `strong`, gained to the loudness target when its media
 // has `loudness`, scaled by `volume`, faded, and delayed to `startMs`; SFX cues are delayed to their
 // times; muted tracks are left out. Everything goes through `amix` (normalisation off) and a limiter,
-// then a two-pass `loudnorm` to the export target and -1 dBTP. Stems (speech = the captions source
+// then a two-pass `loudnorm` to the export target, aiming at -1.5 dBTP so the file stays under -1 dBTP. Stems (speech = the captions source
 // tracks, other audio tracks, SFX) use the same chains, without the limiter and `loudnorm`.
 import { execFile } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -22,7 +22,13 @@ export const LOUDNESS_TARGETS: Record<LoudnessPreset, number> = {
   tiktok: -12,
   broadcast: -23,
 };
+/** The true-peak ceiling every export meets (audio QA checks it). */
 export const TRUE_PEAK_DBTP = -1;
+/**
+ * The true peak `loudnorm` aims at: 0.5 dB under the ceiling, so the 48 kHz resample after
+ * `loudnorm` and the AAC encode cannot push a loud (tiktok) mix over -1 dBTP (D-XX).
+ */
+export const MIX_TRUE_PEAK_DBTP = -1.5;
 export const LOUDNESS_RANGE_LU = 11;
 export const SAMPLE_RATE = 48000;
 /** The two fixed `afftdn` strengths (ffmpeg built in; no RNNoise model files in v1). */
@@ -182,13 +188,13 @@ export interface LoudnormMeasure {
 
 /** Pass 1 of `loudnorm`: measure only. */
 export function loudnormPass1(preset: LoudnessPreset): string {
-  return `loudnorm=I=${LOUDNESS_TARGETS[preset]}:TP=${TRUE_PEAK_DBTP}:LRA=${LOUDNESS_RANGE_LU}:print_format=json`;
+  return `loudnorm=I=${LOUDNESS_TARGETS[preset]}:TP=${MIX_TRUE_PEAK_DBTP}:LRA=${LOUDNESS_RANGE_LU}:print_format=json`;
 }
 
 /** Pass 2 of `loudnorm`: the measured values, linear normalisation, back to 48 kHz. */
 export function loudnormPass2(preset: LoudnessPreset, m: LoudnormMeasure): string {
   return (
-    `loudnorm=I=${LOUDNESS_TARGETS[preset]}:TP=${TRUE_PEAK_DBTP}:LRA=${LOUDNESS_RANGE_LU}` +
+    `loudnorm=I=${LOUDNESS_TARGETS[preset]}:TP=${MIX_TRUE_PEAK_DBTP}:LRA=${LOUDNESS_RANGE_LU}` +
     `:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}` +
     `:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true:print_format=json` +
     `,aresample=${SAMPLE_RATE}`

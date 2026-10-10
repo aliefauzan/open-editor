@@ -49,6 +49,12 @@ import {
   type ImageProvider,
 } from './assets-api.ts';
 import type { GetJson } from './stages/assets.ts';
+import {
+  registerExportJobs,
+  type CreditLine,
+  type ExportApi,
+  type HyperframesRun,
+} from './export-api.ts';
 import { doctor, doctorProject, type DoctorReport, type ProjectDoctorReport } from './doctor.ts';
 import { ProjectSchema } from './model/schema.ts';
 import type { Resolver } from './net/address.ts';
@@ -292,6 +298,20 @@ export {
 } from './media-api.ts';
 export { classifyUrl, type UrlKind } from './stages/sources.ts';
 export {
+  RENDER_QUALITIES,
+  hyperframesEnv,
+  muxArgs,
+  pictureRenderArgs,
+  type AudioQaResult,
+  type CreditLine,
+  type HyperframesRun,
+  type RenderJobArgs,
+  type RenderJobResult,
+  type RenderQuality,
+  type RenderedFile,
+  type TimelineResult,
+} from './export-api.ts';
+export {
   CUTOUT_MODEL,
   type AssetMediaResult,
   type ImageProvider,
@@ -350,6 +370,8 @@ export interface EngineOptions {
     ca?: string;
     sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   };
+  /** Test seam: runs the HyperFrames CLI (render, snapshot). */
+  hyperframes?: HyperframesRun;
 }
 
 export interface ProjectSummary {
@@ -397,6 +419,12 @@ export interface Engine {
    * most recently registered one is the default of `assets.generate`.
    */
   imageProviders: { register(p: ImageProvider): void; list(): { id: string }[] };
+  /** Compiled stills at canvas size (PNG paths, cached by build and time; first sequence by default). */
+  frames(projectId: string, sequenceId: string | undefined, atMs: number[]): Promise<string[]>;
+  /** Archive assets the sequences use, with author, licence and link (`vox credits`). */
+  credits(projectId: string): Promise<CreditLine[]>;
+  /** Compiles and writes the preview build; returns the `npx hyperframes play <buildDir>` call. */
+  preview: ExportApi['preview'];
   mediaFrames: MediaApi['mediaFrames'];
   /** Tool, model and config checks (`vox doctor`); `quick` skips the Python import check. */
   doctor(opts?: { quick?: boolean }): Promise<DoctorReport>;
@@ -608,14 +636,31 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.assets?.ca ? { ca: opts.assets.ca } : {}),
     ...(opts.assets?.sleep ? { sleep: opts.assets.sleep } : {}),
   });
+  // The export jobs call the engine's own compile, mix and captions (bound once `engine` exists).
+  let self: Engine | undefined;
+  const me = (): Engine => self!;
+  const exports = registerExportJobs(jobs, {
+    tools: opts.tools ?? {},
+    redactor,
+    store,
+    dirOf,
+    compile: (projectId, sequenceId, o) => me().compile(projectId, sequenceId, o),
+    mix: (projectId, sequenceId, o) => me().mix(projectId, sequenceId, o),
+    captions: (projectId, sequenceId) => me().captions(projectId, sequenceId),
+    style: (id) => registry().get(id),
+    ...(opts.hyperframes ? { hyperframes: opts.hyperframes } : {}),
+  });
 
-  return {
+  const engine: Engine = {
     projectsDir: opts.projectsDir,
     stylesDirs: opts.stylesDirs,
     tools: opts.tools ?? {},
     redactor,
     jobs,
     facetrackPath: (projectId, mediaId, o) => media.facetrackPath(projectId, mediaId, o),
+    frames: (projectId, sequenceId, atMs) => exports.frames(projectId, sequenceId, atMs),
+    credits: (projectId) => exports.credits(projectId),
+    preview: (projectId, sequenceId) => exports.preview(projectId, sequenceId),
     imageProviders: { register: (p) => imageProviders.register(p), list: () => imageProviders.list() },
     mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
     async doctor(o = {}) {
@@ -834,4 +879,6 @@ export function openEngine(opts: EngineOptions): Engine {
       return () => emitter.off(event, handler);
     },
   };
+  self = engine;
+  return engine;
 }
