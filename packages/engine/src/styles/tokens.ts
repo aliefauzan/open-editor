@@ -3,7 +3,7 @@
 // Output is sorted, so the same tokens always give byte-identical CSS (compile snapshots).
 
 import { VoxError } from '../errors.pending.ts';
-import type { Tokens } from './schema.ts';
+import { kebabKey, TokensSchema, type Tokens } from './schema.ts';
 
 export type TokenGroup = 'color' | 'font' | 'texture' | 'motion';
 
@@ -12,13 +12,16 @@ export interface TokenVarsOptions {
   assetUrl?: (token: 'texture-paper', path: string) => string;
 }
 
-const kebab = (key: string): string => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
-
 export function tokenName(group: TokenGroup, key: string): string {
-  return `--tok-${group}-${kebab(key)}`;
+  return `--tok-${group}-${kebabKey(key)}`;
 }
 
-const cssString = (s: string): string => `"${s.replace(/["\\]/g, '\\$&')}"`;
+// CSS string: quote and backslash escaped; `<`, `>` and control characters as hex escapes, so a
+// mapped asset URL can never close the string or the surrounding `<style>` element.
+const cssString = (s: string): string =>
+  `"${s.replace(/["\\<>]|[^\x20-\x7e]/g, (c) =>
+    c === '"' || c === '\\' ? `\\${c}` : `\\${c.codePointAt(0)!.toString(16)} `,
+  )}"`;
 
 function sortedGroup(group: TokenGroup, entries: [string, string][]): [string, string][] {
   const out = new Map<string, string>();
@@ -38,7 +41,18 @@ function sortedGroup(group: TokenGroup, entries: [string, string][]): [string, s
 }
 
 /** `[name, value]` pairs: colours, fonts (+ weight), texture, motion; sorted inside each group. */
-export function tokenVars(tokens: Tokens, opts: TokenVarsOptions = {}): [string, string][] {
+export function tokenVars(input: Tokens, opts: TokenVarsOptions = {}): [string, string][] {
+  // Values are re-checked here too: the CSS goes into builds, whoever built the object.
+  const parsed = TokensSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new VoxError(
+      'STYLE_INVALID',
+      `Tokens do not match the style format: ${parsed.error.issues[0]?.message ?? ''}`,
+      'Fix the style tokens (styles spec "Tokens")',
+      { details: { reason: 'schema', issues: parsed.error.issues.map((i) => i.message) } },
+    );
+  }
+  const tokens = parsed.data;
   const fonts: [string, string][] = [];
   for (const [role, font] of Object.entries(tokens.fonts)) {
     fonts.push([role, cssString(font.family)], [`${role}-weight`, String(font.weight)]);

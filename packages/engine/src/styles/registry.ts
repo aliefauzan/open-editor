@@ -7,7 +7,7 @@
 // - Template identity is `<declaringStyleId>/<name>`. Hook trust (S8) comes from the declaring style.
 // Loading is synchronous and eager: problems are collected, never thrown at load; `get` throws them.
 
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { VoxError } from '../errors.pending.ts';
 import {
@@ -154,18 +154,24 @@ function asStyleError(style: string, e: unknown): VoxError {
   throw e;
 }
 
-function readJsonFile(style: string, file: string): unknown {
-  let text: string;
+/** Read a style file as text (containment checked first). */
+function readStyleText(c: Candidate, rel: string): string {
+  const real = styleFile(c, rel);
   try {
-    text = readFileSync(file, 'utf8');
+    return readFileSync(real, 'utf8');
   } catch {
-    throw invalid(style, 'file-missing', `cannot read ${file}`, { file });
+    throw invalid(c.id, 'file-missing', `cannot read ${rel}`, { file: join(c.dir, rel) });
   }
+}
+
+function readJsonFile(c: Candidate, rel: string): unknown {
+  const file = join(c.dir, rel);
+  const text = readStyleText(c, rel);
   try {
     return JSON.parse(text) as unknown;
   } catch {
     // No file text in the message: it may be anything.
-    throw invalid(style, 'json', `${file} is not valid JSON`, { file });
+    throw invalid(c.id, 'json', `${file} is not valid JSON`, { file });
   }
 }
 
@@ -177,7 +183,20 @@ function isDir(p: string): boolean {
   }
 }
 
-/** Absolute path of an existing file inside the style folder (symlinks resolved, path rule). */
+/** Something exists at `p` (a dangling symlink counts, so it fails loudly instead of being skipped). */
+function present(p: string): boolean {
+  try {
+    lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Real path of an existing file inside the style folder (path rule). The resolved path is returned,
+ * so later reads do not follow a symlink again.
+ */
 function styleFile(c: Candidate, rel: string): string {
   const file = join(c.dir, rel);
   let real: string;
@@ -192,15 +211,16 @@ function styleFile(c: Candidate, rel: string): string {
   }
   if (!statSync(real).isFile())
     throw invalid(c.id, 'file-missing', `${rel} is not a file`, { file });
-  return file;
+  return real;
 }
 
-function listFiles(dir: string, re: RegExp): string[] {
-  if (!isDir(dir)) return [];
-  return readdirSync(dir)
+/** Files in a style subfolder matching `re`, each containment-checked. */
+function listFiles(c: Candidate, relDir: string, re: RegExp): string[] {
+  if (!isDir(join(c.dir, relDir))) return [];
+  return readdirSync(join(c.dir, relDir))
     .filter((f) => re.test(f) && !f.startsWith('.'))
     .sort()
-    .map((f) => join(dir, f));
+    .map((f) => styleFile(c, `${relDir}/${f}`));
 }
 
 // ---- guide sections ----
@@ -265,7 +285,18 @@ interface Resolved {
   presets?: Map<string, CaptionPresetDef>;
 }
 
-export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): StyleRegistry {
+export interface LoadStyleRegistryOptions {
+  /** Searched in order; the first entry is the built-in styles folder. */
+  stylesDirs: readonly string[];
+  /**
+   * Trust for a style outside the built-in folder (phase 06 `vox style trust` records it). Such a
+   * style's own `trusted` field is never believed: a copied folder cannot trust itself (S8). Default:
+   * untrusted.
+   */
+  isTrusted?: (styleId: string, dir: string) => boolean;
+}
+
+export function loadStyleRegistry(opts: LoadStyleRegistryOptions): StyleRegistry {
   const stylesDirs = [...opts.stylesDirs];
   const candidates = new Map<string, Candidate>();
   const problems: StyleProblem[] = [];
@@ -276,7 +307,7 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
     if (!isDir(root)) continue;
     for (const name of readdirSync(root).sort()) {
       const dir = join(root, name);
-      if (name.startsWith('.') || !isDir(dir) || !existsSync(join(dir, 'style.json'))) continue;
+      if (name.startsWith('.') || !isDir(dir) || !present(join(dir, 'style.json'))) continue;
       const first = candidates.get(name);
       if (first) {
         const dup: StyleProblem = {
@@ -295,7 +326,7 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
       }
       const c: Candidate = { id: name, dir, dirIndex, realDir: realpathSync(dir) };
       try {
-        const file = parseStyleFileAt(name, join(dir, 'style.json'));
+        const file = parseStyleFile(readJsonFile(c, 'style.json'), join(dir, 'style.json'));
         if (file.id !== name) {
           throw invalid(name, 'id-mismatch', `id ${file.id} differs from its folder name`, {
             file: join(dir, 'style.json'),
@@ -397,7 +428,11 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
     const p = parent?.ok;
     let style: Style;
     try {
-      style = parseStyle(mergeStyle(p?.style, f), join(c.dir, 'style.json'));
+      const trusted = c.dirIndex === 0 ? f.trusted : (opts.isTrusted?.(id, c.dir) ?? false);
+      style = parseStyle(
+        { ...(mergeStyle(p?.style, f) as object), trusted },
+        join(c.dir, 'style.json'),
+      );
     } catch (e) {
       throw asStyleError(id, e);
     }
@@ -422,10 +457,11 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
     ];
     for (const [name, kind] of listed) {
       const dir = join(c.dir, 'templates', name);
+      const rel = `templates/${name}`;
       const file = join(dir, 'template.json');
       let t: Template;
       try {
-        t = parseTemplate(readJsonFile(id, file), file);
+        t = parseTemplate(readJsonFile(c, `${rel}/template.json`), file);
       } catch (e) {
         throw asStyleError(id, e);
       }
@@ -440,7 +476,7 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
         });
       }
       for (const cue of t.sfxCues ?? []) {
-        if (!(cue.sfx in style.sfx)) {
+        if (!Object.hasOwn(style.sfx, cue.sfx)) {
           throw invalid(
             id,
             'sfx-unknown',
@@ -452,7 +488,6 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
           );
         }
       }
-      const rel = `templates/${name}`;
       const htmlPath = styleFile(c, `${rel}/template.html`);
       const hook = join(dir, 'build.mjs');
       templates[`${id}/${name}`] = {
@@ -461,9 +496,9 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
         styleId: id,
         dir,
         htmlPath,
-        ...(existsSync(hook) ? { hookPath: styleFile(c, `${rel}/build.mjs`) } : {}),
+        ...(present(hook) ? { hookPath: styleFile(c, `${rel}/build.mjs`) } : {}),
         trusted: style.trusted,
-        fixtures: listFiles(join(dir, 'fixtures'), /\.json$/),
+        fixtures: listFiles(c, `${rel}/fixtures`, /\.json$/),
       };
     }
 
@@ -473,10 +508,10 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
     for (const presetId of style.captions.presets) {
       const [styleId, name] = presetId.split('/') as [string, string];
       if (styleId === id && !presets.has(presetId)) {
-        const file = styleFile(c, `captions/${name}.json`);
+        const file = join(c.dir, `captions/${name}.json`);
         let preset: CaptionPreset;
         try {
-          preset = parseCaptionPreset(readJsonFile(id, file), file);
+          preset = parseCaptionPreset(readJsonFile(c, `captions/${name}.json`), file);
         } catch (e) {
           throw asStyleError(id, e);
         }
@@ -519,7 +554,7 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
       overlays = style.overlays.map((o) => {
         for (const sid of chain) {
           const sc = candidates.get(sid)!;
-          if (existsSync(join(sc.dir, 'overlays', `${o.name}.html`))) {
+          if (present(join(sc.dir, 'overlays', `${o.name}.html`))) {
             return { ...o, styleId: sid, htmlPath: styleFile(sc, `overlays/${o.name}.html`) };
           }
         }
@@ -535,7 +570,7 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
     }
 
     const guideFile = join(c.dir, 'guide.md');
-    const ownGuide = existsSync(guideFile) ? readFileSync(styleFile(c, 'guide.md'), 'utf8') : '';
+    const ownGuide = present(guideFile) ? readStyleText(c, 'guide.md') : '';
     const fontsDone = fonts as ResolvedStyle['files']['fonts'];
     return {
       presets,
@@ -551,7 +586,7 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
         captionPresets,
         overlays,
         files: { fonts: fontsDone, ...(Object.keys(texture).length ? { texture } : {}), sfx },
-        previews: listFiles(join(c.dir, 'previews'), PREVIEW_EXT),
+        previews: listFiles(c, 'previews', PREVIEW_EXT),
       },
     };
   }
@@ -609,8 +644,4 @@ export function loadStyleRegistry(opts: { stylesDirs: readonly string[] }): Styl
       return [...problems];
     },
   };
-}
-
-function parseStyleFileAt(style: string, file: string): StyleFile {
-  return parseStyleFile(readJsonFile(style, file), file);
 }

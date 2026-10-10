@@ -68,7 +68,7 @@ describe('tokenVars', () => {
     expect(tokenVars(b)).toEqual(tokenVars(a));
   });
 
-  test('two keys that map to one name fail with STYLE_INVALID', () => {
+  test('two keys that map to one name fail with STYLE_INVALID (tokens are re-checked)', () => {
     const t = tokens();
     t.colors['accent-soft'] = '#000';
     let err: unknown;
@@ -79,7 +79,20 @@ describe('tokenVars', () => {
     }
     expect(err).toBeInstanceOf(VoxError);
     expect((err as VoxError).code).toBe('STYLE_INVALID');
-    expect((err as VoxError).details?.['reason']).toBe('token-name');
+  });
+
+  test('a hand-built token value with url() is rejected, not emitted', () => {
+    const t = tokens();
+    t.colors['paper'] = 'url(//evil.example/x.png)';
+    expect(() => tokenVars(t)).toThrow(VoxError);
+  });
+
+  test('a mapped asset URL cannot close the CSS string or the <style> element', () => {
+    const [, value] = tokenVars(tokens(), {
+      assetUrl: () => 'a"b\\c</style>\nd',
+    }).find(([n]) => n === '--tok-texture-paper')!;
+    expect(value).toBe('url("a\\"b\\\\c\\3c /style\\3e \\a d")');
+    expect(value).not.toMatch(/[<>\n]/);
   });
 });
 

@@ -110,6 +110,11 @@ describe('style.json schema', () => {
     ['markup in a colour', '</style><script>alert(1)</script>'],
     ['a newline', '#fff\n'],
     ['an empty value', ''],
+    ['url() (network or file fetch at render)', 'url(//evil.example/x.png)'],
+    ['url() without a scheme', 'url(assets/x.png)'],
+    ['var()', 'var(--x)'],
+    ['image-set()', 'image-set(a 1x)'],
+    ['a protocol-relative URL', 'a//b'],
   ])('rejects a token value with %s', (_label, value) => {
     const s = baseStyle();
     const tokens = s['tokens'] as { colors: Record<string, string> };
@@ -154,6 +159,10 @@ describe('style.json schema', () => {
       ['a quote (CSS break-out)', { path: 'assets/x");}.wav' }],
       ['markup', { path: 'assets/</style>.wav' }],
       ['a newline', { path: 'assets/x\n.wav' }],
+      ['a URL scheme', { path: 'data:audio/wav;base64,AAA' }],
+      ['a percent-encoded parent', { path: '%2e%2e/x.wav' }],
+      ['a query', { path: 'assets/x.wav?x' }],
+      ['a fragment', { path: 'assets/x.wav#x' }],
       ['a string instead of the object form', null],
     ])('rejects %s', (_label, entry) => {
       const s =
@@ -250,10 +259,44 @@ describe('template.json schema', () => {
         { type: 'object', properties: { skipEntrance: { type: 'boolean' } } },
       ],
       ['skipEntrance in required', { type: 'object', required: ['skipEntrance'] }],
+      [
+        'skipEntrance nested in allOf',
+        { type: 'object', allOf: [{ properties: { skipEntrance: { type: 'boolean' } } }] },
+      ],
     ])('rejects %s', (_label, variables) => {
       const e = styleInvalid(() => parseTemplate(withVars(variables), 't/template.json'));
       expect(e.details?.['reason']).toBe('schema');
     });
+  });
+});
+
+describe('accepted token values', () => {
+  test.each([
+    ['a hex colour', '#f4ecd8'],
+    ['a colour function', 'oklch(70% 0.1 200 / 50%)'],
+    ['a CSS easing', 'cubic-bezier(0.2, 0, 0, 1)'],
+    ['a GSAP ease with a parameter', 'back.out(1.7)'],
+    ['a GSAP ease name', 'power2.inOut'],
+  ])('%s', (_label, value) => {
+    const s = baseStyle();
+    const tokens = s['tokens'] as { colors: Record<string, string>; motion: { easing: string } };
+    tokens.colors['paper'] = value;
+    tokens.motion.easing = value;
+    expect(parseStyleFile(s, 'f').tokens?.colors?.['paper']).toBe(value);
+  });
+
+  test('two colour keys with one CSS name are rejected at load', () => {
+    const s = baseStyle();
+    (s['tokens'] as { colors: Record<string, string> }).colors['accent-soft'] = '#000';
+    styleInvalid(() => parseStyleFile(s, 'f'));
+  });
+
+  test('a variables schema with $id parses again (no shared Ajv cache)', () => {
+    const t = { ...titleTemplate(), variables: { $id: 'title-vars', type: 'object' } };
+    parseTemplate(t, 'a');
+    expect(parseTemplate(structuredClone(t), 'b').name).toBe('title');
+    expect(variablesValidator(structuredClone(t).variables)({})).toBe(true);
+    expect(variablesValidator(structuredClone(t).variables)({})).toBe(true);
   });
 });
 

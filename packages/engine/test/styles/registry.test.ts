@@ -394,6 +394,39 @@ describe('templates through the registry', () => {
       'template-kind',
     ],
     [
+      'a cue naming an inherited Object property as sfx',
+      (s: string) =>
+        writeJson(titleJson(s), {
+          ...readJson(titleJson(s)),
+          sfxCues: [{ name: 'in', atMs: 0, sfx: 'constructor', type: 'cut' }],
+        }),
+      'sfx-unknown',
+    ],
+    [
+      'a template.json symlinked from outside the style folder',
+      (s: string) => {
+        const outside = join(s, '..', 'outside.json');
+        writeFileSync(outside, readFileSync(titleJson(s)));
+        rmSync(titleJson(s));
+        symlinkSync(outside, titleJson(s));
+      },
+      'path',
+    ],
+    [
+      'a dangling build.mjs symlink',
+      (s: string) => symlinkSync(join(s, 'nowhere.mjs'), join(s, 'templates/title/build.mjs')),
+      'file-missing',
+    ],
+    [
+      'a fixture symlinked from outside the style folder',
+      (s: string) => {
+        const outside = join(s, '..', 'fixture.json');
+        writeFileSync(outside, '{}');
+        symlinkSync(outside, join(s, 'templates/title/fixtures/out.json'));
+      },
+      'path',
+    ],
+    [
       'a cue naming an sfx the style does not have',
       (s: string) =>
         writeJson(titleJson(s), {
@@ -481,6 +514,39 @@ describe('style files', () => {
     const e = thrown(() => loadStyleRegistry({ stylesDirs: [d] }).get('base'));
     expect(e.code).toBe('STYLE_INVALID');
     expect(e.details?.['reason']).toBe(reason);
+  });
+
+  test('S8: a style outside the built-in folder cannot trust itself', () => {
+    const user = tmp();
+    cpSync(join(USER, 'draft'), join(user, 'draft'), { recursive: true });
+    const f = join(user, 'draft', 'style.json');
+    writeJson(f, { ...readJson(f), trusted: true });
+    const reg = loadStyleRegistry({ stylesDirs: [BUILTIN, user] });
+    expect(reg.get('draft').style.trusted).toBe(false);
+    expect(reg.get('draft').templates['draft/card']?.trusted).toBe(false);
+    expect(reg.list().find((s) => s.id === 'draft')?.trusted).toBe(false);
+    // the inherited built-in template keeps its own trust
+    expect(reg.get('draft').templates['paper/map']?.trusted).toBe(true);
+    // trust recorded outside the folder (phase 06 `vox style trust`) is what counts
+    const seen: string[] = [];
+    const trusted = loadStyleRegistry({
+      stylesDirs: [BUILTIN, user],
+      isTrusted: (id, dir) => {
+        seen.push(`${id}@${dir}`);
+        return id === 'draft';
+      },
+    });
+    expect(trusted.get('draft').templates['draft/card']?.trusted).toBe(true);
+    expect(seen).toEqual([`draft@${join(user, 'draft')}`]);
+  });
+
+  test('a preview symlinked from outside the style folder is rejected', () => {
+    const d = dirWithBase();
+    mkdirSync(join(d, 'base', 'previews'));
+    writeFileSync(join(d, 'out.jpg'), 'x');
+    symlinkSync(join(d, 'out.jpg'), join(d, 'base', 'previews', 'title.jpg'));
+    const e = thrown(() => loadStyleRegistry({ stylesDirs: [d] }).get('base'));
+    expect(e.details?.['reason']).toBe('path');
   });
 
   test('a caption preset from a style outside the chain is rejected', () => {

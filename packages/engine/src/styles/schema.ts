@@ -19,16 +19,46 @@ const SLOT_PATH = /^[A-Za-z0-9_-]+(?:\/(?:\*|[A-Za-z0-9_-]+))*$/;
 
 const id = z.string().regex(ID, 'must match [a-z0-9-]+');
 const semver = z.string().regex(SEMVER, 'must be a semver version (1.2.3)');
-const cssValue = z.string().max(200).regex(CSS_VALUE, 'must be a plain CSS value');
+// CSS functions allowed in token values: colour and easing functions, plus GSAP ease names such as
+// `back.out(1.7)`. Anything else (`url(`, `image-set(`, `var(`, …) could load a file or a URL.
+const CSS_FUNCTIONS = new Set([
+  'rgb',
+  'rgba',
+  'hsl',
+  'hsla',
+  'hwb',
+  'lab',
+  'lch',
+  'oklab',
+  'oklch',
+  'color',
+  'cubic-bezier',
+  'steps',
+  'linear',
+]);
+const GSAP_EASE = /^[a-z][a-z0-9]*\.(?:in|out|inout)$/i;
+
+export function isCssValue(v: string): boolean {
+  if (v.length === 0 || v.length > 200 || !CSS_VALUE.test(v) || v.includes('//')) return false;
+  for (const m of v.matchAll(/([A-Za-z0-9._-]*)\(/g)) {
+    const fn = m[1]!;
+    if (!CSS_FUNCTIONS.has(fn.toLowerCase()) && !GSAP_EASE.test(fn)) return false;
+  }
+  return true;
+}
+const cssValue = z
+  .string()
+  .refine(isCssValue, 'must be a plain CSS value (colour or easing functions only, no url())');
 const pct = (max: number) => z.number().min(0).lt(max);
 
 /** Style-relative file path (path rule): relative, `/`-separated, no `..`, no empty segment. */
 export function isStyleRelativePath(p: string): boolean {
   if (p.length === 0 || p.length > 512 || p.startsWith('/')) return false;
-  // No backslash, quote, angle bracket or control character (paths end up in CSS and HTML).
+  // No backslash, quote, angle bracket, URL syntax (`:%?#`) or control character: paths end up in
+  // CSS and HTML, and must never read as a URL or an encoded `..`.
   if (
     [...p].some(
-      (ch) => ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f || '"<>\\'.includes(ch),
+      (ch) => ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f || '"<>\\:%?#'.includes(ch),
     )
   ) {
     return false;
@@ -58,15 +88,24 @@ const Motion = z.strictObject({
   entrance: cssValue,
 });
 
-const Colors = z.record(z.string().regex(TOKEN_KEY, 'token names start with a-z'), cssValue);
+/** CSS name part of a token key: camelCase becomes kebab-case. */
+export const kebabKey = (key: string): string =>
+  key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
-const Tokens = z.strictObject({
+const Colors = z
+  .record(z.string().regex(TOKEN_KEY, 'token names start with a-z'), cssValue)
+  .refine(
+    (c) => new Set(Object.keys(c).map(kebabKey)).size === Object.keys(c).length,
+    'two colour keys give the same CSS name (camelCase and kebab-case)',
+  );
+
+export const TokensSchema = z.strictObject({
   colors: Colors,
   fonts: z.strictObject({ display: Font, body: Font, caption: Font }),
   texture: Texture.optional(),
   motion: Motion,
 });
-export type Tokens = z.infer<typeof Tokens>;
+export type Tokens = z.infer<typeof TokensSchema>;
 
 const TokensPartial = z.strictObject({
   colors: Colors.optional(),
@@ -165,7 +204,7 @@ export type StyleFile = z.infer<typeof StyleFileSchema>;
 export const StyleSchema = z
   .strictObject({
     ...own,
-    tokens: Tokens,
+    tokens: TokensSchema,
     captions: Captions,
     overlays: Overlays,
     pacing: Pacing,
@@ -178,28 +217,39 @@ export type Style = z.infer<typeof StyleSchema>;
 // ---- template.json ----
 
 // Load-time checks of a template's variables schema. `strictSchema` turns unknown keywords (typos
-// such as `maxLenght`) and unknown formats into errors.
-const ajvStrict = new Ajv({
-  allErrors: true,
-  strictSchema: true,
-  strictTypes: false,
-  strictTuples: false,
-  strictRequired: false,
-});
+// such as `maxLenght`) and unknown formats into errors. A fresh Ajv per check: Ajv caches schemas by
+// `$id`, so a shared instance would reject the same template on a second load.
+const strictAjv = () =>
+  new Ajv({
+    allErrors: true,
+    strictSchema: true,
+    strictTypes: false,
+    strictTuples: false,
+    strictRequired: false,
+  });
+
+/** True when `skipEntrance` is named anywhere as a property or a required key (D-15). */
+function namesSkipEntrance(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some(namesSkipEntrance);
+  if (node === null || typeof node !== 'object') return false;
+  const o = node as Record<string, unknown>;
+  const props = o['properties'];
+  if (props !== null && typeof props === 'object' && Object.hasOwn(props, 'skipEntrance')) {
+    return true;
+  }
+  if (Array.isArray(o['required']) && o['required'].includes('skipEntrance')) return true;
+  return Object.values(o).some(namesSkipEntrance);
+}
 
 function variablesProblems(schema: Record<string, unknown>): string[] {
-  if (!ajvStrict.validateSchema(schema)) return [ajvStrict.errorsText(ajvStrict.errors)];
+  const ajv = strictAjv();
+  if (!ajv.validateSchema(schema)) return [ajv.errorsText(ajv.errors)];
   if (schema['type'] !== 'object') return ['the variables schema must have type "object"'];
-  const props = schema['properties'];
-  const required = schema['required'];
-  if (
-    (props !== null && typeof props === 'object' && 'skipEntrance' in props) ||
-    (Array.isArray(required) && required.includes('skipEntrance'))
-  ) {
+  if (namesSkipEntrance(schema)) {
     return ['skipEntrance is reserved (set by compile, D-15); a template may not declare it'];
   }
   try {
-    ajvStrict.compile(schema);
+    ajv.compile(schema);
   } catch (e) {
     return [e instanceof Error ? e.message : String(e)];
   }
@@ -256,14 +306,14 @@ export const TemplateSchema = z
   });
 export type Template = z.infer<typeof TemplateSchema>;
 
-// Lenient validator for variable values (same options as phase 02's ops), cached per schema object.
-const ajvValues = new Ajv({ allErrors: true, strict: false });
+// Lenient validator for variable values (same options as phase 02's ops), cached per schema object
+// (one Ajv each, so two templates with one `$id` never collide).
 const validators = new WeakMap<object, ValidateFunction>();
 
 export function variablesValidator(schema: Record<string, unknown>): ValidateFunction {
   let v = validators.get(schema);
   if (!v) {
-    v = ajvValues.compile(schema);
+    v = new Ajv({ allErrors: true, strict: false }).compile(schema);
     validators.set(schema, v);
   }
   return v;
