@@ -42,14 +42,34 @@ export function mechanismProbes(seq: Sequence): ProbeFrame[] {
     const s = it as SceneItem;
     const f = s.startF + Math.floor(s.durF / 2);
     const points: ProbePoint[] = [
-      { id: s.id, what: 'swatch', box: inner(SWATCH_AT.x, SWATCH_AT.y, SWATCH_AT.size), expect: s.vars.swatch },
-      { id: s.id, what: 'token', box: inner(TOKEN_AT.x, TOKEN_AT.y, TOKEN_AT.size), expect: STYLE_TOKENS[s.style].accent! },
+      {
+        id: s.id,
+        what: 'swatch',
+        box: inner(SWATCH_AT.x, SWATCH_AT.y, SWATCH_AT.size),
+        expect: s.vars.swatch,
+      },
+      {
+        id: s.id,
+        what: 'token',
+        box: inner(TOKEN_AT.x, TOKEN_AT.y, TOKEN_AT.size),
+        expect: STYLE_TOKENS[s.style].accent!,
+      },
     ];
     (s.panels ?? []).forEach((p, i) => {
       const { x: x0, y: y0 } = PANEL_BOXES[i]!;
       points.push(
-        { id: p.id, what: 'swatch', box: inner(x0 + PANEL_SWATCH_AT.x, y0 + PANEL_SWATCH_AT.y, PANEL_SWATCH_AT.size), expect: p.vars.swatch },
-        { id: p.id, what: 'token', box: inner(x0 + PANEL_TOKEN_AT.x, y0 + PANEL_TOKEN_AT.y, PANEL_TOKEN_AT.size), expect: STYLE_TOKENS[p.style].accent! },
+        {
+          id: p.id,
+          what: 'swatch',
+          box: inner(x0 + PANEL_SWATCH_AT.x, y0 + PANEL_SWATCH_AT.y, PANEL_SWATCH_AT.size),
+          expect: p.vars.swatch,
+        },
+        {
+          id: p.id,
+          what: 'token',
+          box: inner(x0 + PANEL_TOKEN_AT.x, y0 + PANEL_TOKEN_AT.y, PANEL_TOKEN_AT.size),
+          expect: STYLE_TOKENS[p.style].accent!,
+        },
       );
     });
     out.push({ f, points });
@@ -83,7 +103,11 @@ export function meanRgb(
       b += buf[o + 2]!;
       n++;
     }
-  const m: [number, number, number] = [r / n, g / n, b / n].map(Math.round) as [number, number, number];
+  const m: [number, number, number] = [r / n, g / n, b / n].map(Math.round) as [
+    number,
+    number,
+    number,
+  ];
   return order === 'bgr' ? [m[2], m[1], m[0]] : m;
 }
 

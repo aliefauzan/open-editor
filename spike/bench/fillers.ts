@@ -36,12 +36,44 @@ async function main() {
     { env: { ...process.env, HF_HUB_DISABLE_TELEMETRY: '1' } },
   );
   const out = JSON.parse(r.stdout.toString().trim().split('\n').pop()!) as {
-    withoutPrompt: { fillers: number; um: number; uh: number; backToBackRepeats: number; text: string };
-    withPrompt: { fillers: number; um: number; uh: number; backToBackRepeats: number; text: string };
+    withoutPrompt: {
+      fillers: number;
+      um: number;
+      uh: number;
+      backToBackRepeats: number;
+      text: string;
+    };
+    withPrompt: {
+      fillers: number;
+      um: number;
+      uh: number;
+      backToBackRepeats: number;
+      text: string;
+    };
   };
-  writeEvidence('B-fillers.json', { item: 8, recordedOnly: true, wav: 'fixtures/speech-fillers.wav', load: before, ...out });
-  const pick = (x: typeof out.withPrompt) => ({ um: x.um, uh: x.uh, fillers: x.fillers, repeats: x.backToBackRepeats, text: x.text });
-  emit({ item: 8, name: 'fillers', pass: null, recordedOnly: true, spoken: { um: 1, uh: 1, repeats: 1 }, withoutPrompt: pick(out.withoutPrompt), withPrompt: pick(out.withPrompt) });
+  writeEvidence('B-fillers.json', {
+    item: 8,
+    recordedOnly: true,
+    wav: 'fixtures/speech-fillers.wav',
+    load: before,
+    ...out,
+  });
+  const pick = (x: typeof out.withPrompt) => ({
+    um: x.um,
+    uh: x.uh,
+    fillers: x.fillers,
+    repeats: x.backToBackRepeats,
+    text: x.text,
+  });
+  emit({
+    item: 8,
+    name: 'fillers',
+    pass: null,
+    recordedOnly: true,
+    spoken: { um: 1, uh: 1, repeats: 1 },
+    withoutPrompt: pick(out.withoutPrompt),
+    withPrompt: pick(out.withPrompt),
+  });
 }
 
 if (import.meta.main) await main();

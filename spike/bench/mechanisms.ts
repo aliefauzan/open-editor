@@ -58,7 +58,15 @@ export async function checkRenderMechanisms(file: string) {
     p.points.map((pt) => {
       const got = meanRgb(frames.get(p.f)!, W, pt.box);
       const dist = colorDist(got, hexRgb(pt.expect));
-      return { f: p.f, id: pt.id, what: pt.what, expect: pt.expect, got, dist, ok: dist <= COLOR_TOL };
+      return {
+        f: p.f,
+        id: pt.id,
+        what: pt.what,
+        expect: pt.expect,
+        got,
+        dist,
+        ok: dist <= COLOR_TOL,
+      };
     }),
   );
   const vars = points.filter((p) => p.what === 'swatch');
@@ -66,7 +74,10 @@ export async function checkRenderMechanisms(file: string) {
 
   const rate = 48000;
   // Left channel: the render is dual-mono stereo, the source mono.
-  const [mix, src] = await Promise.all([pcm(file, rate, 0), pcm(path.join(OUT, 'media', 'spike.m4a'), rate)]);
+  const [mix, src] = await Promise.all([
+    pcm(file, rate, 0),
+    pcm(path.join(OUT, 'media', 'spike.m4a'), rate),
+  ]);
   const last = seq.items.find((i) => i.kind === 'audio' && i.fade) as AudioItem;
   const fps = seq.fps;
   // Clicks every 60 source frames; the last clip starts at source frame 600 (a click).
@@ -75,13 +86,22 @@ export async function checkRenderMechanisms(file: string) {
   const c1 = clickOnset(mix, rate, at(last.startF + 60));
   const s0 = clickOnset(src, rate, frameToSec(last.inF, fps));
   const fade = last.fade!;
-  const expectedRatio = fade.from + ((fade.to - fade.from) * (last.startF + 60 - fade.fromF)) / (fade.toF - fade.fromF);
+  const expectedRatio =
+    fade.from + ((fade.to - fade.from) * (last.startF + 60 - fade.fromF)) / (fade.toF - fade.fromF);
   const volumeRatio = c0 && c1 ? Math.round((c1.amp / c0.amp) * 1000) / 1000 : null;
   const unityRatio = c0 && s0 ? Math.round((c0.amp / s0.amp) * 1000) / 1000 : null;
 
   const result = {
-    vars: { pass: vars.every((p) => p.ok), instances: vars.length, worstDist: Math.max(...vars.map((p) => p.dist)) },
-    tokens: { pass: tokens.every((p) => p.ok), instances: tokens.length, worstDist: Math.max(...tokens.map((p) => p.dist)) },
+    vars: {
+      pass: vars.every((p) => p.ok),
+      instances: vars.length,
+      worstDist: Math.max(...vars.map((p) => p.dist)),
+    },
+    tokens: {
+      pass: tokens.every((p) => p.ok),
+      instances: tokens.length,
+      worstDist: Math.max(...tokens.map((p) => p.dist)),
+    },
     mutedVideoSeparateAudio: {
       pass: unityRatio !== null && Math.abs(unityRatio - 1) <= 0.15,
       clickAmpRenderOverSource: unityRatio,
