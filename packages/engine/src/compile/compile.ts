@@ -45,6 +45,12 @@ export interface CompileOptions {
   mode: CompileMode;
   /** Timeline window to build (ms); the build starts at `startMs`. */
   range?: { startMs: number; endMs: number };
+  /**
+   * Only these layers, over a transparent background (`renderLayers`; render mode): scene item ids,
+   * transition instances (`<itemId>-tx`), overlays (`overlay-<name>`) and `captions`. Media clips are
+   * left out.
+   */
+  layers?: string[];
 }
 
 /**
@@ -72,6 +78,8 @@ export interface BuildResult {
   /** Absolute project folder (writeBuild writes to `build/<sequenceId>/` in it). */
   projectDir: string;
   mode: CompileMode;
+  /** Sequence frame rate (the render `--fps`). */
+  fps: Fps;
   /** Build-relative path → text content. */
   files: Map<string, string | Uint8Array>;
   /** Build-relative path → absolute source file (hard-linked, or copied across devices). */
@@ -155,6 +163,16 @@ interface Ctx {
   tokenStyles: Map<string, ResolvedStyle>;
   /** Main timeline lines (GSAP). */
   script: string[];
+  /** `layers` option: the ids to keep; the ids kept so far. */
+  only?: Set<string>;
+  kept: Set<string>;
+}
+
+/** Whether layer `id` is emitted (always, without the `layers` option). */
+function keep(ctx: Ctx, id: string): boolean {
+  if (ctx.only && !ctx.only.has(id)) return false;
+  ctx.kept.add(id);
+  return true;
 }
 
 const secOf = (ctx: Ctx, t: number): string => {
@@ -517,6 +535,7 @@ function placements(ctx: Ctx, items: readonly Item[]): Map<string, Placed> {
       out.set(it.id, { item: it, startMs: it.startMs, inMs: it.inMs, durationMs: it.durationMs });
     }
   }
+  if (ctx.only) return out; // media clips are not in a layers build
   for (const it of items) {
     const tr = it.transitionIn;
     if (!tr) continue;
@@ -547,6 +566,7 @@ async function videoLayer(ctx: Ctx, track: Sequence['videoTracks'][number]): Pro
   const placed = placements(ctx, items);
   const out: string[] = [];
   for (const it of items) {
+    if (ctx.only && (it.type !== 'scene' || !keep(ctx, it.id))) continue;
     if (it.type === 'scene') {
       out.push(await sceneHost(ctx, it, k));
       continue;
@@ -579,6 +599,7 @@ async function transitionLayer(
     if (!tr) continue;
     const def = requireDef(ctx, tr.template, it.id);
     const id = `${it.id}-tx`;
+    if (!keep(ctx, id)) continue;
     const { before } = blendHalf(it.startMs, tr.durationMs, ctx.seq.canvas.fps);
     const start = Math.max(0, it.startMs - before);
     const src = emitInstance(
@@ -607,6 +628,7 @@ function overlayLayer(ctx: Ctx, durMs: number): string[] {
       continue;
     }
     const id = `overlay-${name}`;
+    if (!keep(ctx, id)) continue;
     const src = emitInstance(ctx, id, o.htmlPath, tokenStyle(ctx, o.styleId), {}, durMs);
     out.push(
       `<div id="${id}" class="clip host" data-composition-id="${id}"${src} data-start="0" data-duration="${secOf(ctx, durMs)}" data-track-index="90" data-width="${ctx.seq.canvas.width}" data-height="${ctx.seq.canvas.height}"></div>`,
@@ -801,6 +823,13 @@ export async function compileSequence(
       },
     );
   }
+  if (opts.layers && opts.mode !== 'render') {
+    throw new VoxError(
+      'VALIDATION',
+      'Layers are rendered from a render build',
+      'Compile with mode render',
+    );
+  }
   const warnings: string[] = [];
   const seq = opts.range ? applyRange(original, opts.range, warnings) : original;
   const fps = seq.canvas.fps;
@@ -828,6 +857,7 @@ export async function compileSequence(
     sequenceId: seq.id,
     projectDir: input.projectDir,
     mode: opts.mode,
+    fps: seq.canvas.fps,
     files: new Map(),
     links: new Map(),
     vendor: [...(opts.mode === 'preview' ? VENDOR_PREVIEW : VENDOR_RENDER)],
@@ -847,6 +877,8 @@ export async function compileSequence(
     templates: [],
     tokenStyles: new Map(),
     script: [],
+    ...(opts.layers ? { only: new Set(opts.layers) } : {}),
+    kept: new Set(),
   };
 
   const layers: string[] = [];
@@ -860,8 +892,18 @@ export async function compileSequence(
   }
   const overlays = overlayLayer(ctx, durationMs);
   if (overlays.length) layers.push(layerDiv('track-overlays', overlays));
-  const cap = captionLayer(ctx, captions, durationMs);
+  const cap = keep(ctx, 'captions') ? captionLayer(ctx, captions, durationMs) : '';
   if (cap) layers.push(layerDiv('track-captions', [cap]));
+  else ctx.kept.delete('captions');
+  const missing = [...(ctx.only ?? [])].filter((id) => !ctx.kept.has(id));
+  if (missing.length) {
+    throw new VoxError(
+      'VALIDATION',
+      `No layer ${missing.join(', ')} in sequence ${seq.id}`,
+      'Pick scene item ids, <itemId>-tx transitions, overlay-<name> overlays or captions',
+      { details: { layers: missing } },
+    );
+  }
   const audio = audioLayer(ctx, cues, durationMs);
   if (audio.length) layers.push(`<div id="track-audio">\n${indent(audio, 8)}\n      </div>`);
 
@@ -879,6 +921,7 @@ export async function compileSequence(
   const faceList = [...faces.values()].sort((a, b) => cmp(a.url, b.url) || cmp(a.family, b.family));
   for (const f of faceList) link(ctx, f.url, f.file);
 
+  const bg = ctx.only ? 'transparent' : '#000000';
   const W = seq.canvas.width;
   const H = seq.canvas.height;
   const head = build.vendor.map((v) => `    <script src="vendor/${v}"></script>`).join('\n');
@@ -892,8 +935,8 @@ export async function compileSequence(
 ${head}
     <style>
 ${fontFaceCss(faceList)}
-      html, body { margin: 0; padding: 0; background: #000000; }
-      #root { position: relative; width: ${W}px; height: ${H}px; overflow: hidden; background: #000000; }
+      html, body { margin: 0; padding: 0; background: ${bg}; }
+      #root { position: relative; width: ${W}px; height: ${H}px; overflow: hidden; background: ${bg}; }
       .layer { position: absolute; left: 0; top: 0; width: ${W}px; height: ${H}px; overflow: hidden; }
       .host { position: absolute; left: 0; top: 0; width: ${W}px; height: ${H}px; }
       .img-wrap { position: absolute; left: 0; top: 0; width: ${W}px; height: ${H}px; overflow: hidden; }

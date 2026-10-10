@@ -35,6 +35,7 @@ import {
   type FramingProvider,
 } from './compile/compile.ts';
 import { buildDirFor, writeBuildTo } from './compile/write.ts';
+import { renderLayerBuild } from './render/layers.ts';
 import { search as geoSearch, type Place } from './geo/search.ts';
 import { chunkLines, deriveCaptions, type CaptionChunk } from './model/captions.ts';
 import { TranscriptSchema, type Transcript } from './model/schema.ts';
@@ -203,6 +204,7 @@ export type {
   FramingProvider,
 } from './compile/compile.ts';
 export { cueList, type Cue, type CueDropReason, type CueList } from './audio/cues.ts';
+export { renderLayerBuild, type LayerRenderOptions } from './render/layers.ts';
 export {
   DENOISE_FILTERS,
   LOUDNESS_TARGETS,
@@ -322,6 +324,16 @@ export interface Engine {
    * the preset (default youtube), and the stems when `stemsDir` is given.
    */
   mix(projectId: string, sequenceId: string, opts: MixRequest): Promise<MixResult>;
+  /**
+   * Chosen layers (scene item ids, `<itemId>-tx`, `overlay-<name>`, `captions`) to a ProRes 4444 MOV
+   * with alpha at `out` (engine spec "Layer renderer"); returns `out`.
+   */
+  renderLayers(
+    projectId: string,
+    sequenceId: string,
+    layers: string[],
+    opts: { out: string; range?: { startMs: number; endMs: number } },
+  ): Promise<string>;
   captions(projectId: string, sequenceId: string): Promise<CaptionChunk[]>;
   styles: {
     list(): StyleSummary[];
@@ -569,6 +581,26 @@ export function openEngine(opts: EngineOptions): Engine {
 
     async writeBuild(result) {
       return writeBuildTo(result, buildDirFor(result.projectDir, result.sequenceId));
+    },
+
+    async renderLayers(projectId, sequenceId, layers, o) {
+      const p = await (await store(projectId)).read();
+      const tr = await transcripts(projectId, p);
+      const b = await compileSequence(
+        {
+          project: p,
+          projectDir: dirOf(projectId),
+          sequenceId,
+          registry: registry(),
+          transcriptOf: (m) => tr.get(m.id),
+          ...(opts.framing ? { framing: opts.framing } : {}),
+        },
+        { mode: 'render', layers, ...(o.range ? { range: o.range } : {}) },
+      );
+      return renderLayerBuild(b, {
+        buildDir: buildDirFor(dirOf(projectId), `${sequenceId}-layers`),
+        out: o.out,
+      });
     },
 
     async mix(projectId, sequenceId, o) {
