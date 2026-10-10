@@ -20,8 +20,8 @@ Status: not started; early steps done under D-19
 - **Left for phase 05**: shim → `errors.ts`; render / `exportCaptions` / `exportTimeline` wiring onto
   `writeExport` (pass the signal to ffmpeg via `produce`); OTIO `<name>-layers/` folder; `--all`; CLI
   flags (`--out`, `--overwrite`); the app's save dialog passes `{ file, overwrite: true }`.
-- **Branch**: `early/e3-media-export` at a4d3a88, pushed; worktree kept. Merge state: ready, waiting
-  for 02 (merge after 02).
+- **Branch**: `early/e3-media-export`, shim swapped to errors.ts after 02; merged to main as bfcdb3f; worktree
+  removed (verify: pnpm test 1238 passed / 1 skipped, pytest 109 passed).
 
 ## Early steps (D-19) — p2-audioqa
 

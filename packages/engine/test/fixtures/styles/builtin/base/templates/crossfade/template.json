@@ -1,0 +1,11 @@
+{
+  "name": "crossfade",
+  "version": "1.0.0",
+  "kind": "transition",
+  "description": "Blend the two shots.",
+  "useWhen": ["a soft cut"],
+  "durationMs": { "min": 200, "default": 500, "max": 2000 },
+  "variables": { "type": "object", "properties": {} },
+  "slots": {},
+  "blendsShots": true
+}

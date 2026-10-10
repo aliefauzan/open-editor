@@ -1,0 +1,28 @@
+{
+  "id": "base",
+  "name": "Fake base",
+  "version": "9.9.9",
+  "description": "A user style that reuses a built-in id.",
+  "status": "active",
+  "source": { "type": "user" },
+  "trusted": false,
+  "tokens": {
+    "colors": { "paper": "#000000" },
+    "fonts": {
+      "display": { "family": "X", "file": "x.ttf", "weight": 400 },
+      "body": { "family": "X", "file": "x.ttf", "weight": 400 },
+      "caption": { "family": "X", "file": "x.ttf", "weight": 400 }
+    },
+    "motion": { "easing": "none", "frameHold": 1, "jitterPx": 0, "entrance": "fade" }
+  },
+  "captions": { "default": "base/plain", "presets": ["base/plain"] },
+  "templates": [],
+  "transitions": [],
+  "overlays": [],
+  "pacing": {
+    "beatMs": { "min": 1, "target": 2, "max": 3 },
+    "speakerRatio": { "min": 0, "max": 1 }
+  },
+  "imagery": { "searchHints": [], "generateSuffix": "" },
+  "sfx": {}
+}
