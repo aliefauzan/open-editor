@@ -68,3 +68,33 @@ per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
   `--proxy` should win, not verified against yt-dlp).
 - `api.ts` exports (none added here). Phase 05 uses `fetchPublic` for archive/image downloads (S29
   tests on the archive path).
+
+## Early steps (D-19) — e2-config-jobs
+
+- **Steps done**: 1 (job runner: concurrency, GPU exclusivity, cancel, progress events, `register`),
+  2 (config tests S17, redactor tests S19), 3 TS part (bridge tests with a fake tool: schema mismatch,
+  progress, stderr tail, `--frozen`/`--no-sync` argv and uv env with a tools dir). Decisions: D-20.
+- **Files** (branch `early/e2-config-jobs`): `packages/engine/src/{config,redact,jobs,py}.ts`,
+  `src/errors.pending.ts` (D-19 shim, byte-identical copy), tests `packages/engine/test/{config,redact,jobs,py}/`
+  (incl. `py/fake-uv.mjs`, `config/write-worker.ts`), test tool `py/vox_py/_echo.py`. Dependency
+  `zod` 4.6.5 exact in `packages/engine/package.json` (same pin as 02).
+- **Tests**: 81 new vitest tests (config 19, redact 18, jobs 25, py 19), incl. cross-process config
+  writes (6 processes x 5 keys), process-group kill on cancel, a real `uv run --frozen ... -m
+  vox_py._echo` round trip. Root `pnpm typecheck && pnpm lint && pnpm test`: 118 passed (9 files);
+  `uv run --project py pytest`: 4 passed. Run 5x, no flakes.
+- **Review**: ecc:typescript-reviewer + ecc:security-reviewer. Fixed all HIGH: lock steal race and
+  foreign-lock release (owner token, rename-aside break), `finish()` could leave a job unsettled,
+  request serialised after spawn, throwing progress listener, unredacted progress/stored messages,
+  config JSON error echoing file text, child env (now an allowlist), orphaned groups on exit. Left
+  (MEDIUM/LOW): a handler that ignores its abort signal keeps its slot; finished jobs are never pruned
+  (add `forget`/limit when wiring the API); no wall-clock timeout for Python tools; `~/.vox` mode is
+  only set on creation; tool names are not allow-listed against a registry.
+- **New error codes** (append to `ERROR_CODES` at the shim swap): `CONFIG_INVALID`, `CONFIG_LOCKED`,
+  `JOB_FAILED`, `PY_TOOL_FAILED`, `PY_OUTPUT_INVALID`, `TOOL_MISSING`, `CANCELLED`.
+- **Left for phase 04**: step 1b (`baseVersion`, one `batch` with `jobId`, `JOB_CONFLICT`; needs 02
+  `applyOp`); wire `readConfig().projectsDir` into 02's `resolveProjectsDir` (config input exists) and
+  its test; `engine.redactor`, `engine.jobs`, `on()` and `readConfig`/`writeConfig` exports in
+  `api.ts`; redact `VoxError.cause` at creation/serialisation after the shim swap; pytest JSON-Schema
+  agreement per tool (P1's tools); `ToolPaths` (uv path, tools dir) from `openEngine`.
+- **Branch**: `early/e2-config-jobs` at 4bee254, pushed; worktree kept. Merge state: ready, waiting
+  for 02 (shim swap, then merge).

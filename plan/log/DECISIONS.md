@@ -485,3 +485,43 @@ its own worktree `.worktrees/early-<id>` on branch `early/<id>`:
   steps, wires them in and still runs its full Verify, review and done-when.
 **Consequences**: More parallel agents share CPU; timed measurements take `.git/vox-bench.lock`. Phase
 prerequisites in README §3 are unchanged for the phases as a whole.
+
+## D-20 · 2026-10-11 · phase 04 (early E2) · Config patch, redactor, job runner and Python bridge details
+
+**Context**: Early package E2 (D-19) builds phase 04's `config.ts`, `redact.ts`, `jobs.ts` and `py.ts`.
+The spec fixes their purpose but leaves some behaviour open.
+**Decision**:
+- **Config**: `writeConfig(patch)` applies a JSON merge patch (RFC 7396): objects merge, `null` removes a
+  key (so `ingest.cookiesFromBrowser: null` and an absent key both mean "off"), arrays and scalars
+  replace (a `providers` writer sends the whole list). Unknown keys are kept (loose schema);
+  `__proto__`/`constructor`/`prototype` keys are skipped. `projectsDir` must be absolute. A missing file
+  reads as `{}`; unreadable or broken JSON or a wrong type fails with `CONFIG_INVALID` (no file text in
+  the error) and nothing is written. Writes are serialised in-process and across processes by
+  `config.json.lock` (`O_EXCL`, owner token; stale when its pid on this host is dead, after 30 s, or
+  after 2 s when it has no readable owner; `CONFIG_LOCKED` after 40 s). `readConfig`/`writeConfig` are
+  async.
+- **Redactor**: replacement text `[REDACTED]`. Header lines `Authorization`, `Proxy-Authorization`,
+  `x-api-key`, `x-goog-api-key`, `api-key`, `x-auth-token`, `Cookie`, `Set-Cookie`; query values `key`,
+  `api_key`/`apikey`, `access_token`, `refresh_token`, `client_secret`, `token`, `password`; object
+  keys with those names (case, `-`, `_` ignored) plus `secret` are replaced whole. Registered values
+  shorter than 8 characters are ignored; each value's URL-encoded and JSON-escaped forms are
+  registered too. `redact` returns a copy (arrays, plain objects, Map, Set, Errors with message, stack,
+  cause and details; other class instances as they are) and never throws. `engine.redactor` is one
+  shared instance (`createRedactor()` for tests).
+- **Jobs**: FIFO; a GPU job waiting for the GPU does not block CPU jobs behind it; `gpu` may be a
+  function of the args. A running job turns `cancelled` only when its handler settles (child gone), so
+  the slot is never over-booked. Non-`VoxError` failures become `JOB_FAILED`. Event payloads (results
+  included), stored errors and progress messages are redacted; stored results are not (they are data).
+  Additions beyond the spec: `wait(jobId)` and `kinds()`.
+- **Python bridge**: uv runs in its own process group; cancel sends SIGTERM to the group, SIGKILL after
+  2 s; groups still alive when the engine process exits are killed. The child gets an allow-listed
+  environment (`PATH`, `HOME`, `USER`, `LOGNAME`, `TMPDIR`, `LANG`, `TZ`, `LC_*`, `UV_*`, `HF_*`,
+  `VOX_*`, proxy and CA variables, `XDG_CACHE_HOME`), so provider keys never reach a tool. The stderr
+  tail (40 lines) excludes JSON progress lines and is redacted line by line. Tool names match
+  `^[a-z_][a-z0-9_]*$`; stdout is capped at 64 MiB. Test tool `py/vox_py/_echo.py` (not used by the app).
+- **New error codes** (appended to `ERROR_CODES` at the shim swap): `CONFIG_INVALID`, `CONFIG_LOCKED`,
+  `JOB_FAILED`, `PY_TOOL_FAILED`, `PY_OUTPUT_INVALID`, `TOOL_MISSING`, `CANCELLED`.
+
+**Why**: Smallest choices that satisfy S17/S19 and the phase-04 step 1–3 tests; RFC 7396 is the
+standard way to say "replace only the keys named" and to remove a key. Review (typescript-reviewer,
+security-reviewer) asked for the lock token, the env allowlist and the never-throwing redactor.
