@@ -1,0 +1,17 @@
+{
+  "name": "@vox/agent",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Vox Studio agent",
+  "exports": {
+    ".": "./src/api.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@vox/engine": "workspace:*"
+  }
+}

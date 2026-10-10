@@ -1,0 +1,7 @@
+{
+  "name": "@vox/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Vox Studio desktop app (placeholder; scaffold is phase 08)"
+}

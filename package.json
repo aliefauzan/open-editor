@@ -1,0 +1,32 @@
+{
+  "name": "vox-studio",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@12.0.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:ts": "vitest run",
+    "test:py": "uv run --project py pytest",
+    "test:slow": "VOX_SLOW=1 vitest run",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "@vox/cli": "workspace:*",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3"
+  }
+}
