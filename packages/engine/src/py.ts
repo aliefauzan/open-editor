@@ -1,0 +1,386 @@
+// Typed bridge to the Python tools in py/ (engine spec "Repository layout" → Python bridge; plan R3).
+// Each tool runs as `uv run --frozen --project <py> python -I -m vox_py.<tool>`: one JSON request on
+// stdin, one JSON result on stdout, JSON-lines progress on stderr. With a tools directory (packaged
+// app) it adds `--no-sync` and keeps uv's env, cache and Pythons in that folder (D-12), so nothing is
+// written into the app bundle and uv.lock is never rewritten. Both sides are validated with zod.
+// Failures carry the last 40 stderr lines in `cause`, redacted (S19). Cancel kills the process group.
+
+import { spawn } from 'node:child_process';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { z } from 'zod';
+import { VoxError, type ErrorCode } from './errors.ts';
+import { redactor as sharedRedactor, type Redactor } from './redact.ts';
+
+export const STDERR_TAIL_LINES = 40;
+const MAX_STDOUT_BYTES = 64 * 1024 * 1024;
+const MAX_LINE_CHARS = 4000;
+const MAX_PARTIAL_CHARS = 64 * 1024;
+const KILL_GRACE_MS = 2000;
+const TOOL_NAME = /^[a-z_][a-z0-9_]*$/;
+
+export interface PyBridgeOptions {
+  /** The uv project folder (`py/` in the repo, `<resources>/py` in the app). */
+  pyProject: string;
+  /** uv executable; default `uv` from PATH. */
+  uv?: string;
+  /** Packaged mode: the app's tools directory (adds `--no-sync` and the uv env variables). */
+  toolsDir?: string;
+  /** Validates the request before spawning. */
+  input?: z.ZodType;
+  signal?: AbortSignal;
+  onProgress?: (progress: number, message?: string) => void;
+  redactor?: Redactor;
+}
+
+/** The repo's `py/` folder (development). */
+export function repoPyProject(): string {
+  return fileURLToPath(new URL('../../../py', import.meta.url));
+}
+
+export function pyArgv(
+  tool: string,
+  opts: Pick<PyBridgeOptions, 'pyProject' | 'toolsDir'>,
+): string[] {
+  if (!TOOL_NAME.test(tool)) {
+    throw new VoxError(
+      'VALIDATION',
+      `Invalid Python tool name ${JSON.stringify(tool)}`,
+      'Use a vox_py module name',
+      {
+        details: { tool },
+      },
+    );
+  }
+  return [
+    'run',
+    '--frozen',
+    ...(opts.toolsDir === undefined ? [] : ['--no-sync']),
+    '--project',
+    opts.pyProject,
+    'python',
+    '-I',
+    '-m',
+    `vox_py.${tool}`,
+  ];
+}
+
+// Environment passed to uv/python: an allowlist, so provider keys and other secrets the engine
+// process holds never reach a tool (S19/S30 spirit). Proxy and CA settings are kept for downloads.
+const ENV_NAMES = new Set([
+  'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'TMPDIR',
+  'LANG',
+  'TZ',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'REQUESTS_CA_BUNDLE',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+  'XDG_CACHE_HOME',
+]);
+const ENV_PREFIXES = ['LC_', 'UV_', 'HF_', 'VOX_'];
+
+export function pyEnv(
+  opts: Partial<Pick<PyBridgeOptions, 'pyProject' | 'toolsDir'>>,
+  base: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(base)) {
+    if (v !== undefined && (ENV_NAMES.has(k) || ENV_PREFIXES.some((p) => k.startsWith(p)))) {
+      env[k] = v;
+    }
+  }
+  if (opts.toolsDir === undefined) return env;
+  return {
+    ...env,
+    UV_PROJECT_ENVIRONMENT: join(opts.toolsDir, 'py-env'),
+    UV_CACHE_DIR: join(opts.toolsDir, 'uv-cache'),
+    UV_PYTHON_INSTALL_DIR: join(opts.toolsDir, 'python'),
+  };
+}
+
+// Process groups still running; killed if the engine process exits, so no tool outlives it.
+const liveGroups = new Set<number>();
+let exitHookInstalled = false;
+function trackGroup(pid: number): void {
+  liveGroups.add(pid);
+  if (exitHookInstalled) return;
+  exitHookInstalled = true;
+  process.once('exit', () => {
+    for (const g of liveGroups) {
+      try {
+        process.kill(-g, 'SIGKILL');
+      } catch {
+        // already gone
+      }
+    }
+  });
+}
+
+function cancelled(tool: string): VoxError {
+  return new VoxError(
+    'CANCELLED',
+    `Python tool ${tool} was cancelled`,
+    'Start the job again when needed',
+    {
+      details: { tool },
+    },
+  );
+}
+
+function issuesOf(error: z.ZodError): { path: string[]; message: string }[] {
+  return error.issues.map((i) => ({ path: i.path.map(String), message: i.message }));
+}
+
+function parseProgress(line: string): { progress: number; message?: string } | undefined {
+  if (!line.startsWith('{')) return undefined;
+  try {
+    const v = JSON.parse(line) as { progress?: unknown; message?: unknown };
+    if (typeof v !== 'object' || v === null || typeof v.progress !== 'number') return undefined;
+    if (!Number.isFinite(v.progress)) return undefined;
+    return {
+      progress: Math.min(1, Math.max(0, v.progress)),
+      ...(typeof v.message === 'string' ? { message: v.message } : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Runs `vox_py.<tool>` with `request` and returns its result parsed by `output`.
+ * Errors: VALIDATION (request), TOOL_MISSING (uv), PY_TOOL_FAILED (exit code), PY_OUTPUT_INVALID
+ * (not JSON / schema mismatch), CANCELLED (signal). Every rejection is redacted.
+ */
+export function runPyTool<S extends z.ZodType>(
+  tool: string,
+  request: unknown,
+  output: S,
+  opts: PyBridgeOptions,
+): Promise<z.output<S>> {
+  const redactor = opts.redactor ?? sharedRedactor;
+  const uv = opts.uv ?? 'uv';
+  const rejectWith = (e: VoxError): Promise<never> => Promise.reject(redactor.redact(e));
+
+  let argv: string[];
+  try {
+    argv = pyArgv(tool, opts);
+  } catch (e) {
+    return rejectWith(e as VoxError);
+  }
+  if (opts.input) {
+    const res = opts.input.safeParse(request);
+    if (!res.success) {
+      return rejectWith(
+        new VoxError(
+          'VALIDATION',
+          `Invalid request for Python tool ${tool}`,
+          'Check the tool arguments',
+          {
+            details: { tool, issues: issuesOf(res.error) },
+          },
+        ),
+      );
+    }
+    request = res.data;
+  }
+  // Serialise before spawning, so a bad request never leaves a child behind.
+  let body: string;
+  try {
+    body = JSON.stringify(request) ?? 'null';
+  } catch (e) {
+    return rejectWith(
+      new VoxError(
+        'VALIDATION',
+        `Request for Python tool ${tool} is not JSON-serialisable`,
+        'Check the tool arguments',
+        {
+          details: { tool, reason: e instanceof Error ? e.message : String(e) },
+        },
+      ),
+    );
+  }
+  if (opts.signal?.aborted) return rejectWith(cancelled(tool));
+
+  return new Promise((resolve, reject) => {
+    // Own process group, so cancel also reaches python under uv.
+    const child = spawn(uv, argv, {
+      env: pyEnv(opts),
+      stdio: ['pipe', 'pipe', 'pipe'],
+      detached: true,
+    });
+    const group = child.pid;
+    if (group !== undefined) trackGroup(group);
+
+    const tail: string[] = [];
+    let partial = '';
+    const stdout: Buffer[] = [];
+    let stdoutBytes = 0;
+    let overflow = false;
+    let spawnError: NodeJS.ErrnoException | undefined;
+    let aborted = false;
+
+    const killGroup = (sig: NodeJS.Signals): void => {
+      if (group === undefined) return;
+      try {
+        process.kill(-group, sig);
+      } catch {
+        // group already gone
+      }
+    };
+
+    const onAbort = (): void => {
+      aborted = true;
+      killGroup('SIGTERM');
+      // Not cleared on close: python may outlive uv; the group gets SIGKILL after the grace period.
+      setTimeout(() => {
+        killGroup('SIGKILL');
+        if (group !== undefined) liveGroups.delete(group);
+      }, KILL_GRACE_MS).unref();
+    };
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+
+    const takeLine = (raw: string): void => {
+      const trimmed = raw.trim();
+      if (trimmed.length === 0) return;
+      const p = parseProgress(trimmed);
+      if (p) {
+        try {
+          opts.onProgress?.(
+            p.progress,
+            p.message === undefined ? undefined : redactor.redact(p.message),
+          );
+        } catch {
+          // a progress listener bug must not break the tool run
+        }
+        return;
+      }
+      // Redact before truncating, so a cut can never leave half a secret.
+      const safe = redactor.redact(raw);
+      tail.push(safe.length > MAX_LINE_CHARS ? safe.slice(0, MAX_LINE_CHARS) + '…' : safe);
+      if (tail.length > STDERR_TAIL_LINES) tail.shift();
+    };
+
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
+      const lines = (partial + chunk).split('\n');
+      partial = lines.pop() ?? '';
+      if (partial.length > MAX_PARTIAL_CHARS) {
+        takeLine(partial);
+        partial = '';
+      }
+      for (const l of lines) takeLine(l.replace(/\r$/, ''));
+    });
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdoutBytes += chunk.length;
+      if (stdoutBytes > MAX_STDOUT_BYTES) {
+        if (!overflow) {
+          overflow = true;
+          killGroup('SIGKILL');
+        }
+        return;
+      }
+      stdout.push(chunk);
+    });
+
+    child.stdin.on('error', () => {
+      // EPIPE when the tool exits without reading stdin; the exit code reports the failure.
+    });
+    child.stdin.end(body);
+
+    child.on('error', (e: NodeJS.ErrnoException) => {
+      spawnError = e;
+    });
+
+    child.on('close', (code, signal) => {
+      try {
+        opts.signal?.removeEventListener('abort', onAbort);
+        if (group !== undefined && !aborted) liveGroups.delete(group);
+        if (partial.length > 0) takeLine(partial);
+        resolve(settle(code, signal));
+      } catch (e) {
+        reject(redactor.redact(e));
+      }
+    });
+
+    const settle = (code: number | null, signal: NodeJS.Signals | null): z.output<S> => {
+      const cause = tail.length > 0 ? tail.join('\n') : undefined;
+      const fail = (
+        codeName: ErrorCode,
+        message: string,
+        hint: string,
+        details: Record<string, unknown>,
+      ): never => {
+        throw new VoxError(codeName, message, hint, { cause, details: { tool, ...details } });
+      };
+
+      if (aborted) throw cancelled(tool);
+      if (spawnError) {
+        if (spawnError.code === 'ENOENT') {
+          throw new VoxError(
+            'TOOL_MISSING',
+            `uv was not found (${uv})`,
+            'Install uv, or run the app setup again (vox doctor shows the fix)',
+            {
+              details: { tool: 'uv', path: uv },
+            },
+          );
+        }
+        fail(
+          'PY_TOOL_FAILED',
+          `Could not start Python tool ${tool}: ${spawnError.message}`,
+          'Run vox doctor',
+          {
+            errno: spawnError.code,
+          },
+        );
+      }
+      if (overflow) {
+        fail(
+          'PY_OUTPUT_INVALID',
+          `Python tool ${tool} wrote more than ${MAX_STDOUT_BYTES} bytes`,
+          'Report this as a bug',
+          {},
+        );
+      }
+      if (code !== 0) {
+        fail(
+          'PY_TOOL_FAILED',
+          `Python tool ${tool} failed (${signal ? `signal ${signal}` : `exit code ${code}`})`,
+          'Run vox doctor to check the Python environment; the error output is in the cause',
+          { exitCode: code, signal },
+        );
+      }
+      let json: unknown;
+      try {
+        json = JSON.parse(Buffer.concat(stdout).toString('utf8'));
+      } catch {
+        fail(
+          'PY_OUTPUT_INVALID',
+          `Python tool ${tool} did not return JSON`,
+          'Run vox doctor; the py/ tools may be out of date',
+          {},
+        );
+      }
+      const res = output.safeParse(json);
+      if (!res.success) {
+        fail(
+          'PY_OUTPUT_INVALID',
+          `Python tool ${tool} returned a result that does not match its schema`,
+          'Run vox doctor; the py/ tools and the engine may be out of sync',
+          { issues: issuesOf(res.error) },
+        );
+      }
+      return (res as { data: z.output<S> }).data;
+    };
+  });
+}

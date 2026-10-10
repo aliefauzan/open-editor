@@ -48,6 +48,12 @@ export const ERROR_CODES = [
   'STYLE_NOT_FOUND',
   'STYLE_INVALID',
   'STYLE_DUPLICATE',
+  // config, jobs, Python bridge (phase 04, early E2, D-20)
+  'CONFIG_INVALID',
+  'CONFIG_LOCKED',
+  'JOB_FAILED',
+  'PY_TOOL_FAILED',
+  'PY_OUTPUT_INVALID',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
