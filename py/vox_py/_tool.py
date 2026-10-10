@@ -155,14 +155,25 @@ def main(handler: Callable[[dict], dict]) -> None:
         _fail(exc.code, exc.message)
     except Exception as exc:  # noqa: BLE001 - every failure must end as one error line
         _fail("TOOL_FAILED", f"{type(exc).__name__}: {exc}")
-    sys.stdout.flush()
+    _flush_c_stdio()
     os.dup2(saved_stdout, 1)
     os.close(saved_stdout)
     sys.stdout.write(out + "\n")
     sys.stdout.flush()
 
 
-def _fail(code: str, message: str) -> None:
+def _flush_c_stdio() -> None:
+    """Flush Python and C stdio buffers, so native output written so far lands on stderr."""
     sys.stdout.flush()
+    try:
+        import ctypes
+
+        ctypes.CDLL(None).fflush(None)
+    except (OSError, AttributeError):
+        pass
+
+
+def _fail(code: str, message: str) -> None:
+    _flush_c_stdio()
     print(json.dumps({"error": {"code": code, "message": message}}), file=sys.stderr, flush=True)
     sys.exit(1)

@@ -57,8 +57,11 @@ REQUEST: _tool.Spec = {
 # ---- face model ----
 
 
+MAX_FACE_MODEL_BYTES = 8 << 20
+
+
 def check_face_model(path: Path) -> None:
-    if not path.is_file():
+    if "\x00" in str(path) or not path.is_file():
         raise _tool.ToolError("MODEL_MISSING", f"face model not found: {path}")
     _tool.check_sha256(path, FACE_MODEL_SHA256, "MediaPipe face model")
 
@@ -294,7 +297,10 @@ def probe(path: Path, ffprobe: str, formats: str) -> tuple[int, int, int]:
             rotation = int(side["rotation"])
     if rotation % 180:
         width, height = height, width
-    duration = float((info.get("format") or {}).get("duration") or 0.0)
+    try:
+        duration = float((info.get("format") or {}).get("duration") or 0.0)
+    except ValueError:  # "N/A"
+        duration = 0.0
     return width, height, max(0, round(duration * 1000))
 
 
@@ -372,6 +378,10 @@ def handle(raw: dict) -> dict:
                 _tool.progress(min(i / expected, 0.99), f"frame {i + 1} of about {expected}")
     finally:
         finder.close()
+    if not samples:
+        raise _tool.ToolError("MEDIA_UNREADABLE", f"no video frames decoded from {video}")
+    # Some containers (e.g. WebM) report no duration: fall back to the sampled span.
+    duration_ms = max(duration_ms, round(len(samples) * 1000 / fps))
     _tool.progress(1.0, "done")
     return {
         "sampleFps": fps if fps != int(fps) else int(fps),

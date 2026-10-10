@@ -16,7 +16,7 @@ def handle(raw: dict) -> dict:
     path = _tool.existing_file(req["path"])
 
     from pypdf import PdfReader
-    from pypdf.errors import PdfReadError
+    from pypdf.errors import DependencyError, FileNotDecryptedError, PdfReadError
 
     try:
         reader = PdfReader(path)
@@ -24,7 +24,11 @@ def handle(raw: dict) -> dict:
             # An empty user password still opens some "encrypted" PDFs; anything else is refused.
             try:
                 opened = reader.decrypt("")
-            except Exception:  # noqa: BLE001 - unsupported cipher counts as locked
+            except DependencyError as exc:
+                raise _tool.ToolError(
+                    "TOOL_MISSING", f"PDF decryption support missing: {exc}"
+                ) from exc
+            except (FileNotDecryptedError, NotImplementedError):
                 opened = 0
             if not opened:
                 raise _tool.ToolError("DOC_ENCRYPTED", f"the PDF is password protected: {path}")

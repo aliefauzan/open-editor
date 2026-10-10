@@ -13,6 +13,7 @@ dependencies = [
   "mediapipe==1.0.0",
   "pyobjc-framework-Vision==12.2.2",
   "pypdf==6.19.0",
+  "cryptography==50.0.1",  # pypdf needs it for AES-encrypted PDFs
 ]
 
 [dependency-groups]

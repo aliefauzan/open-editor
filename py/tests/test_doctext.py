@@ -71,3 +71,18 @@ def test_encrypted_pdf_fails_with_doc_encrypted(tmp_path):
     code, _, stderr = run_tool("doctext", {"path": str(locked)})
     assert code == 1
     assert stderr_error(stderr)["code"] == "DOC_ENCRYPTED"
+
+
+def test_aes_pdf_with_an_empty_user_password_is_read(tmp_path):
+    plain = tmp_path / "plain.pdf"
+    make_pdf(plain, ["Open to all readers"])
+    from pypdf import PdfReader
+
+    writer = PdfWriter(clone_from=PdfReader(plain))
+    writer.encrypt(user_password="", owner_password="owner", algorithm="AES-256")
+    locked = tmp_path / "aes.pdf"
+    with open(locked, "wb") as fh:
+        writer.write(fh)
+    code, result, stderr = run_tool("doctext", {"path": str(locked)})
+    assert code == 0, stderr
+    assert "Open to all readers" in result["text"]

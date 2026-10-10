@@ -65,6 +65,19 @@ def test_regions_are_padded_merged_and_clamped():
     assert end == 53 * 512 + 480
 
 
+def test_close_regions_split_the_gap_and_far_regions_get_full_pads():
+    # A 6-window gap (192 ms > minSilenceMs 100 ms) ends a region; the gap is 3072 samples.
+    close = [0.9] * 20 + [0.0] * 6 + [0.9] * 20 + [0.0] * 10
+    regions = vad.regions_from_probs(close, len(close) * 512, speech_pad_ms=200)
+    assert len(regions) == 2
+    gap = 26 * 512 - 20 * 512
+    # pad 200 ms = 3200 samples: the gap is under 2 x pad, so each side takes half of it.
+    assert regions[0][1] == 20 * 512 + gap // 2 and regions[1][0] == 26 * 512 - gap // 2
+    # pad 30 ms = 480 samples: the gap is over 2 x pad, so each side gets the full pad.
+    far = vad.regions_from_probs(close, len(close) * 512, speech_pad_ms=30)
+    assert far[0][1] == 20 * 512 + 480 and far[1][0] == 26 * 512 - 480
+
+
 def test_short_blips_are_not_speech():
     probs = [0.0] * 10 + [0.9] * 3 + [0.0] * 40  # 96 ms < minSpeechMs 250
     assert vad.regions_from_probs(probs, len(probs) * 512) == []
