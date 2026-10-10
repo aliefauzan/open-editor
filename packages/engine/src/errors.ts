@@ -37,10 +37,13 @@ export const ERROR_CODES = [
   'NET_DNS',
   'NET_REDIRECTS',
   'NET_TOO_LARGE',
-  // external tools and jobs (early E4: shots, facetrack)
+  // external tools and jobs (early E4: shots, facetrack; early e3-media-export)
   'TOOL_MISSING',
   'TOOL_FAILED',
   'CANCELLED',
+  // media ingest and export targets (early e3-media-export, D-25)
+  'MEDIA_UNSUPPORTED',
+  'EXPORT_PATH',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
