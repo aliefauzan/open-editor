@@ -88,6 +88,8 @@ export const SMOOTHING_S: Readonly<Record<'smooth' | 'follow', number>> = {
 export const TRACK_SPEED: Readonly<Record<TrackSpeed, number>> = { slow: 0.5, normal: 1, fast: 2 };
 /** A user keyframe blends to and from the tracked path over 300 ms. */
 export const PIN_BLEND_MS = 300;
+/** Pins are clamped to scale 1..8 and to a centre that keeps the crop inside the source. */
+export const MAX_PIN_SCALE = 8;
 
 // ---- public types ----
 
@@ -122,6 +124,9 @@ export interface ShotFraming {
 }
 
 export interface TrackPath {
+  /** Source frame size (the detections' sample size) and the sequence aspect the path was built for. */
+  source: Aspect;
+  aspect: Aspect;
   /** Source-media time; linear between keyframes; each shot has a keyframe at its start and at `endMs - 1`. */
   keyframes: FrameKeyframe[];
   shots: ShotFraming[];
@@ -232,9 +237,11 @@ function trackBoxes(
   const firstBoxes = seq[firstIdx]?.boxes ?? [];
   let pinned = pinIndex !== undefined;
   let faceIndexMissing = false;
+  const byIndex = (boxes: readonly Box[]): Box | undefined =>
+    pinIndex === undefined ? undefined : [...boxes].sort((a, b) => cx(a) - cx(b))[pinIndex];
   let current: Box | undefined;
   if (pinIndex !== undefined) {
-    current = [...firstBoxes].sort((a, b) => cx(a) - cx(b))[pinIndex];
+    current = byIndex(firstBoxes);
     if (current === undefined) {
       faceIndexMissing = true;
       pinned = false;
@@ -259,7 +266,9 @@ function trackBoxes(
       lostSince = null;
     } else {
       lostSince ??= s.atMs;
-      const pick = largest(s.boxes);
+      pending = null; // the challenge must be continuous while the subject is matched
+      // a pinned face is picked again by its index; otherwise the largest box
+      const pick = (pinned ? byIndex(s.boxes) : undefined) ?? largest(s.boxes);
       if (s.atMs - lostSince >= REACQUIRE_MS && pick !== undefined) {
         current = pick;
         switchesAtMs.push(s.atMs);
@@ -313,7 +322,7 @@ function checkOptions(o: TrackPathOptions): void {
   if (o.stability !== undefined && !['locked', 'smooth', 'follow'].includes(o.stability)) {
     throw invalid(`unknown stability ${String(o.stability)}`);
   }
-  if (o.trackSpeed !== undefined && !(o.trackSpeed in TRACK_SPEED)) {
+  if (o.trackSpeed !== undefined && !Object.hasOwn(TRACK_SPEED, o.trackSpeed)) {
     throw invalid(`unknown trackSpeed ${String(o.trackSpeed)}`);
   }
 }
@@ -330,6 +339,24 @@ function prune(kfs: FrameKeyframe[]): FrameKeyframe[] {
 }
 
 // ---- path builder ----
+
+function extent(pts: readonly { x: number; y: number }[], k: 'x' | 'y'): [number, number] {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const p of pts) {
+    lo = Math.min(lo, p[k]);
+    hi = Math.max(hi, p[k]);
+  }
+  return [lo, hi];
+}
+const halfRange = (pts: readonly { x: number; y: number }[], k: 'x' | 'y'): number => {
+  const [lo, hi] = extent(pts, k);
+  return (hi - lo) / 2;
+};
+const midRange = (pts: readonly { x: number; y: number }[], k: 'x' | 'y'): number => {
+  const [lo, hi] = extent(pts, k);
+  return (hi + lo) / 2;
+};
 
 /**
  * Detections + shot list → source-time crop keyframes. Smoothing resets at every shot boundary,
@@ -358,7 +385,10 @@ export function buildTrackPath(
   const crop = cropSize({ width: det.width, height: det.height }, options.aspect);
   const xr: [number, number] = [crop.w / 2, 1 - crop.w / 2];
   const yr: [number, number] = [crop.h / 2, 1 - crop.h / 2];
-  const samples = [...det.samples].sort((a, b) => a.atMs - b.atMs);
+  // sorted by time; a repeated atMs keeps the last sample
+  const byTime = new Map<number, DetectionSample>();
+  for (const s of det.samples) byTime.set(s.atMs, s);
+  const samples = [...byTime.values()].sort((a, b) => a.atMs - b.atMs);
 
   const keyframes: FrameKeyframe[] = [];
   const infos: ShotFraming[] = [];
@@ -411,15 +441,10 @@ export function buildTrackPath(
       path = [{ atMs: shot.startMs, x: 0.5, y: 0.5 }];
     } else if (
       stability === 'locked' &&
-      (Math.max(...targets.map((t) => t.x)) - Math.min(...targets.map((t) => t.x))) / 2 <=
-        DEAD_ZONE * crop.w + 1e-9 &&
-      (Math.max(...targets.map((t) => t.y)) - Math.min(...targets.map((t) => t.y))) / 2 <=
-        DEAD_ZONE * crop.h + 1e-9
+      halfRange(targets, 'x') <= DEAD_ZONE * crop.w + 1e-9 &&
+      halfRange(targets, 'y') <= DEAD_ZONE * crop.h + 1e-9
     ) {
-      const mid = (vs: number[]) => (Math.max(...vs) + Math.min(...vs)) / 2;
-      path = [
-        { atMs: shot.startMs, x: mid(targets.map((t) => t.x)), y: mid(targets.map((t) => t.y)) },
-      ];
+      path = [{ atMs: shot.startMs, x: midRange(targets, 'x'), y: midRange(targets, 'y') }];
     } else {
       if (stability === 'locked') info.stability = 'smooth';
       const tau = SMOOTHING_S[info.stability === 'follow' ? 'follow' : 'smooth'];
@@ -443,7 +468,12 @@ export function buildTrackPath(
     keyframes.push(...prune(path.map((p) => ({ atMs: p.atMs, x: r4(p.x), y: r4(p.y), scale: 1 }))));
     infos.push(info);
   }
-  return { keyframes, shots: infos };
+  return {
+    source: { width: det.width, height: det.height },
+    aspect: { width: options.aspect.width, height: options.aspect.height },
+    keyframes,
+    shots: infos,
+  };
 }
 
 // ---- clip framing (user keyframes) ----
@@ -488,7 +518,16 @@ export function applyClipFraming(path: TrackPath, clip: ClipWindow): FrameKeyfra
     return i === -1 ? (t < (shots[0]?.startMs ?? 0) ? 0 : shots.length - 1) : i;
   };
   const pins = (clip.keyframes ?? [])
-    .map((k) => ({ src: a + k.atMs, x: k.x, y: k.y, scale: k.scale }))
+    .map((k) => {
+      const scale = clamp(k.scale, 1, MAX_PIN_SCALE);
+      const c = cropSize(path.source, path.aspect, scale);
+      return {
+        src: a + k.atMs,
+        x: clamp(k.x, c.w / 2, 1 - c.w / 2),
+        y: clamp(k.y, c.h / 2, 1 - c.h / 2),
+        scale,
+      };
+    })
     .filter((p) => p.src >= a && p.src <= b)
     .sort((p, q) => p.src - q.src)
     .map((p) => ({ ...p, shot: shotIndex(p.src) }));
@@ -563,6 +602,8 @@ export interface FacetrackCacheKeyInput {
   trackSpeed?: TrackSpeed;
   /** Not in the spec's key list, but it changes the path (D-XX). */
   faceIndex?: number;
+  /** Optional hash of the inputs (shots + detections files), so re-detection misses the cache. */
+  inputsHash?: string;
 }
 
 const gcd = (p: number, q: number): number => (q === 0 ? p : gcd(q, p % q));
@@ -573,6 +614,7 @@ export function facetrackCacheKey(k: FacetrackCacheKeyInput): string {
   if (!(Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0)) {
     throw invalid(`aspect must be positive integers, got ${w}×${h}`);
   }
+  if (typeof k.mediaHash !== 'string' || k.mediaHash === '') throw invalid('mediaHash is required');
   const g = gcd(w, h);
   const parts = [
     'facetrack-path',
@@ -583,6 +625,7 @@ export function facetrackCacheKey(k: FacetrackCacheKeyInput): string {
     k.stability ?? 'smooth',
     k.trackSpeed ?? 'normal',
     k.faceIndex ?? null,
+    k.inputsHash ?? null,
   ];
   return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }

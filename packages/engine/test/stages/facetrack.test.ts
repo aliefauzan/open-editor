@@ -23,6 +23,7 @@ const opts = (o: Partial<TrackPathOptions> = {}): TrackPathOptions => ({
 });
 const crop = cropSize({ width: 640, height: 360 }, VERTICAL);
 const clampX = (x: number) => Math.min(1 - crop.w / 2, Math.max(crop.w / 2, x));
+const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
 const xAt = (kfs: FrameKeyframe[], t: number) => sampleKeyframes(kfs, t).x;
 
 describe('DetectionsSchema (vox_py.facetrack result)', () => {
@@ -388,6 +389,89 @@ describe('facetrackCacheKey', () => {
     expect(facetrackCacheKey({ mediaHash: k.mediaHash, aspect: k.aspect, mode: 'auto' })).toBe(
       facetrackCacheKey(k),
     );
+  });
+});
+
+describe('review fixes', () => {
+  const one = [{ startMs: 0, endMs: 4000 }];
+
+  test('a trackSpeed or stability from the prototype chain is refused', () => {
+    for (const bad of [
+      { trackSpeed: 'constructor' },
+      { trackSpeed: 'toString' },
+      { stability: 'constructor' },
+    ]) {
+      expect(() =>
+        buildTrackPath(cuts2shot(), CUTS_2SHOT, opts(bad as Partial<TrackPathOptions>)),
+      ).toThrow(VoxError);
+    }
+  });
+
+  test('a challenge interrupted by losing the subject restarts its 1 s', () => {
+    // A (left) starts larger; B grows past 1.3× A from 500 ms on; A is undetected 900–1100 ms
+    const d = synth(4000, (t) => {
+      const a = t >= 900 && t < 1100 ? [] : [box(0.3, 0.5, 0.22, 0.4)];
+      const k = t >= 500 ? 1.4 : 1;
+      return { faces: [...a, box(0.75, 0.5, 0.2 * k, 0.36 * k)] };
+    });
+    const path = buildTrackPath(d, one, opts());
+    // without the restart the switch would come at 1500 ms
+    expect(path.shots[0]?.switchesAtMs).toEqual([2167]);
+  });
+
+  test('a lost pinned face is picked again by its index, not by size', () => {
+    const d = synth(4000, (t) => ({
+      faces:
+        t < 1000
+          ? [box(0.25, 0.5, 0.1, 0.2), box(0.75, 0.5, 0.1, 0.2)]
+          : [box(0.45, 0.5, 0.05, 0.1), box(0.75, 0.5, 0.3, 0.5)],
+    }));
+    const path = buildTrackPath(
+      d,
+      one,
+      opts({ faceIndex: 0, stability: 'follow', trackSpeed: 'fast' }),
+    );
+    expect(xAt(path.keyframes, 3999)).toBeCloseTo(0.45, 2);
+  });
+
+  test('repeated sample times keep the last sample and give unique keyframe times', () => {
+    const d = synth(2000, () => ({ faces: [box(0.3, 0.5, 0.1, 0.2)] }));
+    d.samples.splice(5, 0, { ...d.samples[5]!, faces: [box(0.6, 0.5, 0.1, 0.2)] });
+    d.samples[6]!.faces = [box(0.31, 0.5, 0.1, 0.2)];
+    const k = buildTrackPath(
+      d,
+      [{ startMs: 0, endMs: 2000 }],
+      opts({ stability: 'follow' }),
+    ).keyframes;
+    const times = k.map((f) => f.atMs);
+    expect(new Set(times).size).toBe(times.length);
+  });
+
+  test('a long single shot (1 h at 12 fps) builds without a stack overflow', () => {
+    const d = synth(3_600_000, () => ({ faces: [box(0.4, 0.5, 0.1, 0.2)] }));
+    const p = buildTrackPath(d, [], opts({ stability: 'locked' }));
+    expect(p.keyframes).toHaveLength(2);
+  });
+
+  test('pins are clamped to scale 1..8 and to a crop inside the source', () => {
+    const still = synth(3000, () => ({ faces: [box(0.3, 0.5, 0.1, 0.2)] }));
+    const path = buildTrackPath(still, [], opts());
+    const k = applyClipFraming(path, {
+      inMs: 0,
+      durationMs: 3000,
+      keyframes: [
+        { atMs: 1000, x: 5, y: -2, scale: 0.2 },
+        { atMs: 2000, x: 0.5, y: 0.5, scale: 50 },
+      ],
+    });
+    expect(sampleKeyframes(k, 1000)).toEqual({ x: r4(1 - crop.w / 2), y: 0.5, scale: 1 });
+    expect(sampleKeyframes(k, 2000).scale).toBe(8);
+  });
+
+  test('cache key: an inputs hash misses the cache; an empty media hash is refused', () => {
+    const k = { mediaHash: 'f'.repeat(64), aspect: VERTICAL, mode: 'auto' } as const;
+    expect(facetrackCacheKey({ ...k, inputsHash: 'x' })).not.toBe(facetrackCacheKey(k));
+    expect(() => facetrackCacheKey({ ...k, mediaHash: '' })).toThrow(VoxError);
   });
 });
 
