@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: var(--tok-bg);
+          font-family: Helvetica, Arial, sans-serif;
+        }
+        .k-swatch,
+        .k-token {
+          position: absolute;
+          top: 1720px;
+          width: 100px;
+          height: 100px;
+        }
+        .k-swatch {
+          left: 60px;
+        }
+        .k-token {
+          left: 180px;
+          background: var(--tok-accent);
+        }
+        .k-panel {
+          position: absolute;
+          left: 60px;
+          width: 960px;
+          height: 760px;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="1080"
+        data-height="1920"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <!--vox:panels-->
+        <div class="k-swatch"></div>
+        <div class="k-token"></div>
+      </div>
+      <script>
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var sw = root.querySelector('.k-swatch');
+          sw.style.background = vox.vars(sw).swatch;
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo(
+            root.querySelectorAll('.k-panel'),
+            { opacity: 0 },
+            { opacity: 1, duration: 0.4, stagger: 0.2 },
+            0,
+          );
+          mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: var(--tok-bg);
+          color: var(--tok-fg);
+          font-family: Helvetica, Arial, sans-serif;
+        }
+        .t-title {
+          position: absolute;
+          left: 80px;
+          top: 760px;
+          width: 920px;
+          height: 300px;
+          font-size: 110px;
+          font-weight: 700;
+          line-height: 1.1;
+        }
+        .t-bar {
+          position: absolute;
+          left: 80px;
+          top: 1100px;
+          width: 600px;
+          height: 24px;
+          background: var(--tok-accent);
+        }
+        .t-swatch,
+        .t-token {
+          position: absolute;
+          top: 1720px;
+          width: 100px;
+          height: 100px;
+        }
+        .t-swatch {
+          left: 60px;
+        }
+        .t-token {
+          left: 180px;
+          background: var(--tok-accent);
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="1080"
+        data-height="1920"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="t-title"></div>
+        <div class="t-bar"></div>
+        <div class="t-swatch"></div>
+        <div class="t-token"></div>
+      </div>
+      <script>
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var title = root.querySelector('.t-title');
+          var v = vox.vars(title);
+          title.textContent = v.title;
+          root.querySelector('.t-swatch').style.background = v.swatch;
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo(title, { y: 80, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 }, 0);
+          tl.fromTo(root.querySelector('.t-bar'), { scaleX: 0 }, { scaleX: 1, duration: 0.6 }, 0.2);
+          mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

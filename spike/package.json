@@ -1,0 +1,21 @@
+{
+  "name": "@vox/spike",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Phase 01 HyperFrames + Electron spike (not shipped)",
+  "scripts": {
+    "make-project": "node make-project.ts",
+    "bench:all": "node bench/all.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hyperframes/player": "0.8.145",
+    "gsap": "3.15.0",
+    "hyperframes": "0.8.145"
+  },
+  "devDependencies": {
+    "electron": "44.7.0"
+  }
+}
