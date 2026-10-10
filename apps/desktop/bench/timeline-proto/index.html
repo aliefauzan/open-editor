@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GATE 4 timeline prototype</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #101113;
+        color: #ddd;
+        font:
+          12px system-ui,
+          sans-serif;
+      }
+      #root {
+        padding: 8px 0;
+      }
+      .clip {
+        position: absolute;
+        inset: 1px 0;
+        border-radius: 3px;
+        padding: 2px 6px;
+        overflow: hidden;
+        white-space: nowrap;
+        background: #3d5a80;
+      }
+      .clip.audio {
+        background: #2a7a5a;
+      }
+      .timeline-editor-action-selected .clip {
+        outline: 2px solid #f4d35e;
+        outline-offset: -2px;
+      }
+      .marquee {
+        position: fixed;
+        border: 1px solid #f4d35e;
+        background: rgba(244, 211, 94, 0.15);
+        pointer-events: none;
+        z-index: 100;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

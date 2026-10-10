@@ -84,8 +84,9 @@ def test_face_model_with_a_wrong_hash_is_refused(tmp_path):
     assert info.value.code == "MODEL_HASH_MISMATCH"
 
 
+@pytest.mark.local  # GitHub macOS VMs: Vision fails with "Could not create inference context"
 def test_vision_finds_a_saliency_box_on_a_synthetic_frame():
-    # Vision runs on CI too (macOS runner); a bright square on grey is the salient object.
+    # A bright square on grey is the salient object.
     frame = np.full((360, 640, 3), 60, dtype=np.uint8)
     frame[150:230, 420:500] = (255, 230, 0)
     bodies, saliency = facetrack.vision_detect(frame)

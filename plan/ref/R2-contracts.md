@@ -6,14 +6,14 @@ commit, and every consumer updated in that commit.
 
 | Contract | Defined in (spec § section) | Code home | Created | Frozen after |
 |---|---|---|---|---|
-| `project.json` schema, frame grid (rational `Fps { num, den }` from the fixed set; `inMs` on the source grid; D-15 fields: MediaItem `fps`/`vfr`/`cfrPath`/`loudness`/`shotsPath`, `frame` `auto`/`stability`/`trackSpeed`/`keyframes`, `denoise`, CaptionTrack `maxLines`/`maxCharsPerLine`/`gapFillMs`/`autoEmphasis`, override `emphasis`) | engine "Data model" | `engine/src/model/` | 02 | 02 |
-| Transcript file (`transcripts/<id>.json`: words with `kind`, pause pseudo-words, `speechRegions`; D-15) | engine "Transcripts" | `engine/src/model/`, `engine/src/text/fillers.ts` | 02 (04 writes it) | 02 |
-| Edit operations (names, args, rules; `setCaptions` override fields per D-11, `emphasis` per D-15; `removePauses`, `removeWords` with `dryRun`, D-15) | engine "Edit operations" | `engine/src/ops/` | 02 | 02 |
-| `HistoryEntry` (incl. `jobId`, `coalesceKey`, `replaces`; D-15), entity keys (incl. `captionOverride:<seqId>/<wordKey>`), coalescing, undo cursor, `undoRun` | engine "History" | `engine/src/history/` | 02 | 02 |
-| `applyOp` result `ApplyResult { version, changes, results }` (per-op `succeeded`/`failed`/`conflicted`, touched `items`; D-15) | engine "Write order", "Library API" | `engine/src/history/`, `engine/src/api.ts` | 02 | 02 |
-| `engine.view` / `SequenceView` (compact read for the agent; D-15) | engine "Library API" | `engine/src/api.ts` | 02 | 02 |
-| Load safety: `SCHEMA_TOO_NEW`, `snapshots/auto-pre-migrate-v<N>.json` (D-15) | engine "Write order, crash recovery, locking" | `engine/src/history/` | 02 | 02 |
-| Path rule | engine "Project folder" | `engine/src/paths.ts` (subpath export `@vox/engine/paths`) | 02 | 02 |
+| `project.json` schema, frame grid (rational `Fps { num, den }` from the fixed set; `inMs` on the source grid; D-15 fields: MediaItem `fps`/`vfr`/`cfrPath`/`loudness`/`shotsPath`, `frame` `auto`/`stability`/`trackSpeed`/`keyframes`, `denoise`, CaptionTrack `maxLines`/`maxCharsPerLine`/`gapFillMs`/`autoEmphasis`, override `emphasis`) | engine "Data model" | `engine/src/model/` | 02 | 02, frozen 2026-10-11 |
+| Transcript file (`transcripts/<id>.json`: words with `kind`, pause pseudo-words, `speechRegions`; D-15) | engine "Transcripts" | `engine/src/model/`, `engine/src/text/fillers.ts` | 02 (04 writes it) | 02, frozen 2026-10-11 |
+| Edit operations (names, args, rules; `setCaptions` override fields per D-11, `emphasis` per D-15; `removePauses`, `removeWords` with `dryRun`, D-15) | engine "Edit operations" | `engine/src/ops/` | 02 | 02, frozen 2026-10-11 |
+| `HistoryEntry` (incl. `jobId`, `coalesceKey`, `replaces`; D-15), entity keys (incl. `captionOverride:<seqId>/<wordKey>`), coalescing, undo cursor, `undoRun` | engine "History" | `engine/src/history/` | 02 | 02, frozen 2026-10-11 |
+| `applyOp` result `ApplyResult { version, changes, results }` (per-op `succeeded`/`failed`/`conflicted`, touched `items`; D-15) | engine "Write order", "Library API" | `engine/src/history/`, `engine/src/api.ts` | 02 | 02, frozen 2026-10-11 |
+| `engine.view` / `SequenceView` (compact read for the agent; D-15) | engine "Library API" | `engine/src/api.ts` | 02 | 02, frozen 2026-10-11 |
+| Load safety: `SCHEMA_TOO_NEW`, `snapshots/auto-pre-migrate-v<N>.json` (D-15) | engine "Write order, crash recovery, locking" | `engine/src/history/` | 02 | 02, frozen 2026-10-11 |
+| Path rule | engine "Project folder" | `engine/src/paths.ts` (subpath export `@vox/engine/paths`) | 02 | 02, frozen 2026-10-11 |
 | `VoxError { code, message, hint, cause? }` + codes | engine "Error handling", all specs | `engine/src/errors.ts` | 02 | grows; codes never renamed |
 | Engine library API (`openEngine`, `Engine`) | engine "Library API" | `engine/src/api.ts` | 02 (grows 03–05) | 05 |
 | Engine events (`project.changed`, `job.*`) | engine "Library API" | `engine/src/api.ts` | 02/04 | 05 |

@@ -6,9 +6,15 @@
   "type": "module",
   "description": "Vox Studio engine",
   "exports": {
-    ".": "./src/api.ts"
+    ".": "./src/api.ts",
+    "./paths": "./src/paths.ts"
   },
   "scripts": {
+    "test": "node scripts/test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "zod": "4.6.5"
   }
 }
