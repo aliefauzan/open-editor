@@ -623,3 +623,69 @@ keywords survive. Early package N1 builds `native/apple-llm` and the fake helper
   D-16), not `slow` as phase 11 step 12 says: it needs this Mac, not just time.
 **Why**: Smallest choices that make the fake and the real helper interchangeable for phase 11's
 `apple.ts` and its tests; the 8k context is a measured fact the spec guessed as "about 4k".
+
+## D-23 · 2026-10-11 · phase 03 (early E5) · Style loading: partial children, merge, chain, paths, token names
+
+**Context**: Early package E5 (D-19) builds phase 03 steps 1–2 and the token names of step 3. The styles
+spec fixes the file format but leaves open how a child file inherits, how problems surface and how
+tokens are spelled.
+**Decision** (`packages/engine/src/styles/{schema,registry,tokens}.ts`):
+- **Strict files**: `style.json`, `template.json` and `captions/<preset>.json` reject unknown keys (a typo
+  is an error, not an extension).
+- **Partial children**: a style with `extends` may leave out `tokens` (or parts of it), `pacing`,
+  `imagery`, `captions`, `overlays` and `sfx`. Merge: colours by key, fonts by role (whole `Font`),
+  texture and motion by field, pacing and imagery by field, sfx by name; `captions` and `overlays` are
+  replaced whole and inherited when absent; `guide.md` by `## ` heading (same heading replaced in place,
+  new headings appended, a non-empty preamble replaces the parent's). The merged style must pass the
+  complete `Style` schema. Own fields (`id`, `name`, `version`, `description`, `status`, `extends`,
+  `source`, `trusted`, `templates`, `transitions`) never inherit. `guide.md` is optional.
+- **Chain**: depth counts `extends` hops, at most 4 (5 styles). The chain must end in `base`; `base`
+  extends nothing. Cycle, missing parent, deeper chain, wrong root and a child of an invalid style fail
+  with `STYLE_INVALID` and `details.reason` (`extends-cycle`, `extends-missing`, `extends-depth`,
+  `extends-root`, `parent-invalid`).
+- **Search order**: the first `stylesDirs` entry holding an id wins; a later copy is rejected with
+  `STYLE_DUPLICATE` and listed in `problems()`, so it never replaces an installed style. A missing dir is
+  skipped; dot folders and folders without `style.json` are not styles; the folder name must equal `id`.
+- **Loading** is synchronous and eager. An invalid style never fails the whole load: `list()` shows valid
+  styles only, `problems()` lists rejected folders, `get(id)` throws the style's error
+  (`STYLE_NOT_FOUND` when absent). `template('<styleId>/<name>')` finds any valid style's template.
+- **Templates**: scenes and transitions both live in `templates/<name>/`; `name` equals the folder and
+  `kind` matches the list (`templates` = scene, `transitions` = transition). A cue's `sfx` must exist in
+  the declaring style's merged `sfx`. `blendsShots` only on transitions; `minEntranceMs` (positive
+  integer) only on scenes. The variables schema is checked with ajv `strictSchema` (unknown keyword or
+  format rejected; a fresh Ajv per check, so a `$id` never clashes), its root must be `type: "object"`,
+  and it may not name `skipEntrance` anywhere (D-15).
+  `TemplateDef.trusted` is the declaring style's trust (S8).
+- **Trust source (S8)**: only a style in the first `stylesDirs` entry (built-in) keeps the `trusted` value
+  of its own `style.json`. For any other style the file value is ignored; trust comes from the
+  registry option `isTrusted(styleId, dir)` (default: untrusted), so a style folder copied into
+  `~/.vox/styles` cannot trust itself. Phase 06's `vox style trust` records trust outside the folder
+  (store and format are 06's choice, e.g. `~/.vox/config.json` keyed by id plus a content hash) and
+  passes it as `isTrusted`.
+- **Caption presets**: a preset id `<styleId>/<name>` of the style itself loads `captions/<name>.json`
+  and `.html` (name equals the file); a listed preset of another style must be declared in the chain.
+  `position` is required, `safeArea` optional (`captionSafeArea()` gives 20 / 12 on 9:16, 0 / 0
+  otherwise); `bottomPct` < 100, `rightPct` < 50.
+- **Paths and values**: font files, texture, sfx, template, preset, overlay and guide files must exist
+  inside the style folder after `realpath` (a symlink out → `reason: 'path'`; real paths are returned;
+  a dangling symlink fails, never counts as absent). `style.json`, `template.json`, fixtures and previews
+  get the same check. Path strings are relative, `/`-separated, with no `..`, backslash, quote, `<`, `>`,
+  `:`, `%`, `?`, `#` or control character. Token values are allow-listed (`[A-Za-z0-9#.,()%/ +_-]`, no
+  `//`) and may call only colour and easing functions (`rgb`, `hsl`, `oklch`, `color`, `cubic-bezier`,
+  `steps`, `linear`, … and GSAP eases like `back.out(1.7)`), never `url()`, `var()` or `image-set()`;
+  font families `[A-Za-z0-9 _-]`. Nothing breaks out of the generated `<style>` block or fetches a file
+  or URL at render time. `tokenVars` re-checks its input.
+- **Token names**: `--tok-color-<key>`, `--tok-font-<role>` (quoted family) and
+  `--tok-font-<role>-weight`, `--tok-texture-grain`, `--tok-texture-paper` (`url("…")` through the
+  caller's asset URL mapper), `--tok-motion-easing|entrance|frame-hold|jitter-px`. camelCase keys become
+  kebab-case; numbers are unitless; two colour keys with one CSS name fail `STYLE_INVALID` at load. Output is sorted
+  inside the group order colour, font, texture, motion, so CSS is byte-stable.
+- **New error codes** (appended to `ERROR_CODES` at the shim swap): `STYLE_NOT_FOUND`, `STYLE_INVALID`,
+  `STYLE_DUPLICATE`.
+- **Left for phase 06**: the "text variables declare `maxLength`" rule is checked by `vox style validate`,
+  not by the loader; unknown JSON Schema formats stay a load error (no `ajv-formats`).
+
+**Why**: Smallest choices that make "child overrides parent tokens, pacing, imagery and guide sections"
+work for a partial child (`vox style new --extends`), keep projects on a built-in style unchanged when a
+user installs a duplicate id, and keep token values from injecting CSS or HTML into builds. Review
+(typescript-reviewer, twice) found the self-declared trust, the Ajv `$id` cache and `url()` in values.
