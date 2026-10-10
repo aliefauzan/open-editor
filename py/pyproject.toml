@@ -1,0 +1,30 @@
+[project]
+name = "vox_py"
+version = "0.0.0"
+description = "Vox Studio Python tools (transcribe, VAD, facetrack, ...)"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vox_py"]
+# Vendored model files and their licences ship as package data (D-15).
+include = [
+  "vox_py/**/*.py",
+  "vox_py/models/*.onnx",
+  "vox_py/models/LICENSE*",
+  "vox_py/models/README.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
