@@ -26,7 +26,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `ollama-ai-provider-v2` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@ai-sdk/openai-compatible` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
-| `d3-geo`, `topojson-client` | TBD (07) | ISC | 07 | vendored as ESM in `styles/vox/templates/map-route/vendor/` (hooks are self-contained) |
+| `d3-geo`, `topojson-client` | `d3-geo@3.1.1` (with `d3-array@3.2.4`, `internmap@2.0.3` inlined), `topojson-client@3.1.0`; bundled with `esbuild@0.25.10` (one file each, not minified) | ISC (d3-geo also carries GeographicLib MIT text) | 07 (vendored early by A1, D-19) | `styles/vox/templates/map-route/vendor/{d3-geo,topojson-client}.mjs` + `LICENSES.md` (tarball and file SHA-256); hooks are self-contained |
 | OpenCode Zen, 9router, LM Studio presets | no package (`@ai-sdk/openai-compatible` with a base URL) | — | 11 | base URLs in the agent spec presets table |
 | Playwright | TBD (08) | Apache-2.0 | 08 | Electron E2E (first used by the 08 smoke test, D-16) |
 
@@ -52,26 +52,28 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | Package / model | Pin | Licence | Set in |
 |---|---|---|---|
 | Python | 3.12.x (00: `py/.python-version` 3.12; resolved 3.12.13 on the M5; hatchling + pytest 9.1.1 + ruff 0.17.0 in `py/uv.lock`) | PSF | 00/04 |
-| mlx-whisper + `mlx-community/whisper-large-v3-turbo` (revision hash) | TBD (04) | MIT | 04 |
-| mediapipe + full-range face detector `.tflite` (URL + SHA-256) | TBD (04) | Apache-2.0 | 04 |
+| mlx-whisper + `mlx-community/whisper-large-v3-turbo` (revision hash) | mlx-whisper 0.4.3; revision `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb`; `weights.safetensors` SHA-256 `951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6` (checked each run; pulls torch 2.14.1) | MIT | 04 |
+| mediapipe + full-range face detector `.tflite` (URL + SHA-256) | mediapipe 1.0.0 (1.0.1 aborts in FaceDetector, D-21); <https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite> SHA-256 `3698b18f063835bc609069ef052228fbe86d9c9a6dc8dcb7c7c2d69aed2b181b` | Apache-2.0 | 04 |
 | rembg + permissive model (never `bria-rmbg`) | TBD (05; licence verified and quoted in log) | MIT + model licence | 05 |
 | opentimelineio | TBD (05) | Apache-2.0 | 05 |
-| pypdf (document text) | TBD (04) | BSD-3-Clause | 04 |
-| onnxruntime (Silero VAD speech gate; no torch, D-15) | TBD (04) | MIT | 04 |
-| Silero VAD `silero_vad.onnx`, vendored at `py/vox_py/models/` with its licence (upstream release URL + SHA-256, D-15) | TBD (04); SHA-256 filled in by phase 04 | MIT | 04 |
+| pypdf (document text) | 6.19.0 | BSD-3-Clause | 04 |
+| onnxruntime (Silero VAD speech gate; no torch, D-15) | 1.30.0 | MIT | 04 |
+| Silero VAD `silero_vad.onnx`, vendored at `py/vox_py/models/` with its licence (upstream release URL + SHA-256, D-15) | v6.2.3, commit `5cd7945676eb32225748052e2e6a0580e4686a08`, <https://github.com/snakers4/silero-vad/blob/v6.2.3/src/silero_vad/data/silero_vad.onnx>; SHA-256 `1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3` | MIT | 04 |
 | numpy (audio QA analysis; `qa.png` drawn with ffmpeg `showspectrumpic`/`showwavespic`) | TBD (05) | BSD-3-Clause | 05 |
 | `otio-fcpx-xml-adapter` | TBD (05 if GATE 2 needs it, else 14) | Apache-2.0 | 05 / 14 |
 | mflux + Z-Image-Turbo | TBD (14) | MIT + Apache-2.0 | 14 |
-| `pyobjc-framework-Vision` (facetrack body + saliency fallback in v1; Part C OCR reuses it, D-15) | TBD (04) | MIT | 04 |
+| `pyobjc-framework-Vision` (facetrack body + saliency fallback in v1; Part C OCR reuses it, D-15) | 12.2.2 | MIT | 04 |
+| cryptography (pypdf AES-encrypted PDFs) | 50.0.1 | Apache-2.0 OR BSD-3-Clause | 04 |
+| jsonschema (dev only: pytest schema checks) | 4.26.0 | MIT | 04 |
 
 ## Assets
 
 | Asset | Source | Licence | Set in |
 |---|---|---|---|
-| Natural Earth 1:50m countries + populated places | naturalearthdata.com | public domain | 03 (geo search), 07 (map) |
+| Natural Earth 1:50m countries + populated places | countries: `world-atlas@2.0.2` `countries-50m.json` (NE 4.1.0 as TopoJSON, 241 countries, 739 kB, SHA-256 `04342cdc1e3016bcd7db1630de95684d67b79fe3c8c460321e87aef469502394`) in `styles/vox/assets/geo/`; places: `https://naciscdn.org/naturalearth/10m/cultural/ne_10m_populated_places_simple.zip` v5.1.2 (zip SHA-256 `2963ee08f7743f13f37d5243acd77a2f7a510e26a36c7e04b920f1b381f2b251`) → `packages/engine/data/places.json` (518 kB, 7342 places); see `packages/engine/data/NOTICE.md`, `styles/vox/ASSETS.md` | public domain (world-atlas packaging ISC) | 03 (geo search), 07 (map); data added early by A1 (D-19) |
 | Test portraits `face-a.jpg`, `face-b.jpg` (checked-in fixtures) | Wikimedia Commons, CC0 only, URL recorded in `fixtures/assets/LICENSES.md` | CC0 | 00 |
 | Test SFX `fixtures/assets/sfx/tap.wav` (checked-in fixture, `base` tests) | Wikimedia Commons, CC0 or public domain, fetched with the portraits, URL in `fixtures/assets/LICENSES.md` (D-16) | CC0 / PD | 00 |
-| Fonts `base`: Inter (display, body), IBM Plex Mono (captions) | Google Fonts / upstream repos | OFL | 03 |
-| Fonts (`vox`: display, body, caption; ~40 OFL catalogue for Part C) | Google Fonts | OFL | 07, 15 |
-| Paper texture | CC0 source, URL recorded | CC0 | 07 |
-| SFX `paper-pop`, `paper-slide`, `whoosh`, `stamp`, `typewriter`, `thump-tap` (hero) | real recordings only: CC0 / public domain from Wikimedia Commons first (URL recorded), Freesound only if the owner downloads it, or recorded for the project (licence `project`); never synthesised (D-14, D-16); listed in `style.json` `sfx` and `styles/vox/assets/sfx/CREDITS.md` | CC0 / project | 07 |
+| Fonts `base`: Inter (display, body), IBM Plex Mono (captions) | github.com/google/fonts commit `bd8f81ddb5c74d5c8897b36ad88b440266245103`, `ofl/inter` (variable TTF), `ofl/ibmplexmono` (Regular, Bold TTF); hashes in `styles/base/assets/fonts/SOURCES.md` | OFL 1.1 (texts `OFL-*.txt` beside the files) | 03 (files added early by A1, D-19; `style.json` entries are phase 03) |
+| Fonts (`vox`: display, body, caption; ~40 OFL catalogue for Part C) | same Google Fonts commit: Libre Caslon Display + DM Serif Display (both display candidates; phase 07 keeps one), Libre Caslon Text (variable), IBM Plex Mono Regular + Bold; hashes in `styles/vox/assets/fonts/SOURCES.md` | OFL 1.1 | 07 (files added early by A1), 15 |
+| Paper texture | Wikimedia Commons "Papier aquarelle 100% coton, grain fin.png" by Les.aqua, `https://commons.wikimedia.org/wiki/File:Papier_aquarelle_100%25_coton,_grain_fin.png`; cropped 1024x1024 JPEG `styles/vox/assets/textures/paper.jpg` (190 kB); details in `styles/vox/ASSETS.md` | CC0 | 07 (added early by A1) |
+| SFX `paper-pop`, `paper-slide`, `whoosh`, `stamp`, `typewriter`, `thump-tap` (hero) | real recordings only: CC0 / public domain from Wikimedia Commons first (URL recorded), Freesound only if the owner downloads it, or recorded for the project (licence `project`); never synthesised (D-14, D-16); listed in `style.json` `sfx` and `styles/vox/assets/sfx/CREDITS.md` | CC0 / project | 07 (6 candidates added early by A1; acceptance is phase 07 + kit check; weakest: `whoosh`, `typewriter`, `thump-tap`, see CREDITS.md) |
