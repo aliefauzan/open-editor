@@ -26,7 +26,7 @@ export const LOUDNESS_TARGETS: Record<LoudnessPreset, number> = {
 export const TRUE_PEAK_DBTP = -1;
 /**
  * The true peak `loudnorm` aims at: 0.5 dB under the ceiling, so the 48 kHz resample after
- * `loudnorm` and the AAC encode cannot push a loud (tiktok) mix over -1 dBTP (D-XX).
+ * `loudnorm` and the AAC encode cannot push a loud (tiktok) mix over -1 dBTP (D-32).
  */
 export const MIX_TRUE_PEAK_DBTP = -1.5;
 export const LOUDNESS_RANGE_LU = 11;
