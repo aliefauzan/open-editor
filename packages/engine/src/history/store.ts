@@ -277,8 +277,8 @@ export class ProjectStore {
         await release().catch((e: unknown) =>
           this.log.write(`could not release project.lock: ${message(e)}`),
         );
+        this.emit(events); // also when fn threw: an external change found by refresh() is real
       }
-      this.emit(events);
       return out;
     });
   }
@@ -537,12 +537,22 @@ export class ProjectStore {
 
   private async commit(entry: HistoryEntry, project: Project): Promise<void> {
     const historyPath = join(this.dir, HISTORY_FILE);
+    const sizeBefore = (await stat(historyPath)).size;
     await appendDurable(historyPath, `${JSON.stringify(entry)}\n`);
-    this.hook('history-appended');
     const text = json(project);
-    await writeAtomic(join(this.dir, PROJECT_FILE), text, {
-      afterTemp: () => this.hook('temp-written'),
-    });
+    try {
+      this.hook('history-appended');
+      await writeAtomic(join(this.dir, PROJECT_FILE), text, {
+        afterTemp: () => this.hook('temp-written'),
+      });
+    } catch (e) {
+      // The caller is told the write failed, so it must not come back as a recovered version: take
+      // the line out again. (A crash here instead is recovered on the next load, by design.)
+      await truncateTo(historyPath, sizeBefore).catch((err: unknown) =>
+        this.log.write(`could not take back history line ${entry.version}: ${message(err)}`),
+      );
+      throw e;
+    }
     this.hook('renamed');
     this.current = project;
     this.text = text;
@@ -921,9 +931,12 @@ export class ProjectStore {
       try {
         await fh.writeFile(this.text);
         await fh.sync();
-      } finally {
+      } catch (e) {
         await fh.close();
+        await unlink(tmp).catch(() => undefined);
+        throw e;
       }
+      await fh.close();
       try {
         await link(tmp, final);
       } catch (e) {

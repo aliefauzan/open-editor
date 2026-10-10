@@ -41,9 +41,12 @@ export async function writeAtomic(
   try {
     await fh.writeFile(data);
     await fh.sync();
-  } finally {
+  } catch (e) {
     await fh.close();
+    await unlink(tmp).catch(() => undefined);
+    throw e;
   }
+  await fh.close();
   try {
     hooks?.afterTemp?.();
     await rename(tmp, path);
@@ -95,19 +98,24 @@ export async function readHistory(path: string): Promise<HistoryRead> {
   for (let i = 0; i <= lastNonBlank; i++) {
     const l = lines[i]!;
     if (l.text.trim() === '') continue;
-    let parsed: HistoryEntry | undefined;
+    let json: unknown;
+    let isJson = true;
     try {
-      const r = HistoryEntrySchema.safeParse(JSON.parse(l.text));
-      if (r.success) parsed = r.data;
+      json = JSON.parse(l.text);
     } catch {
-      parsed = undefined;
+      isJson = false;
     }
-    // A complete line ends with '\n'; the final unterminated line or a bad final line is torn.
-    if (!parsed || !l.terminated) {
+    // An append is one write ending in '\n', so only the final line can be torn: unterminated, or
+    // not JSON. A complete JSON line that fails the schema is corruption wherever it is.
+    if (!isJson || !l.terminated) {
       if (i === lastNonBlank) return { entries, tornAt: l.start, size: buf.length };
       throw new HistoryLineError(i + 1, `history.jsonl line ${i + 1} does not parse`);
     }
-    entries.push(parsed);
+    const r = HistoryEntrySchema.safeParse(json);
+    if (!r.success) {
+      throw new HistoryLineError(i + 1, `history.jsonl line ${i + 1} is not a valid history entry`);
+    }
+    entries.push(r.data);
   }
   return { entries, size: buf.length };
 }

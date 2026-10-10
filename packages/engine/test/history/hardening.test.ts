@@ -125,4 +125,41 @@ describe('store hardening', () => {
     expect(err).not.toBeInstanceOf(Error);
     expect(JSON.parse(JSON.stringify(err))).toEqual(err);
   });
+
+  test('a write that fails after the history append leaves no history line behind', async () => {
+    const { store, dir } = await newStore();
+    await store.apply(rename('a'), { actor: 'user' });
+    const history = readFileSync(join(dir, 'history.jsonl'));
+    const s2 = store as unknown as { opts: { hooks?: { at?: (s: string) => void } } };
+    s2.opts.hooks = {
+      at: (step) => {
+        if (step === 'temp-written') throw new Error('disk full');
+      },
+    };
+    await expect(store.apply(rename('b'), { actor: 'user' })).rejects.toThrow('disk full');
+    s2.opts.hooks = {};
+    expect(readFileSync(join(dir, 'history.jsonl')).equals(history)).toBe(true);
+    const again = await ProjectStore.open(dir, { templates });
+    expect(again.project.version).toBe(1);
+    expect(again.project.sequences.find((q) => q.id === S)!.name).toBe('a');
+  });
+
+  test('an external change is announced even when the op that found it fails', async () => {
+    const a = await newStore();
+    const events: ProjectChangedEvent[] = [];
+    const b = await ProjectStore.open(a.dir, { templates, onChanged: (e) => events.push(e) });
+    await a.store.apply(rename('x'), { actor: 'cli' });
+    await expect(b.redo({ actor: 'user' })).rejects.toMatchObject({ code: 'NOTHING_TO_REDO' });
+    expect(events.map((e) => [e.actor, e.version])).toEqual([['external', 1]]);
+  });
+
+  test('a complete last line that parses but fails the schema is corruption, not a torn write', async () => {
+    const { store, dir } = await newStore();
+    await store.apply(rename('a'), { actor: 'user' });
+    const line = JSON.parse(readFileSync(join(dir, 'history.jsonl'), 'utf8'));
+    const bad = `${JSON.stringify({ ...line, kind: 'undo' })}\n`;
+    writeFileSync(join(dir, 'history.jsonl'), bad);
+    await expect(ProjectStore.open(dir)).rejects.toMatchObject({ code: 'HISTORY_CORRUPT' });
+    expect(readFileSync(join(dir, 'history.jsonl'), 'utf8')).toBe(bad);
+  });
 });

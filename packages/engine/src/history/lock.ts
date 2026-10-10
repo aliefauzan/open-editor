@@ -3,7 +3,7 @@
 // { pid, host, startedAt, nonce }. A lock of this host whose pid is dead, or that is older than
 // 60 s, is broken; a lock of another host never is (LOCKED after the wait).
 import { randomBytes } from 'node:crypto';
-import { link, open, readFile, rename, stat, unlink } from 'node:fs/promises';
+import { link, open, readFile, stat, unlink } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -78,10 +78,16 @@ async function writeSynced(path: string, data: string): Promise<void> {
   try {
     await fh.writeFile(data);
     await fh.sync();
-  } finally {
+  } catch (e) {
     await fh.close();
+    await unlink(path).catch(() => undefined);
+    throw e;
   }
+  await fh.close();
 }
+
+/** Age after which a break marker of a crashed taker is ignored. */
+const BREAK_STALE_MS = 10_000;
 
 /**
  * Take the lock of a project folder; resolves to a release function. The lock content is written
@@ -102,10 +108,10 @@ export async function acquireLock(
   const mine: LockInfo = { pid: process.pid, host, startedAt: new Date().toISOString(), nonce };
   const mineRaw = JSON.stringify(mine);
   const tmp = join(dir, `${LOCK_TEMP_PREFIX}${nonce}`);
-  const aside = join(dir, `${LOCK_TEMP_PREFIX}stale-${nonce}`);
-  await writeSynced(tmp, mineRaw);
+  const marker = join(dir, `${LOCK_TEMP_PREFIX}break`);
   let holder: LockInfo | undefined;
   try {
+    await writeSynced(tmp, mineRaw);
     for (let first = true; ; first = false) {
       if (!first && Date.now() >= deadline) {
         throw new VoxError(
@@ -124,7 +130,13 @@ export async function acquireLock(
           if (cur?.raw === mineRaw) await unlink(path).catch(() => undefined);
         };
       } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT') {
+          // Our temp file was cleaned up as a leftover (a very long wait): write it again.
+          await writeSynced(tmp, mineRaw);
+          continue;
+        }
+        if (code !== 'EEXIST') throw e;
       }
       const cur = await readLock(path);
       if (!cur) continue;
@@ -133,8 +145,7 @@ export async function acquireLock(
       const ageMs = Date.now() - Math.max(cur.mtimeMs, Number.isNaN(startedMs) ? 0 : startedMs);
       const sameHost = cur.info ? cur.info.host === host : true;
       const dead = cur.info !== undefined && sameHost && !alive(cur.info.pid);
-      if (sameHost && (dead || ageMs > staleMs)) {
-        await breakStale(path, aside, cur.raw);
+      if (sameHost && (dead || ageMs > staleMs) && (await breakStale(path, marker, tmp, cur.raw))) {
         continue;
       }
       await delay(Math.min(50, Math.max(1, deadline - Date.now())));
@@ -145,18 +156,33 @@ export async function acquireLock(
 }
 
 /**
- * Break a stale lock by moving it aside first: only the taker whose rename moved the stale content
- * deletes it. If the rename moved a fresh lock instead (another taker won in between), it is put
- * back unless a third taker already holds the name.
+ * Break a stale lock. Breakers are serialised by a marker file (`.project.lock.break`, taken with
+ * the same hard-link trick), and under it the lock is removed only if it still holds the stale
+ * content, so a fresh lock taken in between is never removed. A marker older than 10 s belongs to
+ * a crashed taker and is cleared. Returns false when another taker is breaking right now.
  */
-async function breakStale(path: string, aside: string, staleRaw: string): Promise<void> {
+async function breakStale(
+  path: string,
+  marker: string,
+  tmp: string,
+  staleRaw: string,
+): Promise<boolean> {
   try {
-    await rename(path, aside);
+    await link(tmp, marker);
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return;
-    throw e;
+    if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    const st = await stat(marker).catch(() => undefined);
+    if (st && Date.now() - st.mtimeMs > BREAK_STALE_MS) {
+      await unlink(marker).catch(() => undefined);
+      return true;
+    }
+    return false;
   }
-  const moved = await readFile(aside, 'utf8').catch(() => undefined);
-  if (moved !== staleRaw) await link(aside, path).catch(() => undefined);
-  await unlink(aside).catch(() => undefined);
+  try {
+    const cur = await readFile(path, 'utf8').catch(() => undefined);
+    if (cur === staleRaw) await unlink(path).catch(() => undefined);
+  } finally {
+    await unlink(marker).catch(() => undefined);
+  }
+  return true;
 }

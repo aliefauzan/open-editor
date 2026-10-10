@@ -1,4 +1,11 @@
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, utimesSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -92,5 +99,43 @@ describe('project.lock (O_EXCL)', () => {
     utimesSync(lockFile(d), old, old);
     const release = await acquireLock(d, { timeoutMs: 200 });
     await release();
+  });
+
+  test('takers breaking the same dead lock at once: exactly one gets it', async () => {
+    for (let round = 0; round < 20; round++) {
+      const d = dir();
+      writeFileSync(
+        lockFile(d),
+        JSON.stringify({ pid: 9_999_999, host: hostname(), startedAt: new Date().toISOString() }),
+      );
+      const takers = Array.from({ length: 4 }, () =>
+        acquireLock(d, { timeoutMs: 300, isPidAlive: (pid) => pid === process.pid }),
+      );
+      const settled = await Promise.allSettled(takers);
+      const won = settled.filter((r) => r.status === 'fulfilled');
+      expect(won).toHaveLength(1);
+      await (won[0] as PromiseFulfilledResult<() => Promise<void>>).value();
+      expect(readdirSync(d)).toEqual([]);
+    }
+  });
+
+  test('a break marker of a crashed taker blocks breaking for 10 s only', async () => {
+    const d = dir();
+    const dead = JSON.stringify({
+      pid: 9_999_999,
+      host: hostname(),
+      startedAt: new Date().toISOString(),
+    });
+    writeFileSync(lockFile(d), dead);
+    writeFileSync(join(d, '.project.lock.break'), '');
+    const alive = (pid: number) => pid === process.pid;
+    await expect(acquireLock(d, { timeoutMs: 200, isPidAlive: alive })).rejects.toMatchObject({
+      code: 'LOCKED',
+    });
+    const old = new Date(Date.now() - 11_000);
+    utimesSync(join(d, '.project.lock.break'), old, old);
+    const release = await acquireLock(d, { timeoutMs: 200, isPidAlive: alive });
+    await release();
+    expect(readdirSync(d)).toEqual([]);
   });
 });
