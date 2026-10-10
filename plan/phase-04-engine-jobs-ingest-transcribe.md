@@ -66,8 +66,9 @@ jobs with progress, and each job's result is one undo entry (D-15).
   `py/vox_py/models/silero_vad.onnx` with its MIT licence, SHA-256 checked on load (pin in R5); returns
   speech regions. Nothing is downloaded at run time.
 - `py/vox_py/transcribe.py`: speech gate first (`vad.py`), then mlx-whisper, pinned model revision, auto
-  language, word timestamps, with an `initial_prompt` built from the English filler list (D-15). Drops
-  words whose midpoint lies outside every speech region and whole segments with `no_speech_prob > 0.6`
+  language, word timestamps, with an `initial_prompt` built from the English filler list (D-15). Clips
+  each word to the speech region it overlaps most and drops words that overlap none by 40 ms (D-21), and
+  drops whole segments with `no_speech_prob > 0.6`
   or `compression_ratio > 2.4`. The engine then runs 02's `computeWordKinds`, writes
   `transcripts/<id>.json` with `speechRegions` and updates `transcriptRev`.
 - `engine/src/stages/shots.ts` (D-15): ffmpeg `scdet` (threshold 10, about `scene > 0.35`) on the proxy (on

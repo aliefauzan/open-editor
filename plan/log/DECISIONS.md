@@ -485,3 +485,93 @@ its own worktree `.worktrees/early-<id>` on branch `early/<id>`:
   steps, wires them in and still runs its full Verify, review and done-when.
 **Consequences**: More parallel agents share CPU; timed measurements take `.git/vox-bench.lock`. Phase
 prerequisites in README §3 are unchanged for the phases as a whole.
+
+## D-20 · 2026-10-11 · phase 04 (early E2) · Config patch, redactor, job runner and Python bridge details
+
+**Context**: Early package E2 (D-19) builds phase 04's `config.ts`, `redact.ts`, `jobs.ts` and `py.ts`.
+The spec fixes their purpose but leaves some behaviour open.
+**Decision**:
+- **Config**: `writeConfig(patch)` applies a JSON merge patch (RFC 7396): objects merge, `null` removes a
+  key (so `ingest.cookiesFromBrowser: null` and an absent key both mean "off"), arrays and scalars
+  replace (a `providers` writer sends the whole list). Unknown keys are kept (loose schema);
+  `__proto__`/`constructor`/`prototype` keys are skipped. `projectsDir` must be absolute. A missing file
+  reads as `{}`; unreadable or broken JSON or a wrong type fails with `CONFIG_INVALID` (no file text in
+  the error) and nothing is written. Writes are serialised in-process and across processes by
+  `config.json.lock` (`O_EXCL`, owner token; stale when its pid on this host is dead, after 30 s, or
+  after 2 s when it has no readable owner; `CONFIG_LOCKED` after 40 s). `readConfig`/`writeConfig` are
+  async.
+- **Redactor**: replacement text `[REDACTED]`. Header lines `Authorization`, `Proxy-Authorization`,
+  `x-api-key`, `x-goog-api-key`, `api-key`, `x-auth-token`, `Cookie`, `Set-Cookie`; query values `key`,
+  `api_key`/`apikey`, `access_token`, `refresh_token`, `client_secret`, `token`, `password`; object
+  keys with those names (case, `-`, `_` ignored) plus `secret` are replaced whole. Registered values
+  shorter than 8 characters are ignored; each value's URL-encoded and JSON-escaped forms are
+  registered too. `redact` returns a copy (arrays, plain objects, Map, Set, Errors with message, stack,
+  cause and details; other class instances as they are) and never throws. `engine.redactor` is one
+  shared instance (`createRedactor()` for tests).
+- **Jobs**: FIFO; a GPU job waiting for the GPU does not block CPU jobs behind it; `gpu` may be a
+  function of the args. A running job turns `cancelled` only when its handler settles (child gone), so
+  the slot is never over-booked. Non-`VoxError` failures become `JOB_FAILED`. Event payloads (results
+  included), stored errors and progress messages are redacted; stored results are not (they are data).
+  Additions beyond the spec: `wait(jobId)` and `kinds()`.
+- **Python bridge**: uv runs in its own process group; cancel sends SIGTERM to the group, SIGKILL after
+  2 s; groups still alive when the engine process exits are killed. The child gets an allow-listed
+  environment (`PATH`, `HOME`, `USER`, `LOGNAME`, `TMPDIR`, `LANG`, `TZ`, `LC_*`, `UV_*`, `HF_*`,
+  `VOX_*`, proxy and CA variables, `XDG_CACHE_HOME`), so provider keys never reach a tool. The stderr
+  tail (40 lines) excludes JSON progress lines and is redacted line by line. Tool names match
+  `^[a-z_][a-z0-9_]*$`; stdout is capped at 64 MiB. Test tool `py/vox_py/_echo.py` (not used by the app).
+- **New error codes** (appended to `ERROR_CODES` at the shim swap): `CONFIG_INVALID`, `CONFIG_LOCKED`,
+  `JOB_FAILED`, `PY_TOOL_FAILED`, `PY_OUTPUT_INVALID`, `TOOL_MISSING`, `CANCELLED`.
+
+**Why**: Smallest choices that satisfy S17/S19 and the phase-04 step 1–3 tests; RFC 7396 is the
+standard way to say "replace only the keys named" and to remove a key. Review (typescript-reviewer,
+security-reviewer) asked for the lock token, the env allowlist and the never-throwing redactor.
+
+## D-21 · 2026-10-11 · phase 04 (early P1) · Python tool details: pins, face tiles, word clipping, tool protocol
+
+**Context**: Early package P1 (D-19) builds `py/vox_py/{vad,transcribe,facetrack,doctext}.py`. Running
+them on the fixtures showed two facts the spec guessed, and left some formats open.
+**Decision**:
+- **Word drop rule (spec change)**: mlx-whisper starts the first word after a pause early and ends the
+  last word late (on `speech-fillers.wav`, "The" at 4000 ms while speech starts at 4194 ms; "It" 430 ms
+  early), so the literal midpoint rule dropped real words. Each word is now clipped to the speech
+  region it overlaps most, and a word that overlaps no region by at least 40 ms (or its whole length,
+  if shorter) is dropped. Hallucinated words over music or silence overlap no region and are still
+  dropped; clipped times also make the pauses `computeWordKinds` finds match the real silences. The
+  segment rule (`no_speech_prob > 0.6` or `compression_ratio > 2.4`, strict) is unchanged.
+- **MediaPipe pin 1.0.0**: 1.0.1 aborts in `FaceDetector` on macOS ("Check failed: service_ Service is
+  unavailable", Metal helper in `TensorsToDetectionsCalculator`), with either delegate; 1.0.0 and
+  1.1.0 work. 1.0.0 is pinned (all Python pins are releases at least two weeks old). The detector
+  runs with the CPU delegate.
+- **Full-range model kept, with tiles**: the full-range `.tflite` loads in Tasks 1.0.0 (so step 11
+  needs no short-range fallback), but the detector squeezes the whole frame into its input, so at
+  360p the small face of `face-2people.mp4` (about 30 px) is missed on the full frame. `facetrack.py`
+  also runs the detector on three square tiles along the long side (start, middle, end) and merges
+  overlapping boxes (IoU > 0.3, or the smaller box ≥ 60 % inside the larger; the larger box is kept).
+  Both faces are then found on 60/60 samples.
+- **"360p"** means the short side is 360 px (a 9:16 proxy samples at 360×640), both sides even.
+- **Vision**: `VNDetectHumanRectanglesRequest` with its default upper-body mode (full-body mode found
+  no box on the portrait fixtures); saliency = union of the attention request's salient objects.
+- **Detections file** (`facetracks/<mediaId>.json`, R2): `{ sampleFps, width, height, durationMs,
+  faceModel { name, sha256 }, samples: { atMs, faces, bodies, saliency | null }[] }`; a box is
+  `{ x, y, w, h, score }` normalised 0–1, origin top-left; `atMs = round(i * 1000 / sampleFps)`.
+- **Tool protocol**: request fields are checked (unknown field, wrong type → `INVALID_REQUEST`); on
+  failure the last stderr line is `{"error": {"code", "message"}}` and the exit status is 1, stdout
+  empty. While a tool runs, fd 1 points at stderr, so library output can never corrupt the result.
+  Codes: `INVALID_REQUEST`, `INPUT_NOT_FOUND`, `MEDIA_UNREADABLE`, `TOOL_MISSING`, `MODEL_MISSING`,
+  `MODEL_HASH_MISMATCH`, `VISION_FAILED`, `DOC_UNREADABLE`, `DOC_ENCRYPTED`, `TOOL_FAILED`. The engine
+  maps them to `PY_TOOL_FAILED` with the code in the message (or its own codes) when it wires the
+  tools. Schemas: `py/tests/schemas/<tool>.{request,result}.json`, `error.json`, `progress.json`.
+- **Inputs from the engine**: `transcribe` takes `fillers` (the engine passes `FILLERS.en`; the prompt
+  is the list joined, e.g. "Um, umm, uh, …, mhm.") and an optional `modelPath`; `ffmpeg`, `ffprobe`
+  and `formatWhitelist` are request fields (default: `PATH` and the mp4/mov/matroska/webm/wav/aiff/
+  mp3/flac/ogg demuxers), so the engine passes its resolved tool paths and the detected type.
+- **Model files**: Silero VAD vendored (D-15). The face model and the Whisper weights are not
+  vendored: `facetrack` takes `faceModelPath` and checks its SHA-256; `transcribe` without
+  `modelPath` fetches the pinned revision into the Hugging Face cache and checks the weights'
+  SHA-256 on every run. Where the app keeps them (tools dir) and the size prompt belong to 04/09.
+- **cryptography 50.0.1**: pypdf needs it to open AES-encrypted PDFs (an empty user password is
+  common in exported PDFs); without it `doctext` fails with `TOOL_MISSING`.
+- **Platform**: `py/pyproject.toml` sets `tool.uv.environments` to macOS arm64 only (mlx, Vision).
+
+**Why**: Smallest changes that make the D-15 fixture tests pass on real models; the clipping rule
+keeps the spec's intent (no invented words over music or silence) without losing real first words.

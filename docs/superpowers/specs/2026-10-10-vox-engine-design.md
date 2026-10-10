@@ -1004,7 +1004,8 @@ one project; an ambiguous name fails and lists the matching ids.
 
 - Whisper gets an `initial_prompt` built from the English filler list, so it keeps more
   fillers (the spike records how many survive).
-- Words whose midpoint lies outside every speech region are dropped. Whisper segments
+- Each word is clipped to the speech region it overlaps most; a word that overlaps no
+  region by at least 40 ms (or its whole length, if shorter) is dropped (D-21). Whisper segments
   with `no_speech_prob > 0.6` or `compression_ratio > 2.4` are dropped whole. This stops
   invented text over music and silence.
 - The engine computes word kinds and pause pseudo-words (see "Transcripts"), writes
@@ -1019,7 +1020,7 @@ whole media, then sets `shotsPath`. Job kind `shots`. `vox quick` and the clippe
 after ingest. TransNetV2 (MIT) is the documented fallback if the fixture test misses
 cuts; it is not built in v1.
 
-**Detection.** `vox_py.facetrack` samples at 12 fps on the proxy scaled to 360p (the original
+**Detection.** `vox_py.facetrack` samples at 12 fps on the proxy scaled to a 360 px short side (D-21; the original
 when there is no proxy). Each
 sample holds the faces (MediaPipe), and the body boxes (Vision
 `VNDetectHumanRectanglesRequest`) and attention saliency box (Vision
