@@ -44,6 +44,10 @@ export const ERROR_CODES = [
   // media ingest and export targets (early e3-media-export, D-25)
   'MEDIA_UNSUPPORTED',
   'EXPORT_PATH',
+  // styles (styles spec "Format", D-23)
+  'STYLE_NOT_FOUND',
+  'STYLE_INVALID',
+  'STYLE_DUPLICATE',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

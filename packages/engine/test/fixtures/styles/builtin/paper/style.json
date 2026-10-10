@@ -1,0 +1,31 @@
+{
+  "id": "paper",
+  "name": "Paper",
+  "version": "0.3.0",
+  "description": "Trusted test child of base.",
+  "status": "active",
+  "extends": "base",
+  "source": { "type": "builtin" },
+  "trusted": true,
+  "tokens": {
+    "colors": { "paper": "#f4ecd8", "sea": "#3a6f8f" },
+    "texture": { "paper": "assets/textures/paper.jpg", "grain": 0.4 },
+    "motion": { "frameHold": 2, "jitterPx": 1.5, "entrance": "pop" }
+  },
+  "captions": { "default": "paper/box", "presets": ["paper/box", "base/plain"] },
+  "templates": ["map"],
+  "transitions": [],
+  "pacing": { "beatMs": { "min": 1000, "target": 2000, "max": 4000 } },
+  "imagery": {
+    "searchHints": ["vintage photograph"],
+    "cutoutStroke": { "color": "#ffffff", "widthPx": 6 }
+  },
+  "sfx": {
+    "pop": {
+      "path": "assets/sfx/pop.wav",
+      "type": "appear",
+      "source": "https://commons.wikimedia.org/wiki/File:Example.wav",
+      "licence": "CC0"
+    }
+  }
+}
