@@ -40,6 +40,12 @@ import { search as geoSearch, type Place } from './geo/search.ts';
 import { chunkLines, deriveCaptions, type CaptionChunk } from './model/captions.ts';
 import { TranscriptSchema, type Transcript } from './model/schema.ts';
 import { registryTemplateLookup } from './styles/lookup.ts';
+import { readConfig, type Config } from './config.ts';
+import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
+import { registerMediaJobs, type MediaApi } from './media-api.ts';
+import type { Resolver } from './net/address.ts';
+import type { Dial } from './net/proxy.ts';
+import { redactor as sharedRedactor, type Redactor } from './redact.ts';
 import {
   loadStyleRegistry,
   type ResolvedStyle,
@@ -240,6 +246,46 @@ export {
   type ProjectsDirSource,
   type ResolveOptions,
 } from './paths.ts';
+export {
+  ConfigSchema,
+  configPath,
+  readConfig,
+  voxHome,
+  writeConfig,
+  type Config,
+  type ConfigPatch,
+} from './config.ts';
+export { createRedactor, REDACTED, type Redactor } from './redact.ts';
+export type {
+  JobContext,
+  JobError,
+  JobEventName,
+  JobEvents,
+  JobHandler,
+  JobInfo,
+  JobRunner,
+  JobStatus,
+} from './jobs.ts';
+export { TOOL_NAMES, resolveToolPaths, which, type ToolName } from './tools.ts';
+export {
+  FACE_MODEL,
+  FacetrackJobArgsSchema,
+  IngestJobArgsSchema,
+  ShotsJobArgsSchema,
+  TranscribeJobArgsSchema,
+  ensureFaceModel,
+  type FacetrackJobResult,
+  type IngestJobArgs,
+  type IngestJobResult,
+  type MediaJobArgs,
+  type ShotsJobResult,
+  type TranscribeJobArgs,
+  type TranscribeJobResult,
+} from './media-api.ts';
+export { classifyUrl, type UrlKind } from './stages/sources.ts';
+export { LOGIN_REQUIRED_HINT } from './stages/ytdlp.ts';
+export { WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
+export type { TrackPath, TrackPathOptions, ShotFraming } from './stages/facetrack.ts';
 
 /** External tool paths (ffmpeg, ffprobe, yt-dlp, deno, uv, py env, Chrome); filled in by phase 04. */
 export type ToolPaths = Readonly<Record<string, string | undefined>>;
@@ -267,6 +313,13 @@ export interface EngineOptions {
   now?: () => Date;
   migrations?: Readonly<Record<number, Migration>>;
   lockTimeoutMs?: number;
+  /** User config reader; default `readConfig` (`~/.vox/config.json`). */
+  config?: () => Promise<Config>;
+  /** Default: the shared `redactor` (S19). */
+  redactor?: Redactor;
+  jobs?: { concurrency?: number };
+  /** Test seams for downloads (no internet in tests). */
+  net?: { resolver?: Resolver; dial?: Dial };
 }
 
 export interface ProjectSummary {
@@ -296,7 +349,7 @@ export interface SequenceView {
   captions: { startMs: number; endMs: number; text: string }[];
 }
 
-export interface EngineEvents {
+export interface EngineEvents extends JobEvents {
   'project.changed': ProjectChangedEvent;
 }
 
@@ -304,6 +357,12 @@ export interface Engine {
   readonly projectsDir: string;
   readonly stylesDirs: readonly string[];
   readonly tools: ToolPaths;
+  /** Shared secret redactor (S19): errors, job payloads, logs and events go through it. */
+  readonly redactor: Redactor;
+  /** Job runner with the kinds `ingest`, `transcribe` (GPU), `shots`, `facetrack`. */
+  readonly jobs: JobRunner;
+  facetrackPath: MediaApi['facetrackPath'];
+  mediaFrames: MediaApi['mediaFrames'];
   listProjects(): Promise<ProjectSummary[]>;
   createProject(name: string): Promise<Project>;
   getProject(id: string): Promise<Project>;
@@ -397,6 +456,10 @@ export function sequenceView(
 
 export function openEngine(opts: EngineOptions): Engine {
   const emitter = new EventEmitter();
+  const redactor = opts.redactor ?? sharedRedactor;
+  const jobs = createJobRunner({ redactor, ...(opts.jobs?.concurrency ? { concurrency: opts.jobs.concurrency } : {}) });
+  const JOB_EVENTS: readonly JobEventName[] = ['job.started', 'job.progress', 'job.done', 'job.failed', 'job.cancelled'];
+  for (const name of JOB_EVENTS) jobs.on(name, (payload) => emitter.emit(name, payload));
   const stores = new Map<string, Promise<ProjectStore>>();
   let reg: StyleRegistry | undefined;
   const registry = (): StyleRegistry =>
@@ -410,6 +473,7 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.migrations ? { migrations: opts.migrations } : {}),
     ...(opts.lockTimeoutMs !== undefined ? { lock: { timeoutMs: opts.lockTimeoutMs } } : {}),
     onChanged: (e: ProjectChangedEvent) => emitter.emit('project.changed', e),
+    log: { redact: (line: string) => redactor.redact(line) },
   };
   const dirOf = (id: string) => {
     if (!isProjectId(id)) {
@@ -473,10 +537,23 @@ export function openEngine(opts: EngineOptions): Engine {
     return out;
   };
 
+  const media = registerMediaJobs(jobs, {
+    tools: opts.tools ?? {},
+    redactor,
+    store,
+    dirOf,
+    config: opts.config ?? readConfig,
+    ...(opts.net ? { net: opts.net } : {}),
+  });
+
   return {
     projectsDir: opts.projectsDir,
     stylesDirs: opts.stylesDirs,
     tools: opts.tools ?? {},
+    redactor,
+    jobs,
+    facetrackPath: (projectId, mediaId, o) => media.facetrackPath(projectId, mediaId, o),
+    mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
 
     async listProjects() {
       let names: string[];

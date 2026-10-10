@@ -12,7 +12,7 @@ import { TranscriptSchema, type MediaItem, type Transcript } from '../model/sche
 import { resolveProjectPath } from '../paths.ts';
 import { FILLERS, computeWordKinds } from '../text/fillers.ts';
 import { FORMAT_WHITELIST } from './media/ffargs.ts';
-import { SNIFF_BYTES, sniffBytes } from './media/sniff.ts';
+import { sniffFile } from "./media/sniff.ts";
 
 /** mlx-whisper model pin (R5; mirrors `MODEL_REPO`/`MODEL_REVISION` in `py/vox_py/transcribe.py`). */
 export const WHISPER_REPO = 'mlx-community/whisper-large-v3-turbo';
@@ -59,11 +59,6 @@ export interface TranscribeOutcome {
   /** True when the media already points at this transcript (no model change needed). */
   unchanged: boolean;
   dropped: { segments: number; words: number };
-}
-
-async function head(path: string): Promise<Uint8Array> {
-  const buf = await readFile(path);
-  return buf.subarray(0, SNIFF_BYTES);
 }
 
 /** The engine-side transcript: word kinds and pause pseudo-words (02's `computeWordKinds`). */
@@ -117,7 +112,7 @@ export async function transcribeMedia(
   const cached = raw !== undefined;
   if (!raw) {
     const input = await resolveProjectPath(dir, media.audioPath ?? media.path);
-    const sniffed = sniffBytes(await head(input), input);
+    const sniffed = await sniffFile(input);
     if (sniffed.kind === 'document' || sniffed.kind === 'image') {
       throw new VoxError('MEDIA_UNSUPPORTED', `Media ${media.id} has no audio stream to transcribe.`, 'Pick a media item with sound.');
     }
