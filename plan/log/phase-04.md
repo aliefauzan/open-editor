@@ -98,3 +98,44 @@ per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
   agreement per tool (P1's tools); `ToolPaths` (uv path, tools dir) from `openEngine`.
 - **Branch**: `early/e2-config-jobs` at 4bee254, pushed; worktree kept. Merge state: ready, waiting
   for 02 (shim swap, then merge).
+
+## Early steps (D-19) — p1-py-tools
+
+- **Steps done**: 3 pytest part (each tool's request/result checked against hand-written JSON Schemas
+  in `py/tests/schemas/`), 10b (`vad.py`: vendored Silero VAD v6.2.3 ONNX through onnxruntime, port of
+  `get_speech_timestamps`), 11 (`transcribe.py`: VAD gate, mlx-whisper pinned revision, filler
+  `initial_prompt`, segment and word drop rules), 12 `facetrack.py` part (MediaPipe full-range faces
+  with tiles, Vision bodies and saliency), 12b (`doctext.py`, pypdf). Pytest marker `local` (skipped
+  when `CI` is set; locally a missing fixture fails). Decisions: D-21 (word clipping rule, mediapipe
+  1.0.0, tiles, 360p = short side, detections format, tool protocol and error codes, model files).
+- **Files** (branch `early/p1-py-tools`): `py/vox_py/{_tool,vad,transcribe,facetrack,doctext}.py`,
+  `py/vox_py/models/{silero_vad.onnx,LICENSE.silero,README.md}` (placeholder model removed),
+  `py/tests/{conftest,test_tool_protocol,test_vad,test_transcribe,test_facetrack,test_doctext}.py`,
+  `py/tests/test_package.py` (wheel ships the real model), `py/tests/schemas/*.json` (10 files),
+  `py/tests/data/whisper-recorded.json`, `py/pyproject.toml` + `py/uv.lock` (pins in R5; uv
+  environments macOS arm64 only).
+- **Tests**: `uv run --project py pytest` with `CI=1`: 51 passed, 7 skipped (the `local` tier).
+  Local tier (bench lock): 7 passed in 15 s. Numbers: VAD on `music-silence.wav` = one region
+  12002–13950 ms (duration 14066 ms); `speech-fillers.wav` = 6 regions. transcribe on
+  `music-silence.wav` = words only from 12002 ms ("This sentence follows the silence."), 4.4 s;
+  on `speech-fillers.wav` = all words kept incl. um, uh, the repeat "I think I think", first words
+  "The" and "It" (clipped), 3.7 s. facetrack `face-2people.mp4` = 2 faces on 60/60 samples, 2.7 s;
+  `cuts-2shot.mp4` = 108 samples (72 with 1 face, 36 with 0), body boxes on the face shots, saliency
+  on 106/108, 3.7 s; `podcast-2face.mp4` 2 faces on 144/144, 5.8 s; portrait `phone-vfr` samples at
+  360×640. doctext on a PDF made in the test, RC4 encrypted (`DOC_ENCRYPTED`) and AES with an empty
+  password (read). Whisper weights first download 1.6 GB in about 92 s (Hugging Face cache).
+- **Review**: ecc:python-reviewer. Fixed HIGH: missing `cryptography` (AES PDFs crashed). Fixed MEDIUM:
+  C stdio flush before fd 1 is restored, face model download size cap and error mapping, duration
+  fallback when ffprobe says N/A, zero decoded frames = `MEDIA_UNREADABLE`, NUL in paths, 2·pad VAD
+  split tests. Left (engine side): `transcribe` without `modelPath` downloads at run time (the engine
+  should always pass `modelPath`); Whisper `config.json` is not hashed (weights are); default format
+  whitelist has no aac/avi/mpegts (the engine passes the detected type); no subprocess timeout in the
+  tools (the engine enforces one, see E2); Whisper runs on the full audio with
+  `condition_on_previous_text` at its default; a scanned PDF returns empty text (OCR is Part C).
+- **Left for phase 04**: engine stages (`transcribe`, `facetrack`, doc import) and `py.ts` wiring (E2)
+  with the zod ↔ JSON Schema agreement test per tool; commit `transcripts/talking-head-20s.json`;
+  facetrack path builder (E4); where the face model and Whisper weights live (tools dir), their
+  download and size prompt (04/09); `vox doctor` model lines; tool timeouts; map tool error codes to
+  `PY_TOOL_FAILED`/engine codes; spec/plan text now says the clipping rule (D-21).
+- **Branch**: `early/p1-py-tools`, merged into main with `--no-ff` right after this commit and pushed;
+  worktree removed.

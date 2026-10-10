@@ -52,17 +52,19 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | Package / model | Pin | Licence | Set in |
 |---|---|---|---|
 | Python | 3.12.x (00: `py/.python-version` 3.12; resolved 3.12.13 on the M5; hatchling + pytest 9.1.1 + ruff 0.17.0 in `py/uv.lock`) | PSF | 00/04 |
-| mlx-whisper + `mlx-community/whisper-large-v3-turbo` (revision hash) | TBD (04) | MIT | 04 |
-| mediapipe + full-range face detector `.tflite` (URL + SHA-256) | TBD (04) | Apache-2.0 | 04 |
+| mlx-whisper + `mlx-community/whisper-large-v3-turbo` (revision hash) | mlx-whisper 0.4.3; revision `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb`; `weights.safetensors` SHA-256 `951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6` (checked each run; pulls torch 2.14.1) | MIT | 04 |
+| mediapipe + full-range face detector `.tflite` (URL + SHA-256) | mediapipe 1.0.0 (1.0.1 aborts in FaceDetector, D-21); <https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite> SHA-256 `3698b18f063835bc609069ef052228fbe86d9c9a6dc8dcb7c7c2d69aed2b181b` | Apache-2.0 | 04 |
 | rembg + permissive model (never `bria-rmbg`) | TBD (05; licence verified and quoted in log) | MIT + model licence | 05 |
 | opentimelineio | TBD (05) | Apache-2.0 | 05 |
-| pypdf (document text) | TBD (04) | BSD-3-Clause | 04 |
-| onnxruntime (Silero VAD speech gate; no torch, D-15) | TBD (04) | MIT | 04 |
-| Silero VAD `silero_vad.onnx`, vendored at `py/vox_py/models/` with its licence (upstream release URL + SHA-256, D-15) | TBD (04); SHA-256 filled in by phase 04 | MIT | 04 |
+| pypdf (document text) | 6.19.0 | BSD-3-Clause | 04 |
+| onnxruntime (Silero VAD speech gate; no torch, D-15) | 1.30.0 | MIT | 04 |
+| Silero VAD `silero_vad.onnx`, vendored at `py/vox_py/models/` with its licence (upstream release URL + SHA-256, D-15) | v6.2.3, commit `5cd7945676eb32225748052e2e6a0580e4686a08`, <https://github.com/snakers4/silero-vad/blob/v6.2.3/src/silero_vad/data/silero_vad.onnx>; SHA-256 `1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3` | MIT | 04 |
 | numpy (audio QA analysis; `qa.png` drawn with ffmpeg `showspectrumpic`/`showwavespic`) | TBD (05) | BSD-3-Clause | 05 |
 | `otio-fcpx-xml-adapter` | TBD (05 if GATE 2 needs it, else 14) | Apache-2.0 | 05 / 14 |
 | mflux + Z-Image-Turbo | TBD (14) | MIT + Apache-2.0 | 14 |
-| `pyobjc-framework-Vision` (facetrack body + saliency fallback in v1; Part C OCR reuses it, D-15) | TBD (04) | MIT | 04 |
+| `pyobjc-framework-Vision` (facetrack body + saliency fallback in v1; Part C OCR reuses it, D-15) | 12.2.2 | MIT | 04 |
+| cryptography (pypdf AES-encrypted PDFs) | 50.0.1 | Apache-2.0 OR BSD-3-Clause | 04 |
+| jsonschema (dev only: pytest schema checks) | 4.26.0 | MIT | 04 |
 
 ## Assets
 

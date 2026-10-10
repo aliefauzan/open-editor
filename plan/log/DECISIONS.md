@@ -525,3 +525,53 @@ The spec fixes their purpose but leaves some behaviour open.
 **Why**: Smallest choices that satisfy S17/S19 and the phase-04 step 1–3 tests; RFC 7396 is the
 standard way to say "replace only the keys named" and to remove a key. Review (typescript-reviewer,
 security-reviewer) asked for the lock token, the env allowlist and the never-throwing redactor.
+
+## D-21 · 2026-10-11 · phase 04 (early P1) · Python tool details: pins, face tiles, word clipping, tool protocol
+
+**Context**: Early package P1 (D-19) builds `py/vox_py/{vad,transcribe,facetrack,doctext}.py`. Running
+them on the fixtures showed two facts the spec guessed, and left some formats open.
+**Decision**:
+- **Word drop rule (spec change)**: mlx-whisper starts the first word after a pause early and ends the
+  last word late (on `speech-fillers.wav`, "The" at 4000 ms while speech starts at 4194 ms; "It" 430 ms
+  early), so the literal midpoint rule dropped real words. Each word is now clipped to the speech
+  region it overlaps most, and a word that overlaps no region by at least 40 ms (or its whole length,
+  if shorter) is dropped. Hallucinated words over music or silence overlap no region and are still
+  dropped; clipped times also make the pauses `computeWordKinds` finds match the real silences. The
+  segment rule (`no_speech_prob > 0.6` or `compression_ratio > 2.4`, strict) is unchanged.
+- **MediaPipe pin 1.0.0**: 1.0.1 aborts in `FaceDetector` on macOS ("Check failed: service_ Service is
+  unavailable", Metal helper in `TensorsToDetectionsCalculator`), with either delegate; 1.0.0 and
+  1.1.0 work. 1.0.0 is pinned (all Python pins are releases at least two weeks old). The detector
+  runs with the CPU delegate.
+- **Full-range model kept, with tiles**: the full-range `.tflite` loads in Tasks 1.0.0 (so step 11
+  needs no short-range fallback), but the detector squeezes the whole frame into its input, so at
+  360p the small face of `face-2people.mp4` (about 30 px) is missed on the full frame. `facetrack.py`
+  also runs the detector on three square tiles along the long side (start, middle, end) and merges
+  overlapping boxes (IoU > 0.3, or the smaller box ≥ 60 % inside the larger; the larger box is kept).
+  Both faces are then found on 60/60 samples.
+- **"360p"** means the short side is 360 px (a 9:16 proxy samples at 360×640), both sides even.
+- **Vision**: `VNDetectHumanRectanglesRequest` with its default upper-body mode (full-body mode found
+  no box on the portrait fixtures); saliency = union of the attention request's salient objects.
+- **Detections file** (`facetracks/<mediaId>.json`, R2): `{ sampleFps, width, height, durationMs,
+  faceModel { name, sha256 }, samples: { atMs, faces, bodies, saliency | null }[] }`; a box is
+  `{ x, y, w, h, score }` normalised 0–1, origin top-left; `atMs = round(i * 1000 / sampleFps)`.
+- **Tool protocol**: request fields are checked (unknown field, wrong type → `INVALID_REQUEST`); on
+  failure the last stderr line is `{"error": {"code", "message"}}` and the exit status is 1, stdout
+  empty. While a tool runs, fd 1 points at stderr, so library output can never corrupt the result.
+  Codes: `INVALID_REQUEST`, `INPUT_NOT_FOUND`, `MEDIA_UNREADABLE`, `TOOL_MISSING`, `MODEL_MISSING`,
+  `MODEL_HASH_MISMATCH`, `VISION_FAILED`, `DOC_UNREADABLE`, `DOC_ENCRYPTED`, `TOOL_FAILED`. The engine
+  maps them to `PY_TOOL_FAILED` with the code in the message (or its own codes) when it wires the
+  tools. Schemas: `py/tests/schemas/<tool>.{request,result}.json`, `error.json`, `progress.json`.
+- **Inputs from the engine**: `transcribe` takes `fillers` (the engine passes `FILLERS.en`; the prompt
+  is the list joined, e.g. "Um, umm, uh, …, mhm.") and an optional `modelPath`; `ffmpeg`, `ffprobe`
+  and `formatWhitelist` are request fields (default: `PATH` and the mp4/mov/matroska/webm/wav/aiff/
+  mp3/flac/ogg demuxers), so the engine passes its resolved tool paths and the detected type.
+- **Model files**: Silero VAD vendored (D-15). The face model and the Whisper weights are not
+  vendored: `facetrack` takes `faceModelPath` and checks its SHA-256; `transcribe` without
+  `modelPath` fetches the pinned revision into the Hugging Face cache and checks the weights'
+  SHA-256 on every run. Where the app keeps them (tools dir) and the size prompt belong to 04/09.
+- **cryptography 50.0.1**: pypdf needs it to open AES-encrypted PDFs (an empty user password is
+  common in exported PDFs); without it `doctext` fails with `TOOL_MISSING`.
+- **Platform**: `py/pyproject.toml` sets `tool.uv.environments` to macOS arm64 only (mlx, Vision).
+
+**Why**: Smallest changes that make the D-15 fixture tests pass on real models; the clipping rule
+keeps the spec's intent (no invented words over music or silence) without losing real first words.
