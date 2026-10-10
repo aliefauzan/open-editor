@@ -76,7 +76,6 @@ export async function readTextLimited(res: Response, maxBytes: number): Promise<
   for await (const chunk of res.body) {
     total += chunk.byteLength;
     if (total > maxBytes) {
-      await res.body.cancel();
       throw new SetupError('HTTP', `response larger than ${maxBytes} bytes`);
     }
     chunks.push(Buffer.from(chunk));

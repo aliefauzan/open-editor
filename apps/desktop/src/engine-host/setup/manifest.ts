@@ -78,6 +78,16 @@ function num(o: Record<string, unknown>, key: string, where: string): number {
   return v;
 }
 
+const ID_RE = /^[a-z0-9][a-z0-9._-]*$/;
+const VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]*$/;
+
+function relativePath(o: Record<string, unknown>, key: string, where: string): void {
+  const v = str(o, key, where);
+  if (v.startsWith('/') || v.includes('\\') || v.split('/').some((p) => p === '..' || p === '')) {
+    bad(`${where}: ${key} must be a relative path without ..`);
+  }
+}
+
 function httpsUrl(o: Record<string, unknown>, key: string, where: string): void {
   if (!str(o, key, where).startsWith('https://')) bad(`${where}: ${key} must be an https URL`);
 }
@@ -92,6 +102,7 @@ export function validateManifest(value: unknown): Manifest {
     if (typeof raw !== 'object' || raw === null) bad('component must be an object');
     const c = raw as Record<string, unknown>;
     const id = str(c, 'id', 'component');
+    if (!ID_RE.test(id)) bad(`bad component id ${id}`);
     if (seen.has(id)) bad(`duplicate component id ${id}`);
     seen.add(id);
     str(c, 'label', id);
@@ -99,11 +110,11 @@ export function validateManifest(value: unknown): Manifest {
     num(c, 'sizeBytesOnDisk', id);
     switch (c['kind']) {
       case 'archive':
-        str(c, 'version', id);
+        if (!VERSION_RE.test(str(c, 'version', id))) bad(`${id}: bad version`);
         httpsUrl(c, 'url', id);
         if (!SHA.test(str(c, 'sha256', id))) bad(`${id}: sha256 must be 64 lower-case hex digits`);
         num(c, 'size', id);
-        str(c, 'binary', id);
+        relativePath(c, 'binary', id);
         if (c['format'] !== 'tar.gz' && c['format'] !== 'zip')
           bad(`${id}: format must be tar.gz or zip`);
         break;
@@ -111,7 +122,7 @@ export function validateManifest(value: unknown): Manifest {
         str(c, 'version', id);
         httpsUrl(c, 'url', id);
         httpsUrl(c, 'sumsUrl', id);
-        str(c, 'sumsName', id);
+        if (!/^[A-Za-z0-9._-]+$/.test(str(c, 'sumsName', id))) bad(`${id}: bad sumsName`);
         break;
       case 'uv-sync':
       case 'external':

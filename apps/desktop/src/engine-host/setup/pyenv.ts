@@ -3,10 +3,11 @@
 // <tools>/py-env/.vox-lock-hash; a different hash on launch (an app update that adds packages) triggers a
 // re-sync. Nothing is written into the bundle: the env, uv cache and Python all live in the tools folder.
 
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { SetupError } from './errors.ts';
 import { sha256File } from './hash.ts';
+import { withLock } from './lock.ts';
 import { toolPaths } from './paths.ts';
 import { runCommand, tail } from './run.ts';
 import { progress } from './types.ts';
@@ -43,9 +44,14 @@ export async function checkPyEnv(opts: {
   } catch {
     return { state: 'missing', expected };
   }
-  return actual === expected
-    ? { state: 'current', expected, actual }
-    : { state: 'stale', expected, actual };
+  if (actual !== expected) return { state: 'stale', expected, actual };
+  // A deleted python/ folder or a dangling interpreter link leaves the hash file behind: not usable.
+  try {
+    await stat(join(toolPaths(opts.toolsDir).pyEnv, 'bin', 'python'));
+  } catch {
+    return { state: 'missing', expected, actual };
+  }
+  return { state: 'current', expected, actual };
 }
 
 export interface SyncOptions {
@@ -65,13 +71,19 @@ export function syncArgs(pyDir: string): string[] {
   return ['sync', '--frozen', '--no-editable', '--project', pyDir];
 }
 
+/** Variables that could redirect the frozen sync to another index, mirror, config or interpreter. */
+const STRIPPED_ENV =
+  /^(UV_(.*INDEX.*|FIND_LINKS|PYTHON(_INSTALL_MIRROR|_DOWNLOADS.*)?|CONFIG_FILE|NO_CONFIG|PROJECT.*|CACHE_DIR|FROZEN|LOCKED)|PIP_.*|PYTHON.*|VIRTUAL_ENV)$/;
+
 export function syncEnv(
   toolsDir: string,
   base: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   const p = toolPaths(toolsDir);
+  const kept = Object.fromEntries(Object.entries(base).filter(([k]) => !STRIPPED_ENV.test(k)));
   return {
-    ...base,
+    ...kept,
+    UV_NO_CONFIG: '1',
     UV_PROJECT_ENVIRONMENT: p.pyEnv,
     UV_CACHE_DIR: p.uvCache,
     UV_PYTHON_INSTALL_DIR: p.python,
@@ -79,7 +91,11 @@ export function syncEnv(
 }
 
 /** Runs the sync unconditionally. The stored hash is removed first, so a failed or aborted sync reads as `missing`. */
-export async function syncPyEnv(opts: SyncOptions): Promise<void> {
+export function syncPyEnv(opts: SyncOptions): Promise<void> {
+  return withLock(`pyenv:${opts.toolsDir}`, () => syncPyEnvLocked(opts));
+}
+
+async function syncPyEnvLocked(opts: SyncOptions): Promise<void> {
   const paths = toolPaths(opts.toolsDir);
   const expected = await lockHashOf(join(opts.pyDir, 'uv.lock'));
   await mkdir(paths.root, { recursive: true });
@@ -108,7 +124,10 @@ export async function syncPyEnv(opts: SyncOptions): Promise<void> {
 
 const inFlight = new Map<string, Promise<{ synced: boolean }>>();
 
-/** Syncs when the env is missing or stale; concurrent callers for one tools folder share one sync. */
+/**
+ * Syncs when the env is missing or stale. Concurrent callers for one tools folder share one sync (the
+ * first caller's signal and callbacks apply); a forced `syncPyEnv` queues behind a running sync.
+ */
 export function ensurePyEnv(opts: SyncOptions): Promise<{ synced: boolean }> {
   const existing = inFlight.get(opts.toolsDir);
   if (existing !== undefined) return existing;

@@ -1,4 +1,6 @@
 // Child processes: argument arrays only, no shell (S26), an AbortSignal on every child.
+// The child leads its own process group; on abort or timeout the whole group gets SIGKILL and the
+// promise settles only after the child has closed, so callers never carry on beside a dying process.
 
 import { spawn } from 'node:child_process';
 import { SetupError, abortError } from './errors.ts';
@@ -11,7 +13,7 @@ export interface RunOptions {
   onLine?: (line: string, stream: 'stdout' | 'stderr') => void;
   /** Kill the child after this long. */
   timeoutMs?: number;
-  /** Bytes of each stream kept in the result (the tail). Default 64 KiB. */
+  /** Characters of each stream kept in the result (the tail). Default 64 Ki. */
   captureBytes?: number;
 }
 
@@ -23,10 +25,6 @@ export interface RunResult {
 
 export function runCommand(command: string, args: string[], opts: RunOptions): Promise<RunResult> {
   const keep = opts.captureBytes ?? 64 * 1024;
-  const signal =
-    opts.timeoutMs === undefined
-      ? opts.signal
-      : AbortSignal.any([opts.signal, AbortSignal.timeout(opts.timeoutMs)]);
   return new Promise<RunResult>((resolve, reject) => {
     if (opts.signal.aborted) return reject(abortError());
     const child = spawn(command, args, {
@@ -34,34 +32,54 @@ export function runCommand(command: string, args: string[], opts: RunOptions): P
       env: opts.env,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
-      signal,
+      detached: true,
     });
+    let killedBy: 'abort' | 'timeout' | undefined;
+    const kill = (why: 'abort' | 'timeout') => {
+      if (killedBy !== undefined) return;
+      killedBy = why;
+      try {
+        if (child.pid !== undefined) process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        child.kill('SIGKILL');
+      }
+    };
+    const onAbort = () => kill('abort');
+    opts.signal.addEventListener('abort', onAbort, { once: true });
+    const timer =
+      opts.timeoutMs === undefined ? undefined : setTimeout(() => kill('timeout'), opts.timeoutMs);
+
     const out = { stdout: '', stderr: '' };
     const partial = { stdout: '', stderr: '' };
-    const feed = (stream: 'stdout' | 'stderr') => (data: Buffer) => {
-      const text = data.toString('utf8');
+    const feed = (stream: 'stdout' | 'stderr') => (text: string) => {
       out[stream] = (out[stream] + text).slice(-keep);
       if (opts.onLine === undefined) return;
       const lines = (partial[stream] + text).split(/\r?\n/);
       partial[stream] = lines.pop() ?? '';
       for (const l of lines) if (l !== '') opts.onLine(l, stream);
     };
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
     child.stdout.on('data', feed('stdout'));
     child.stderr.on('data', feed('stderr'));
+    const done = () => {
+      opts.signal.removeEventListener('abort', onAbort);
+      if (timer !== undefined) clearTimeout(timer);
+    };
     child.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.name === 'AbortError') {
-        reject(
-          opts.signal.aborted ? err : new SetupError('COMMAND_FAILED', `${command} timed out`),
-        );
-      } else {
-        reject(
-          new SetupError('SPAWN_FAILED', `could not run ${command}: ${err.message}`, {
-            cause: err,
-          }),
-        );
-      }
+      done();
+      reject(
+        new SetupError('SPAWN_FAILED', `could not run ${command}: ${err.message}`, { cause: err }),
+      );
     });
     child.on('close', (code) => {
+      done();
+      if (killedBy === 'abort') return reject(abortError());
+      if (killedBy === 'timeout') {
+        return reject(
+          new SetupError('COMMAND_FAILED', `${command} timed out after ${opts.timeoutMs}ms`),
+        );
+      }
       for (const s of ['stdout', 'stderr'] as const) {
         if (partial[s] !== '') opts.onLine?.(partial[s], s);
       }

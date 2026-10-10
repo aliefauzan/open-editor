@@ -7,6 +7,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rename,
@@ -19,6 +20,7 @@ import { access } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
 import { downloadVerified } from './download.ts';
 import { SetupError, isAbortError } from './errors.ts';
+import { withLock } from './lock.ts';
 import { extractArchive } from './extract.ts';
 import { sha256File } from './hash.ts';
 import { fetchChecked, readTextLimited } from './http.ts';
@@ -101,7 +103,9 @@ export async function installComponent(c: Component, ctx: InstallContext): Promi
     );
   }
   try {
-    return c.kind === 'archive' ? await installArchive(c, ctx) : await installBinary(c, ctx);
+    return await withLock(`install:${ctx.toolsDir}:${c.id}`, () =>
+      c.kind === 'archive' ? installArchive(c, ctx) : installBinary(c, ctx),
+    );
   } catch (e) {
     if (!isAbortError(e)) {
       progress(ctx.onProgress, c.id, 'error', {
@@ -122,7 +126,7 @@ function net(ctx: InstallContext) {
 
 async function installArchive(c: ArchiveComponent, ctx: InstallContext): Promise<InstallResult> {
   const { downloads } = toolPaths(ctx.toolsDir);
-  await mkdir(downloads, { recursive: true });
+  await mkdir(downloads, { recursive: true, mode: 0o700 });
   const archivePath = join(downloads, `${c.id}-${c.version}.${c.format}`);
   let staging: string | undefined;
   try {
@@ -147,6 +151,7 @@ async function installArchive(c: ArchiveComponent, ctx: InstallContext): Promise
       format: c.format,
       destDir: staging,
       signal: ctx.signal,
+      expectSha256: c.sha256,
     });
 
     const binary = join(staging, c.binary);
@@ -199,12 +204,12 @@ async function swapIn(staging: string, target: string): Promise<void> {
     if (hadOld) await rename(aside, target).catch(() => undefined);
     throw e;
   }
-  if (hadOld) await rm(aside, { recursive: true, force: true });
+  if (hadOld) await rm(aside, { recursive: true, force: true }).catch(() => undefined);
 }
 
 async function installBinary(c: BinaryComponent, ctx: InstallContext): Promise<InstallResult> {
   const { downloads } = toolPaths(ctx.toolsDir);
-  await mkdir(downloads, { recursive: true });
+  await mkdir(downloads, { recursive: true, mode: 0o700 });
   const tmpPath = join(downloads, `${c.id}.download`);
   try {
     const sumsRes = await fetchChecked(c.sumsUrl, net(ctx));
@@ -224,6 +229,7 @@ async function installBinary(c: BinaryComponent, ctx: InstallContext): Promise<I
       url: c.url,
       destPath: tmpPath,
       sha256: expected,
+      maxBytes: 200 * 1024 * 1024,
       ...net(ctx),
       onProgress: (got, total) =>
         progress(ctx.onProgress, c.id, 'download', {
@@ -233,6 +239,7 @@ async function installBinary(c: BinaryComponent, ctx: InstallContext): Promise<I
     });
     progress(ctx.onProgress, c.id, 'verify', { message: `SHA-256 ${dl.sha256}` });
     await chmod(tmpPath, 0o755);
+    ctx.signal.throwIfAborted();
     progress(ctx.onProgress, c.id, 'install');
     const dir = join(ctx.toolsDir, c.id);
     await mkdir(dir, { recursive: true });
@@ -245,5 +252,28 @@ async function installBinary(c: BinaryComponent, ctx: InstallContext): Promise<I
     return { id: c.id, path: componentBinaryPath(ctx.toolsDir, c), version: c.version };
   } finally {
     await rm(tmpPath, { force: true });
+  }
+}
+
+/**
+ * Removes leftovers of crashed or killed installs (staging folders, moved-aside old versions, partial
+ * downloads). Call only while no install runs in this process.
+ */
+export async function sweepStale(toolsDir: string): Promise<void> {
+  const rmAll = (p: string) => rm(p, { recursive: true, force: true }).catch(() => undefined);
+  const top = await readdir(toolsDir).catch((e: NodeJS.ErrnoException) => {
+    if (e.code === 'ENOENT') return [] as string[];
+    throw e;
+  });
+  for (const name of top) {
+    const p = join(toolsDir, name);
+    if (name.startsWith('.staging-')) await rmAll(p);
+    else if (name === '.downloads') {
+      for (const f of await readdir(p).catch(() => [])) await rmAll(join(p, f));
+    } else if (!name.startsWith('.')) {
+      for (const f of await readdir(p).catch(() => [])) {
+        if (/\.old-[0-9a-f]+$/.test(f)) await rmAll(join(p, f));
+      }
+    }
   }
 }

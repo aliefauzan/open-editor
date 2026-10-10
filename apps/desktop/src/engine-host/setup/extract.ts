@@ -1,30 +1,48 @@
 // Archive extraction with the system bsdtar (handles tar.gz and zip on macOS). The listing is checked
-// first: no absolute paths, no `..`, no symlinks or hard links. Absolute tool path so a minimal or
-// Homebrew-free PATH cannot change which tar runs.
+// first, over its full length: no absolute paths, no `..`, only regular files and directories (no
+// symlinks, hard links, devices, FIFOs), and a cap on the entry count. Absolute tool path so a
+// minimal or Homebrew-free PATH cannot change which tar runs.
 
 import { SetupError, abortError } from './errors.ts';
+import { sha256File } from './hash.ts';
 import { runCommand, tail } from './run.ts';
 
 const TAR = '/usr/bin/tar';
+const MAX_ENTRIES = 20_000;
 
 export type ArchiveFormat = 'tar.gz' | 'zip';
 
+async function list(archive: string, flag: '-tf' | '-tvf', signal: AbortSignal): Promise<string[]> {
+  const lines: string[] = [];
+  const r = await runCommand(TAR, [flag, archive], {
+    signal,
+    timeoutMs: 120_000,
+    onLine: (l, stream) => {
+      if (stream === 'stdout') lines.push(l);
+    },
+  });
+  if (r.code !== 0) {
+    throw new SetupError('EXTRACT_FAILED', `cannot read archive: ${tail(r.stderr)}`);
+  }
+  if (lines.length > MAX_ENTRIES) {
+    throw new SetupError('EXTRACT_UNSAFE', `archive has more than ${MAX_ENTRIES} entries`);
+  }
+  return lines;
+}
+
 export async function listArchive(archive: string, signal: AbortSignal): Promise<string[]> {
-  const plain = await runCommand(TAR, ['-tf', archive], { signal, timeoutMs: 120_000 });
-  if (plain.code !== 0) {
-    throw new SetupError('EXTRACT_FAILED', `cannot read archive: ${tail(plain.stderr)}`);
-  }
-  const verbose = await runCommand(TAR, ['-tvf', archive], { signal, timeoutMs: 120_000 });
-  if (verbose.code !== 0) {
-    throw new SetupError('EXTRACT_FAILED', `cannot read archive: ${tail(verbose.stderr)}`);
-  }
-  for (const line of verbose.stdout.split('\n')) {
-    const type = line[0];
-    if (type === 'l' || type === 'h') {
-      throw new SetupError('EXTRACT_UNSAFE', 'archive contains a link entry');
+  const names = await list(archive, '-tf', signal);
+  const verbose = await list(archive, '-tvf', signal);
+  for (const line of verbose) {
+    // bsdtar prints the entry type first: '-' file, 'd' directory, 'l' symlink, 'h' hard link, ...
+    if (line[0] !== '-' && line[0] !== 'd') {
+      throw new SetupError(
+        'EXTRACT_UNSAFE',
+        'archive contains an entry that is not a plain file or folder',
+      );
     }
   }
-  return plain.stdout.split('\n').filter((l) => l !== '');
+  return names;
 }
 
 export function assertSafeEntries(entries: string[]): void {
@@ -41,13 +59,23 @@ export async function extractArchive(opts: {
   format: ArchiveFormat;
   destDir: string;
   signal: AbortSignal;
+  /** Re-checked right before extraction, closing the gap between download and unpack. */
+  expectSha256?: string;
 }): Promise<void> {
   if (opts.signal.aborted) throw abortError();
   assertSafeEntries(await listArchive(opts.archive, opts.signal));
-  // bsdtar reads both formats; -x never follows absolute paths here because the listing is checked.
+  if (opts.expectSha256 !== undefined) {
+    const actual = await sha256File(opts.archive, opts.signal);
+    if (actual !== opts.expectSha256) {
+      throw new SetupError('HASH_MISMATCH', 'archive changed on disk after it was verified');
+    }
+  }
+  // bsdtar reads both formats; the listing above has been checked, and bsdtar itself refuses
+  // absolute paths and `..` on extraction.
   const r = await runCommand(TAR, ['-xf', opts.archive, '-C', opts.destDir], {
     signal: opts.signal,
     timeoutMs: 300_000,
+    captureBytes: 16 * 1024,
   });
   if (r.code !== 0) {
     throw new SetupError('EXTRACT_FAILED', `extract failed: ${tail(r.stderr)}`);

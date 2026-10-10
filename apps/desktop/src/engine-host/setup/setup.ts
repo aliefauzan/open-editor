@@ -9,7 +9,8 @@ import { SetupError, isAbortError } from './errors.ts';
 import type { SetupErrorCode } from './errors.ts';
 import { detectFfmpeg } from './ffmpeg.ts';
 import type { FfmpegCheck } from './ffmpeg.ts';
-import { componentBinaryPath, componentState, installComponent } from './install.ts';
+import { componentBinaryPath, componentState, installComponent, sweepStale } from './install.ts';
+import { anyLockHeld } from './lock.ts';
 import type { InstallContext } from './install.ts';
 import { loadManifest } from './manifest.ts';
 import type { ArchiveComponent, BinaryComponent, Component, Manifest } from './manifest.ts';
@@ -227,14 +228,33 @@ async function installOne(c: Component, ctx: SetupContext, force: boolean): Prom
       await installComponent(c, installCtx(ctx));
       return;
     case 'uv-sync':
-      await runPySync(ctx, force);
+      try {
+        await runPySync(ctx, force);
+      } catch (e) {
+        // syncPyEnv reports its own failures; everything else (no uv, no lockfile) is reported here
+        if (!isAbortError(e) && !(e instanceof SetupError && e.code === 'COMMAND_FAILED')) {
+          progress(ctx.onProgress, c.id, 'error', {
+            message: e instanceof Error ? e.message : String(e),
+          });
+        }
+        throw e;
+      }
       return;
     case 'delegated': {
       const d = ctx.delegates?.[c.id];
       if (d === undefined)
         throw new SetupError('NOT_INSTALLABLE', `no installer is wired for ${c.id}`);
       progress(ctx.onProgress, c.id, 'install');
-      await d.install(ctx.signal, ctx.onProgress);
+      try {
+        await d.install(ctx.signal, ctx.onProgress);
+      } catch (e) {
+        if (!isAbortError(e)) {
+          progress(ctx.onProgress, c.id, 'error', {
+            message: e instanceof Error ? e.message : String(e),
+          });
+        }
+        throw e;
+      }
       progress(ctx.onProgress, c.id, 'done');
       return;
     }
@@ -249,6 +269,7 @@ async function installOne(c: Component, ctx: SetupContext, force: boolean): Prom
 /** Installs every component that is not ready. A failure in one component does not stop the others. */
 export async function installAll(ctx: SetupContext): Promise<InstallAllResult> {
   const out: InstallAllResult = { installed: [], skipped: [], failed: [] };
+  if (!anyLockHeld()) await sweepStale(ctx.toolsDir);
   const status = await getSetupStatus(ctx);
   const byId = new Map(status.components.map((s) => [s.id, s]));
   for (const c of manifestOf(ctx).components) {
@@ -265,12 +286,6 @@ export async function installAll(ctx: SetupContext): Promise<InstallAllResult> {
       if (isAbortError(e)) throw e;
       const code = e instanceof SetupError ? e.code : 'UNKNOWN';
       const message = e instanceof Error ? e.message : String(e);
-      if (!(e instanceof SetupError && c.kind === 'uv-sync')) {
-        // install.ts / pyenv.ts already emitted their own error event
-        if (!(e instanceof SetupError) || c.kind === 'delegated') {
-          progress(ctx.onProgress, c.id, 'error', { message });
-        }
-      }
       out.failed.push({ id: c.id, code, message });
     }
   }

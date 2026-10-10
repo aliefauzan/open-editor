@@ -170,3 +170,38 @@ describe('checkForUpdate', () => {
     expect(await p).toMatchObject({ status: 'error', code: 'ABORTED' });
   });
 });
+
+describe('checkForUpdate response hygiene', () => {
+  test('control characters and length are stripped from the release name; the URL is canonical', async () => {
+    const r = (
+      await check(
+        {
+          ...RELEASE,
+          name: `Vox\u0000 \u001b[31mStudio ${'x'.repeat(400)}`,
+          html_url: `https://github.com/${REPO}/releases/../../evil/x`,
+        },
+        '0.1.0',
+      )
+    ).result;
+    expect(r.status).toBe('available');
+    if (r.status !== 'available') return;
+    // eslint-disable-next-line no-control-regex
+    expect(r.name).not.toMatch(/[\u0000-\u001f]/);
+    expect(r.name.length).toBeLessThanOrEqual(200);
+    expect(r.url).toBe(`https://github.com/${REPO}/releases/tag/v0.2.0`);
+  });
+
+  test('an oversize response is an error value', async () => {
+    const srv = await serve({
+      [path]: (_req, res) => void res.writeHead(200).end('x'.repeat(2_000_000)),
+    });
+    const r = await checkForUpdate({
+      repo: REPO,
+      currentVersion: '0.1.0',
+      apiBase: srv.base,
+      allowLoopbackHttp: true,
+      signal: noSignal(),
+    });
+    expect(r).toMatchObject({ status: 'error', code: 'HTTP' });
+  });
+});

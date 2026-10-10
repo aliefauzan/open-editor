@@ -107,14 +107,15 @@ export async function checkForUpdate(opts: UpdateOptions): Promise<UpdateResult>
   if (compareVersions(latestText, opts.currentVersion) <= 0) {
     return { status: 'up-to-date', current: opts.currentVersion, latest: latestText };
   }
-  // Only ever link to this repo's release pages, whatever the response says.
-  const canonical = `https://github.com/${repo}/releases/tag/${encodeURIComponent(tag)}`;
-  const html = r['html_url'];
-  const url =
-    typeof html === 'string' && html.startsWith(`https://github.com/${repo}/releases/`)
-      ? html
-      : canonical;
-  const name = typeof r['name'] === 'string' && r['name'] !== '' ? r['name'] : tag;
+  // Only ever link to this repo's release page, whatever the response says.
+  const url = `https://github.com/${repo}/releases/tag/${encodeURIComponent(tag)}`;
+  const rawName = typeof r['name'] === 'string' ? r['name'] : '';
+  const cleaned = [...rawName]
+    .filter((ch) => ch.charCodeAt(0) > 31 && ch.charCodeAt(0) !== 127)
+    .join('')
+    .trim()
+    .slice(0, 200);
+  const name = cleaned === '' ? tag : cleaned;
   const published = r['published_at'];
   return {
     status: 'available',

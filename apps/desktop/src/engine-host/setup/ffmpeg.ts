@@ -2,9 +2,9 @@
 // `brew --prefix ffmpeg` and, when it is missing, shows the commands for the user to run themselves.
 // The command strings below are display text for copy buttons; this module never executes them.
 
-import { access } from 'node:fs/promises';
+import { access, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 import { runCommand } from './run.ts';
 
 export const HOMEBREW_INSTALL_COMMAND =
@@ -36,6 +36,7 @@ export interface DetectOptions {
 
 async function isExecutable(path: string): Promise<boolean> {
   try {
+    if (!(await stat(path)).isFile()) return false;
     await access(path, constants.X_OK);
     return true;
   } catch {
@@ -47,7 +48,7 @@ async function findBrew(
   env: NodeJS.ProcessEnv,
   fallbackDirs: string[],
 ): Promise<string | undefined> {
-  const dirs = (env['PATH'] ?? '').split(delimiter).filter((d) => d !== '');
+  const dirs = (env['PATH'] ?? '').split(delimiter).filter((d) => isAbsolute(d)); // a relative PATH entry (like ".") is never trusted
   if (env['VOX_NO_BREW_FALLBACK'] !== '1') dirs.push(...fallbackDirs);
   for (const d of dirs) {
     const candidate = join(d, 'brew');
@@ -76,7 +77,7 @@ export async function detectFfmpeg(opts: DetectOptions): Promise<FfmpegCheck> {
       timeoutMs: 30_000,
     });
     prefix = r.stdout.trim().split('\n')[0] ?? '';
-    if (r.code !== 0 || prefix === '') return missing;
+    if (r.code !== 0 || !isAbsolute(prefix)) return missing;
   } catch (e) {
     if (opts.signal.aborted) throw e;
     return missing;
