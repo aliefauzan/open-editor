@@ -1,6 +1,26 @@
 # Phase 05 — Engine: assets, render, export, CLI + GATE 2
 
-Status: not started; early steps done under D-19
+Status: [~] in progress (2026-10-11, single agent, worktree `.worktrees/phase-05`, branch
+`phase/05-engine-assets-render-export`; owner asked to cut token cost: no subagents, self-review)
+
+## Plan (full phase run)
+
+Early packages did 8c core (E3, D-25), 8d0 and the Python part of 8d (P2, D-27). This run:
+1. Assets (A1–A4): `stages/assets.ts` Commons + Openverse search with the licence allowlist (S7),
+   cache, `fetch` through `fetchPublic` (S29), `cutout` (rembg, `py/vox_py/cutout.py`), `generate`
+   via `imageProviders`; recorded HTTP fixtures, live smoke test `slow`.
+2. Render and export (B5–B8e): `stages/render.ts` (silent HyperFrames render + `engine.mix` mux,
+   `-c:v copy` + AAC), `--range-ms`, `--all`, `--captions`, `--loudness`; `exportCaptions`,
+   `exportTimeline` (`py/vox_py/timeline.py`, OTIO + layer MOVs), `credits`, `frames`, `preview`;
+   every export through `writeExport` (S32); job `audioQa` + kit sheet.
+3. Facetrack path provider (9b), offline project script (10), A/V sync on the 90 s fixture (11).
+4. Quick clips (12, 12b) + caption round trip (13); CLI for every command (`--json`).
+5. Integration test (9); `scripts/gate2.sh`; GATE 2 evidence prep; MANUAL STEP 15 (Resolve).
+Test order: licence → search/fetch → cutout/timeline pytest → providers → captions export →
+targets wiring → render → OTIO → credits → preview → audioQa → loudness → framing provider →
+offline project → quickClips → integration → A/V sync → caption round trip → gate2.sh.
+
+Resume notes: none yet.
 
 ## Early steps (D-19) — e3-media-export
 

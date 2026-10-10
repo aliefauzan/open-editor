@@ -10,7 +10,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 02 | Engine: model, ops, history | 00 | [x] | 2026-10-11 00:17 | 2026-10-11 02:26 | Model, 29 ops + `batch`, history store (kill-safe), lock, `vox new/op/undo/redo/history/snapshot/paths`; applyOp p95 22.9 ms; contracts frozen (D-28) | log/phase-02.md |
 | 03 | Engine: styles loader, `base`, compile, captions, audio | 01, 02 | [x] | 2026-10-11 03:20 | 2026-10-11 04:35 | base style, compile (render + preview), captions, audio mix + stems + cues, layers MOV; 90 s spike fixture 0 cut errors (D-30) | log/phase-03.md |
 | 04 | Engine: jobs, Python bridge, ingest, transcribe, facetrack | 01, 02 | [x] | 2026-10-11 04:43 | 2026-10-11 05:40 | Jobs on the engine (ingest, transcribe, shots, facetrack), yt-dlp + LOGIN_REQUIRED, doctor, CLI chain; seeds committed; D-31 | log/phase-04.md |
-| 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [ ] | | | | log/phase-05.md |
+| 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [~] | 2026-10-11 05:43 | | | log/phase-05.md |
 | 06 | Style tooling (Part A rest) | 03 | [ ] | | | | log/phase-06.md |
 | 07 | `vox` style v1 + GATE 3 | 05, 06 | [ ] | | | | log/phase-07.md |
 | 08 | App shell + security + GATE 4 | 01, 03 | [ ] | | | | log/phase-08.md |
