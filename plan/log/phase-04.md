@@ -181,8 +181,8 @@ after `make.sh` (fresh worktree had no generated audio-QA fixtures).
   tool via `py.ts`, detections file) and path cache storage under the cache key; CLI `vox shots` /
   `vox facetrack`; ingest with `{proxies:false}` uses the 360p path; offline seeded fixture files.
   For phase 05: the compile path provider (`applyClipFraming` per item → translate + scale).
-- **Branch**: `early/e4-shots-facetrack` at a6a3b55 (main merged in, incl. P1), pushed; worktree kept.
-  Merge state: ready, waiting for 02 (merge after 02).
+- **Branch**: `early/e4-shots-facetrack`, shim swapped to errors.ts after 02; merged to main as 560506d; worktree removed.
+  Merge state: merged (verify: pnpm test 1032 passed / 1 skipped, pytest 109 passed).
 
 ## Early steps (D-19) — e3-media-export
 
