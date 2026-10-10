@@ -920,3 +920,41 @@ pre-render cache comes back (D-15 rule), as a new DECISIONS entry.
 
 **Why**: The outcome list in the engine spec selects the outcome from the numbers (D-10, D-15).
 Evidence: `docs/SPIKE_RESULTS.md`, `docs/evidence/phase-01/`.
+
+## D-30 · 2026-10-11 · phase 03 · Compile, audio mix and layer renderer: implementation choices
+
+**Decision**: Phase 03 settles these points the specs leave open:
+- Template registration: templates write `window.__timelines[mount.key] = mount.register(tl);`
+  (`vox.mount` returns `key`; `register` returns `tl`), so `hyperframes lint` sees the registration in
+  inline preview templates too. `hyperframes lint` scans only `index.html`; render-mode scene files are
+  not linted by it.
+- `sfxCues` `atMs: 'entrance'` is offset 0 from the item start; transition cues sit at the cut.
+- Shot-blending transitions (`blendsShots`): half the transition in whole frames, rounded up
+  (`blendHalf`); the incoming clip starts that many frames early (its `inMs` reduced), the outgoing clip
+  runs as many frames longer; the transition instance spans [cut − half, + duration]. `NO_HANDLES`
+  uses the same whole-frame half. (A half of 250 ms = 7.5 frames put the incoming clip off the grid and
+  showed the source one frame late.)
+- Range builds: scenes that start before the range are dropped with a warning; a transition cut by
+  the range start is dropped.
+- Render builds carry no `<audio>`; preview builds carry `<audio>` per clip and SFX cue (SFX capped at
+  3 s). `captions.srt` and `audio/cues.json` are written into every build. Sequence overlays default to
+  the style's default overlays.
+- Fonts: one `@font-face` per token font file and its same-prefix siblings; weight from the `fvar`
+  `wght` axis or OS/2 `usWeightClass`; files copied to `fonts/<styleId>/`.
+- Captions: the preset gets `{ chunks, position: { yPct }, safeArea, maxCharsPerLine }`; `base/plain`
+  line height is 1.35 × 1.2 em so a 1.2x emphasis word's box stays inside the chunk (and the safe area).
+- Audio mix: per clip `atrim` → 48 kHz stereo → `afftdn` (light `nr=12:nf=-40`, strong `nr=24:nf=-30`)
+  → gain (target − integratedLufs) dB → `volume` → `afade` (clip-relative) → `adelay` in samples; SFX
+  delayed to the cue; `amix normalize=0`, pad/trim to the sequence length, `alimiter` at −1 dBFS
+  (`level=0`, `latency=1`), then two-pass `loudnorm` (linear) and back to 48 kHz. Output WAV is
+  `pcm_f32le`. Stems (speech = captions source tracks, other, SFX) use the same chains with no limiter
+  and no loudnorm. A silent mix skips loudnorm.
+- Layer renderer: `compile` option `layers` (scene item ids, `<itemId>-tx`, `overlay-<name>`,
+  `captions`; render mode only; unknown ids → `VALIDATION`) emits only those layers on a transparent
+  background without media clips; `renderLayers` writes `build/<seq>-layers/` and runs
+  `hyperframes render --format mov` (ProRes 4444 with alpha).
+- New error codes (R2): `MEDIA_MISSING`, `TEMPLATE_VERSION`, `HOOK_UNTRUSTED` (appended; no code
+  renamed or removed).
+
+**Why**: Each is the simplest option that keeps phase 03's done-when (rule 6f); the frame-grid and
+caption fixes came from the step 12 and 9c tests.

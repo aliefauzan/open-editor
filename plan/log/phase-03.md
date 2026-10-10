@@ -1,6 +1,134 @@
 # Phase 03 — Engine: styles loader, `base` style, compile, captions, audio
 
-Status: not started; early steps done under D-19
+| Field | Value |
+|---|---|
+| Status | done |
+| Started · Finished | 2026-10-11 03:20 · 2026-10-11 04:35 |
+| Model | Opus 5.5 · high (single agent; owner asked to cut token cost) |
+| Machine | M5, macOS 27 |
+| Branch | phase/03-engine-styles-compile-audio |
+
+## Pre-check
+01 [x] (GATE 1 all pass, D-29: whole-sequence HyperFrames render, no hybrid, NTSC go, no pre-render cache),
+02 [x] (contracts frozen, D-28). Early steps E5 (styles schema/registry/tokens, D-23) and A1 (fonts, geo) merged.
+Tools: node 24.14, ffmpeg 8.1.2, HyperFrames 0.8.145, GSAP 3.15.0 (R5).
+
+## Plan summary
+- A. Wire the E5 registry: `TemplateLookup` from the registry (02's ops), `engine.styles.list/get`,
+  `vox new` picks `vox` when installed, else `base`. Token scoping in compile. `styles/base` content
+  (templates `title`, `text-overlay`, `placeholder`, transitions `crossfade`, `dip-to-black`, preset
+  `base/plain`, A1 fonts, fixtures, `guide.md`).
+- B. `model/captions.ts`: `deriveCaptions` (pure) on 02's `mapWordsToTimeline`, SRT/VTT, `engine.captions`,
+  `SequenceView.captions`.
+- C. `compile/`: in-memory `BuildResult` + `writeBuild`, ported from `spike/lib/compile.ts` and the spike
+  templates (`vox-runtime.js`, `vox-preview.js` helpers per D-29), hooks (S8), framing transforms, CFR
+  copies, captions mount, preview audio, SFX audio, fonts, vendored runtime + GSAP; S9 check.
+- D. `audio/`: cue list (`cues.ts`), ffmpeg graph + two-pass loudnorm + stems; `render/layers.ts` (MOV
+  with alpha). Hybrid export: not needed (GATE 1 go, D-29), step 15 n/a.
+- E. `engine.geo.search` over A1's `src/geo/search.ts`.
+- Test order: registry/lookup → base style → captions → compile snapshots → hooks/S8/S9 → contract
+  (slow: lint + render) → 90 s fixture (slow) → cues → audio graph (+ slow renders) → layers (slow) → geo.
+- Step 7 review: self-review (owner asked to cut token cost; no review agents).
+
+
+## Checklist
+- [x] 1–3 Schemas, registry, token CSS (early E5, D-23); token scoping in compile: the sequence style's tokens when
+  its chain includes the declaring style, else the declaring style's (`test/compile/compile.test.ts` scoping).
+- [x] 4 Scene variables through the real registry (`styles/lookup.ts` `registryTemplateLookup`; engine default;
+  `test/styles/wiring.test.ts`); `vox new` picks `vox` when installed, else `base`.
+- [x] 5 `styles/base`: `title`, `text-overlay`, `placeholder`, `crossfade`, `dip-to-black`, `base/plain`, fixtures
+  (≥ 2 per scene, a `longest`), `guide.md`; fixtures validate (`base-templates.test.ts`), lint 0 errors and render
+  non-blank back to back over video with both transitions (`base-templates.slow.test.ts`).
+- [x] 6, 6b `deriveCaptions` + D-15 lines/gap fill/emphasis (`test/model/captions.test.ts`); `engine.captions`,
+  `SequenceView.captions`.
+- [x] 7 Snapshots render + preview (`__snapshots__/main.{render,preview}.txt`), byte-identical on rerun.
+- [x] 8 Hooks: `ctx.readAsset` (rejects `..`/absolute), `ctx.seed`, vendored import, deterministic; S8
+  (untrusted own hook → `HOOK_UNTRUSTED`; trusted parent's template through an untrusted child runs).
+- [x] 8b `NO_HANDLES` with the real `base/crossfade` (`handles.test.ts`).
+- [x] 9 Layer order, hidden/muted tracks, `MEDIA_MISSING`, `TEMPLATE_VERSION`, CFR copy, framing transforms.
+- [x] 9b `skipEntrance`, preset `case`/`stripPunctuation`, nested `stack` panels.
+- [x] 9c `base/plain` in Chrome (`caption-preset.slow.test.ts`): word 2 active (700) with 1/3 read/unread (400,
+  pixel-identical), backward seek byte-identical, emphasis 1.2x in every state, word boxes inside the safe area at
+  yPct 75 and 95. Found and fixed: the emphasis word's box crossed the safe area by 4 px (line height 1.25 → 1.35).
+- [x] 10 S9: no `http(s)` in generated build files.
+- [x] 11 Contract (pinned 0.8.145): render + preview lint 0 errors; 3 s render 90 frames, non-blank.
+- [x] 12 Spike 90 s fixture through the engine (`spike90.slow.test.ts`, spike bench `checkCuts`): 2700 frames,
+  2145 frames checked, 43 cuts, 0 mismatches, 0 cut errors, 0 flat, min margin 115. Found and fixed: crossfade
+  half (250 ms = 7.5 frames) put the incoming clip off the grid, one source frame late for 38 frames.
+- [x] 13 Audio graph (`audio/graph.ts`), snapshot (`__snapshots__/graph.txt`); slow: click onsets ≤ 1 frame,
+  youtube/tiktok/broadcast ±1 LU with true peak ≤ −1 dBTP, stems sum to the pre-loudnorm mix (< 1e-4), silence.
+- [x] 13b Per-source gain (target − integratedLufs), `afftdn` light/strong, off adds nothing; two sources 10 LU
+  apart mix within 1 LU.
+- [x] 13c Cue list (`audio/cues.ts`, `cues.test.ts`).
+- [x] 14 `renderLayers`: compile `layers` option + `render/layers.ts` → ProRes 4444 `yuva*` MOV, alpha partly
+  transparent (`render/layers.slow.test.ts`).
+- [—] 15 n/a (GATE 1: whole-sequence render, no hybrid, D-29).
+- [x] 16 `engine.geo.search("lisbon")` (A1 search wired; empty query → `VALIDATION`).
+
+## Files created / changed
+- `packages/engine/src/`: `compile/{compile,fonts,hooks,write}.ts`, `compile/runtime/{vox-runtime,vox-preview}.js`,
+  `audio/{cues,graph}.ts`, `render/layers.ts`, `styles/lookup.ts`, `model/captions.ts`; changed `api.ts`
+  (compile, writeBuild, captions, styles, geo, mix, renderLayers), `errors.ts` (MEDIA_MISSING, TEMPLATE_VERSION,
+  HOOK_UNTRUSTED), `model/fps.ts` (`blendHalf`), `ops/scenes.ts` (NO_HANDLES in whole frames).
+- `styles/base/**` (style.json, 5 templates + fixtures, `captions/plain.*`, guide.md; A1 fonts).
+- Tests: `test/compile/*` (fixture, hf helpers, compile, handles, layers, contract/caption-preset/spike90 slow),
+  `test/audio/*`, `test/styles/{wiring,base-templates}*`, `test/render/layers.slow.test.ts`, `test/model/*`;
+  test styles `test/fixtures/styles/kit/` (kit, kitdraft). `packages/cli` (`vox new` style).
+
+## Verify results
+| Command | Result | Numbers |
+|---|---|---|
+| `pnpm -C packages/engine test` | green | 79 files, 1119 passed |
+| `pnpm -C packages/engine test:slow -- compile/contract compile/caption-preset compile/spike90 styles/base-templates audio/mix render/layers` | green | 6 files, 19 passed, 69 s (bench lock) |
+| `pnpm typecheck` | green | |
+| `pnpm lint` (eslint + prettier) | green | |
+
+## Done when
+| # | Item | Evidence |
+|---|---|---|
+| 1 | Compile snapshots, contract, audio (presets, per-source gain, denoise, stems), cue list pass | `test/compile/*`, `test/audio/*` |
+| 2 | `deriveCaptions` lines/gap fill/emphasis; `base/plain` passes 9c | `test/model/captions.test.ts`, `caption-preset.slow.test.ts` |
+| 3 | `NO_HANDLES` against the real `base` registry | `test/compile/handles.test.ts` |
+| 4 | Engine-compiled 90 s spike fixture renders with correct cuts | `spike90.slow.test.ts` (numbers above) |
+| 5 | `base` templates lint and render their fixtures | `base-templates.slow.test.ts` |
+| 6 | S8 and S9 tests pass | `compile.test.ts` hooks + S9 |
+
+## Review findings
+Self-review (owner asked to cut token cost; no review agents). Phase diff read against R4 S8/S9 and the specs.
+| Agent | Severity | Finding | Fixed? |
+|---|---|---|---|
+| self | HIGH | crossfade overlap off the frame grid (source one frame late) | yes, `blendHalf` (D-30) |
+| self | HIGH | `base/plain` emphasis word box past the caption safe area | yes, line height 1.35 |
+| self | MEDIUM | a silent mix (no audible source) failed in loudnorm pass 2 (`-inf`) | yes, loudnorm skipped; slow test |
+| self | LOW | `engine.renderLayers` compiles again instead of sharing `compile` (same code path) | no, cosmetic |
+| self | LOW | template rule "longest fixture text box inside the safe area" is not yet a per-template test for `base` | no, phase 06 (`vox style validate`) |
+No secrets, personal paths or owner email in the diff (grep).
+
+## Deviations
+- D-30 (compile/audio/layers implementation choices, below in DECISIONS).
+
+## MANUAL STEPS
+None.
+
+## Handoff notes
+- 05 (render/export): `engine.mix(projectId, seqId, { out, preset, stemsDir?, range? })` writes the final WAV
+  (pcm_f32le 48 kHz stereo, two-pass loudnorm); mux it with the silent HyperFrames render. Range: compile's
+  `applyRange` is exported and used by `mix`. `engine.renderLayers(projectId, seqId, layers, { out })` writes
+  `build/<seq>-layers/` and a ProRes 4444 MOV; layer ids are scene item ids, `<itemId>-tx`, `overlay-<name>`,
+  `captions`. A/V sync of the 90 s fixture is yours (the picture side passes here).
+- 05: CSS `url()` rebasing in render scene files (`../styles/...`) is not covered by a render (base has no
+  texture); the `vox` style (07) will be the first to exercise it.
+- 05/07: `hyperframes lint` scans only `index.html`; render-mode scene files are not linted. Lint scene files
+  separately if needed (e.g. a one-scene index).
+- 10a: preview build vendor list adds `hyperframe.runtime.iife.js` and `vox-preview.js`; templates register with
+  `window.__timelines[mount.key] = mount.register(tl)` (lint-visible); `vox.mount` returns `key`.
+- 04: framing `facetrack`/`auto` take keyframes from `CompileInput.framing` (`FramingProvider`); phase 05 plugs
+  the real path builder in.
+- 06: `vox style validate` should own the longest-fixture text-box test; kit test styles are in
+  `packages/engine/test/fixtures/styles/kit/`.
+- Spike reuse: `spike90.slow.test.ts` and `audio/mix.slow.test.ts` import `spike/bench` and `spike/lib`
+  (cut and click analysis). Keep those modules if `spike/` is ever trimmed.
+- Fixtures for `spike90` come from `packages/engine/test/fixtures/out` (or `VOX_FIXTURES`); the test skips when absent.
 
 ## Early steps (D-19) — a1-assets-geo
 
