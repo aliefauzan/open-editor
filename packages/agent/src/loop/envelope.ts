@@ -4,7 +4,9 @@
 // escaped, so the payload cannot close the envelope or open a nested one.
 
 // `<`, optional whitespace, optional `/`, optional whitespace, `data` (any case)
-const DATA_TAG_START = /<(?=\s*\/?\s*data)/gi;
+// Also looks through control and zero-width characters, and escapes the fullwidth `＜`.
+const GAP = '[\\s\\p{Cc}\\p{Cf}]*';
+const DATA_TAG_START = new RegExp(`[<＜](?=${GAP}/?${GAP}data)`, 'giu');
 const SOURCE = /^[a-z][a-z0-9_.:-]{0,63}$/i;
 
 /** Escape the `<` of every `<data` / `</data` sequence (case-insensitive, whitespace-tolerant). */

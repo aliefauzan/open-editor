@@ -100,12 +100,18 @@ describe('costFromReported', () => {
 
   it('prefers the provider-reported cost', () => {
     expect(costFromReported(0.0123, claudeLike, usage)).toBe(0.0123);
-    expect(costFromReported(0, claudeLike, usage)).toBe(0);
   });
 
   it('computes from usage × price when nothing is reported', () => {
     expect(costFromReported(undefined, claudeLike, usage)).toBeCloseTo(3, 9);
     expect(costFromReported(null, claudeLike, usage)).toBeCloseTo(3, 9);
+  });
+
+  it('does not trust a reported 0 for real usage on a priced model', () => {
+    expect(costFromReported(0, claudeLike, usage)).toBeCloseTo(3, 9);
+    expect(costFromReported(0, { free: true }, usage)).toBe(0);
+    expect(costFromReported(0, undefined, usage)).toBe(0);
+    expect(costFromReported(0, claudeLike, { inputTokens: 0, outputTokens: 0 })).toBe(0);
   });
 
   it('ignores a reported cost that is not a finite non-negative number', () => {
@@ -120,7 +126,15 @@ describe('costFromReported', () => {
 
 describe('budget upper bound (S23)', () => {
   it('is inputTokens × inPrice + maxOutputTokens × outPrice', () => {
-    expect(stepUpperBoundUsd(claudeLike, 200_000, 8_000)).toBeCloseTo(0.6 + 0.12, 9);
+    expect(stepUpperBoundUsd({ inPerMTok: 3, outPerMTok: 15 }, 200_000, 8_000)).toBeCloseTo(
+      0.6 + 0.12,
+      9,
+    );
+  });
+
+  it('uses the dearest rate that could apply (cache write, reasoning)', () => {
+    expect(stepUpperBoundUsd(claudeLike, 1_000_000, 0)).toBeCloseTo(3.75, 9);
+    expect(stepUpperBoundUsd(reasoner, 0, 1_000_000)).toBeCloseTo(10, 9);
   });
 
   it('is 0 for a free or local model', () => {
@@ -131,6 +145,12 @@ describe('budget upper bound (S23)', () => {
     expect(exceedsBudget(1.5, 0.5, 2)).toBe(false);
     expect(exceedsBudget(1.5, 0.5000001, 2)).toBe(true);
     expect(exceedsBudget(2.5, 0, 2)).toBe(true);
+  });
+
+  it('treats NaN as exceeded, never as fine', () => {
+    expect(exceedsBudget(Number.NaN, 0, 2)).toBe(true);
+    expect(exceedsBudget(0, Number.NaN, 2)).toBe(true);
+    expect(exceedsBudget(0, 0, Number.NaN)).toBe(true);
   });
 });
 

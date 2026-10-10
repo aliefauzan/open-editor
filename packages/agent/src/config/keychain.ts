@@ -87,6 +87,8 @@ function scrub(text: string, secret: string | undefined): string {
 
 export function createSecurityKeychain(options: SecurityKeychainOptions = {}): Keychain {
   const service = options.service ?? DEFAULT_SERVICE;
+  if (service === '' || NOT_PRINTABLE_ASCII.test(service))
+    throw new Error('invalid Keychain service name');
   const run = options.run ?? runProcess;
 
   const fail = (what: string, r: RunResult, secret?: string): UtilError =>
@@ -124,7 +126,7 @@ export function createSecurityKeychain(options: SecurityKeychainOptions = {}): K
       // One command on one line; a control character in the key could start a second command.
       const command = `add-generic-password -U -s ${quote(service)} -a ${quote(providerId)} -w ${quote(key)}\n`;
       const r = await run(SECURITY_BIN, ['-i'], { input: command });
-      if (r.code !== 0) throw fail('write', r, key);
+      if (r.code !== 0) throw fail('write', { ...r, stderr: '' }, key); // stderr may echo the command
     },
 
     async remove(providerId) {
@@ -150,7 +152,12 @@ export interface ResolveDeps {
  * Turn a stored `apiKey` reference into the key (engine host only). A value that is not a
  * reference is rejected: config never holds a raw key (S17).
  */
-export async function resolveApiKey(ref: string, deps: ResolveDeps): Promise<string | null> {
+export async function resolveApiKey(
+  ref: string,
+  deps: ResolveDeps,
+  /** The config entry the ref belongs to; a `keychain:` ref must name this provider. */
+  providerId?: string,
+): Promise<string | null> {
   const parsed = parseKeyRef(ref);
   if (!parsed) {
     throw invalid(
@@ -161,6 +168,12 @@ export async function resolveApiKey(ref: string, deps: ResolveDeps): Promise<str
   if (parsed.kind === 'env') {
     const v = deps.env[parsed.name];
     return v === undefined || v === '' ? null : v;
+  }
+  if (providerId !== undefined && parsed.providerId !== providerId) {
+    throw invalid(
+      'a keychain: reference must name the provider it belongs to',
+      'Re-enter the key for this provider so it is stored under its own id.',
+    );
   }
   return deps.keychain.get(parsed.providerId);
 }

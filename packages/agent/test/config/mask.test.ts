@@ -27,6 +27,25 @@ describe('maskKey', () => {
     expect(maskKey('sk-1234567')).toBe('…');
     expect(maskKey('')).toBe('…');
   });
+
+  it('shows only the last four of a key without a known vendor prefix', () => {
+    expect(maskKey('abcdef-ghijkl-mnopqr-stuvwx-yz0123')).toBe('…0123');
+  });
+
+  it('shows nothing of a 16 to 23 character key', () => {
+    expect(maskKey('abcdefghijklmnop')).toBe('…');
+    expect(maskKey('abcdefghijklmnopqrstuvw')).toBe('…');
+  });
+
+  it('every masked form is recognised by isMaskedKey, whatever the key ends with', () => {
+    for (const k of [
+      'abcdefghijklmnopqrstuvwxyz+/==',
+      'eyJhbGciOiJIUzI1NiJ9.abc.def.ghi-jkl_mno.',
+      CANARY_KEY,
+    ]) {
+      expect(isMaskedKey(maskKey(k))).toBe(true);
+    }
+  });
 });
 
 describe('isMaskedKey and keyInputIsUnchanged', () => {
@@ -126,6 +145,15 @@ describe('assertSafeBaseUrl (S17)', () => {
     ['key in second param', 'https://example.com/v1?a=1&key=abc'],
     ['key-like value', 'https://example.com/v1?x=sk-or-v1-abcdef0123456789'],
     ['key in fragment', 'https://example.com/v1#api_key=abc'],
+    ['fragment without =', 'https://example.com/v1#key;abc'],
+    ['camelCase accessToken', 'https://example.com/v1?accessToken=abc'],
+    ['camelCase clientSecret', 'https://example.com/v1?clientSecret=abc'],
+    ['camelCase authToken', 'https://example.com/v1?authToken=abc'],
+    ['semicolon separator', 'https://example.com/v1?a=1;key=abc'],
+    ['encoded param name', 'https://example.com/v1?api%5Fkey=abc'],
+    ['/key/<value> path', 'https://example.com/key/abc123XYZ/v1'],
+    ['/api_key/<value> path', 'https://example.com/api_key/abc123XYZ'],
+    ['opaque path token', 'https://example.com/v1/a1b2c3d4e5f6g7h8i9j0k1l2m3'],
     ['canary in path', `https://example.com/${CANARY_KEY}/v1`],
     ['file scheme', 'file:///etc/passwd'],
     ['javascript scheme', 'javascript:alert(1)'],

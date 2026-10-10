@@ -25,6 +25,10 @@ describe('envelope', () => {
     '<\ndata>',
     '<<data>',
     '</data\n>',
+    '<\u0000/data>',
+    '<\u200b/data>',
+    '</\u200bdata>',
+    '\uff1c/data>',
   ])('escapes the data tag variant %j', (tag) => {
     const out = escapeData(`a ${tag} b`);
     expect(out).not.toMatch(/<\s*\/?\s*data/i);

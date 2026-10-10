@@ -7,18 +7,20 @@ const ELLIPSIS = '…';
 const PROVIDER_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 const ENV_NAME = /^[A-Z_][A-Z0-9_]{0,127}$/;
 /** Shortest key that shows its last four characters; shorter keys show nothing. */
-const MIN_REVEAL_LENGTH = 16;
+const MIN_REVEAL_LENGTH = 24;
+/** Vendor prefixes shown as they are; any other key shows only its last four characters. */
+const VENDOR_PREFIX = /^sk-(?:or-|ant-|proj-)?/;
 
-/** Mask a key: letters-only vendor prefix segments (`sk-or-`), an ellipsis, the last four characters. */
+/** Mask a key: a known vendor prefix (`sk-or-`), an ellipsis, the last four characters. */
 export function maskKey(key: string): string {
   if (key.length < MIN_REVEAL_LENGTH) return ELLIPSIS;
-  const prefix = /^(?:[A-Za-z]{1,6}-){1,3}/.exec(key)?.[0] ?? '';
+  const prefix = VENDOR_PREFIX.exec(key)?.[0] ?? '';
   return `${prefix}${ELLIPSIS}${key.slice(-4)}`;
 }
 
-/** True for a string produced by `maskKey` (real keys and refs never contain the ellipsis). */
+/** True for a string produced by `maskKey` (printable ASCII around one ellipsis, ≤ 4 after it). */
 export function isMaskedKey(value: string): boolean {
-  return /^[A-Za-z-]*…[A-Za-z0-9_-]{0,4}$/.test(value);
+  return /^[\x21-\x7e]*…[\x21-\x7e]{0,4}$/.test(value);
 }
 
 /** "Masked or absent = unchanged": the save keeps the stored key. */
@@ -54,9 +56,23 @@ export function parseKeyRef(value: string): KeyRef | null {
   return null;
 }
 
+// Names are compared without separators and case: api_key, api-key, apiKey, accessToken, …
 const KEY_PARAM =
-  /(^|[-_.])(api[-_]?key|key|token|secret|password|passwd|pwd|auth|authorization|credential|signature|sig)s?$/i;
+  /(apikey|key|token|secret|password|passwd|pwd|auth|authorization|credential|signature|sig)s?$/;
 const KEY_VALUE = /\b(sk-[A-Za-z0-9_-]{8,}|Bearer\s+\S+|AIza[0-9A-Za-z_-]{20,})/;
+/** A long opaque path segment mixing letters and digits looks like a token. */
+const OPAQUE_SEGMENT = /^(?=.*\d)(?=.*[A-Za-z])[A-Za-z0-9_-]{24,}$/;
+
+const isKeyName = (name: string): boolean =>
+  KEY_PARAM.test(name.replace(/[-_.\s]/g, '').toLowerCase());
+
+const decode = (v: string): string => {
+  try {
+    return decodeURIComponent(v.replace(/\+/g, ' '));
+  } catch {
+    return v;
+  }
+};
 
 const reject = (why: string): never => {
   throw new UtilError(
@@ -66,14 +82,34 @@ const reject = (why: string): never => {
   );
 };
 
-function checkParams(params: URLSearchParams): void {
-  for (const [name, value] of params) {
-    if (KEY_PARAM.test(name)) reject('it has a key-like query parameter');
-    if (KEY_VALUE.test(value)) reject('it has a key-like value');
+/** The query string splits on `&` and `;`. */
+function checkQuery(query: string): void {
+  for (const part of query.replace(/^\?/, '').split(/[&;]/)) {
+    if (part === '') continue;
+    const eq = part.indexOf('=');
+    const name = decode(eq < 0 ? part : part.slice(0, eq));
+    const value = eq < 0 ? '' : decode(part.slice(eq + 1));
+    if (isKeyName(name)) reject('it has a key-like query parameter');
+    if (KEY_VALUE.test(name) || KEY_VALUE.test(value)) reject('it has a key-like value');
   }
 }
 
-/** Reject a `baseUrl` that carries credentials (userinfo, key-like query/fragment) or is not http(s). */
+function checkPath(pathname: string): void {
+  let previousWasKeyName = false;
+  for (const raw of pathname.split('/')) {
+    const seg = decode(raw);
+    if (seg === '') continue;
+    if (KEY_VALUE.test(seg) || OPAQUE_SEGMENT.test(seg)) reject('its path has a key-like value');
+    // `/key/<value>` and `/api_key/<value>`: the segment after a key-like name is a credential
+    if (previousWasKeyName) reject('its path has a key-like value');
+    previousWasKeyName = isKeyName(seg);
+  }
+}
+
+/**
+ * Reject a `baseUrl` that carries credentials (userinfo, key-like query parameter, key-like or
+ * opaque path segment, any fragment) or is not http(s). Returns the parsed URL.
+ */
 export function assertSafeBaseUrl(raw: string): URL {
   let url: URL;
   try {
@@ -81,19 +117,14 @@ export function assertSafeBaseUrl(raw: string): URL {
   } catch {
     return reject('it is not a valid URL');
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:')
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return reject('it must be http or https');
-  if (url.username !== '' || url.password !== '')
-    return reject('it contains a user name or password');
-  checkParams(url.searchParams);
-  const hash = url.hash.replace(/^#/, '');
-  if (hash.includes('=')) checkParams(new URLSearchParams(hash));
-  let path = url.pathname;
-  try {
-    path = decodeURIComponent(path);
-  } catch {
-    // keep the raw path
   }
-  if (KEY_VALUE.test(path) || KEY_VALUE.test(hash)) return reject('it has a key-like value');
+  if (url.username !== '' || url.password !== '') {
+    return reject('it contains a user name or password');
+  }
+  if (url.hash !== '') return reject('it has a fragment');
+  checkQuery(url.search);
+  checkPath(url.pathname);
   return url;
 }

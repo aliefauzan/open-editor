@@ -50,6 +50,9 @@ describe('repairToolJson', () => {
     ['prose before and after', 'Sure! {"a":1} done.', { a: 1 }],
     ['only an open brace', '{', {}],
     ['array top level', '[1,2,', [1, 2]],
+    ['escaped backslash before u12', '{"a":"x\\\\u12', { a: 'x\\u12' }],
+    ['brackets in prose before the object', 'See [1] {"a":1,}', { a: 1 }],
+    ['a stray brace in prose', 'use } and { then {"a":1}', { a: 1 }],
   ])('repairs %s', (_name, raw, expected) => {
     const r = ok(raw);
     expect(r.value).toEqual(expected);
@@ -66,6 +69,14 @@ describe('repairToolJson', () => {
     expect(repairToolJson('').ok).toBe(false);
     expect(repairToolJson('{"a":}').ok).toBe(false);
     expect(repairToolJson('{"a" 1}').ok).toBe(false);
+  });
+
+  it('stays fast on hostile input', () => {
+    const t = Date.now();
+    repairToolJson('"' + '{'.repeat(100_000));
+    repairToolJson('\\'.repeat(100_000));
+    repairToolJson('{"a":"' + '\\'.repeat(100_000));
+    expect(Date.now() - t).toBeLessThan(2000);
   });
 
   it('does not run away on deep nesting', () => {
@@ -136,6 +147,19 @@ describe('detectTextToolCall', () => {
     ['empty', ''],
   ])('ignores %s', (_n, text) => {
     expect(detectTextToolCall(text, tools)).toBeNull();
+  });
+
+  it('stays fast on hostile text (stray quote then many braces, repeated markers)', () => {
+    const t = Date.now();
+    detectTextToolCall('"' + '{'.repeat(100_000), tools);
+    detectTextToolCall('<function='.repeat(50_000), tools);
+    detectTextToolCall('<'.repeat(100_000) + ' '.repeat(100_000), tools);
+    expect(Date.now() - t).toBeLessThan(2000);
+  });
+
+  it('finds a tool call after a stray quote', () => {
+    const d = detectTextToolCall('He said " then {"name":"trimItem","arguments":{}}', tools);
+    expect(d?.tool).toBe('trimItem');
   });
 
   it('detects a marker with no known tool name as unknown', () => {

@@ -78,12 +78,22 @@ export function costFromReported(
   usage: Usage,
 ): number | undefined {
   if (typeof reportedUsd === 'number' && Number.isFinite(reportedUsd) && reportedUsd >= 0) {
-    return reportedUsd;
+    // A reported 0 with real usage on a priced model (e.g. BYOK accounting) is not trusted.
+    const suspicious =
+      reportedUsd === 0 &&
+      price !== undefined &&
+      !isFree(price) &&
+      usage.inputTokens + usage.outputTokens > 0;
+    if (!suspicious) return reportedUsd;
   }
   return price === undefined ? undefined : costOfUsage(price, usage);
 }
 
-/** Per-step upper bound: `inputTokens × inPrice + maxOutputTokens × outPrice`. */
+/**
+ * Per-step upper bound: `inputTokens × inPrice + maxOutputTokens × outPrice` (spec). Each rate is
+ * the dearest one that could apply (cache and reasoning prices above the base price count), so the
+ * bound never under-counts.
+ */
 export function stepUpperBoundUsd(
   price: PriceEntry,
   inputTokens: number,
@@ -92,12 +102,18 @@ export function stepUpperBoundUsd(
   if (isFree(price)) return 0;
   const input = tokens(inputTokens, 'inputTokens');
   const out = tokens(maxOutputTokens, 'maxOutputTokens');
-  return (input * price.inPerMTok + out * price.outPerMTok) / 1e6;
+  const inRate = Math.max(
+    price.inPerMTok,
+    price.cacheReadPerMTok ?? 0,
+    price.cacheWritePerMTok ?? 0,
+  );
+  const outRate = Math.max(price.outPerMTok, price.reasoningPerMTok ?? 0);
+  return (input * inRate + out * outRate) / 1e6;
 }
 
 /** True when the next step could push the run past its cap (`spent + bound > cap`). */
 export function exceedsBudget(spentUsd: number, boundUsd: number, capUsd: number): boolean {
-  return spentUsd + boundUsd > capUsd;
+  return !(spentUsd + boundUsd <= capUsd); // NaN counts as exceeded
 }
 
 export interface ProviderKind {

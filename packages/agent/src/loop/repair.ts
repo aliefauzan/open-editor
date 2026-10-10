@@ -29,15 +29,46 @@ export function repairToolJson(raw: string): RepairResult {
   } catch {
     // fall through to repair
   }
-  const start = text.search(/[{[]/);
-  if (start < 0) return { ok: false, error: 'no JSON object or array found' };
-  const fixed = rebuild(text, start);
-  if (typeof fixed !== 'string') return { ok: false, error: fixed.error };
-  try {
-    return { ok: true, value: JSON.parse(fixed), repaired: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  let lastError = 'no JSON object or array found';
+  for (const start of candidateStarts(text)) {
+    const fixed = rebuild(text, start);
+    if (typeof fixed !== 'string') {
+      lastError = fixed.error;
+      continue;
+    }
+    try {
+      return { ok: true, value: JSON.parse(fixed), repaired: true };
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
   }
+  return { ok: false, error: lastError };
+}
+
+/** Drop a cut-off backslash-u escape, but not a literal backslash that happens to precede "u12". */
+function dropCutUnicodeEscape(out: string): string {
+  const m = /u[0-9a-fA-F]{0,3}$/.exec(out);
+  if (!m) return out;
+  let slashes = 0;
+  while (out[m.index - 1 - slashes] === '\\') slashes++;
+  return slashes % 2 === 1 ? out.slice(0, m.index - 1) : out;
+}
+
+const MAX_STARTS = 5;
+
+/** Where the object may begin: up to 5 `{` (tool arguments are objects), then the first `[`. */
+function candidateStarts(text: string): number[] {
+  const starts: number[] = [];
+  for (
+    let i = text.indexOf('{');
+    i >= 0 && starts.length < MAX_STARTS;
+    i = text.indexOf('{', i + 1)
+  ) {
+    starts.push(i);
+  }
+  const bracket = text.indexOf('[');
+  if (bracket >= 0) starts.push(bracket);
+  return starts;
 }
 
 /** One pass over the text; returns repaired JSON text, or an error for hopeless input. */
@@ -139,7 +170,7 @@ function rebuild(text: string, start: number): string | { error: string } {
   let dropKey = false;
   if (inStr) {
     if (esc) out = out.slice(0, -1);
-    out = out.replace(/\\u[0-9a-fA-F]{0,3}$/, '');
+    out = dropCutUnicodeEscape(out);
     if (strIsKey) dropKey = true;
     else {
       out += '"';
@@ -206,7 +237,10 @@ export interface TextToolCall {
 }
 
 const MARKERS =
-  /<\s*(?:tool_call|function_call|tool_use|tool_calls)\s*>|<\|(?:python_tag|tool_call)\|>|\[TOOL_CALLS?\]|<function=[^>\s]+>/i;
+  /<\s*(?:tool_call|function_call|tool_use|tool_calls)\s*>|<\|(?:python_tag|tool_call)\|>|\[TOOL_CALLS?\]|<function=[^<>\s]+>/i;
+/** Text longer than this is not scanned for text tool calls (keeps detection linear and cheap). */
+const MAX_SCAN = 200_000;
+const MAX_SPANS = 20;
 const ARG_KEYS = ['arguments', 'args', 'parameters', 'input'];
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -220,21 +254,25 @@ function firstKnownName(text: string, names: readonly string[]): string | null {
   return best?.name ?? null;
 }
 
-function balancedObjectAt(text: string, from: number): string | null {
+/** Top-level balanced `{…}` spans, string-aware, in one linear pass (at most MAX_SPANS). */
+function topLevelObjects(text: string): string[] {
+  const spans: string[] = [];
   let depth = 0;
+  let from = 0;
   let inStr = false;
   let esc = false;
-  for (let i = from; i < text.length; i++) {
+  for (let i = 0; i < text.length && spans.length < MAX_SPANS; i++) {
     const c = text[i];
     if (inStr) {
       if (esc) esc = false;
       else if (c === '\\') esc = true;
       else if (c === '"') inStr = false;
-    } else if (c === '"') inStr = true;
-    else if (c === '{') depth++;
-    else if (c === '}' && --depth === 0) return text.slice(from, i + 1);
+    } else if (depth > 0 && c === '"') inStr = true;
+    else if (c === '{') {
+      if (depth++ === 0) from = i;
+    } else if (c === '}' && depth > 0 && --depth === 0) spans.push(text.slice(from, i + 1));
   }
-  return null;
+  return spans;
 }
 
 function namedTool(o: unknown, names: readonly string[]): string | null {
@@ -255,15 +293,12 @@ export function detectTextToolCall(
   text: string,
   toolNames: readonly string[],
 ): TextToolCall | null {
+  text = text.slice(0, MAX_SCAN);
   const marker = MARKERS.exec(text);
   if (marker) {
     return { kind: 'marker', tool: firstKnownName(text.slice(marker.index), toolNames) };
   }
-  let tried = 0;
-  for (let i = text.indexOf('{'); i >= 0 && tried < 20; i = text.indexOf('{', i + 1)) {
-    const slice = balancedObjectAt(text, i);
-    if (slice === null) continue;
-    tried++;
+  for (const slice of topLevelObjects(text)) {
     try {
       const tool = namedTool(JSON.parse(slice), toolNames);
       if (tool) return { kind: 'json', tool };

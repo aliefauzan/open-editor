@@ -90,6 +90,7 @@ describe('security keychain: set (S30)', () => {
       );
     expect(err).toMatchObject({ code: 'KEYCHAIN_FAILED' });
     const e = err as Error & { hint: string; cause?: unknown };
+    expect(JSON.stringify(e)).not.toContain(CANARY_KEY);
     expect(JSON.stringify({ m: e.message, h: e.hint, c: String(e.cause) })).not.toContain(
       CANARY_KEY,
     );
@@ -165,6 +166,15 @@ describe('resolveApiKey', () => {
       CANARY_KEY,
     );
     expect(await resolveApiKey('keychain:openrouter', { keychain: kc(null), env: {} })).toBeNull();
+  });
+
+  it('requires a keychain ref to name its own provider', async () => {
+    await expect(
+      resolveApiKey('keychain:openai', { keychain: kc(CANARY_KEY), env: {} }, 'evil-gateway'),
+    ).rejects.toMatchObject({ code: 'CONFIG_INVALID' });
+    expect(
+      await resolveApiKey('keychain:openai', { keychain: kc(CANARY_KEY), env: {} }, 'openai'),
+    ).toBe(CANARY_KEY);
   });
 
   it('rejects an apiKey that is a raw key instead of a reference (S17)', async () => {
