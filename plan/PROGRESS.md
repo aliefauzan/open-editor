@@ -7,7 +7,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 |---|---|---|---|---|---|---|---|
 | 00 | Foundation | — | [x] | 2026-10-10 23:40 | 2026-10-11 00:25 | Monorepo, fixtures, seed media, CI green (macos-14); no `drawtext`, barcode counter (D-17) | log/phase-00.md |
 | 01 | Spike + GATE 1 | 00 | [~] | 2026-10-11 00:18 | | | log/phase-01.md |
-| 02 | Engine: model, ops, history | 00 | [ ] | | | | log/phase-02.md |
+| 02 | Engine: model, ops, history | 00 | [~] | 2026-10-11 00:17 | | | log/phase-02.md |
 | 03 | Engine: styles loader, `base`, compile, captions, audio | 01, 02 | [ ] | | | | log/phase-03.md |
 | 04 | Engine: jobs, Python bridge, ingest, transcribe, facetrack | 01, 02 | [ ] | | | | log/phase-04.md |
 | 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [ ] | | | | log/phase-05.md |
