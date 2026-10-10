@@ -84,6 +84,7 @@ def test_face_model_with_a_wrong_hash_is_refused(tmp_path):
     assert info.value.code == "MODEL_HASH_MISMATCH"
 
 
+@pytest.mark.local  # Apple Vision has no inference context on CI VMs
 def test_vision_finds_a_saliency_box_on_a_synthetic_frame():
     # Vision runs on CI too (macOS runner); a bright square on grey is the salient object.
     frame = np.full((360, 640, 3), 60, dtype=np.uint8)
