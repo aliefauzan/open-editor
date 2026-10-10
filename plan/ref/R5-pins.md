@@ -26,7 +26,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `ollama-ai-provider-v2` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `@ai-sdk/openai-compatible` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
-| `d3-geo`, `topojson-client` | TBD (07) | ISC | 07 | vendored as ESM in `styles/vox/templates/map-route/vendor/` (hooks are self-contained) |
+| `d3-geo`, `topojson-client` | `d3-geo@3.1.1` (with `d3-array@3.2.4`, `internmap@2.0.3` inlined), `topojson-client@3.1.0`; bundled with `esbuild@0.25.10` (one file each, not minified) | ISC (d3-geo also carries GeographicLib MIT text) | 07 (vendored early by A1, D-19) | `styles/vox/templates/map-route/vendor/{d3-geo,topojson-client}.mjs` + `LICENSES.md` (tarball and file SHA-256); hooks are self-contained |
 | OpenCode Zen, 9router, LM Studio presets | no package (`@ai-sdk/openai-compatible` with a base URL) | — | 11 | base URLs in the agent spec presets table |
 | Playwright | TBD (08) | Apache-2.0 | 08 | Electron E2E (first used by the 08 smoke test, D-16) |
 
@@ -68,10 +68,10 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 
 | Asset | Source | Licence | Set in |
 |---|---|---|---|
-| Natural Earth 1:50m countries + populated places | naturalearthdata.com | public domain | 03 (geo search), 07 (map) |
+| Natural Earth 1:50m countries + populated places | countries: `world-atlas@2.0.2` `countries-50m.json` (NE 4.1.0 as TopoJSON, 241 countries, 739 kB, SHA-256 `04342cdc1e3016bcd7db1630de95684d67b79fe3c8c460321e87aef469502394`) in `styles/vox/assets/geo/`; places: `https://naciscdn.org/naturalearth/10m/cultural/ne_10m_populated_places_simple.zip` v5.1.2 (zip SHA-256 `2963ee08f7743f13f37d5243acd77a2f7a510e26a36c7e04b920f1b381f2b251`) → `packages/engine/data/places.json` (518 kB, 7342 places); see `packages/engine/data/NOTICE.md`, `styles/vox/ASSETS.md` | public domain (world-atlas packaging ISC) | 03 (geo search), 07 (map); data added early by A1 (D-19) |
 | Test portraits `face-a.jpg`, `face-b.jpg` (checked-in fixtures) | Wikimedia Commons, CC0 only, URL recorded in `fixtures/assets/LICENSES.md` | CC0 | 00 |
 | Test SFX `fixtures/assets/sfx/tap.wav` (checked-in fixture, `base` tests) | Wikimedia Commons, CC0 or public domain, fetched with the portraits, URL in `fixtures/assets/LICENSES.md` (D-16) | CC0 / PD | 00 |
-| Fonts `base`: Inter (display, body), IBM Plex Mono (captions) | Google Fonts / upstream repos | OFL | 03 |
-| Fonts (`vox`: display, body, caption; ~40 OFL catalogue for Part C) | Google Fonts | OFL | 07, 15 |
-| Paper texture | CC0 source, URL recorded | CC0 | 07 |
-| SFX `paper-pop`, `paper-slide`, `whoosh`, `stamp`, `typewriter`, `thump-tap` (hero) | real recordings only: CC0 / public domain from Wikimedia Commons first (URL recorded), Freesound only if the owner downloads it, or recorded for the project (licence `project`); never synthesised (D-14, D-16); listed in `style.json` `sfx` and `styles/vox/assets/sfx/CREDITS.md` | CC0 / project | 07 |
+| Fonts `base`: Inter (display, body), IBM Plex Mono (captions) | github.com/google/fonts commit `bd8f81ddb5c74d5c8897b36ad88b440266245103`, `ofl/inter` (variable TTF), `ofl/ibmplexmono` (Regular, Bold TTF); hashes in `styles/base/assets/fonts/SOURCES.md` | OFL 1.1 (texts `OFL-*.txt` beside the files) | 03 (files added early by A1, D-19; `style.json` entries are phase 03) |
+| Fonts (`vox`: display, body, caption; ~40 OFL catalogue for Part C) | same Google Fonts commit: Libre Caslon Display + DM Serif Display (both display candidates; phase 07 keeps one), Libre Caslon Text (variable), IBM Plex Mono Regular + Bold; hashes in `styles/vox/assets/fonts/SOURCES.md` | OFL 1.1 | 07 (files added early by A1), 15 |
+| Paper texture | Wikimedia Commons "Papier aquarelle 100% coton, grain fin.png" by Les.aqua, `https://commons.wikimedia.org/wiki/File:Papier_aquarelle_100%25_coton,_grain_fin.png`; cropped 1024x1024 JPEG `styles/vox/assets/textures/paper.jpg` (190 kB); details in `styles/vox/ASSETS.md` | CC0 | 07 (added early by A1) |
+| SFX `paper-pop`, `paper-slide`, `whoosh`, `stamp`, `typewriter`, `thump-tap` (hero) | real recordings only: CC0 / public domain from Wikimedia Commons first (URL recorded), Freesound only if the owner downloads it, or recorded for the project (licence `project`); never synthesised (D-14, D-16); listed in `style.json` `sfx` and `styles/vox/assets/sfx/CREDITS.md` | CC0 / project | 07 (6 candidates added early by A1; acceptance is phase 07 + kit check; weakest: `whoosh`, `typewriter`, `thump-tap`, see CREDITS.md) |
