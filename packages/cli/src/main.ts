@@ -2,13 +2,17 @@
 // takes --json and --projects-dir. A VoxError exits 1 and prints its hint (--json: the error object);
 // usage errors exit 2.
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
 import {
   isVoxError,
+  classifyUrl,
   openEngine,
+  readConfig,
   resolveProjectsDir,
+  resolveToolPaths,
   toVoxErrorJson,
   version,
   VoxError,
@@ -16,6 +20,8 @@ import {
   type ApplyResult,
   type Engine,
   type HistoryEntry,
+  type JobInfo,
+  writeConfig,
 } from '@vox/engine';
 
 export interface Io {
@@ -23,6 +29,9 @@ export interface Io {
   stderr: (s: string) => void;
   env: Readonly<Record<string, string | undefined>>;
   cwd: string;
+  /** Interactive terminal (stdin and stdout); `vox doctor` asks for the contact only then. */
+  isTTY?: boolean;
+  prompt?: (question: string) => Promise<string>;
 }
 
 const defaultIo: Io = {
@@ -30,6 +39,15 @@ const defaultIo: Io = {
   stderr: (s) => process.stderr.write(s),
   env: process.env,
   cwd: process.cwd(),
+  isTTY: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+  prompt: async (q) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      return await rl.question(q);
+    } finally {
+      rl.close();
+    }
+  },
 };
 
 const USAGE = `usage:
@@ -41,6 +59,12 @@ const USAGE = `usage:
   vox history <project> [--since <version>]
   vox snapshot <project> <name> | --list
   vox paths                               print the projects folder, styles folders and tools
+  vox ingest <project> <path|url>...      add files, folders or links [--playlist] [--no-proxies]
+  vox transcribe <project> <mediaId>      words + speech regions [--language <code>]
+  vox shots <project> <mediaId>           shot cuts (scdet)
+  vox facetrack <project> <mediaId>       face, body and saliency detections
+  vox media-frames <project> <mediaId> --at-ms <ms>[,<ms>...]   PNG stills (paths)
+  vox doctor [<project>] [--unlock] [--quick]   check tools, models, config (and a project)
 common options: --json, --projects-dir <dir>; <project> is an id or a unique name
 `;
 
@@ -72,6 +96,12 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
   history: { ...COMMON, since: { type: 'string' } },
   snapshot: { ...COMMON, list: { type: 'boolean' } },
   paths: COMMON,
+  ingest: { ...COMMON, playlist: { type: 'boolean' }, 'no-proxies': { type: 'boolean' } },
+  transcribe: { ...COMMON, language: { type: 'string' } },
+  shots: COMMON,
+  facetrack: COMMON,
+  'media-frames': { ...COMMON, 'at-ms': { type: 'string' } },
+  doctor: { ...COMMON, unlock: { type: 'boolean' }, quick: { type: 'boolean' } },
 };
 
 interface Parsed {
@@ -117,15 +147,61 @@ function stylesDirs(io: Io): string[] {
   return [builtIn, join(voxHome, 'styles')];
 }
 
-function engineFor(values: Parsed['values'], io: Io): Engine {
+async function engineFor(values: Parsed['values'], io: Io): Promise<Engine> {
   const flag = values['projects-dir'];
+  const config = () => readConfig(io.env);
   const { dir } = resolveProjectsDir({
     flag: typeof flag === 'string' ? flag : undefined,
     env: io.env,
+    config: (await config()).projectsDir,
     home: io.env['HOME'],
     cwd: io.cwd,
   });
-  return openEngine({ projectsDir: dir, stylesDirs: stylesDirs(io), tools: { dir: toolsDir(io) } });
+  return openEngine({
+    projectsDir: dir,
+    stylesDirs: stylesDirs(io),
+    tools: resolveToolPaths({ toolsDir: toolsDir(io), env: io.env }),
+    config,
+  });
+}
+
+/** Runs one engine job to the end; progress goes to stderr on a terminal; a failure throws its VoxError. */
+async function runJob<R>(
+  e: Engine,
+  kind: string,
+  args: unknown,
+  io: Io,
+  json: boolean,
+): Promise<R> {
+  const id = e.jobs.start(kind, args);
+  const off =
+    io.isTTY && !json
+      ? e.on('job.progress', (p) => {
+          if (p.jobId === id) {
+            const text = clean(`${kind} ${Math.round(p.progress * 100)}% ${p.message ?? ''}`);
+            io.stderr(`\r${text}\x1b[K`);
+          }
+        })
+      : () => undefined;
+  let info: JobInfo;
+  try {
+    info = await e.jobs.wait(id);
+  } finally {
+    off();
+    if (io.isTTY && !json) io.stderr('\r\x1b[K');
+  }
+  if (info.status !== 'done') {
+    const err = info.error;
+    if (err)
+      throw new VoxError(
+        err.code,
+        err.message,
+        err.hint,
+        err.details ? { details: err.details } : {},
+      );
+    throw new VoxError('CANCELLED', `${kind} was cancelled`, 'Run it again');
+  }
+  return info.result as R;
 }
 
 /** `<project>`: an id, or the name of exactly one project. */
@@ -175,9 +251,13 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     io.stdout(json ? `${JSON.stringify(v, null, 2)}\n` : clean(text));
   switch (cmd) {
     case 'paths': {
-      const e = engineFor(values, io);
+      const e = await engineFor(values, io);
       out(
-        { projectsDir: e.projectsDir, stylesDirs: e.stylesDirs, tools: e.tools },
+        {
+          projectsDir: e.projectsDir,
+          stylesDirs: e.stylesDirs,
+          tools: { dir: toolsDir(io), ...e.tools },
+        },
         `projects: ${e.projectsDir}\nstyles: ${e.stylesDirs.join(', ')}\ntools: ${toolsDir(io)}\n`,
       );
       return 0;
@@ -185,7 +265,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     case 'new': {
       need(positionals, 1, '<name>');
       const name = positionals[0]!;
-      const e = engineFor(values, io);
+      const e = await engineFor(values, io);
       const p = await e.createProject(name);
       const r = await e.applyOp(
         p.id,
@@ -219,7 +299,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       if (!(CLI_ACTORS as readonly string[]).includes(actor))
         throw new UsageError(`--actor must be one of ${CLI_ACTORS.join(', ')}`);
       const baseVersion = int(values['base-version'], 'base-version');
-      const e = engineFor(values, io);
+      const e = await engineFor(values, io);
       const id = await resolveProject(e, ref);
       const r = await e.applyOp(
         id,
@@ -238,7 +318,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     case 'undo':
     case 'redo': {
       need(positionals, 1, '<project>');
-      const e = engineFor(values, io);
+      const e = await engineFor(values, io);
       const id = await resolveProject(e, positionals[0]!);
       const opts = { actor: 'cli' as const };
       const run = values['run'];
@@ -253,7 +333,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     case 'history': {
       need(positionals, 1, '<project>');
       const since = int(values['since'], 'since');
-      const e = engineFor(values, io);
+      const e = await engineFor(values, io);
       const id = await resolveProject(e, positionals[0]!);
       const entries = await e.history(id, since === undefined ? {} : { sinceVersion: since });
       out(entries, entries.map(historyLine).join(''));
@@ -261,7 +341,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     }
     case 'snapshot': {
       need(positionals, 1, '<project>');
-      const e = engineFor(values, io);
+      const e = await engineFor(values, io);
       const id = await resolveProject(e, positionals[0]!);
       if (values['list'] === true) {
         const list = await e.listSnapshots(id);
@@ -272,6 +352,127 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const s = await e.snapshot(id, positionals[1]!);
       out(s, `saved snapshot ${s.name} (version ${s.version})\n`);
       return 0;
+    }
+    case 'ingest': {
+      need(positionals, 2, '<project> <path|url>...');
+      const [ref, ...rawInputs] = positionals as [string, ...string[]];
+      // Links pass as they are; local paths are made absolute against the current folder.
+      const inputs = rawInputs.map((s) =>
+        classifyUrl(s) !== 'invalid' || /^[a-z][a-z0-9+.-]*:/i.test(s) || isAbsolute(s)
+          ? s
+          : resolve(io.cwd, s),
+      );
+      const e = await engineFor(values, io);
+      const id = await resolveProject(e, ref);
+      const r = await runJob<{
+        media: { input: string; mediaId: string; kind: string; reused: boolean }[];
+        posts: { url: string; count: number; taken: number }[];
+        skipped: { path: string; reason: string }[];
+        version: number;
+      }>(
+        e,
+        'ingest',
+        {
+          projectId: id,
+          inputs,
+          ...(values['playlist'] === true ? { playlist: true } : {}),
+          ...(values['no-proxies'] === true ? { proxies: false } : {}),
+          actor: 'cli',
+        },
+        io,
+        json,
+      );
+      out(
+        r,
+        [
+          ...r.media.map(
+            (m) => `${m.mediaId}\t${m.kind}\t${m.reused ? 'reused' : 'added'}\t${m.input}\n`,
+          ),
+          ...r.posts.map(
+            (p) =>
+              `note: ${p.url} has ${p.count} videos; took ${p.taken} (use --playlist for all)\n`,
+          ),
+          ...r.skipped.map((s) => `skipped (${s.reason}): ${s.path}\n`),
+          `version ${r.version}\n`,
+        ].join(''),
+      );
+      return 0;
+    }
+    case 'transcribe':
+    case 'shots':
+    case 'facetrack': {
+      need(positionals, 2, '<project> <mediaId>');
+      const e = await engineFor(values, io);
+      const id = await resolveProject(e, positionals[0]!);
+      const lang = values['language'];
+      const r = await runJob<Record<string, unknown>>(
+        e,
+        cmd,
+        {
+          projectId: id,
+          mediaId: positionals[1]!,
+          actor: 'cli',
+          ...(typeof lang === 'string' ? { language: lang } : {}),
+        },
+        io,
+        json,
+      );
+      const file = r['transcriptPath'] ?? r['shotsPath'] ?? r['facetrackPath'];
+      out(r, `${String(file)}${r['cached'] ? ' (cached)' : ''}\tversion ${String(r['version'])}\n`);
+      return 0;
+    }
+    case 'media-frames': {
+      need(positionals, 2, '<project> <mediaId>');
+      const raw = values['at-ms'];
+      if (typeof raw !== 'string' || !/^\d+(,\d+)*$/.test(raw))
+        throw new UsageError('--at-ms takes whole ms values, comma separated');
+      const e = await engineFor(values, io);
+      const id = await resolveProject(e, positionals[0]!);
+      const at = raw.split(',').map(Number);
+      const paths = await e.mediaFrames(id, positionals[1]!, at);
+      out(
+        at.map((t, i) => ({ atMs: t, path: paths[i] })),
+        paths.map((p, i) => `${at[i]}\t${p}\n`).join(''),
+      );
+      return 0;
+    }
+    case 'doctor': {
+      const e = await engineFor(values, io);
+      // Ask once, on a terminal only, for the Commons User-Agent contact (--json never asks).
+      if (!json && io.isTTY && io.prompt && !(await readConfig(io.env)).contact) {
+        const answer = (
+          await io.prompt(
+            'Contact (email or URL) for the Wikimedia Commons User-Agent, or Enter to skip: ',
+          )
+        ).trim();
+        if (answer !== '') await writeConfig({ contact: answer }, io.env);
+      }
+      const report = await e.doctor(values['quick'] === true ? { quick: true } : {});
+      let project: unknown;
+      if (positionals[0] !== undefined) {
+        const id = await resolveProject(e, positionals[0]);
+        project = await e.doctorProject(id, values['unlock'] === true ? { unlock: true } : {});
+      }
+      const mark = { ok: 'ok  ', warn: 'WARN', error: 'FAIL' } as const;
+      const lines = report.checks.map(
+        (c) => `${mark[c.level]} ${c.name}: ${c.detail}${c.fix ? `\n     fix: ${c.fix}` : ''}\n`,
+      );
+      if (project) {
+        const p = project as {
+          orphanOverrides: { sequenceId: string; wordKey: string; reason: string }[];
+          lock: { host: string; pid: number; removed?: boolean } | null;
+        };
+        for (const o of p.orphanOverrides)
+          lines.push(`WARN caption override ${o.wordKey} in ${o.sequenceId}: ${o.reason}\n`);
+        if (p.lock)
+          lines.push(
+            p.lock.removed
+              ? `ok   lock of ${p.lock.host} (pid ${p.lock.pid}) removed\n`
+              : `WARN locked by ${p.lock.host} (pid ${p.lock.pid}); --unlock removes it\n`,
+          );
+      }
+      out(project ? { ...report, project } : report, lines.join(''));
+      return report.ok ? 0 : 1;
     }
     default:
       throw new UsageError(`unknown command ${JSON.stringify(cmd)}`);

@@ -6,9 +6,11 @@
 import { spawn } from 'node:child_process';
 import { VoxError } from '../../errors.ts';
 
-export type MediaTool = 'ffmpeg' | 'ffprobe';
+export type MediaTool = 'ffmpeg' | 'ffprobe' | 'yt-dlp';
 
 export interface ToolPaths {
+  /** yt-dlp binary; default `yt-dlp` from PATH (ingest of links). */
+  'yt-dlp'?: string;
   /** ffmpeg binary; default `ffmpeg` from PATH (phase 04 resolves the tools folder first). */
   ffmpeg?: string;
   /** ffprobe binary; default `ffprobe` from PATH. */
@@ -26,6 +28,13 @@ export interface RunOptions {
   timeoutMs?: number;
   /** Called once with the child pid right after spawn (job runner bookkeeping, tests). */
   onSpawn?: (pid: number) => void;
+  /** Child environment; default: this process's. */
+  env?: NodeJS.ProcessEnv;
+  /** Called with each stdout / stderr chunk as it arrives (progress lines). */
+  onStdout?: (chunk: string) => void;
+  onStderr?: (chunk: string) => void;
+  /** stdout is binary (e.g. raw PCM): returned as latin1, so `Buffer.from(stdout, 'latin1')` gives the bytes. */
+  binaryStdout?: boolean;
 }
 
 export interface RunResult {
@@ -85,7 +94,11 @@ export function runTool(
   };
 
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, [...args], { stdio: ['ignore', 'pipe', 'pipe'], shell: false });
+    const child = spawn(bin, [...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+      ...(opts.env ? { env: opts.env } : {}),
+    });
     const out: Buffer[] = [];
     let outBytes = 0;
     let overflow = false;
@@ -127,10 +140,12 @@ export function runTool(
         return;
       }
       out.push(chunk);
+      if (opts.onStdout && !opts.binaryStdout) safeCall(opts.onStdout, chunk.toString('utf8'));
     });
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => {
       err += chunk;
+      if (opts.onStderr) safeCall(opts.onStderr, chunk);
       if (err.length > STDERR_KEEP_BYTES * 2) err = err.slice(-STDERR_KEEP_BYTES);
     });
     child.on('error', (e: NodeJS.ErrnoException) => {
@@ -148,7 +163,9 @@ export function runTool(
             new VoxError(
               'TOOL_MISSING',
               `${tool} was not found (${bin}).`,
-              'Install ffmpeg (brew install ffmpeg), then run vox doctor.',
+              tool === 'yt-dlp'
+                ? 'Install yt-dlp (vox doctor shows how), or add the video as a local file.'
+                : 'Install ffmpeg (brew install ffmpeg), then run vox doctor.',
               { details: { tool, path: bin } },
             ),
           );
@@ -188,7 +205,19 @@ export function runTool(
           { exitCode: code, signal },
         );
       }
-      resolve({ stdout: Buffer.concat(out).toString('utf8'), stderr });
+      resolve({
+        stdout: Buffer.concat(out).toString(opts.binaryStdout ? 'latin1' : 'utf8'),
+        stderr,
+      });
     });
   });
+}
+
+/** A throwing listener never breaks the run. */
+function safeCall(fn: (s: string) => void, s: string): void {
+  try {
+    fn(s);
+  } catch {
+    // ignored
+  }
 }

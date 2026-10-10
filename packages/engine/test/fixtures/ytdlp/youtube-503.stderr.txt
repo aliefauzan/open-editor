@@ -1,0 +1,2 @@
+WARNING: [youtube] private test: this warning mentions a private playlist
+ERROR: [youtube] dQw4w9WgXcQ: Unable to download webpage: HTTP Error 503: Service Unavailable

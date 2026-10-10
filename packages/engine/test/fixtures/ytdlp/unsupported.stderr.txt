@@ -1,0 +1,4 @@
+[generic] Extracting URL: https://example.com/page
+[generic] page: Downloading webpage
+WARNING: [generic] Falling back on generic information extractor
+ERROR: Unsupported URL: https://example.com/page

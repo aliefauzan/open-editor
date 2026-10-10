@@ -353,11 +353,15 @@ export function runPyTool<S extends z.ZodType>(
         );
       }
       if (code !== 0) {
+        const te = toolErrorOf(tail);
         fail(
           'PY_TOOL_FAILED',
-          `Python tool ${tool} failed (${signal ? `signal ${signal}` : `exit code ${code}`})`,
-          'Run vox doctor to check the Python environment; the error output is in the cause',
-          { exitCode: code, signal },
+          te
+            ? `Python tool ${tool} failed: ${te.code}: ${te.message}`
+            : `Python tool ${tool} failed (${signal ? `signal ${signal}` : `exit code ${code}`})`,
+          (te && TOOL_ERROR_HINTS[te.code]) ??
+            'Run vox doctor to check the Python environment; the error output is in the cause',
+          { exitCode: code, signal, ...(te ? { toolCode: te.code } : {}) },
         );
       }
       let json: unknown;
@@ -383,4 +387,31 @@ export function runPyTool<S extends z.ZodType>(
       return (res as { data: z.output<S> }).data;
     };
   });
+}
+
+/** Hints for the tool error codes of D-21 (`{"error": {"code", "message"}}`, last stderr line). */
+export const TOOL_ERROR_HINTS: Readonly<Record<string, string>> = {
+  INPUT_NOT_FOUND: 'The media file is missing from the project folder; ingest it again.',
+  MEDIA_UNREADABLE: 'The file may be damaged; try another file.',
+  MODEL_MISSING: 'Run vox doctor; it shows how to get the model.',
+  MODEL_HASH_MISMATCH: 'The model file is damaged; delete it and run the stage again to fetch it.',
+  TOOL_MISSING: 'Run vox doctor to repair the Python environment.',
+  VISION_FAILED: 'Apple Vision failed on this file; run vox doctor.',
+  DOC_UNREADABLE: 'The document cannot be read; export it again as PDF or plain text.',
+  DOC_ENCRYPTED: 'Remove the password from the PDF, then add it again.',
+};
+
+/** The tool's own error from the stderr tail, if its last line is the D-21 error JSON. */
+export function toolErrorOf(
+  tail: readonly string[],
+): { code: string; message: string } | undefined {
+  const last = tail.at(-1)?.trim();
+  if (!last?.startsWith('{')) return undefined;
+  try {
+    const e = (JSON.parse(last) as { error?: { code?: unknown; message?: unknown } }).error;
+    if (typeof e?.code !== 'string' || !/^[A-Z_]{1,40}$/.test(e.code)) return undefined;
+    return { code: e.code, message: typeof e.message === 'string' ? e.message.slice(0, 500) : '' };
+  } catch {
+    return undefined;
+  }
 }
