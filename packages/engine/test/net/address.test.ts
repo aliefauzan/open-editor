@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { isBlockedAddress, resolvePublic, systemResolver } from '../../src/net/address.ts';
 import type { Resolver } from '../../src/net/address.ts';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 
 const fake =
   (table: Record<string, string[]>): Resolver =>

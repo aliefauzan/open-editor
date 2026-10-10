@@ -3,7 +3,7 @@
 // output id, and `cookiesFromBrowser` read from the user's config only (S33).
 
 import { isAbsolute, join } from 'node:path';
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { classifyUrl } from './sources.ts';
 
 export const COOKIE_BROWSERS = ['safari', 'chrome', 'firefox'] as const;

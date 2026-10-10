@@ -6,7 +6,7 @@ import { request as httpRequest } from 'node:http';
 import type { IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeaders } from 'node:http';
 import { connect as netConnect, isIP } from 'node:net';
 import { connect as tlsConnect } from 'node:tls';
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { normaliseHost, resolvePublic, systemResolver } from './address.ts';
 import type { Resolver } from './address.ts';
 import type { Dial } from './proxy.ts';

@@ -31,6 +31,12 @@ export const ERROR_CODES = [
   'SNAPSHOT_EXISTS',
   'PROJECT_NOT_FOUND',
   'PROJECT_AMBIGUOUS',
+  // network and links (engine spec "Ingest hardening"; S3, S29)
+  'URL_INVALID',
+  'NET_BLOCKED',
+  'NET_DNS',
+  'NET_REDIRECTS',
+  'NET_TOO_LARGE',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

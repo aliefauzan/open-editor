@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from 'vitest';
 import { buildYtdlpArgs } from '../../src/stages/ytdlpArgs.ts';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 
 const base = {
   url: 'https://www.instagram.com/reel/C1a2B3c4D5e/',

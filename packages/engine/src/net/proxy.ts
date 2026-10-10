@@ -10,7 +10,7 @@ import type { IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeaders } from '
 import { connect as netConnect } from 'node:net';
 import type { AddressInfo, Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { isVoxError } from '../errors.pending.ts';
+import { isVoxError } from '../errors.ts';
 import { normaliseHost, resolvePublic, systemResolver } from './address.ts';
 import type { Resolver } from './address.ts';
 

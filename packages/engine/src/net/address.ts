@@ -4,7 +4,7 @@
 
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 
 /** Resolves a host name to its addresses. Injected in tests; the default asks the OS. */
 export type Resolver = (host: string) => Promise<string[]>;

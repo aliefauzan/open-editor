@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { fetchPublic, readBody } from '../../src/net/fetch.ts';
 import type { FetchPublicOptions } from '../../src/net/fetch.ts';
 import type { Resolver } from '../../src/net/address.ts';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 import { PUBLIC_HOST, PUBLIC_IP, httpServer, httpsServer, makeCert, text } from './servers.ts';
 import type { Cert, TestServer } from './servers.ts';
 
