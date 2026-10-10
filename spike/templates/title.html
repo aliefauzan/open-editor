@@ -63,7 +63,8 @@
       </div>
       <script>
         (function () {
-          var root = document.querySelector('[data-composition-id="__ID__"]');
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
           var title = root.querySelector('.t-title');
           var v = vox.vars(title);
           title.textContent = v.title;
@@ -71,7 +72,7 @@
           var tl = gsap.timeline({ paused: true });
           tl.fromTo(title, { y: 80, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 }, 0);
           tl.fromTo(root.querySelector('.t-bar'), { scaleX: 0 }, { scaleX: 1, duration: 0.6 }, 0.2);
-          window.__timelines['__ID__'] = tl;
+          mount.register(tl);
         })();
       </script>
     </template>

@@ -49,7 +49,8 @@
       </div>
       <script>
         (function () {
-          var root = document.querySelector('[data-composition-id="__ID__"]');
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
           var sw = root.querySelector('.k-swatch');
           sw.style.background = vox.vars(sw).swatch;
           var tl = gsap.timeline({ paused: true });
@@ -59,7 +60,7 @@
             { opacity: 1, duration: 0.4, stagger: 0.2 },
             0,
           );
-          window.__timelines['__ID__'] = tl;
+          mount.register(tl);
         })();
       </script>
     </template>

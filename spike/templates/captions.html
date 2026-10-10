@@ -39,7 +39,8 @@
       </div>
       <script>
         (function () {
-          var root = document.querySelector('[data-composition-id="__ID__"]');
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
           var chunks = vox.vars(root).chunks;
           var tl = gsap.timeline({ paused: true });
           for (var i = 0; i < chunks.length; i++) {
@@ -51,7 +52,7 @@
             tl.set(el, { opacity: 1 }, c.start);
             tl.set(el, { opacity: 0 }, c.end);
           }
-          window.__timelines['__ID__'] = tl;
+          mount.register(tl);
         })();
       </script>
     </template>

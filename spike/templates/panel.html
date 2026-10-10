@@ -54,14 +54,15 @@
       </div>
       <script>
         (function () {
-          var root = document.querySelector('[data-composition-id="__ID__"]');
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
           var title = root.querySelector('.p-title');
           var v = vox.vars(title);
           title.textContent = v.title;
           root.querySelector('.p-swatch').style.background = v.swatch;
           var tl = gsap.timeline({ paused: true });
           tl.fromTo(title, { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5 }, 0.1);
-          window.__timelines['__ID__'] = tl;
+          mount.register(tl);
         })();
       </script>
     </template>

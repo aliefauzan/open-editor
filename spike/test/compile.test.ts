@@ -66,7 +66,7 @@ describe('render build', () => {
       expect(f, s.id).toBeDefined();
       expect(f).toContain(`data-composition-id="${s.id}"`);
       expect(f).toContain(
-        `<script type="application/json" data-vox-vars>${JSON.stringify(s.vars)}`,
+        `<script type="application/json" data-vox-vars data-vox-instance="${s.id}">${JSON.stringify(s.vars)}`,
       );
       expect(f).toContain('--tok-accent');
       expect(index).toContain(`data-composition-src="scenes/${s.id}.html"`);

@@ -60,14 +60,15 @@
       </div>
       <script>
         (function () {
-          var root = document.querySelector('[data-composition-id="__ID__"]');
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
           var box = root.querySelector('.l-box');
           var v = vox.vars(box);
           root.querySelector('.l-text').textContent = v.title;
           root.querySelector('.l-swatch').style.background = v.swatch;
           var tl = gsap.timeline({ paused: true });
           tl.fromTo(box, { x: -1100 }, { x: 0, duration: 0.4 }, 0);
-          window.__timelines['__ID__'] = tl;
+          mount.register(tl);
         })();
       </script>
     </template>

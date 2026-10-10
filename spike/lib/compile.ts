@@ -128,7 +128,7 @@ function emitInstance(
     .replace('<!--vox:tokens-->', tokens(style))
     .replace(
       '<!--vox:vars-->',
-      `<script type="application/json" data-vox-vars>${json(vars)}</script>`,
+      `<script type="application/json" data-vox-vars data-vox-instance="${id}">${json(vars)}</script>`,
     );
   for (const [k, v] of Object.entries(extra)) inner = inner.replaceAll(k, v);
   if (ctx.mode === 'render') {
