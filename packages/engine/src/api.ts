@@ -44,6 +44,12 @@ import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
 import { registerMediaJobs, type MediaApi } from './media-api.ts';
 import {
+  applyClipFraming,
+  trackOptionsFromFrame,
+  type TrackPath,
+  type TrackPathOptions,
+} from './stages/facetrack.ts';
+import {
   createImageProviders,
   registerAssetJobs,
   type ImageProvider,
@@ -651,6 +657,47 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.hyperframes ? { hyperframes: opts.hyperframes } : {}),
   });
 
+  /**
+   * The facetrack path provider (phase 05, replacing 03's stub): for each `facetrack`/`auto` clip
+   * whose media has shots and a facetrack, the tracked path is built (cached) before compile; the
+   * synchronous provider then cuts it to the clip it is given (after any range) with the user's pins.
+   * A clip without them keeps its static crop.
+   */
+  async function trackedFraming(
+    projectId: string,
+    p: Project,
+    sequenceId: string,
+  ): Promise<FramingProvider> {
+    const s = p.sequences.find((x) => x.id === sequenceId);
+    const paths = new Map<string, TrackPath>();
+    const keyOf = (mediaId: string, o: TrackPathOptions) => `${mediaId}|${JSON.stringify(o)}`;
+    if (s) {
+      const aspect = { width: s.canvas.width, height: s.canvas.height };
+      for (const t of s.videoTracks) {
+        for (const it of t.items) {
+          if (it.type !== 'media' || (it.frame?.mode !== 'facetrack' && it.frame?.mode !== 'auto'))
+            continue;
+          const m = p.media.find((x) => x.id === it.mediaId);
+          if (!m?.facetrackPath || !m.shotsPath) continue;
+          const o = trackOptionsFromFrame(it.frame, aspect);
+          const k = keyOf(m.id, o);
+          if (!paths.has(k)) paths.set(k, await media.facetrackPath(projectId, m.id, o));
+        }
+      }
+    }
+    return (m, clip, seq) => {
+      if (!clip.frame || (clip.frame.mode !== 'facetrack' && clip.frame.mode !== 'auto')) return undefined;
+      const o = trackOptionsFromFrame(clip.frame, { width: seq.canvas.width, height: seq.canvas.height });
+      const path = paths.get(keyOf(m.id, o));
+      if (!path) return undefined;
+      return applyClipFraming(path, {
+        inMs: clip.inMs,
+        durationMs: clip.durationMs,
+        ...(clip.frame.keyframes ? { keyframes: clip.frame.keyframes } : {}),
+      });
+    };
+  }
+
   const engine: Engine = {
     projectsDir: opts.projectsDir,
     stylesDirs: opts.stylesDirs,
@@ -776,7 +823,7 @@ export function openEngine(opts: EngineOptions): Engine {
           sequenceId,
           registry: registry(),
           transcriptOf: (m) => tr.get(m.id),
-          ...(opts.framing ? { framing: opts.framing } : {}),
+          framing: opts.framing ?? (await trackedFraming(projectId, p, sequenceId)),
         },
         o,
       );
@@ -796,7 +843,7 @@ export function openEngine(opts: EngineOptions): Engine {
           sequenceId,
           registry: registry(),
           transcriptOf: (m) => tr.get(m.id),
-          ...(opts.framing ? { framing: opts.framing } : {}),
+          framing: opts.framing ?? (await trackedFraming(projectId, p, sequenceId)),
         },
         { mode: 'render', layers, ...(o.range ? { range: o.range } : {}) },
       );
