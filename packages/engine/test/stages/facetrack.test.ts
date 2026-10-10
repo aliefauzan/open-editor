@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { VoxError } from '../../src/errors.ts';
+import { KeyframeSchema } from '../../src/model/schema.ts';
 import {
   DEAD_ZONE,
   DetectionsSchema,
@@ -280,6 +281,15 @@ describe('applyClipFraming (user keyframes)', () => {
     expect(sampleKeyframes(k, 2000 - PIN_BLEND_MS / 2).x).toBeCloseTo((0.7 + base) / 2, 3);
     expect(sampleKeyframes(k, 2000 - PIN_BLEND_MS).x).toBeCloseTo(base, 3);
     expect(sampleKeyframes(k, 5000).x).toBeCloseTo(base, 3);
+  });
+
+  test('the track path and the clip keyframes are valid model keyframes (02 KeyframeSchema)', () => {
+    const k = applyClipFraming(path, {
+      inMs: 250,
+      durationMs: 5000,
+      keyframes: [{ atMs: 1999, x: 0.7, y: 0.5, scale: 1.2 }],
+    });
+    for (const f of [...path.keyframes, ...k]) expect(KeyframeSchema.parse(f)).toEqual(f);
   });
 
   test('two pins closer than 600 ms join directly', () => {
