@@ -100,8 +100,8 @@ after `make.sh` (fresh worktree had no generated audio-QA fixtures).
   its test; `engine.redactor`, `engine.jobs`, `on()` and `readConfig`/`writeConfig` exports in
   `api.ts`; redact `VoxError.cause` at creation/serialisation after the shim swap; pytest JSON-Schema
   agreement per tool (P1's tools); `ToolPaths` (uv path, tools dir) from `openEngine`.
-- **Branch**: `early/e2-config-jobs` at 4bee254, pushed; worktree kept. Merge state: ready, waiting
-  for 02 (shim swap, then merge).
+- **Branch**: `early/e2-config-jobs`, shim swapped to errors.ts after 02; merged to main as 6502042; worktree
+  removed (verify: pnpm test 1459 passed / 1 skipped, pytest 109 passed).
 
 ## Early steps (D-19) — p1-py-tools
 
