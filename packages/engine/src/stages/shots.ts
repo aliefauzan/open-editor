@@ -9,7 +9,7 @@
 // The small runner below is local to this stage until phase 04 moves it onto the shared ffmpeg
 // runner (E3 `stages/media/run.ts`).
 
-import { spawn } from 'node:child_process';
+import { runTool } from './media/run.ts';
 import { isAbsolute } from 'node:path';
 import { z } from 'zod';
 import { VoxError } from '../errors.ts';
@@ -150,124 +150,15 @@ export async function detectShots(opts: DetectShotsOptions): Promise<Shot[]> {
   return shotsFromCuts(parseScdetOutput(stdout), opts.durationMs);
 }
 
-// ---- local ffmpeg runner (moves onto the shared runner in phase 04) ----
-
-const STDERR_TAIL_LINES = 40;
-const STDERR_KEEP = 256 * 1024;
 const STDOUT_MAX = 16 * 1024 * 1024;
-const KILL_GRACE_MS = 2000;
 
-const cancelled = (): VoxError =>
-  new VoxError(
-    'CANCELLED',
-    'Shot detection was cancelled.',
-    'Nothing was written; run it again when ready.',
-  );
-
-function tail(text: string): string {
-  return text
-    .split(/\r?\n|\r/)
-    .filter((l) => l.trim() !== '')
-    .slice(-STDERR_TAIL_LINES)
-    .join('\n');
-}
-
-function runFfmpeg(args: readonly string[], opts: DetectShotsOptions): Promise<string> {
-  const bin = opts.ffmpeg ?? 'ffmpeg';
-  const redact = opts.redact ?? ((s: string) => s);
-  if (opts.signal?.aborted === true) return Promise.reject(cancelled());
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(bin, [...args], { stdio: ['ignore', 'pipe', 'pipe'], shell: false });
-    let out = '';
-    let err = '';
-    let overflow = false;
-    let aborted = false;
-    let spawnError: NodeJS.ErrnoException | undefined;
-    let killTimer: NodeJS.Timeout | undefined;
-
-    const kill = (sig: NodeJS.Signals): void => {
-      if (child.exitCode === null && child.signalCode === null) child.kill(sig);
-    };
-    const onAbort = (): void => {
-      aborted = true;
-      kill('SIGTERM');
-      killTimer = setTimeout(() => kill('SIGKILL'), KILL_GRACE_MS);
-    };
-    opts.signal?.addEventListener('abort', onAbort, { once: true });
-
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      if (overflow) return;
-      out += chunk;
-      if (out.length > STDOUT_MAX) {
-        overflow = true;
-        kill('SIGKILL');
-      }
-    });
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => {
-      err += chunk;
-      if (err.length > STDERR_KEEP * 2) err = err.slice(-STDERR_KEEP);
-    });
-    child.on('error', (e: NodeJS.ErrnoException) => {
-      spawnError = e;
-    });
-    child.on('close', (code, signal) => {
-      opts.signal?.removeEventListener('abort', onAbort);
-      if (killTimer !== undefined) clearTimeout(killTimer);
-      if (aborted) return reject(cancelled());
-      if (spawnError !== undefined) {
-        if (spawnError.code === 'ENOENT') {
-          return reject(
-            new VoxError(
-              'TOOL_MISSING',
-              `ffmpeg was not found (${bin}).`,
-              'Install ffmpeg (brew install ffmpeg), then run vox doctor.',
-              {
-                details: { tool: 'ffmpeg', path: bin },
-              },
-            ),
-          );
-        }
-        return reject(
-          new VoxError(
-            'TOOL_FAILED',
-            `Could not start ffmpeg: ${spawnError.message}`,
-            'Run vox doctor.',
-            {
-              cause: spawnError,
-              details: { tool: 'ffmpeg', errno: spawnError.code },
-            },
-          ),
-        );
-      }
-      const t = tail(err);
-      const cause = t === '' ? undefined : redact(t);
-      if (overflow) {
-        return reject(
-          new VoxError(
-            'TOOL_FAILED',
-            'ffmpeg scene detection wrote too much output.',
-            'Report this as a bug.',
-            {
-              cause,
-              details: { tool: 'ffmpeg' },
-            },
-          ),
-        );
-      }
-      if (code !== 0) {
-        return reject(
-          new VoxError(
-            'TOOL_FAILED',
-            `ffmpeg scene detection failed (${signal !== null ? `signal ${signal}` : `exit code ${String(code)}`}).`,
-            'The file may be damaged or in a format ffmpeg cannot read; try another file or run vox doctor.',
-            { cause, details: { tool: 'ffmpeg', exitCode: code, signal } },
-          ),
-        );
-      }
-      resolve(out);
-    });
+/** ffmpeg on the shared runner (stages/media/run.ts): timeout-free, cancellable, redacted tail. */
+async function runFfmpeg(args: readonly string[], opts: DetectShotsOptions): Promise<string> {
+  const { stdout } = await runTool('ffmpeg', args, {
+    ...(opts.signal ? { signal: opts.signal } : {}),
+    ...(opts.ffmpeg ? { tools: { ffmpeg: opts.ffmpeg } } : {}),
+    ...(opts.redact ? { redact: opts.redact } : {}),
+    maxStdoutBytes: STDOUT_MAX,
   });
+  return stdout;
 }

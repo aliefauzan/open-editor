@@ -44,6 +44,12 @@ process.stdin.on('end', () => {
       process.exitCode = 3;
       break;
     }
+    case 'tool-error': {
+      process.stderr.write('Traceback-like noise\n');
+      process.stderr.write(`${JSON.stringify({ error: { code: req.code, message: 'pdf is encrypted' } })}\n`);
+      process.exitCode = 1;
+      break;
+    }
     case 'hang': {
       // a grandchild in the same process group, like uv → python
       const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {

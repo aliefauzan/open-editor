@@ -65,3 +65,20 @@ describe('VoxError', () => {
       expect(ERROR_CODES).toContain(c);
   });
 });
+
+describe('VoxError redaction (S19)', () => {
+  const CANARY = 'sk-or-v1-CANARY0000000000000000000000000000000000000000000000000000';
+  test('cause is redacted when the error is made', () => {
+    const e = new VoxError('TOOL_FAILED', 'x', 'h', {
+      cause: `stderr line\nAuthorization: Bearer ${CANARY}\n`,
+    });
+    expect(String(e.cause)).not.toContain(CANARY);
+    expect(String(e.cause)).toContain('[REDACTED]');
+  });
+  test('the JSON form redacts message and details', () => {
+    const e = new VoxError('TOOL_FAILED', `failed at https://x.test/?api_key=${CANARY}`, 'h', {
+      details: { url: `https://x.test/?key=${CANARY}`, apiKey: CANARY },
+    });
+    expect(JSON.stringify(toVoxErrorJson(e))).not.toContain(CANARY);
+  });
+});

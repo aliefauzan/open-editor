@@ -1,4 +1,6 @@
 // VoxError + codes (engine spec "Error handling", plan R2, D-18). Codes are never renamed.
+import { redactor } from './redact.ts';
+
 
 export const ERROR_CODES = [
   // history, write order, locking (engine spec "History")
@@ -37,6 +39,8 @@ export const ERROR_CODES = [
   'NET_DNS',
   'NET_REDIRECTS',
   'NET_TOO_LARGE',
+  // ingest sources (engine spec "Ingest sources", D-13)
+  'LOGIN_REQUIRED',
   // external tools and jobs (early E4: shots, facetrack; early e3-media-export)
   'TOOL_MISSING',
   'TOOL_FAILED',
@@ -73,7 +77,8 @@ export class VoxError extends Error {
   readonly details: Record<string, unknown> | undefined;
 
   constructor(code: ErrorCode, message: string, hint: string, opts: VoxErrorOptions = {}) {
-    super(message, opts.cause === undefined ? undefined : { cause: opts.cause });
+    // The cause (often a tool's stderr tail) is redacted once, here (S19).
+    super(message, opts.cause === undefined ? undefined : { cause: redactor.redact(opts.cause) });
     this.name = 'VoxError';
     this.code = code;
     this.hint = hint;
@@ -97,10 +102,11 @@ export interface VoxErrorJson {
 }
 
 export function toVoxErrorJson(e: VoxError): VoxErrorJson {
-  return {
+  // Printed by the CLI and sent over IPC: redacted (S19).
+  return redactor.redact({
     code: e.code,
     message: e.message,
     hint: e.hint,
     ...(e.details === undefined ? {} : { details: e.details }),
-  };
+  });
 }
