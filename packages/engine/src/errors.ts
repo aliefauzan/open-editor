@@ -54,8 +54,12 @@ export class VoxError extends Error {
   }
 }
 
+/** A VoxError, also one built by another copy of this module (duck-typed on name, code and hint). */
 export function isVoxError(e: unknown): e is VoxError {
-  return e instanceof VoxError;
+  if (e instanceof VoxError) return true;
+  if (!(e instanceof Error) || e.name !== 'VoxError') return false;
+  const o = e as Error & { code?: unknown; hint?: unknown };
+  return typeof o.code === 'string' && typeof o.hint === 'string';
 }
 
 export interface VoxErrorJson {

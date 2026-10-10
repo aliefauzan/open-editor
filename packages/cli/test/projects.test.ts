@@ -161,6 +161,22 @@ describe('vox op / undo / redo', () => {
     expect((await vox(['new', 'x', '--bogus'])).code).toBe(2);
   });
 
+  test('--actor external is refused: only the engine records external changes', async () => {
+    const dir = tmpProjects();
+    const id = await newProject(dir);
+    const o = await vox(['op', id, 'addTrack', '{}', '--actor', 'external', '--projects-dir', dir]);
+    expect(o.code).toBe(2);
+  });
+
+  test('text output strips terminal control characters from project data', async () => {
+    const dir = tmpProjects();
+    const o = await vox(['new', 'evil\u001b]0;pwned\u0007name', '--projects-dir', dir]);
+    expect(o.code).toBe(0);
+    // eslint-disable-next-line no-control-regex
+    expect(o.stdout).not.toMatch(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/);
+    expect(o.stdout).toMatch(/evil.*name/);
+  });
+
   test('vox undo --run <runId> undoes an agent run', async () => {
     const dir = tmpProjects();
     const id = await newProject(dir);

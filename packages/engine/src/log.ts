@@ -17,6 +17,7 @@ export class EngineLog {
   private readonly file: string;
   private readonly opts: EngineLogOptions;
   private chain: Promise<void> = Promise.resolve();
+  private dirMade = false;
 
   constructor(projectDir: string, opts: EngineLogOptions = {}) {
     this.dir = join(projectDir, 'logs');
@@ -24,13 +25,19 @@ export class EngineLog {
     this.opts = opts;
   }
 
-  /** Append one line (newlines inside are replaced, so a line is never split). */
+  /**
+   * Append one line (newlines inside are replaced, so a line is never split). Best effort: a log
+   * that cannot be written never fails the caller (the promise always resolves).
+   */
   write(message: string): Promise<void> {
     const run = async () => {
       const ts = (this.opts.now ?? (() => new Date()))().toISOString();
       const text = (this.opts.redact ?? ((s: string) => s))(message).replace(/[\r\n]+/g, ' ');
       const line = `${ts} ${text}\n`;
-      await mkdir(this.dir, { recursive: true, mode: 0o700 });
+      if (!this.dirMade) {
+        await mkdir(this.dir, { recursive: true, mode: 0o700 });
+        this.dirMade = true;
+      }
       const max = this.opts.maxBytes ?? LOG_MAX_BYTES;
       const size = await stat(this.file).then(
         (s) => s.size,
@@ -42,7 +49,11 @@ export class EngineLog {
       }
       await appendFile(this.file, line, { mode: 0o600 });
     };
-    this.chain = this.chain.then(run, run);
+    this.chain = this.chain.then(() =>
+      run().catch(() => {
+        this.dirMade = false; // retry the mkdir next time
+      }),
+    );
     return this.chain;
   }
 }

@@ -152,14 +152,19 @@ export const VideoTrackSchema = z.strictObject({ id: VideoTrackIdSchema, ...trac
 export const AudioTrackSchema = z.strictObject({ id: AudioTrackIdSchema, ...trackFields });
 export const TrackSchema = z.strictObject({ id: TrackIdSchema, ...trackFields });
 
-export const CaptionOverrideSchema = z.strictObject({
-  wordKey: WordKeySchema,
-  text: z.string().nullable().optional(),
-  breakAfter: z.boolean().optional(),
-  startMs: nonNeg().optional(),
-  endMs: nonNeg().optional(),
-  emphasis: z.boolean().optional(),
-});
+export const CaptionOverrideSchema = z
+  .strictObject({
+    wordKey: WordKeySchema,
+    text: z.string().nullable().optional(),
+    breakAfter: z.boolean().optional(),
+    startMs: nonNeg().optional(),
+    endMs: nonNeg().optional(),
+    emphasis: z.boolean().optional(),
+  })
+  .refine(
+    (o) => o.startMs === undefined || o.endMs === undefined || o.startMs < o.endMs,
+    'startMs must be before endMs',
+  );
 
 export const CaptionTrackSchema = z.strictObject({
   enabled: z.boolean(),
@@ -192,6 +197,7 @@ export const SequenceSchema = z.strictObject({
   overlays: z.array(z.string()).optional(),
   sourceRange: z
     .strictObject({ mediaId: MediaIdSchema, inMs: nonNeg(), outMs: nonNeg() })
+    .refine((r) => r.outMs > r.inMs, 'outMs must be after inMs')
     .optional(),
 });
 
@@ -204,8 +210,8 @@ export const ProjectSchema = z
     media: z.array(MediaItemSchema),
     sequences: z.array(SequenceSchema),
     meta: z.strictObject({
-      createdAt: z.string(),
-      updatedAt: z.string(),
+      createdAt: z.iso.datetime(),
+      updatedAt: z.iso.datetime(),
       sourceUrls: z.array(z.string()),
     }),
   })
@@ -250,7 +256,11 @@ export const TranscriptWordSchema = z
 export const TranscriptSchema = z.strictObject({
   language: z.string(),
   words: z.array(TranscriptWordSchema),
-  speechRegions: z.array(z.strictObject({ startMs: nonNeg(), endMs: nonNeg() })),
+  speechRegions: z.array(
+    z
+      .strictObject({ startMs: nonNeg(), endMs: nonNeg() })
+      .refine((r) => r.endMs >= r.startMs, 'endMs must not be before startMs'),
+  ),
 });
 
 export type Fps = z.infer<typeof FpsSchema>;

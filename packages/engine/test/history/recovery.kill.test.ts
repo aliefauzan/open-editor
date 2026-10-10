@@ -57,8 +57,19 @@ describe('kill tests', () => {
       const p = spawn(process.execPath, [child, dir, 'none', '100000'], {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
-      await new Promise<void>((resolve) => p.stdout.once('data', () => resolve()));
-      await new Promise((resolve) => setTimeout(resolve, 30 + Math.floor(rnd() * 150)));
+      // let the writer commit 1–3 versions, then kill it at a random moment of the next writes
+      const writes = 1 + Math.floor(rnd() * 3);
+      let stderr = '';
+      p.stderr.on('data', (b: Buffer) => (stderr += b.toString()));
+      await new Promise<void>((resolve, reject) => {
+        let seen = 0;
+        p.stdout.on('data', (b: Buffer) => {
+          seen += (b.toString().match(/^w$/gm) ?? []).length;
+          if (seen >= writes) resolve();
+        });
+        p.once('exit', (code) => reject(new Error(`writer exited (${code}): ${stderr}`)));
+      });
+      await new Promise((resolve) => setTimeout(resolve, Math.floor(rnd() * 40)));
       p.kill('SIGKILL');
       await new Promise((resolve) => p.once('exit', resolve));
       const v = await checkConsistent(dir);

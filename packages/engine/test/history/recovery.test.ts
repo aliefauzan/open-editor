@@ -41,6 +41,23 @@ describe('recovery on load', () => {
     expect(readFileSync(join(dir, 'logs/engine.log'), 'utf8')).toMatch(/recovered version 3/);
   });
 
+  test('a coalesced entry that returns a key to its start is recovered from the replaced entry', async () => {
+    const { store, dir, clock } = await newStore();
+    const vol = (v: number | null) => ({
+      op: 'updateClip',
+      args: { sequenceId: S, itemId: 'it_a1', volume: v },
+    });
+    await store.apply(vol(0.5), { actor: 'user', coalesceKey: 'drag' }); // v1: volume 0.5
+    const atV1 = readFileSync(join(dir, 'project.json'), 'utf8');
+    await store.apply(vol(null), { actor: 'user', coalesceKey: 'drag' }); // v2: back to no volume
+    expect(readEntries(dir).at(-1)!.changes).toEqual([]);
+    const v2 = content(store.project);
+    writeFileSync(join(dir, 'project.json'), atV1); // crash before the v2 project write
+    const again = await ProjectStore.open(dir, { templates, now: clock.now });
+    expect(again.project.version).toBe(2);
+    expect(content(again.project)).toEqual(v2);
+  });
+
   test('any other gap fails HISTORY_CORRUPT with a hint to restore from snapshots/', async () => {
     const { dir } = await twoVersions();
     const lines = readFileSync(join(dir, 'history.jsonl'), 'utf8').split('\n');

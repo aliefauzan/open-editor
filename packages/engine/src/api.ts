@@ -28,15 +28,155 @@ import { ensureProjectsDir, isProjectId, projectDirFor } from './paths.ts';
 
 export const version = '0.0.0';
 
-export * from './errors.ts';
-export * from './history/types.ts';
+// The public surface, listed by name so a new internal export never leaks into the contract.
+export {
+  ERROR_CODES,
+  VoxError,
+  isVoxError,
+  toVoxErrorJson,
+  type ErrorCode,
+  type VoxErrorJson,
+  type VoxErrorOptions,
+} from './errors.ts';
+export {
+  ACTORS,
+  HistoryEntrySchema,
+  type Actor,
+  type ApplyOptions,
+  type ApplyResult,
+  type Change,
+  type HistoryEntry,
+  type ItemEntity,
+  type OpResult,
+  type ProjectChangedEvent,
+} from './history/types.ts';
 export type { Migration, SnapshotInfo, UndoOptions, WriteStep } from './history/store.ts';
-export * from './model/schema.ts';
+export {
+  AudioTrackIdSchema,
+  AudioTrackSchema,
+  CanvasFpsSchema,
+  CanvasSchema,
+  CaptionOverrideSchema,
+  CaptionTrackSchema,
+  DenoiseSchema,
+  FpsSchema,
+  FrameSchema,
+  ItemIdSchema,
+  ItemSchema,
+  KeyframeSchema,
+  LinkIdSchema,
+  MediaClipSchema,
+  MediaIdSchema,
+  MediaItemSchema,
+  MediaKindSchema,
+  MotionSchema,
+  ProjectSchema,
+  SCHEMA_VERSION,
+  SceneClipSchema,
+  SequenceIdSchema,
+  SequenceSchema,
+  TemplateIdSchema,
+  TrackIdSchema,
+  TrackSchema,
+  TranscriptSchema,
+  TranscriptWordSchema,
+  TransitionInSchema,
+  VideoTrackIdSchema,
+  VideoTrackSchema,
+  WordKeySchema,
+  formatIssues,
+  parseProject,
+  type CaptionOverride,
+  type CaptionTrack,
+  type Fps,
+  type Frame,
+  type Item,
+  type Keyframe,
+  type MediaClip,
+  type MediaItem,
+  type MediaKind,
+  type Project,
+  type SceneClip,
+  type Sequence,
+  type Track,
+  type Transcript,
+  type TranscriptWord,
+  type WordKind,
+} from './model/schema.ts';
 export { FPS_SET, DEFAULT_FPS, ms, frame, snap } from './model/fps.ts';
 export type { Entity } from './model/normalise.ts';
-export * from './ops/index.ts';
+export {
+  CAPTION_DEFAULTS,
+  OP_ARGS,
+  OP_NAMES,
+  OpCallSchema,
+  SnapshotNameSchema,
+  addMediaArgs,
+  addSceneArgs,
+  addSequenceArgs,
+  addTrackArgs,
+  batchArgs,
+  duplicateSequenceArgs,
+  emptyTemplateLookup,
+  isOpName,
+  linkArgs,
+  mapTemplateLookup,
+  mapWordsToTimeline,
+  moveItemArgs,
+  parseWordKey,
+  pasteItemsArgs,
+  placeClipArgs,
+  removeItemArgs,
+  removeMediaArgs,
+  removePausesArgs,
+  removeSequenceArgs,
+  removeTrackArgs,
+  removeWordsArgs,
+  reorderTracksArgs,
+  replaceMediaArgs,
+  requireTemplate,
+  restoreSnapshotArgs,
+  rippleDeleteArgs,
+  runOp,
+  setCaptionsArgs,
+  setTransitionArgs,
+  slotValues,
+  splitItemArgs,
+  switchVariables,
+  trimItemArgs,
+  unlinkArgs,
+  updateClipArgs,
+  updateMediaArgs,
+  updateSceneArgs,
+  updateSequenceArgs,
+  updateTrackArgs,
+  validateVariables,
+  wordSourceTracks,
+  type CutRange,
+  type OpCall,
+  type OpContext,
+  type OpName,
+  type OpOutcome,
+  type SfxCueInfo,
+  type SingleOpName,
+  type SlotKind,
+  type StepOutcome,
+  type TemplateInfo,
+  type TemplateLookup,
+  type TimelineWord,
+} from './ops/index.ts';
 export { computeWordKinds } from './text/fillers.ts';
-export * from './paths.ts';
+export {
+  checkRelativePath,
+  ensureProjectsDir,
+  isProjectId,
+  projectDirFor,
+  resolveProjectPath,
+  resolveProjectsDir,
+  type ProjectsDirInput,
+  type ProjectsDirSource,
+  type ResolveOptions,
+} from './paths.ts';
 
 /** External tool paths (ffmpeg, ffprobe, yt-dlp, deno, uv, py env, Chrome); filled in by phase 04. */
 export type ToolPaths = Readonly<Record<string, string | undefined>>;
@@ -158,15 +298,41 @@ export function openEngine(opts: EngineOptions): Engine {
     }
     return projectDirFor(opts.projectsDir, id);
   };
-  const store = (id: string): Promise<ProjectStore> => {
-    let s = stores.get(id);
-    if (!s) {
-      s = (async () => ProjectStore.open(dirOf(id), storeOpts))();
-      stores.set(id, s);
-      s.catch(() => stores.delete(id));
-    }
+  const notFound = (id: string) =>
+    new VoxError(
+      'PROJECT_NOT_FOUND',
+      `No project ${id}`,
+      'Check the id with `vox` project listings',
+    );
+  /** Cache a store; a store that failed to open or create is dropped so the next call retries. */
+  const remember = (id: string, s: Promise<ProjectStore>): Promise<ProjectStore> => {
+    stores.set(id, s);
+    s.catch(() => {
+      if (stores.get(id) === s) stores.delete(id);
+    });
     return s;
   };
+  const store = (id: string): Promise<ProjectStore> =>
+    stores.get(id) ??
+    remember(
+      id,
+      (async () => {
+        const dir = dirOf(id);
+        // A real folder only: a symlink could point the store at files outside the projects folder.
+        const st = await lstat(dir).catch(() => undefined);
+        if (!st?.isDirectory()) throw notFound(id);
+        const opened = await ProjectStore.open(dir, storeOpts);
+        if (opened.project.id !== id) {
+          throw new VoxError(
+            'VALIDATION',
+            `project.json in folder ${id} belongs to project ${opened.project.id}`,
+            'Name the folder after the project id, or restore project.json from snapshots/',
+            { details: { folder: id, projectId: opened.project.id } },
+          );
+        }
+        return opened;
+      })(),
+    );
 
   return {
     projectsDir: opts.projectsDir,
@@ -213,9 +379,7 @@ export function openEngine(opts: EngineOptions): Engine {
         sequences: [],
         meta: { createdAt: ts, updatedAt: ts, sourceUrls: [] },
       };
-      const s = ProjectStore.create(dirOf(id), p, storeOpts);
-      stores.set(id, s);
-      return (await s).project;
+      return (await remember(id, ProjectStore.create(dirOf(id), p, storeOpts))).project;
     },
 
     async getProject(id) {
@@ -225,13 +389,7 @@ export function openEngine(opts: EngineOptions): Engine {
     async deleteProject(id) {
       const dir = dirOf(id);
       const st = await lstat(dir).catch(() => undefined);
-      if (!st || !st.isDirectory()) {
-        throw new VoxError(
-          'PROJECT_NOT_FOUND',
-          `No project ${id}`,
-          'Check the id with `vox` project listings',
-        );
-      }
+      if (!st?.isDirectory()) throw notFound(id);
       const release = await acquireLock(
         dir,
         opts.lockTimeoutMs === undefined ? {} : { timeoutMs: opts.lockTimeoutMs },

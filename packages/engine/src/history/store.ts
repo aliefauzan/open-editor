@@ -2,10 +2,11 @@
 // recovery; applyOp in the documented write order; undo/redo/undoRun; coalescing; JOB_CONFLICT;
 // rotation; snapshots. One store per project folder; writes are serialised in-process and across
 // processes by `project.lock`.
-import { readFile, mkdir, open, readdir, stat, unlink } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { link, readFile, mkdir, open, readdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { isVoxError, VoxError } from '../errors.ts';
+import { isVoxError, toVoxErrorJson, VoxError } from '../errors.ts';
 import { EngineLog, type EngineLogOptions } from '../log.ts';
 import { deepEqual } from '../model/equal.ts';
 import { diffProjects, type Change } from '../model/diff.ts';
@@ -23,8 +24,15 @@ import { runOp, SnapshotNameSchema, type OpCall, type OpContext } from '../ops/i
 import { emptyTemplateLookup, type TemplateLookup } from '../ops/templates.ts';
 import { resolveProjectPath } from '../paths.ts';
 import { Cursor } from './cursor.ts';
-import { appendDurable, HistoryLineError, readHistory, truncateTo, writeAtomic } from './files.ts';
-import { acquireLock, type LockOptions } from './lock.ts';
+import {
+  appendDurable,
+  fsyncDir,
+  HistoryLineError,
+  readHistory,
+  truncateTo,
+  writeAtomic,
+} from './files.ts';
+import { acquireLock, LOCK_TEMP_PREFIX, type LockOptions } from './lock.ts';
 import type {
   Actor,
   ApplyOptions,
@@ -157,18 +165,20 @@ function failedResults(call: OpCall, e: VoxError): OpResult[] {
   const idx = e.details?.['batchIndex'];
   if (call.op === 'batch' && typeof idx === 'number' && idx < names.length) {
     return names.map((op, i) =>
-      i === idx ? { op, status: 'failed', error: e } : { op, status: 'failed' },
+      i === idx ? { op, status: 'failed', error: toVoxErrorJson(e) } : { op, status: 'failed' },
     );
   }
   if (call.op === 'batch' && names.length > 1) {
-    return [{ op: 'batch', status: 'failed', error: e }];
+    return [{ op: 'batch', status: 'failed', error: toVoxErrorJson(e) }];
   }
-  return [{ op: names[0] ?? call.op, status: 'failed', error: e }];
+  return [{ op: names[0] ?? call.op, status: 'failed', error: toVoxErrorJson(e) }];
 }
 
 function conflictedResults(call: OpCall, e: VoxError): OpResult[] {
-  return opNames(call).map((op) => ({ op, status: 'conflicted', error: e }));
+  return opNames(call).map((op) => ({ op, status: 'conflicted', error: toVoxErrorJson(e) }));
 }
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 async function exists(path: string): Promise<boolean> {
   return stat(path).then(
@@ -245,10 +255,17 @@ export class ProjectStore {
     return run;
   }
 
-  /** Run under the in-process queue and the cross-process lock; events are emitted after unlock. */
+  /**
+   * Run under the in-process queue and the cross-process lock; events are emitted after unlock.
+   * When another process changed the files, the schema is checked first without the lock, so a
+   * project made newer (SCHEMA_TOO_NEW) gets no lock file or any other write (S36).
+   */
   private locked<T>(fn: (events: ProjectChangedEvent[]) => Promise<T>): Promise<T> {
     return this.serial(async () => {
       const events: ProjectChangedEvent[] = [];
+      if (!deepEqual(await this.readStamp(), this.fileStamp)) {
+        this.checkSchema((await this.readRaw()).raw);
+      }
       const release = await acquireLock(this.dir, this.opts.lock);
       let out: T;
       try {
@@ -257,11 +274,24 @@ export class ProjectStore {
         if (ext) events.push(ext);
         out = await fn(events);
       } finally {
-        await release();
+        await release().catch((e: unknown) =>
+          this.log.write(`could not release project.lock: ${message(e)}`),
+        );
       }
-      for (const e of events) this.opts.onChanged?.(e);
+      this.emit(events);
       return out;
     });
+  }
+
+  /** Listeners run after the write; one that throws never fails the write that already landed. */
+  private emit(events: readonly ProjectChangedEvent[]): void {
+    for (const e of events) {
+      try {
+        this.opts.onChanged?.(e);
+      } catch (err) {
+        void this.log.write(`a project.changed listener threw: ${message(err)}`);
+      }
+    }
   }
 
   // ---------------------------------------------------------------- load
@@ -342,9 +372,11 @@ export class ProjectStore {
 
   /** Not queued: call from open() or from inside serial(). */
   private async load(): Promise<void> {
+    // The stamp is taken before the read, so a write landing in between is seen by the next check.
+    const stamp = await this.readStamp();
     const fast = await this.readConsistent();
     if (fast) {
-      await this.setState(fast);
+      await this.setState(fast, stamp);
       return;
     }
     const release = await acquireLock(this.dir, this.opts.lock);
@@ -417,7 +449,18 @@ export class ProjectStore {
         throw corrupt(`history.jsonl is empty but project.json is at version ${project.version}`);
       }
     } else if (last.version === project.version + 1) {
-      const values = new Map(last.changes.map((c) => [c.key, c.after]));
+      // A coalesced entry's changes are relative to the state before the entry it replaces (which
+      // project.json already holds), so revert that entry first, then apply the merged values.
+      const replaced = last.replaces === undefined ? undefined : entries.at(-2);
+      if (last.replaces !== undefined && replaced?.version !== last.replaces) {
+        throw corrupt(
+          `history entry ${last.version} replaces ${last.replaces}, which is not before it`,
+        );
+      }
+      const values = new Map<string, Entity | null>(
+        (replaced?.changes ?? []).map((c) => [c.key, c.before]),
+      );
+      for (const c of last.changes) values.set(c.key, c.after);
       project = applyValues(project, values, last.version, last.ts);
       await writeAtomic(projectPath, json(project));
       await this.log.write(
@@ -428,20 +471,33 @@ export class ProjectStore {
         `history.jsonl ends at version ${last.version} but project.json is at version ${project.version}`,
       );
     }
-    for (const f of await readdir(this.dir)) {
-      if (f.startsWith(`.${PROJECT_FILE}.tmp-`))
-        await unlink(join(this.dir, f)).catch(() => undefined);
-    }
+    await this.removeLeftovers();
     return { project, entries };
   }
 
-  private async setState(s: State): Promise<void> {
+  /**
+   * Under the lock: temp files of killed writers. Lock temp files are removed only when older than
+   * a minute, since another process may be taking the lock right now.
+   */
+  private async removeLeftovers(): Promise<void> {
+    const cutoff = Date.now() - 60_000;
+    for (const f of await readdir(this.dir)) {
+      const path = join(this.dir, f);
+      if (f.startsWith(`.${PROJECT_FILE}.tmp-`)) await unlink(path).catch(() => undefined);
+      else if (f.startsWith(LOCK_TEMP_PREFIX)) {
+        const st = await stat(path).catch(() => undefined);
+        if (st && st.mtimeMs < cutoff) await unlink(path).catch(() => undefined);
+      }
+    }
+  }
+
+  private async setState(s: State, stamp?: FileStamp): Promise<void> {
     this.current = s.project;
     this.text = json(s.project);
     this.entries = s.entries;
     this.byVersion = new Map(s.entries.map((e) => [e.version, e]));
     this.cursor = Cursor.build(s.entries);
-    this.fileStamp = await this.readStamp();
+    this.fileStamp = stamp ?? (await this.readStamp());
   }
 
   private async readStamp(): Promise<FileStamp | undefined> {
@@ -463,6 +519,10 @@ export class ProjectStore {
     if (now && was && deepEqual(now, was)) return undefined;
     const before = this.current;
     await this.setState(await this.readRepair());
+    return this.externalEvent(before);
+  }
+
+  private externalEvent(before: Project): ProjectChangedEvent | undefined {
     const changes = diffProjects(before, this.current);
     if (this.current.version === before.version && changes.length === 0) return undefined;
     return {
@@ -489,7 +549,12 @@ export class ProjectStore {
     this.entries.push(entry);
     this.byVersion.set(entry.version, entry);
     this.cursor.push(entry);
-    await this.rotate();
+    try {
+      await this.rotate();
+    } catch (e) {
+      // The write already landed; rotation is retried on the next write.
+      await this.log.write(`history rotation failed: ${message(e)}`);
+    }
     this.fileStamp = await this.readStamp();
   }
 
@@ -569,8 +634,9 @@ export class ProjectStore {
     let text: string;
     try {
       text = await readFile(join(this.dir, 'snapshots', `${name}.json`), 'utf8');
-    } catch {
-      return undefined;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      throw e;
     }
     let raw: unknown;
     try {
@@ -579,6 +645,13 @@ export class ProjectStore {
       throw new VoxError(
         'VALIDATION',
         `Snapshot ${name} is not valid JSON`,
+        'Pick another snapshot',
+      );
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new VoxError(
+        'VALIDATION',
+        `Snapshot ${name} is not an object`,
         'Pick another snapshot',
       );
     }
@@ -624,7 +697,7 @@ export class ProjectStore {
       if (outcome.dryRun) return unchanged(results);
       const changes = diffProjects(before, outcome.project);
       if (opts.jobId !== undefined && opts.baseVersion !== undefined) {
-        const keys = this.jobConflicts(opts.baseVersion, changes);
+        const keys = this.jobConflicts(opts.baseVersion, opts.jobId, changes);
         if (keys.length > 0) {
           const e = new VoxError(
             'JOB_CONFLICT',
@@ -676,14 +749,14 @@ export class ProjectStore {
     });
   }
 
-  /** Keys the result touches that an entry after `baseVersion` touched too. */
-  private jobConflicts(baseVersion: number, changes: readonly Change[]): string[] {
+  /** Keys the result touches that an entry after `baseVersion` (not of this job) touched too. */
+  private jobConflicts(baseVersion: number, jobId: string, changes: readonly Change[]): string[] {
     const touched = new Set(changes.map((c) => c.key));
     const first = this.entries[0]?.version;
     if (first !== undefined && baseVersion < first - 1) return [...touched].sort(); // rotated away
     const hit = new Set<string>();
     for (const e of this.entries) {
-      if (e.version <= baseVersion) continue;
+      if (e.version <= baseVersion || e.jobId === jobId) continue;
       for (const c of e.changes) if (touched.has(c.key)) hit.add(c.key);
     }
     return [...hit].sort();
@@ -814,28 +887,45 @@ export class ProjectStore {
     });
   }
 
+  /** Reload when another process wrote; announces it as an external change. */
   private async syncFromDisk(): Promise<void> {
-    if (!deepEqual(await this.readStamp(), this.fileStamp)) await this.load();
+    if (deepEqual(await this.readStamp(), this.fileStamp)) return;
+    const before = this.current;
+    await this.load();
+    const ev = this.externalEvent(before);
+    if (ev) this.emit([ev]);
   }
 
-  /** Copy project.json to snapshots/<name>.json; an existing name is never replaced. */
+  /**
+   * Copy project.json to snapshots/<name>.json; an existing name is never replaced. Written to a
+   * temp file and hard-linked into place, so a crash never leaves a half-written snapshot. Names
+   * starting with `auto-` are reserved for the engine (migration copies; plan D-21).
+   */
   snapshot(name: string): Promise<SnapshotInfo> {
     const parsed = SnapshotNameSchema.safeParse(name);
-    if (!parsed.success) {
+    if (!parsed.success || name.startsWith('auto-')) {
       return Promise.reject(
         new VoxError(
           'VALIDATION',
           `Snapshot name ${JSON.stringify(name)} is not allowed`,
-          'Use 1–100 characters from A-Z, a-z, 0-9, ".", "_" and "-"',
+          'Use 1–100 characters from A-Z, a-z, 0-9, ".", "_" and "-", not starting with "auto-"',
         ),
       );
     }
     return this.locked(async () => {
       const sdir = join(this.dir, 'snapshots');
       await mkdir(sdir, { recursive: true, mode: 0o700 });
-      let fh;
+      const final = join(sdir, `${name}.json`);
+      const tmp = join(sdir, `.${name}.json.tmp-${process.pid}-${randomBytes(4).toString('hex')}`);
+      const fh = await open(tmp, 'wx', 0o600);
       try {
-        fh = await open(join(sdir, `${name}.json`), 'wx', 0o600);
+        await fh.writeFile(this.text);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
+      try {
+        await link(tmp, final);
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
           throw new VoxError(
@@ -848,13 +938,10 @@ export class ProjectStore {
           );
         }
         throw e;
-      }
-      try {
-        await fh.writeFile(this.text);
-        await fh.sync();
       } finally {
-        await fh.close();
+        await unlink(tmp).catch(() => undefined);
       }
+      await fsyncDir(sdir);
       return { name, version: this.current.version };
     });
   }

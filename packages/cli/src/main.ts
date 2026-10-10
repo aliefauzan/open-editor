@@ -12,7 +12,6 @@ import {
   toVoxErrorJson,
   version,
   VoxError,
-  ACTORS,
   type Actor,
   type ApplyResult,
   type Engine,
@@ -46,6 +45,13 @@ common options: --json, --projects-dir <dir>; <project> is an id or a unique nam
 `;
 
 class UsageError extends Error {}
+
+/** Actors a caller may claim; `external` is recorded only by the engine itself. */
+const CLI_ACTORS = ['user', 'agent', 'cli'] as const satisfies readonly Actor[];
+
+/** Text output drops terminal control characters (names and messages come from project files). */
+// eslint-disable-next-line no-control-regex
+const clean = (s: string) => s.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
 
 const COMMON = {
   json: { type: 'boolean' },
@@ -143,21 +149,14 @@ async function resolveProject(engine: Engine, ref: string): Promise<string> {
   );
 }
 
-function resultJson(r: ApplyResult): unknown {
-  return {
-    ...r,
-    results: r.results.map((x) => (x.error ? { ...x, error: toVoxErrorJson(x.error) } : x)),
-  };
-}
-
 /** Print an ApplyResult; exit 1 when any op did not succeed. */
 function printResult(r: ApplyResult, json: boolean, io: Io): number {
   const bad = r.results.filter((x) => x.status !== 'succeeded');
-  if (json) io.stdout(`${JSON.stringify(resultJson(r), null, 2)}\n`);
+  if (json) io.stdout(`${JSON.stringify(r, null, 2)}\n`);
   else if (bad.length === 0) io.stdout(`ok: version ${r.version}, ${r.changes.length} change(s)\n`);
   for (const x of bad) {
     if (!json && x.error)
-      io.stderr(`error: ${x.op} ${x.status}: ${x.error.message}\nhint: ${x.error.hint}\n`);
+      io.stderr(clean(`error: ${x.op} ${x.status}: ${x.error.message}\nhint: ${x.error.hint}\n`));
   }
   if (!json && bad.length > 0 && bad.every((x) => !x.error))
     io.stderr('error: the batch was not applied\n');
@@ -173,7 +172,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
   const { values, positionals } = parse(cmd, args);
   const json = values['json'] === true;
   const out = (v: unknown, text: string) =>
-    io.stdout(json ? `${JSON.stringify(v, null, 2)}\n` : text);
+    io.stdout(json ? `${JSON.stringify(v, null, 2)}\n` : clean(text));
   switch (cmd) {
     case 'paths': {
       const e = engineFor(values, io);
@@ -194,7 +193,10 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         { actor: 'cli' },
       );
       const failed = r.results.find((x) => x.status !== 'succeeded');
-      if (failed?.error) throw failed.error;
+      if (failed?.error) {
+        const { code, message, hint, details } = failed.error;
+        throw new VoxError(code, message, hint, details === undefined ? {} : { details });
+      }
       const sequenceId = (r.results[0]?.report as { sequenceId?: string } | undefined)?.sequenceId;
       out(
         { id: p.id, name, version: r.version, sequenceId },
@@ -214,8 +216,8 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         }
       }
       const actor = (values['actor'] as string | undefined) ?? 'cli';
-      if (!(ACTORS as readonly string[]).includes(actor))
-        throw new UsageError(`--actor must be one of ${ACTORS.join(', ')}`);
+      if (!(CLI_ACTORS as readonly string[]).includes(actor))
+        throw new UsageError(`--actor must be one of ${CLI_ACTORS.join(', ')}`);
       const baseVersion = int(values['base-version'], 'base-version');
       const e = engineFor(values, io);
       const id = await resolveProject(e, ref);
@@ -298,7 +300,7 @@ export async function run(argv: readonly string[], io: Io = defaultIo): Promise<
     }
     if (isVoxError(e)) {
       if (json) io.stdout(`${JSON.stringify({ error: toVoxErrorJson(e) }, null, 2)}\n`);
-      else io.stderr(`error: ${e.message}\nhint: ${e.hint}\n`);
+      else io.stderr(clean(`error: ${e.message}\nhint: ${e.hint}\n`));
       return 1;
     }
     throw e;

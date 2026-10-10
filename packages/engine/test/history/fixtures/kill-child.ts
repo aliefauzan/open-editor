@@ -17,4 +17,5 @@ for (let i = 0; i < Number(count); i++) {
     { op: 'updateSequence', args: { sequenceId: 'seq_1', name } },
     { actor: 'cli' },
   );
+  process.stdout.write('w\n');
 }

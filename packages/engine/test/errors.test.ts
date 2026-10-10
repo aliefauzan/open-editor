@@ -15,6 +15,13 @@ describe('VoxError', () => {
     expect(isVoxError(new Error('x'))).toBe(false);
   });
 
+  test('isVoxError also accepts a VoxError from another copy of the module (duck-typed)', () => {
+    const other = Object.assign(new Error('x'), { name: 'VoxError', code: 'STALE', hint: 'h' });
+    expect(isVoxError(other)).toBe(true);
+    expect(isVoxError(Object.assign(new Error('x'), { name: 'VoxError' }))).toBe(false);
+    expect(isVoxError({ name: 'VoxError', code: 'STALE', hint: 'h', message: 'x' })).toBe(false);
+  });
+
   test('serialises to the JSON object the CLI prints', () => {
     const e = new VoxError('STALE', 'Project moved on', 'Reload and retry');
     expect(toVoxErrorJson(e)).toEqual({

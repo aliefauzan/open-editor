@@ -94,6 +94,18 @@ describe('project.json schema', () => {
     expect([...many].sort()).toEqual(many);
   });
 
+  test('ranges are ordered: override start < end, sourceRange out > in; meta times are ISO', () => {
+    const o = richProject();
+    o.sequences[0]!.captions!.overrides.push({ wordKey: 'm_video:r1:5', startMs: 500, endMs: 500 });
+    expect(() => parseProject(o)).toThrow();
+    const r = baseProject();
+    r.sequences[0]!.sourceRange = { mediaId: r.media[0]!.id, inMs: 2000, outMs: 1000 };
+    expect(() => parseProject(r)).toThrow();
+    const m = baseProject();
+    m.meta.updatedAt = 'yesterday';
+    expect(() => parseProject(m)).toThrow();
+  });
+
   test('ProjectSchema is exported for tools', () => {
     expect(ProjectSchema.safeParse(baseProject()).success).toBe(true);
   });
@@ -105,6 +117,16 @@ describe('transcript file', () => {
       readFileSync(new URL('../fixtures/transcripts/speech-fillers.json', import.meta.url), 'utf8'),
     );
     expect(TranscriptSchema.parse(t).words).toHaveLength(21);
+  });
+
+  test('a speech region that ends before it starts is rejected', () => {
+    expect(() =>
+      TranscriptSchema.parse({
+        language: 'en',
+        words: [],
+        speechRegions: [{ startMs: 5, endMs: 4 }],
+      }),
+    ).toThrow();
   });
 
   test('a word kind outside the four kinds is rejected', () => {

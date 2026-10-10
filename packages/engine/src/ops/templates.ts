@@ -139,7 +139,7 @@ export function validateVariables(
 
 function propType(t: TemplateInfo, key: string): unknown {
   const props = (t.variables['properties'] ?? {}) as Record<string, { type?: unknown } | undefined>;
-  const p = props[key];
+  const p = Object.hasOwn(props, key) ? props[key] : undefined;
   return p === undefined ? undefined : JSON.stringify(p.type ?? null);
 }
 
@@ -161,7 +161,7 @@ export function switchVariables(
     );
   const required = (to.variables['required'] ?? []) as string[];
   for (const r of required) {
-    if (!(r in variables)) throw incompatible(`required variable ${r} is missing`);
+    if (!Object.hasOwn(variables, r)) throw incompatible(`required variable ${r} is missing`);
     const a = propType(from, r);
     const b = propType(to, r);
     if (a === undefined || a !== b) throw incompatible(`variable ${r} has a different type`);
@@ -171,14 +171,14 @@ export function switchVariables(
   for (const [k, kind] of Object.entries(from.slots)) {
     if (slotValues(variables, k).length === 0) continue;
     const top = k.split('/')[0]!;
-    if (declared && !(top in declared)) continue;
+    if (declared && !Object.hasOwn(declared, top)) continue;
     if (to.slots[k] !== kind) throw incompatible(`slot ${k} kind differs`);
   }
   if (!declared) return { variables: { ...variables }, dropped: [] };
   const kept: Record<string, unknown> = {};
   const dropped: string[] = [];
   for (const [k, v] of Object.entries(variables)) {
-    if (k in declared) kept[k] = v;
+    if (Object.hasOwn(declared, k)) kept[k] = v;
     else dropped.push(k);
   }
   return { variables: kept, dropped: dropped.sort() };

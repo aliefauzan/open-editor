@@ -1,6 +1,6 @@
 // Library API (engine spec "Library API"): projects, applyOp, view, undo/redo/undoRun, history,
 // snapshots and the project.changed event.
-import { existsSync, statSync } from 'node:fs';
+import { cpSync, existsSync, statSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { openEngine, version, type ProjectChangedEvent } from '../src/api.ts';
@@ -114,6 +114,24 @@ describe('engine api', () => {
     await expect(e.getProject(p.id)).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
     await expect(e.deleteProject(p.id)).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
     await expect(e.getProject('../etc')).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+  });
+
+  test('a project folder that is a symlink is refused', async () => {
+    const e = engine();
+    const p = await e.createProject('demo');
+    symlinkSync(join(e.projectsDir, p.id), join(e.projectsDir, 'p_link'));
+    await expect(
+      openEngine({ projectsDir: e.projectsDir, stylesDirs: [] }).getProject('p_link'),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_NOT_FOUND',
+    });
+  });
+
+  test('a project whose id differs from its folder name is refused', async () => {
+    const e = engine();
+    const p = await e.createProject('demo');
+    cpSync(join(e.projectsDir, p.id), join(e.projectsDir, 'p_copy'), { recursive: true });
+    await expect(e.getProject('p_copy')).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 });
 

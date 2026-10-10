@@ -109,9 +109,11 @@ export function snapT(s: Sequence, t: number): number {
 
 /** Largest grid time at or before `t`. */
 export function snapDown(t: number, fps: Fps): number {
-  const f = Math.floor((t * fps.num) / (1000 * fps.den));
+  // ms() rounds, so a grid time can sit just below its exact frame position: start one frame above
+  // the nearest frame and step down.
+  let f = frame(t, fps) + 1;
   let v = ms(f, fps);
-  if (v > t) v = ms(f - 1, fps);
+  while (v > t) v = ms(--f, fps);
   return v;
 }
 
