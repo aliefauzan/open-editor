@@ -5,7 +5,7 @@
 // Output: crop keyframes `{ atMs, x, y, scale }` in source-media time (`buildTrackPath`), then per
 // clip in item-relative time with the user's pins blended in (`applyClipFraming`).
 //
-// Coordinates (D-XX): `x`, `y` are the crop centre, normalised to the source frame (0..1, origin
+// Coordinates (D-24): `x`, `y` are the crop centre, normalised to the source frame (0..1, origin
 // top-left); `scale` is the zoom relative to the cover crop of the sequence aspect (1 = the largest
 // crop of that aspect that fits the source). The tracked path pans at scale 1; pins may zoom.
 //
@@ -65,7 +65,7 @@ export const DetectionsSchema = z.strictObject({
 });
 export type Detections = z.infer<typeof DetectionsSchema>;
 
-// ---- tuning (D-XX) ----
+// ---- tuning (D-24) ----
 
 /** Path algorithm version; part of the cache key, bump it when the output changes. */
 export const PATH_VERSION = 1;
@@ -488,7 +488,7 @@ export interface ClipWindow {
 
 /**
  * The tracked path for one clip, in item-relative time, with the user's keyframes as pins: a pin
- * holds the crop at its time and the crop blends to and from the tracked path over 300 ms (D-XX).
+ * holds the crop at its time and the crop blends to and from the tracked path over 300 ms (D-24).
  * Two pins up to 600 ms apart join directly. A blend never crosses a shot boundary.
  */
 export function applyClipFraming(path: TrackPath, clip: ClipWindow): FrameKeyframe[] {
@@ -600,7 +600,7 @@ export interface FacetrackCacheKeyInput {
   mode: 'facetrack' | 'auto';
   stability?: Stability;
   trackSpeed?: TrackSpeed;
-  /** Not in the spec's key list, but it changes the path (D-XX). */
+  /** Not in the spec's key list, but it changes the path (D-24). */
   faceIndex?: number;
   /** Optional hash of the inputs (shots + detections files), so re-detection misses the cache. */
   inputsHash?: string;
