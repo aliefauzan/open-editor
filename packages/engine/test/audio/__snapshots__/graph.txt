@@ -1,0 +1,34 @@
+inputs
+/vox-test/Projects/p_test/audio/m_a.m4a
+/vox-test/Projects/p_test/audio/m_b.m4a
+/vox-test/Projects/p_test/audio/m_music.m4a
+/vox-test/styles/kit/sfx/pop.wav
+sources {"speech":["it_a1","it_a2"],"other":["it_m1"],"sfx":["it_s1:in:0","it_s1:again:2"]}
+--- mix
+[0:a]atrim=start=1:end=4,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afftdn=nr=12:nf=-40,volume=6dB,afade=t=in:st=0:d=0.2,adelay=delays=0S:all=1[s0];
+[1:a]atrim=start=0:end=3,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=16.5dB,volume=1.5,adelay=delays=144000S:all=1[s1];
+[2:a]atrim=start=0:end=6,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afftdn=nr=24:nf=-30,volume=0.5,afade=t=out:st=5:d=1,adelay=delays=0S:all=1[s2];
+[3:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=delays=48000S:all=1[s3];
+[3:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=delays=193584S:all=1[s4];
+[s0][s1][s2][s3][s4]amix=inputs=5:normalize=0:duration=longest:dropout_transition=0,apad=whole_len=288000,atrim=end_sample=288000,alimiter=limit=0.891251:attack=5:release=50:level=0:latency=1[mix]
+--- stem speech
+[0:a]atrim=start=1:end=4,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afftdn=nr=12:nf=-40,volume=6dB,afade=t=in:st=0:d=0.2,adelay=delays=0S:all=1[s0];
+[1:a]atrim=start=0:end=3,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=16.5dB,volume=1.5,adelay=delays=144000S:all=1[s1];
+[s0][s1]amix=inputs=2:normalize=0:duration=longest:dropout_transition=0,apad=whole_len=288000,atrim=end_sample=288000[mix]
+--- stem other
+[0:a]atrim=start=0:end=6,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afftdn=nr=24:nf=-30,volume=0.5,afade=t=out:st=5:d=1,adelay=delays=0S:all=1[s0];
+[s0]amix=inputs=1:normalize=0:duration=longest:dropout_transition=0,apad=whole_len=288000,atrim=end_sample=288000[mix]
+--- stem sfx
+[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=delays=48000S:all=1[s0];
+[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=delays=193584S:all=1[s1];
+[s0][s1]amix=inputs=2:normalize=0:duration=longest:dropout_transition=0,apad=whole_len=288000,atrim=end_sample=288000[mix]
+--- loudnorm
+youtube
+  loudnorm=I=-14:TP=-1:LRA=11:print_format=json
+  loudnorm=I=-14:TP=-1:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000
+tiktok
+  loudnorm=I=-12:TP=-1:LRA=11:print_format=json
+  loudnorm=I=-12:TP=-1:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000
+broadcast
+  loudnorm=I=-23:TP=-1:LRA=11:print_format=json
+  loudnorm=I=-23:TP=-1:LRA=11:measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true:print_format=json,aresample=48000

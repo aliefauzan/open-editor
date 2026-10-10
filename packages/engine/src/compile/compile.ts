@@ -717,7 +717,7 @@ function audioLayer(ctx: Ctx, cues: CueList, durMs: number): string[] {
 }
 
 /** The sequence cut to `range` and shifted to start at 0; scenes and transitions cut at the start are dropped. */
-function applyRange(
+export function applyRange(
   s: Sequence,
   range: { startMs: number; endMs: number },
   warnings: string[],

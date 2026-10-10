@@ -25,7 +25,10 @@ import { findSeq, tracksOf } from './ops/core.ts';
 import type { OpCall } from './ops/index.ts';
 import type { TemplateLookup } from './ops/templates.ts';
 import { ensureProjectsDir, isProjectId, projectDirFor, resolveProjectPath } from './paths.ts';
+import { cueList } from './audio/cues.ts';
+import { renderMix, type LoudnessPreset, type MixResult } from './audio/graph.ts';
 import {
+  applyRange,
   compileSequence,
   type BuildResult,
   type CompileOptions,
@@ -200,6 +203,22 @@ export type {
   FramingProvider,
 } from './compile/compile.ts';
 export { cueList, type Cue, type CueDropReason, type CueList } from './audio/cues.ts';
+export {
+  DENOISE_FILTERS,
+  LOUDNESS_TARGETS,
+  loudnormPass1,
+  loudnormPass2,
+  mixGraph,
+  renderMix,
+  TRUE_PEAK_DBTP,
+  type LoudnessPreset,
+  type LoudnormMeasure,
+  type MixGraph,
+  type MixInput,
+  type MixOptions,
+  type MixResult,
+  type StemKind,
+} from './audio/graph.ts';
 export type { Place } from './geo/search.ts';
 export type {
   ResolvedStyle,
@@ -222,6 +241,15 @@ export {
 
 /** External tool paths (ffmpeg, ffprobe, yt-dlp, deno, uv, py env, Chrome); filled in by phase 04. */
 export type ToolPaths = Readonly<Record<string, string | undefined>>;
+
+/** `engine.mix` options: the output WAV, the loudness preset, optional stems and range. */
+export interface MixRequest {
+  out: string;
+  preset?: LoudnessPreset;
+  normalize?: boolean;
+  stemsDir?: string;
+  range?: { startMs: number; endMs: number };
+}
 
 export interface EngineOptions {
   projectsDir: string;
@@ -289,6 +317,11 @@ export interface Engine {
   compile(projectId: string, sequenceId: string, opts: CompileOptions): Promise<BuildResult>;
   /** Writes a build to `build/<sequenceId>/` of its project; returns that folder. */
   writeBuild(result: BuildResult): Promise<string>;
+  /**
+   * The final audio mix of a sequence (engine spec "Audio"): a WAV at `out`, two-pass `loudnorm` to
+   * the preset (default youtube), and the stems when `stemsDir` is given.
+   */
+  mix(projectId: string, sequenceId: string, opts: MixRequest): Promise<MixResult>;
   captions(projectId: string, sequenceId: string): Promise<CaptionChunk[]>;
   styles: {
     list(): StyleSummary[];
@@ -536,6 +569,31 @@ export function openEngine(opts: EngineOptions): Engine {
 
     async writeBuild(result) {
       return writeBuildTo(result, buildDirFor(result.projectDir, result.sequenceId));
+    },
+
+    async mix(projectId, sequenceId, o) {
+      const p = await (await store(projectId)).read();
+      const s0 = findSeq(p, sequenceId);
+      const s = o.range ? applyRange(s0, o.range, []) : s0;
+      const reg = registry();
+      const ends = [...s.videoTracks, ...s.audioTracks].flatMap((t) =>
+        t.items.map((i) => i.startMs + i.durationMs),
+      );
+      return renderMix(
+        {
+          seq: s,
+          media: p.media,
+          projectDir: dirOf(projectId),
+          cues: cueList(
+            s,
+            registryTemplateLookup(() => reg),
+          ).cues,
+          sfxFiles: reg.get(s.styleId).files.sfx,
+          durationMs: o.range ? o.range.endMs - o.range.startMs : Math.max(0, ...ends),
+          preset: o.preset ?? 'youtube',
+        },
+        o,
+      );
     },
 
     styles: {
