@@ -8,8 +8,9 @@ Status: Revision 3 (desktop app; second review fixes), approved 2026-10-10 (plan
 A free, local, open-source alternative to invideo.io's agentic video editor, shipped as a
 macOS desktop app (Apple Silicon) that can be shared as a `.dmg` or built from the repo.
 
-- **Input**: a YouTube URL (or any yt-dlp-supported URL), local footage, a footage
-  folder, or a screenplay plus footage.
+- **Input** (plan D-13): a link to a public YouTube, Instagram (reel, post) or TikTok
+  video (or any other yt-dlp-supported URL), a video file the user already downloaded
+  (choose a file or drag it in), a footage folder, or a screenplay plus footage.
 - **Agent**: any LLM through the user's own key (Claude via Anthropic, OpenRouter,
   OpenAI, Gemini, OpenCode Zen, a local 9router gateway, Ollama, LM Studio, any
   OpenAI-compatible endpoint), Apple's on-device model (Apple Intelligence, no key), or
@@ -20,7 +21,11 @@ macOS desktop app (Apple Silicon) that can be shared as a `.dmg` or built from t
 - **Output**: short vertical clips (default 3 × 30–60 s, 1080×1920), plain with
   subtitles or edited in a chosen style, editable on a multi-track timeline, exported as
   MP4 (subtitles burned in or not), SRT/VTT captions, or an editable OTIO timeline for
-  DaVinci Resolve.
+  DaVinci Resolve, saved to a file or folder the user picks (plan D-13).
+- **Sound** (plan D-14): sound effects are real recordings (CC0 or recorded by the
+  project, never synthesised beeps), placed from the timeline's own events, and checked
+  by an automatic audio QA that writes numbers plus a picture the agent can look at, and
+  five timecodes for a human ear check.
 - **First style**: Vox-style paper collage. More styles can be added, including styles
   drafted automatically from a reference video the user uploads.
 - **Cost**: $0 with local models; API costs only if the user picks paid models.
@@ -38,6 +43,12 @@ Its look, which the `vox` style reproduces:
 - 2–3 panels stacked vertically in one frame.
 - Speaker footage in between, with 1–3-word uppercase mono captions on black boxes,
   centred mid-frame.
+
+Competitor teardown (plan D-15): a static analysis of CapCut 9.4.1 for macOS (strings
+only; the app was never run, nothing was copied) compared its engine and agent with
+these specs: [engine teardown](../../research/2026-10-10-capcut-engine-teardown.md),
+[agent teardown](../../research/2026-10-10-capcut-agent-teardown.md). The resulting
+changes are listed under "Competitor teardown changes" below.
 
 ## Sub-projects
 
@@ -59,11 +70,13 @@ judged visually.
 | 1 | Engine spike (90 s fixture; render, preview, sync, latency) | pinned HyperFrames version and go/hybrid decision written into the engine spec |
 | 2 | Engine + CLI | a CLI that renders a captioned 9:16 clip from a URL; OTIO export |
 | 3 | Styles Part A + `vox` v1 (paper-collage, map-route, kinetic-serif, stat) | `vox style validate vox` passes; user approves the side-by-side sheet |
-| 4 | App 4-core | manual editing in the desktop app end to end; `.dmg` installs on a second Mac account |
+| 4 | App 4-core | manual editing in the desktop app end to end; the `.dmg` passes a clean-install test (plan D-16) |
 | 5 | Agent: clipper + free-form, tools and plan mode | "make 3 vox clips from URL" by command |
 | 6 | App 4-agent | the same from the agent panel, live on the timeline |
 | 7 | v1.1: remaining 4 `vox` templates, screenplay workflow, Claude Code skill, local image generation, FCPXML, clip speed, ducking | — |
 | 8 | Styles Part C (re-skin from reference video) | a draft style the user picks in a blind A/B |
+
+Steps 7 and 8 both need only step 6 and may run in either order (plan README §3).
 
 Each step gets its own implementation plan and ends with working software.
 
@@ -76,7 +89,12 @@ LLM-authored templates for style extraction.
   media clips, scene clips, links, transitions and captions. The single source of truth.
 - Edit operations + `applyOp` returning change records, history with undo cursor and
   per-run undo, `project.changed` events (spec 1): used by the agent's write tools
-  (spec 3) and UI actions (spec 4).
+  (spec 3) and UI actions (spec 4). Every write returns `{ version, changes, results }`,
+  with a per-op `status` (`succeeded`, `failed`, `conflicted`) and the touched items' new
+  state (plan D-15).
+- `engine.view(projectId, sequenceId)` (spec 1): a compact flat view of one sequence
+  (items, caption chunk text, `version`). The agent reads this, not the full project
+  (spec 3).
 - Jobs with progress events (spec 1): long tasks for CLI, agent and UI.
 - Style format (spec 2): `style.json`, templates with JSON-Schema variables (the agent's
   tool inputs and the UI inspector's forms), transitions, overlays, caption presets,
@@ -87,6 +105,9 @@ LLM-authored templates for style extraction.
 - `ImageProvider` (spec 1): API image models registered by spec 3; local mflux in v1.1.
 - Secret redactor (spec 1, rules in spec 3): applied by engine errors, agent run
   records, app logs and events sent to the UI.
+- Workflow files (spec 3): a prompt plus frontmatter `allowedTools`, `roles` and
+  `checkpoints`; the agent loop sends only `allowedTools` to the model, and the Claude
+  Code skill (v1.1) reads the same files.
 
 ## Technology and licences
 
@@ -96,12 +117,13 @@ LLM-authored templates for style extraction.
 | Download | yt-dlp (+ `yt-dlp-ejs`, deno or node for YouTube) | Unlicense |
 | Media processing, audio mix | ffmpeg / ffprobe (from Homebrew, required at first run, plan D-05; not bundled) | LGPL/GPL (used as external binary) |
 | Transcription | mlx-whisper, `mlx-community/whisper-large-v3-turbo` (from OpenAI's MIT weights) | MIT |
+| Speech gate (plan D-15) | Silero VAD, ONNX model vendored in `py/vox_py/models/` and run through `onnxruntime` (no torch) | MIT; MIT |
 | Face tracking | MediaPipe Tasks `FaceDetector` | Apache-2.0 |
 | Cutouts | rembg with a pinned permissive model (licence verified in the plan; never `bria-rmbg`, which needs a paid commercial agreement) | MIT + model licence |
 | Local image generation (v1.1) | mflux + Z-Image-Turbo (default, not gated); FLUX.1-schnell optional (gated on Hugging Face, needs token) | MIT + Apache-2.0 |
 | Timeline export | OpenTimelineIO (`.otio`, native import in Resolve 18.5+); FCPXML via `otio-fcpx-xml-adapter` in v1.1, or in v1 if GATE 2 needs it (plan D-10) | Apache-2.0 |
 | Maps | Natural Earth shapes + populated places; `d3-geo` | public domain; ISC |
-| OCR (style extract) | Apple Vision via `pyobjc-framework-Vision` | MIT |
+| Saliency fallback for framing (v1, plan D-15); OCR (style extract) | Apple Vision via `pyobjc-framework-Vision`, now a v1 dependency, not only Part C | MIT |
 | Agent | Vercel AI SDK `ai@7` + provider packages; Apple Foundation Models through a bundled Swift helper | Apache-2.0; Apple SDK |
 | Vox Studio itself | this repo | MIT (plan D-10) |
 | Desktop app | Electron, electron-vite, electron-builder, React 19, Zustand, Tailwind + shadcn/ui, `@xzdarcy/react-timeline-editor` (gated by benchmark) | MIT |
@@ -118,6 +140,10 @@ leans on paid APIs), OpenCut (mid-rewrite, not taking contributions), opencut-cl
 Multiplayer editing, accounts, cloud hosting, mobile, Windows/Linux/Intel Macs, auto-publishing to social
 platforms, TTS voiceover, music generation, speaker diarization, colour grading/LUTs.
 
+Deferred to the backlog, not v1 or v1.1 (plan D-15): a music bed with beat-snapped cuts
+(librosa), TransNetV2 shot detection (ffmpeg `scdet` is used instead), RNNoise denoise
+(ffmpeg `afftdn` is used instead).
+
 ## Security summary
 
 - Untrusted HTML (templates, compiled scenes) loads from a separate `vox-media://`
@@ -130,6 +156,14 @@ platforms, TTS voiceover, music generation, speaker diarization, colour grading/
   (spec 1).
 - Tools downloaded at first run are pinned and hash-checked (spec 4).
 - The agent can ingest only sources the user named, or after approval (spec 3).
+- Text inside images (frames, archive images, thumbnails) is untrusted content, like
+  transcripts; the vision prompt treats it as content, never as instructions (spec 3;
+  plan D-15).
+- Files are written outside a project only to a path the user chose: a CLI flag or a
+  native save/folder dialog in this session; the renderer and the agent cannot name an
+  export path (specs 1, 3, 4; plan D-13).
+- Browser cookies for Instagram/TikTok are used only after the user turns on an opt-in
+  setting; they are never read otherwise (spec 1; plan D-13).
 - Compile hooks run only for trusted styles (spec 2).
 - Keys are redacted from every output (spec 3).
 
@@ -235,6 +269,48 @@ Applied from the review of `plan/` (decisions D-04 to D-08 in `plan/log/DECISION
 - The app lists every bundled resource with a packaging self-test, fixes its Electron
   fuses, and defines pass/fail for the timeline gate prototype.
 - The agent's injection guard gets a mock-model test in CI.
+
+## Competitor teardown changes (2026-10-10, plan D-15)
+
+Applied from the static teardown of CapCut 9.4.1
+([engine](../../research/2026-10-10-capcut-engine-teardown.md),
+[agent](../../research/2026-10-10-capcut-agent-teardown.md); decision D-15 in
+`plan/log/DECISIONS.md`). Only ideas were taken, no code, prompts or assets. The
+contracts are not frozen yet, so `schemaVersion` stays 2:
+
+- **Engine, time and media**: `canvas.fps` is a rational `{ num, den }` from a fixed set
+  (NTSC rates included); variable-frame-rate sources get a constant-rate copy; per-source
+  loudness is measured and matched before the mix; `render --loudness
+  youtube|tiktok|broadcast`; `MediaClip.denoise` (ffmpeg `afftdn`); a Silero VAD speech
+  gate before Whisper; transcript words get a `kind` (word, pause, repeat, filler); a new
+  `shots` stage (ffmpeg `scdet`).
+- **Engine, framing**: `frame.mode: 'auto'`, `stability`, `trackSpeed` and keyframes;
+  facetrack resets at shot cuts, keeps its subject with hysteresis and falls back to
+  Apple Vision saliency.
+- **Engine, captions**: `CaptionChunk` and `CaptionWord` defined (word times for karaoke
+  presets); `maxLines`, `maxCharsPerLine`, `gapFillMs`, `autoEmphasis`; overrides become
+  their own history entities.
+- **Engine, ops and history**: `removePauses` and `removeWords` with `dryRun` (one undo
+  entry each); `coalesceKey` merges slider drags; job results apply as one entry and fail
+  with `JOB_CONFLICT` instead of overwriting; write results carry per-op `status`;
+  `engine.view` gives a compact sequence view; `SCHEMA_TOO_NEW` and a pre-migration
+  snapshot.
+- **Quick clips**: cleaner clip boundaries (word lead-in, shot cuts, pauses trimmed),
+  more no-AI scoring signals, an optional `prompt` for the scorer, cover-style
+  transitions at clip edges.
+- **Preview**: a conditional pre-render cache if GATE 1 shows a preview fps margin under
+  20 %.
+- **Agent**: workflow-scoped `allowedTools` (clipper 12 core tools) plus
+  `describe_tool` / `call_tool`, with the tool-list cost checked by the probe; per-run
+  short aliases; a fresh `view` and a "Changes since your last step" note every step;
+  version-stamped compaction stubs; tool-call JSON repair and a repeated-call guard;
+  paired `srcMs`/`seqMs`; model-free frame-health checks; `--confirm-plan`; one sub-run
+  per sequence; a question-vs-edit gate; `update_todos`; a "tighten" step in the
+  clipper; replay tests; on-image text treated as untrusted.
+- **App**: `coalesceKey` on sliders, "Pauses & fillers" in the Subtitles panel, the new
+  framing controls, the "Confirm plan first" toggle and an editing-by-agent marker on
+  sequence tabs.
+- **Deferred**: music bed with beat snap, TransNetV2, RNNoise (see "Out of scope").
 
 ## Owner decisions (2026-10-10, plan D-10)
 

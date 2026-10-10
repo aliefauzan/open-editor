@@ -26,7 +26,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | `@ai-sdk/openai-compatible` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
 | `d3-geo`, `topojson-client` | TBD (07) | ISC | 07 | vendored as ESM in `styles/vox/templates/map-route/vendor/` (hooks are self-contained) |
 | OpenCode Zen, 9router, LM Studio presets | no package (`@ai-sdk/openai-compatible` with a base URL) | — | 11 | base URLs in the agent spec presets table |
-| Playwright | TBD (10a) | Apache-2.0 | 10a | Electron E2E |
+| Playwright | TBD (08) | Apache-2.0 | 08 | Electron E2E (first used by the 08 smoke test, D-16) |
 
 ## External tools (first-run setup, phase 09; dev uses PATH)
 
@@ -34,7 +34,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 |---|---|---|---|
 | uv | TBD (09) | MIT / Apache-2.0 | bundled |
 | ffmpeg / ffprobe | Homebrew's current version (D-05); `vox doctor` records the version it ran with | LGPL/GPL (external binary, not redistributed) | Homebrew's own checks; the app never downloads it |
-| yt-dlp + `yt-dlp-ejs` | latest at install; `yt-dlp -U` | Unlicense | yt-dlp verifies its own releases |
+| yt-dlp + `yt-dlp-ejs` | latest at install; `yt-dlp -U` | Unlicense | yt-dlp verifies its own releases; the build must support `--impersonate` (TikTok, D-13; `vox doctor` checks it) |
 | deno | TBD (09) | MIT | SHA-256 |
 | Chrome for HyperFrames | the one the pinned HyperFrames CLI installs | BSD + others | HyperFrames' installer |
 
@@ -42,7 +42,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 
 | Component | Pin | Licence | Set in | Notes |
 |---|---|---|---|---|
-| Swift toolchain (Xcode command-line tools) | 26.x or newer (macOS 26 SDK) | Apple SDK licence | 11 | builds `native/apple-llm`; CI builds it only where the SDK exists |
+| Swift toolchain (Xcode or command-line tools) | 26.x or newer (macOS 26+ SDK; the M5 has Xcode 27.0) | Apple SDK licence | 11 | builds `native/apple-llm`; `local` tier, never on CI (D-16) |
 | Apple Foundation Models framework | system framework, macOS 26+ | Apple SDK licence | 11 | needs Apple Intelligence on; not redistributed (our helper links it) |
 
 ## Python (`py/uv.lock`)
@@ -55,9 +55,12 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | rembg + permissive model (never `bria-rmbg`) | TBD (05; licence verified and quoted in log) | MIT + model licence | 05 |
 | opentimelineio | TBD (05) | Apache-2.0 | 05 |
 | pypdf (document text) | TBD (04) | BSD-3-Clause | 04 |
+| onnxruntime (Silero VAD speech gate; no torch, D-15) | TBD (04) | MIT | 04 |
+| Silero VAD `silero_vad.onnx`, vendored at `py/vox_py/models/` with its licence (upstream release URL + SHA-256, D-15) | TBD (04); SHA-256 filled in by phase 04 | MIT | 04 |
+| numpy (audio QA analysis; `qa.png` drawn with ffmpeg `showspectrumpic`/`showwavespic`) | TBD (05) | BSD-3-Clause | 05 |
 | `otio-fcpx-xml-adapter` | TBD (05 if GATE 2 needs it, else 14) | Apache-2.0 | 05 / 14 |
 | mflux + Z-Image-Turbo | TBD (14) | MIT + Apache-2.0 | 14 |
-| `pyobjc-framework-Vision` | TBD (15) | MIT | 15 |
+| `pyobjc-framework-Vision` (facetrack body + saliency fallback in v1; Part C OCR reuses it, D-15) | TBD (04) | MIT | 04 |
 
 ## Assets
 
@@ -65,7 +68,8 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 |---|---|---|---|
 | Natural Earth 1:50m countries + populated places | naturalearthdata.com | public domain | 03 (geo search), 07 (map) |
 | Test portraits `face-a.jpg`, `face-b.jpg` (checked-in fixtures) | Wikimedia Commons, CC0 only, URL recorded in `fixtures/assets/LICENSES.md` | CC0 | 00 |
+| Test SFX `fixtures/assets/sfx/tap.wav` (checked-in fixture, `base` tests) | Wikimedia Commons, CC0 or public domain, fetched with the portraits, URL in `fixtures/assets/LICENSES.md` (D-16) | CC0 / PD | 00 |
 | Fonts `base`: Inter (display, body), IBM Plex Mono (captions) | Google Fonts / upstream repos | OFL | 03 |
 | Fonts (`vox`: display, body, caption; ~40 OFL catalogue for Part C) | Google Fonts | OFL | 07, 15 |
 | Paper texture | CC0 source, URL recorded | CC0 | 07 |
-| SFX `paper-pop`, `paper-slide`, `whoosh`, `stamp`, `typewriter` | original or CC0, URL recorded | CC0 / own | 07 |
+| SFX `paper-pop`, `paper-slide`, `whoosh`, `stamp`, `typewriter`, `thump-tap` (hero) | real recordings only: CC0 / public domain from Wikimedia Commons first (URL recorded), Freesound only if the owner downloads it, or recorded for the project (licence `project`); never synthesised (D-14, D-16); listed in `style.json` `sfx` and `styles/vox/assets/sfx/CREDITS.md` | CC0 / project | 07 |

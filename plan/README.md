@@ -56,26 +56,27 @@ The plan has no time estimates (D-10); phases end when their done-when holds.
 |---|---|---|---|---|---|---|
 | 00 | Foundation | all | pnpm monorepo, CI, fixture generator, pins file | engine "Repository layout" | specs approved (D-10) | Sonnet 5.5 · medium |
 | 01 | Spike + **GATE 1** | engine | `spike/`, `docs/SPIKE_RESULTS.md`, HyperFrames pin, go/hybrid + preview decision | engine "Spike", app "Untrusted HTML" | 00 | Opus 5.5 · high |
-| 02 | Engine: model, ops, history | engine | `project.json` schema, frame grid, all edit ops, change records, undo/redo/undoRun, crash-safe writes, lock, snapshots, path rule | engine "Data model", "Edit operations", "History" | 00 | Opus 5.5 · high |
-| 03 | Engine: styles loader, `base`, compile, captions, audio | engine | style registry + `base` style, sequence → HyperFrames build, `deriveCaptions`, ffmpeg mix graph, layer renderer | engine "Compile", "Captions", "Audio", "Base style"; styles "Part A" (format, tokens, registry) | 01, 02 | Opus 5.5 · high |
-| 04 | Engine: jobs, Python bridge, ingest, transcribe, facetrack | engine | job runner, `py/` tools, hardened ingest (filtering proxy, `-format_whitelist`), transcription, face tracking | engine "Stages", "Ingest hardening", "Library API" (jobs) | 02 | Opus 5.5 · high |
-| 05 | Engine: assets, render, export, CLI + **GATE 2** | engine | archive search/fetch/cutout, render, SRT/VTT/OTIO, credits, quick clips + `vox quick`, full `vox` CLI, engine done-when | engine "Archive assets", "Library API", "Done when" | 03, 04 | Sonnet 5.5 · high |
+| 02 | Engine: model, ops, history | engine | `project.json` schema, frame grid (rational fps), all edit ops incl. `removePauses`/`removeWords`, change records, undo/redo/undoRun, `coalesceKey`, write results + `engine.view`, `JOB_CONFLICT` check, `SCHEMA_TOO_NEW`, crash-safe writes, lock, snapshots, path rule (D-15) | engine "Data model", "Edit operations", "History" | 00 | Opus 5.5 · high |
+| 03 | Engine: styles loader, `base`, compile, captions, audio | engine | style registry + `base` style, sequence → HyperFrames build, `deriveCaptions` → `CaptionChunk[]`, framing keyframes as `transform`, ffmpeg mix graph (per-source gain, `denoise`, loudness targets), `minEntranceMs`, layer renderer (D-15) | engine "Compile", "Captions", "Audio", "Base style"; styles "Part A" (format, tokens, registry) | 01, 02 | Opus 5.5 · high |
+| 04 | Engine: jobs, Python bridge, ingest, transcribe, facetrack | engine | job runner (results as one entry), `py/` tools, hardened ingest (filtering proxy, `-format_whitelist`; YouTube/Instagram/TikTok links and local files, D-13), VFR copy + loudness, VAD speech gate + transcription + word kinds, `shots`, face tracking with `auto` framing (D-15) | engine "Stages", "Ingest hardening", "Library API" (jobs) | 01, 02 | Opus 5.5 · high |
+| 05 | Engine: assets, render, export, CLI + **GATE 2** | engine | archive search/fetch/cutout, render (`--loudness`, D-15), SRT/VTT/OTIO to a chosen file/folder (D-13), audio QA (D-14), credits, quick clips (cleaner boundaries, more signals, D-15) + `vox quick`, full `vox` CLI, engine done-when | engine "Archive assets", "Library API", "Done when" | 03, 04 | Sonnet 5.5 · high |
 | 06 | Style tooling (Part A rest) | styles | `vox style validate/new/trust`, `extends` chains, trusted hooks, `TEMPLATE_VERSION` migration, previews | styles "Part A", "Testing" | 03 | Sonnet 5.5 · medium |
-| 07 | `vox` style v1 + **GATE 3** | styles | tokens, fonts, 4 templates, 2 transitions, overlay, 2 caption presets, SFX, `guide.md`, side-by-side sheet | styles "Part B" | 05, 06 | Opus 5.5 · high |
+| 07 | `vox` style v1 + **GATE 3** | styles | tokens, fonts, 4 templates, 2 transitions, overlay, 2 caption presets, SFX kit of real recordings (D-14), `guide.md`, side-by-side sheet | styles "Part B" | 05, 06 | Opus 5.5 · high |
 | 08 | App shell + security + **GATE 4** | app | Electron shell, `vox-app://` + `vox-media://`, engine host, typed `window.vox`, timeline benchmark | app "Architecture", "Window security", "Untrusted HTML", "Timeline implementation" | 01, 03 | Opus 5.5 · high |
 | 09 | App: first-run setup + `.dmg` | app | setup screen, pinned + hash-checked tools, `pnpm dist` `.dmg`, update check, "Install `vox` command" | app "First-run setup", "Packaging and sharing" | 05, 08 | Sonnet 5.5 · high |
-| 10a | App: editor core A | app | store + change records, preview pipeline, top bar/menus/keyboard, preview controls, timeline incl. caption lane, inspector | app "Live updates", "Preview pipeline", "Screens" (top bar, preview, timeline, inspector) | 07, 09 | Sonnet 5.5 · high |
-| 10b | App: editor core B + **GATE 5** | app | quick clips start screen, Subtitles panel, media bin + archive tab, export dialog (subtitles burned in or not), style gallery, error states, E2E, CI latency bench; 4-core done-when | app "Screens" (quick clips, Subtitles panel, media bin, export, style gallery), "Error handling", "Testing", "Done when" 1 | 10a | Sonnet 5.5 · high |
-| 11 | Agent core | agent | providers + presets, Apple on-device helper, roles, probe, Keychain keys, redactor, cost cap, tools from zod, loop, compaction, plan mode | agent "Providers and models" … "Plan mode" | 05 | Opus 5.5 · high |
-| 12 | Agent workflows: clipper + free-form | agent | clipper = quick clips + Stylize, workflow prompts + checkpoints, `vox agent` CLI, mock-model tests, injection eval, live evals; agent done-when 1–4, 6 | agent "Workflows", "CLI", "Testing", "Done when" | 07, 11 | Opus 5.5 · high |
-| 13 | App: agent panel + settings + **v1.0** | app | agent panel, pause cards, activity log, "Undo this run", provider settings, E2E, friend install; `v1.0.0` `.dmg` | app "Screens" (agent panel, settings), "Testing", "Done when" | 10b, 12 | Sonnet 5.5 · high |
+| 10a | App: editor core A | app | store + change records (`coalesceKey` on sliders), preview pipeline (VFR via CFR copy; pre-render cache only if GATE 1 recorded a heavy-scene fps margin under 20 %), top bar/menus/keyboard, preview controls, timeline incl. caption lane, inspector (framing `auto`, "Pin frame here", `denoise`, caption settings; D-15) | app "Live updates", "Preview pipeline", "Screens" (top bar, preview, timeline, inspector) | 06, 09 (D-16) | Sonnet 5.5 · high |
+| 10b | App: editor core B + **GATE 5** | app | quick clips start screen (link badge, "Choose file…"), Subtitles panel ("Pauses & fillers", word delete, D-15), media bin + archive tab, export dialog (subtitles burned in or not, "Save to" folder, loudness target, audio check), style gallery, error states (`SCHEMA_TOO_NEW`, `JOB_CONFLICT`), E2E, CI latency bench; 4-core done-when + app done-when 7 | app "Screens" (quick clips, Subtitles panel, media bin, export, style gallery), "Error handling", "Testing", "Done when" 1, 7 | 10a | Sonnet 5.5 · high |
+| 11 | Agent core | agent | providers + presets, Apple on-device helper, roles, probe (incl. tool-list cost), Keychain keys, redactor, cost cap, tools from zod (`allowedTools` + `describe_tool`/`call_tool`, short ids), loop (fresh view + change note, call repair, sub-runs, `update_todos`), compaction, plan mode, replay harness (D-15) | agent "Providers and models" … "Plan mode" | 05 | Opus 5.5 · high |
+| 12 | Agent workflows: clipper + free-form | agent | clipper = quick clips + Stylize, workflow prompts + frontmatter + checkpoints, tighten step, sub-run per sequence, intent gate, `vox agent` CLI (`--yes`, `--confirm-plan`), mock-model tests, injection eval (image case), replay fixtures, live evals; agent done-when 1–4, 6–8 (D-15) | agent "Workflows", "CLI", "Testing", "Done when" | 07, 11 | Opus 5.5 · high |
+| 13 | App: agent panel + settings + **v1.0** | app | agent panel, pause cards by `kind` (source, plan, pauses), "Confirm plan first", activity log with todo list, agent-editing tab marker (D-15), "Undo this run", provider settings, E2E, fresh-clone check + the owner's install from the GitHub Release (D-16); `v1.0.0` `.dmg` | app "Screens" (agent panel, settings), "Testing", "Done when" | 10b, 12 | Sonnet 5.5 · high |
 | 14 | v1.1 | all | 4 more `vox` templates, screenplay workflow, Claude Code skill, mflux, FCPXML, clip speed, ducking | overview step 7 | 13 | Sonnet 5.5 · high |
 | 15 | Styles Part C: style from reference | styles + agent + app | `vox style extract`, measure/describe/map/report, gallery flow, blind A/B | styles "Part C"; agent "Style extract" | 13 | Opus 5.5 · high |
 
 Order for one person: `00 → 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10a → 10b → 11 → 12 → 13 → 14 → 15`.
 
 Can run in parallel (a second person, or a second worktree): 02 with 01 · 04 with 03 · 06 with 04/05 ·
-08 right after 03 (uses the engine API with fixture projects) · 11 with 07–10b · 14a–14g each need
+08 right after 03 (uses the engine API with fixture projects) · 10a with 07 (10a needs only 06 and 09,
+D-16) · 11 with 07–10b · 14a–14g each need
 only 13 and run in any order.
 Auto mode runs these in order but skips a phase that waits on a gate and goes on with the next phase
 whose prerequisites are done (D-07). Each phase works in its own worktree `.worktrees/phase-<NN>`;
@@ -90,7 +91,8 @@ graph TD
   P00 --> P02[02 Model, ops, history]
   P01 --> P03[03 Styles loader, base, compile, audio]
   P02 --> P03
-  P02 --> P04[04 Jobs, Python, ingest, transcribe, facetrack]
+  P01 --> P04[04 Jobs, Python, ingest, transcribe, facetrack]
+  P02 --> P04
   P03 --> P05[05 Assets, render, export, CLI + GATE 2]
   P04 --> P05
   P03 --> P06[06 Style tooling]
@@ -100,7 +102,7 @@ graph TD
   P03 --> P08
   P05 --> P09[09 First-run setup + dmg]
   P08 --> P09
-  P07 --> P10a[10a Editor core A]
+  P06 --> P10a[10a Editor core A]
   P09 --> P10a
   P10a --> P10b[10b Editor core B + GATE 5]
   P05 --> P11[11 Agent core]
@@ -119,16 +121,20 @@ recommendation in the phase log, and **stops**. Work after the gate starts only 
 Exceptions: GATE 1 and GATE 4 are decided by their numbers (D-10). The AI records the result and the
 outcome it selects, and continues; every fallback is already written in the specs. GATE 4 stops only if
 the benchmark fails or lands within 10 % of the bar. The owner can still overrule later.
+A gate inside a phase (GATE 4 in 08) is handled like a mid-phase MANUAL STEP (D-12, D-16): the AI
+finishes the steps that do not depend on it, marks the phase `[~] waiting: GATE <n>`, and does not merge.
+Judgement gates (GATE 3, GATE 6) get an exit after 3 rounds without approval: the owner chooses to keep
+iterating or to accept the style as the v1 look, with the open notes logged as backlog (D-16).
 
 | Gate | End of | Question | Evidence | If it fails |
 |---|---|---|---|---|
-| GATE 1 | 01 | Does HyperFrames render whole sequences, and does preview work in the Electron security setup? | `docs/SPIKE_RESULTS.md`: 7 pass-bar items with numbers | Decided by the numbers (3 attempts per item). 1, 3 or 5 fail → hybrid export via layer renderer (phase 03). 4 or 6 fail → app spec "Preview fallback" (pre-written). Opaque sandbox fails → fallback `allow-same-origin` on `vox-media://` |
-| GATE 2 | 05 | Can the CLI alone turn a YouTube URL into a captioned 9:16 MP4, and does the OTIO open in Resolve? | engine done-when 1–7 with evidence | Fix in 05; do not start 07 or 09 on a broken engine. Resolve rejects the OTIO → FCPXML via `otio-fcpx-xml-adapter`; both rejected → README manual-import steps tested once by the owner (D-10) |
-| GATE 3 | 07 | Does the `vox` style look like the reference reel? | side-by-side sheet (reel frames vs our fixture frames) | Iterate templates/tokens in 07 until approved (no limit) |
+| GATE 1 | 01 | Does HyperFrames render whole sequences, and does preview work in the Electron security setup? | `docs/SPIKE_RESULTS.md`: pass-bar items 1–7 and 9 (NTSC) with numbers, plus the heavy-scene fps margin and the filler count (item 8) (D-15) | Decided by the numbers (3 attempts per item). 1, 3 or 5 fail → hybrid export via layer renderer (phase 03). 4 fails in both sandbox modes, or 6 fails → app spec "Preview fallback" (pre-written). 4 fails only in opaque mode → `allow-same-origin` on `vox-media://`, no preview fallback. 4 passes with a heavy-scene fps margin under 20 % → pre-render cache (10a). 9 fails → integer fps only; NTSC sources conform to the nearest integer rate through the CFR copy (03, 04) |
+| GATE 2 | 05 | Can the CLI alone turn a YouTube URL into a captioned 9:16 MP4, take Instagram/TikTok links and local files, export to a chosen folder, run the audio QA, and does the OTIO open in Resolve? | engine done-when 1–10 with evidence (10: NTSC and VFR quick clips, `removePauses`, `SCHEMA_TOO_NEW`; D-15) | Fix in 05; do not start 07 or 09 on a broken engine. A platform failure outside our control (still failing after `yt-dlp -U`) passes for that platform when the same video as a local file passes and the link fails with a clear `VoxError` hint; yt-dlp version and stderr logged, rechecked at GATE 5 (D-16). Resolve rejects the OTIO → FCPXML via `otio-fcpx-xml-adapter`; both rejected → README manual-import steps tested once by the owner (D-10) |
+| GATE 3 | 07 | Does the `vox` style look like the reference reel, and do its sounds pass the owner's ear check? | side-by-side sheet (reel frames vs our fixture frames), SFX kit sheet, audio QA `qa.json` + `LISTEN.md` | Iterate templates/tokens/SFX in 07. After 3 rounds without approval the AI asks the owner: (a) keep iterating or (b) accept as the v1 look, open notes go to the phase log as backlog. The AI never accepts on its own (D-16) |
 | GATE 4 | 08 (first UI task) | Does `@xzdarcy/react-timeline-editor` hold 1,000 items on 8 tracks at ≥ 50 fps, and fit linked drag + marquee (pass rule in app spec "Timeline implementation")? | benchmark numbers + prototype result | Build a custom canvas timeline in phase 10a (same store and ops) |
-| GATE 5 | 10b | 4-core done: `.dmg` installs on a second Mac account, first-run setup passes, manual editing works end to end, quick clips with an edited subtitle export with no AI key, latency < 1 s | app done-when 1 with evidence | Fix in 10a/10b before the agent panel |
-| v1.0 | 13 | Can a friend go from the README to a first exported clip? | friend-install checklist in `log/phase-13.md` | Fix README/setup, re-test |
-| GATE 6 | 14a | Do the 4 new `vox` templates match the reference reel? | side-by-side sheet for the 4 templates | Iterate in 14a until approved |
+| GATE 5 | 10b | 4-core done: `.dmg` installs (09 automated clean-install test; the owner runs the E2E path on their own account with a fresh `VOX_HOME`, D-16), first-run setup passes, manual editing works end to end, quick clips with an edited subtitle export with no AI key, latency < 1 s; "Pauses & fillers", coalesced sliders, "Pin frame here" and loudness targets work (D-15) | app done-when 1 and 7 with evidence | Fix in 10a/10b before the agent panel |
+| v1.0 | 13 | Can someone go from the README (GitHub clone or the shared `.dmg`) to a first exported clip? | automated fresh-clone check + the owner's install of the `v1.0.0` `.dmg` from the GitHub Release, checklist in `log/phase-13.md`; a friend's install is optional (D-16) | Fix README/setup, re-test |
+| GATE 6 | 14a | Do the 4 new `vox` templates match the reference reel? | side-by-side sheet for the 4 templates | Iterate in 14a; same 3-round exit as GATE 3 (D-16) |
 | GATE 7 | 14e | Is the clip-speed design right? | `playbackRate` spike numbers + design note | Revise the design in 14e before code |
 | GATE 8 | 15 | Does the owner pick the extracted style as closer to the reference in the blind A/B? | blind A/B result | Iterate measure/describe/map in 15 and repeat the A/B |
 

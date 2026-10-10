@@ -33,8 +33,9 @@ styles/<styleId>/
     build.mjs                # optional compile hook (trusted styles only)
     fixtures/*.json          # example variable sets for previews and tests
   captions/<preset>.html     # caption preset compositions
+  captions/<preset>.json     # caption preset fields (case, stripPunctuation, safeArea)
   overlays/<name>.html       # full-frame overlays (grain, vignette, paper edge)
-  assets/                    # textures, fonts (OFL), sfx (CC0 or original)
+  assets/                    # textures, fonts (OFL), sfx (real recordings: CC0 or the project's own; sfx/CREDITS.md)
   previews/                  # rendered thumbnails + GIFs per template (generated)
 ```
 
@@ -78,7 +79,12 @@ Style {
     generateSuffix: string   // appended to image-generation prompts
     cutoutStroke?: { color: string; widthPx: number }
   }
-  sfx: Record<string, string>   // name → asset path, e.g. "pop": "assets/sfx/paper-pop.wav"
+  sfx: Record<string, {         // name → sound, e.g. "pop" (plan D-14)
+    path: string                // "assets/sfx/paper-pop.wav"
+    type: 'cut' | 'move' | 'land' | 'appear' | 'hero'   // what it is for (engine "Sound cues")
+    source: string              // URL or "recorded for this project"
+    licence: 'CC0' | 'project'  // 'project' = recorded by contributors, MIT with the repo
+  }>
 }
 ```
 
@@ -107,8 +113,10 @@ Template {
   durationMs: { min: number; default: number; max: number }
   variables: JSONSchema      // object schema; agent tool input and UI inspector form
   slots: Record<string, 'image' | 'cutout' | 'video' | 'geo' | 'template'>
-  sfxCues?: { atMs: number | 'entrance'; sfx: string }[]
+  sfxCues?: { name: string; atMs: number | 'entrance'; sfx: string
+              type: 'cut' | 'move' | 'land' | 'appear' | 'hero' }[]   // see engine "Sound cues"
   blendsShots?: boolean      // transitions: needs source handles (e.g. crossfade)
+  minEntranceMs?: number     // scenes shorter than this skip the entrance (Template rules)
 }
 ```
 
@@ -154,6 +162,49 @@ Full-frame HTML layers (grain, vignette, paper edges) mounted by compile above a
 tracks and below captions. A sequence uses its style's default overlays; the UI can
 toggle them per sequence (engine field `sequence.overlays`).
 
+### Caption presets (plan D-15)
+
+A caption preset is `captions/<preset>.html` (a HyperFrames composition) plus
+`captions/<preset>.json`:
+
+```ts
+CaptionPreset {
+  name: string; description: string
+  case: 'asis' | 'upper' | 'lower'
+  stripPunctuation: boolean
+  safeArea: { bottomPct: number; rightPct: number }   // default 20 / 12 on 9:16, 0 / 0 otherwise
+  position: { yPct: number }                         // default for CaptionTrack.position
+}
+```
+
+- **Input**: compile mounts the preset once per sequence as the captions
+  sub-composition (engine "Compile") and injects the sequence's `CaptionChunk[]` (engine
+  "Captions") as its variables, read with `vox.vars(el)` like a scene's. Each chunk has
+  `startMs`, `endMs` and `lines`; each line has `words`; each `CaptionWord` has `key`,
+  `text`, `startMs`, `endMs` and `emphasis`. Compile applies the preset's `case` and
+  `stripPunctuation` to word text before it injects the chunks, so every preset gets
+  them the same way. SRT/VTT export is not affected.
+- **Time**: the sub-composition starts at 0 on the sequence, so its time equals timeline
+  ms. The preset builds its GSAP timeline from the chunk and word times when it loads,
+  and the HyperFrames runtime seeks that timeline like any other. A preset never reads a
+  clock; the word states at a frame depend only on that frame.
+- **Word states**: at time `t`, a word is unread (`t < startMs`), active
+  (`startMs ≤ t < endMs`) or read (`t ≥ endMs`). Inside a chunk, a word's end always
+  extends to the next word's start, so one word is active at a time while someone
+  speaks. `gapFillMs` governs only gaps between chunks: a chunk's end extends to the
+  next chunk's start when the gap is shorter than it (engine "Captions"). Every preset
+  defines a look for all three states and for `emphasis` words. Read and unread may
+  look the same.
+- **Lines**: the preset renders each line of a chunk as one row. The engine has already
+  split words into lines by `maxLines` and `maxCharsPerLine`; the preset never re-wraps.
+- **Safe area**: on 9:16, platform buttons and titles cover the bottom and right edges.
+  The caption box stays above `100 − bottomPct` % of the height and inside
+  `rightPct` … `100 − rightPct` % of the width (symmetric, so centred text stays
+  centred). If `position.yPct` would push the box into the safe area, the box moves up.
+- `base/plain` (engine "Base style") follows the same contract: `case: 'asis'`,
+  `stripPunctuation: false`, default safe area; the active word is set bold, emphasis
+  words are set 1.2× larger, and read and unread words look the same.
+
 ### Template rules
 
 - Pure HyperFrames composition; all timing derives from the frame number (no
@@ -165,6 +216,27 @@ toggle them per sequence (engine field `sequence.overlays`).
   text's bounding box stays inside the 1080×1920 safe area.
 - Fonts and textures ship inside the style folder; no CDN at render time.
 - Every built-in style ships `previews/` generated by `vox style validate`.
+- A scene template may set `minEntranceMs` (plan D-15). When a scene's `durationMs` is
+  below it, compile adds `skipEntrance: true` to the injected variables and the template
+  starts in its resting state with no entrance animation (a short beat is never all
+  entrance). `skipEntrance` is reserved: a template's variables schema may not declare it.
+
+### SFX rules (plan D-14)
+
+A style's SFX must be real recordings. `vox style validate` runs the engine's kit check
+(`vox audio-qa --kit <styleId>`) on every file in `sfx`, and each file must pass:
+
+- not synthesised: no single spectral peak holds more than 90 % of the energy (rejects
+  sine beeps and clean tone lines on a physical sound);
+- one event: one onset for `cut`, `appear`, `land` and `hero`; a `move` sound may swell
+  but has no click transient inside it;
+- not a steady noise bed: spectral flatness is not high for the whole file;
+- clean edges: the first and last 5 ms stay below −40 dBFS (no click at start or end);
+- peak ≤ −1 dBFS and length ≤ 3 s;
+- listed in `assets/sfx/CREDITS.md` with a source and a licence of `CC0` or `project`.
+
+Novelty or meme sounds are not used. The check also writes a sheet image with one
+waveform and spectrogram per file, which a person or a vision model reviews.
 
 ### Style registry
 
@@ -175,7 +247,8 @@ toggle them per sequence (engine field `sequence.overlays`).
   style.
 - CLI (in `packages/cli`):
   - `vox style validate <styleId>`: schema check, lint every template, render all
-    fixtures to a contact sheet at `previews/contact.jpg`;
+    fixtures to a contact sheet at `previews/contact.jpg`; each caption preset renders a
+    sample `CaptionChunk[]` into the same sheet;
   - `vox style new <styleId> [--extends vox]`: scaffold a user style;
   - `vox style trust <styleId>`: allow its compile hooks, after a confirmation prompt;
   - `vox style extract …` (Part C).
@@ -247,16 +320,27 @@ equals the host's.
 
 ### Caption presets
 
-- `vox/mono-box` (default): uppercase mono, white on black box, 1–3 words, centred at
-  50 % height, cut on word (no fade).
+- `vox/mono-box` (default): mono, white on black box, 1–3 words, centred at 50 % height,
+  cut on word (no fade). `case: 'upper'`, `stripPunctuation: true`. Unread and read
+  words are white; the active word is yellow (`highlight`); emphasis words sit on a red
+  (`accent`) box instead of black.
 - `vox/serif-lower`: white serif with soft shadow at 78 % height, for full-collage
-  sequences where the centre is busy.
+  sequences where the centre is busy. `case: 'asis'`, `stripPunctuation: false`.
+  Unread words are at 60 % opacity; active and read words are full white; emphasis
+  words are yellow (`highlight`).
+
+Both use the default safe area (20 / 12 on 9:16) and the contract in Part A "Caption
+presets" (plan D-15).
 
 ### SFX
 
-Small original or CC0 set: `paper-pop`, `paper-slide`, `whoosh`, `stamp`, `typewriter`.
-Template `sfxCues` reference these. The engine mixes them into the final audio; the
-`sequence.sfx` flag turns them off.
+Small set of real recordings (CC0, or recorded for the project): `paper-pop` (appear),
+`paper-slide` (move), `whoosh` (move), `stamp` (land), `typewriter` (appear), plus one
+`hero` sound (`thump-tap`: a low thump with a light tap, for a scene's one big reveal).
+Template `sfxCues` reference these by name and type. The engine places them from the
+timeline (engine "Sound cues") and mixes them into the final audio; the `sequence.sfx`
+flag turns them off, and a scene's `sfxOff` mutes single cues. Every file is listed in
+`assets/sfx/CREDITS.md` with its source and licence, and passes the SFX rules (Part A).
 
 ### Agent guide (`guide.md`)
 
@@ -292,14 +376,16 @@ captions, overlays and guide over existing templates. No new templates in this v
 1. **Ingest** the reference into a scratch project (engine `ingest` with
    `{ proxies: false }`).
 2. **Measure** (no LLM):
-   - Shot boundaries via ffmpeg scene detection → shot list, average shot length
-     → `pacing.beatMs`.
+   - Shot boundaries from the engine `shots` stage (ffmpeg `scdet`) → shot list,
+     average shot length → `pacing.beatMs`.
    - Keyframes: one per shot plus one per 2 s → contact sheets.
    - Colour palette: k-means (k = 8) over keyframes → candidate colour tokens.
    - Speaker share: faces detected per shot (engine `facetrack`) → `speakerRatio`.
    - Caption timing: on-screen text via Apple Vision OCR (`VNRecognizeTextRequest`
      through `pyobjc-framework-Vision`, MIT) on keyframes at 4 fps; text regions over
-     time → words per caption, position, case.
+     time → words per caption, position, case. `pyobjc-framework-Vision` is already a
+     v1 dependency (facetrack saliency, plan D-15), so Part C adds no Python package
+     for OCR.
 3. **Describe** (vision LLM via the agent's provider config, spec 3): send contact
    sheets plus measurements and ask for structured JSON: font classification (serif /
    sans / mono, weight, case), caption look, motion vocabulary (frame hold, entrances,
@@ -330,7 +416,8 @@ reference repair loops. They would run untrusted (no `build.mjs`).
 
 ## Testing
 
-- **Schema tests**: `style.json` / `template.json` validation, `extends` resolution,
+- **Schema tests**: `style.json` / `template.json` / `captions/<preset>.json`
+  validation, `extends` resolution,
   cycle rejection, built-in id collision rejected, template identity through a chain,
   `TEMPLATE_VERSION` and migration.
 - **Template tests**: lint + render every fixture of every built-in template (draft
@@ -344,12 +431,36 @@ reference repair loops. They would run untrusted (no `build.mjs`).
   runs its hook.
 - **Part C**: measurement steps on a fixture video with known cuts, colours and burnt-in
   captions; LLM steps with a mocked model returning fixed JSON.
+- **SFX (plan D-14)**: the kit check passes on every built-in style's SFX and fails on
+  generated bad samples (sine beep, noise bed, click at start, two hits in one file);
+  `CREDITS.md` lists every file.
+- **Cue timing**: for every template fixture with `sfxCues`, the rendered frames are
+  measured (per-frame pixel difference): a `cut` or `appear` cue sits within 1 frame of a
+  difference spike, a `land` cue within 1 frame of where motion falls below the
+  threshold, a `move` cue within 2 frames of peak motion.
+- **Caption presets (plan D-15)**: every built-in preset, `base/plain` included, renders
+  a fixture `CaptionChunk[]` (two lines, one emphasis word, a 200 ms gap) on 9:16:
+  - active word: at a frame inside word 2's time, word 2 has the active look and words 1
+    and 3 have the read and unread looks (computed styles from the composition's DOM,
+    plus a pixel check of the word boxes); the same frame reached by seeking backwards
+    is byte-identical;
+  - emphasis: the emphasis word has its own look at every state;
+  - safe area: every word box stays above `100 − bottomPct` and inside the
+    `rightPct` margins, also with `position.yPct` set to 95;
+  - `case` and `stripPunctuation` change the injected text and SRT export does not
+    change.
+- **`minEntranceMs`**: a fixture template with `minEntranceMs: 2000` rendered at 1500 ms
+  shows its resting state at frame 0 (every element the entrance animates has its final
+  opacity and transform, read from the DOM); rendered at 3000 ms, frame 0 differs from
+  the 1500 ms frame 0 (the entrance runs). A variables schema that declares
+  `skipEntrance` fails `vox style validate`.
 
 ## Done when
 
-1. Parts A and B (v1): `vox style validate vox` passes; the 4 v1 templates, 2
-   transitions, overlay and 2 caption presets render; the user approves the
-   side-by-side sheet against the reference reel.
+1. Parts A and B (v1): `vox style validate vox` passes (including the SFX rules and cue
+   timing); the 4 v1 templates, 2 transitions, overlay and 2 caption presets render; the
+   user approves the side-by-side sheet against the reference reel and, by ear, the
+   five `LISTEN.md` timecodes of the sheet's audio QA.
 2. A sequence can mix `vox` and `base` templates and compile.
 3. v1.1: the remaining 4 templates pass the same bar.
 4. Part C: from a user-chosen reference video it produces a draft style plus

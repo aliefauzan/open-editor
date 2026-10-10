@@ -44,7 +44,9 @@ Reports to the owner in English, terse. Code, file names and comments in English
 - Plan: plan/README.md (phase map, gates), plan/PROGRESS.md (status), plan/log/DECISIONS.md
   (decisions; a newer decision beats older text), plan/ref/R1..R7 (layout, contracts, conventions,
   security, pins, models, fixtures).
-- Machine: macOS 14+ on Apple Silicon (the owner's M5). Node 24 + pnpm (version pinned in
+- Machine: the owner's M5 (Apple Silicon) on macOS 27 with Xcode 27 (macOS 27 SDK; the Apple helper
+  needs the macOS 26 SDK or newer, D-16). The app supports
+  macOS 14+ on Apple Silicon. Node 24 + pnpm (version pinned in
   package.json "packageManager"). Python via uv in py/. Never call bare `python3`; use `uv run`.
 - The repo may have no git remote. Never push unless PUSH is yes and `origin` exists.
 </context>
@@ -59,6 +61,8 @@ Reports to the owner in English, terse. Code, file names and comments in English
      MANUAL STEP, and whose prerequisites (plan/README.md §3) are all [x]. Skip phases that wait.
      If no phase qualifies, list the open gates and manual steps, then stop.
    - Phase 00 also needs every item under "Before phase 00" in plan/TODO.md ticked.
+   - A phase marked `[~] waiting: manual <step>` counts as waiting until the owner sends
+     `done: <item>`; then it comes first.
    - PHASE = number: open plan/phase-<NN>-*.md. If missing, stop and list the phases.
    - If a prerequisite is not [x], stop and say which one.
 
@@ -98,10 +102,18 @@ Reports to the owner in English, terse. Code, file names and comments in English
       without the owner's explicit yes.
    f. A product question the specs do not answer: pick the simplest option that keeps the phase's
       done-when, record it as D-NN in DECISIONS, and continue.
-   g. Steps that need a human (second Mac account, Gatekeeper, DaVinci Resolve, a friend's Mac,
-      approving a visual sheet, provider accounts): prepare everything, then write a numbered
-      "MANUAL STEP" checklist in the phase log and add it to plan/TODO.md. A step marked
-      "optional — does not block merge" is listed the same way but never blocks step 11.
+   g. Steps that need a human (Gatekeeper "Open Anyway", DaVinci Resolve, the owner's install from the
+      GitHub Release, approving a visual sheet, listening to audio timecodes, provider accounts, real
+      URLs; no second Mac account or friend's Mac is required, D-16):
+      prepare everything, then write a numbered "MANUAL STEP" checklist in the phase log and add
+      it to plan/TODO.md "Manual steps". A step marked "optional — does not block merge" is listed
+      the same way but never blocks step 11.
+      A required MANUAL STEP in the middle of a phase never stalls auto mode (D-12): finish every
+      remaining step that does not depend on it, run the Verify commands that can run, commit, mark
+      the phase `[~] waiting: manual <step>` in PROGRESS.md, do not merge, and go to step 12 (other
+      phases whose prerequisites are [x] may run). Never guess a manual result.
+      A gate inside a phase (GATE 4 in 08, when it stops) is handled the same way (D-16): finish the
+      steps that do not depend on it, mark the phase `[~] waiting: GATE <n>`, do not merge.
    h. Commit at each green checkpoint: `phase-<NN>: <what>` (R3 §git).
 
 7. REVIEW. Run the review agents listed for the phase in R6 on the phase diff (R6 is the only list).
@@ -124,6 +136,9 @@ Reports to the owner in English, terse. Code, file names and comments in English
    list in the engine spec "Spike" (fallbacks are pre-written). GATE 4 is a normal gate only if the
    benchmark fails or lands within 10 % of the bar, or the prototype fails the pass rule in the app
    spec "Timeline implementation".
+   Judgement gates GATE 3 and GATE 6 (D-16): after 3 rounds without approval, ask the owner to choose
+   (a) keep iterating or (b) accept the style as the v1 look, with the open notes written to the phase
+   log as backlog. Never accept on the owner's behalf.
 
 10. LOG. Fill plan/log/phase-<NN>.md (format in plan/log/README.md): status, checklist, files created
     or changed, verify results, done-when + evidence, deviations (+ DECISIONS links), MANUAL STEPS,

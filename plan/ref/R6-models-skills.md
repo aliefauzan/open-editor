@@ -8,18 +8,18 @@ building work.
 |---|---|---|---|---|
 | 00 | Sonnet 5.5 · medium | superpowers:test-driven-development | code-reviewer, typescript-reviewer | — |
 | 01 | Opus 5.5 · high | superpowers:systematic-debugging (for failures), hyperframes docs | code-reviewer, typescript-reviewer | — (measures only) |
-| 02 | Opus 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer, type-design-analyzer | yes (S1, S25) |
+| 02 | Opus 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer, type-design-analyzer | yes (S1, S25, S36) |
 | 03 | Opus 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer | S8, S9 |
-| 04 | Opus 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer, python-reviewer, silent-failure-hunter | yes (S2–S6; S17, S19 engine parts) |
-| 05 | Sonnet 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer, python-reviewer | yes (S7, S29) |
+| 04 | Opus 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer, python-reviewer, silent-failure-hunter | yes (S2–S6, S33; S17, S19 engine parts) |
+| 05 | Sonnet 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer, python-reviewer | yes (S7, S29, S32) |
 | 06 | Sonnet 5.5 · medium | superpowers:test-driven-development | code-reviewer, typescript-reviewer | S8 |
 | 07 | Opus 5.5 · high | frontend-design (template look), hyperframes docs | code-reviewer, typescript-reviewer | S9 |
 | 08 | Opus 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer, react-reviewer | yes (S1, S10–S15, S28) |
 | 09 | Sonnet 5.5 · high | — | code-reviewer, typescript-reviewer, silent-failure-hunter | yes (S16, S27, S31) |
 | 10a | Sonnet 5.5 · high | frontend-design, superpowers:test-driven-development | code-reviewer, react-reviewer, typescript-reviewer, a11y-architect | UI only |
-| 10b | Sonnet 5.5 · high | frontend-design, superpowers:test-driven-development | code-reviewer, react-reviewer, typescript-reviewer, a11y-architect | UI only |
-| 11 | Opus 5.5 · high | superpowers:test-driven-development, claude-api (AI SDK) | code-reviewer, typescript-reviewer, swift-reviewer (`native/apple-llm`), silent-failure-hunter | yes (S17–S24, S30) |
-| 12 | Opus 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer | yes (S20 eval) |
+| 10b | Sonnet 5.5 · high | frontend-design, superpowers:test-driven-development | code-reviewer, react-reviewer, typescript-reviewer, a11y-architect | S32 (export targets, `reveal`), S36 (app part) |
+| 11 | Opus 5.5 · high | superpowers:test-driven-development, claude-api (AI SDK) | code-reviewer, typescript-reviewer, swift-reviewer (`native/apple-llm`), silent-failure-hunter | yes (S17–S24, S30, S32 tool list, S34, S35) |
+| 12 | Opus 5.5 · high | superpowers:test-driven-development | code-reviewer, typescript-reviewer | yes (S20 eval, S34 image case, S35) |
 | 13 | Sonnet 5.5 · high | frontend-design | code-reviewer, react-reviewer, e2e-runner | yes (full R4 pass) |
 | 14 | Sonnet 5.5 · high | per sub-item | code-reviewer, typescript-reviewer, python-reviewer | as touched |
 | 15 | Opus 5.5 · high | — | code-reviewer, typescript-reviewer, python-reviewer | S8 (extracted styles untrusted; inherited trusted templates keep hooks) |

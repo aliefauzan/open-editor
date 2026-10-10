@@ -4,7 +4,7 @@
 |---|---|
 | Track | styles |
 | Prereq | 03 (may run in parallel with 04/05) |
-| Spec § | styles "Part A" (template rules, versions/migration, compile hook trust, style registry CLI), "Testing" (schema, template, hooks) |
+| Spec § | styles "Part A" (template rules incl. `minEntranceMs`, caption presets, versions/migration, compile hook trust, style registry CLI), "Testing" (schema, template, hooks, caption presets, `minEntranceMs`) |
 | Model | Sonnet 5.5 · medium |
 | Gate | — (style format freezes at the end) |
 | Next | 07 |
@@ -24,7 +24,15 @@ generate previews.
 
 - `vox style validate <styleId>`: schema check, lint every template (`lint --json`), render every fixture
   (`render --strict-all`, draft), safe-area bounding-box check for the longest text fixture, missing-asset
-  check, contact sheet `previews/contact.jpg`, per-template thumbnail + GIF in `previews/`.
+  check, contact sheet `previews/contact.jpg`, per-template thumbnail + GIF in `previews/`; for styles with
+  `sfx`: a `CREDITS.md` entry per file, and the cue-timing check for every fixture with `sfxCues`
+  (per-frame pixel difference on the fixture render; styles spec "Testing", D-14). The SFX kit rules
+  join `validate` in 07, once 05's `audio-qa --kit` exists (06 may run before 05).
+  D-15 checks: `minEntranceMs` (a positive integer when set; a variables schema that declares the
+  reserved `skipEntrance` fails); every caption preset has `captions/<preset>.json` that passes the
+  preset schema (`case`, `stripPunctuation`, `safeArea`, `position`); each preset renders a sample
+  `CaptionChunk[]` into the contact sheet and passes the caption preset checks (word states,
+  emphasis, safe area, `case`/`stripPunctuation`; styles spec "Testing").
 - `vox style new <styleId> [--extends vox]`: scaffold (rejects built-in ids and existing ids).
 - `vox style trust <styleId>`: sets `trusted: true` for a user style after a confirmation prompt.
 - `engine.styles.accept(id)`, `remove(id)` (non-built-in only).
@@ -48,6 +56,18 @@ generate previews.
 4. [ ] Safe-area check: render longest-text fixture, read text bounding boxes via the composition DOM,
        assert inside 1080×1920 safe area.
 5. [ ] `validate` on `base` passes and writes previews; `new` + `trust` + `remove` round trip.
+5b. [ ] `minEntranceMs` in `validate` (D-15): a fixture template with `minEntranceMs: 2000` rendered at 1500 ms
+       shows its resting state at frame 0 (every element the entrance animates has its final opacity and
+       transform, read from the DOM); rendered at 3000 ms, frame 0 differs from the 1500 ms frame 0; a
+       variables schema declaring `skipEntrance` fails `validate` with the rule named.
+5c. [ ] Caption presets in `validate` (D-15): a preset with no `.json` or a bad `case` fails; the
+       contact sheet holds one frame per preset from the fixture `CaptionChunk[]` (two lines, one emphasis
+       word, a 200 ms gap) at a frame inside word 2, so the active-word state shows; the word-state,
+       emphasis and safe-area checks (03 step 9c) run for every preset of the style, also with
+       `position.yPct` 95; `base/plain` passes.
+6. [ ] Cue timing and credits in `validate` (D-14): a missing `CREDITS.md` entry fails; a fixture whose
+       `appear` cue is 4 frames off the measured pop (per-frame pixel difference) fails; a correct test
+       style passes.
 
 ## Verify
 
@@ -60,16 +80,19 @@ pnpm -C packages/cli exec vox style validate base --json
 
 - [ ] `vox style validate base` passes and writes `styles/base/previews/contact.jpg`.
 - [ ] S8 `migrate` part passes (untrusted `migrate` never runs).
-- [ ] Styles spec "Testing" schema/template/hook bullets covered.
-- [ ] R2: style format marked frozen.
+- [ ] Styles spec "Testing" schema/template/hook bullets covered, plus the cue-timing, caption-preset and
+      `minEntranceMs` bullets (D-15; the SFX kit bullet is closed in 07).
+- [ ] R2: style format and caption preset format marked frozen.
 
 ## Risks and fallback
 
 | Risk | Fallback |
 |---|---|
+| Cue-timing measurement noisy on grain overlays | Measure with overlays off and a fixed seed; the rule only checks cue types it can measure |
 | Bounding boxes hard to read from the rendered DOM | Use HyperFrames' snapshot/DOM hook at a frame; else a headless Chrome page that mounts the composition at the fixture's last frame |
 
 ## Handoff notes
 
-- Phase 07 uses `vox style validate vox` as its quality gate.
+- Phase 07 uses `vox style validate vox` as its quality gate, incl. the caption preset checks for
+  `vox/mono-box` and `vox/serif-lower` (D-15).
 - Phase 15 uses `new`-style scaffolding for extracted styles (`status: draft`, `trusted: false`).

@@ -28,6 +28,11 @@ they need are defined here.
 - Transcription: `mlx-whisper` with the pinned repo `mlx-community/whisper-large-v3-turbo`
   (weights converted from OpenAI's MIT release), auto language detection, word
   timestamps.
+- Speech gate and framing (plan D-15): Silero VAD (MIT) runs as ONNX through
+  `onnxruntime` (MIT), with no torch: the `silero-vad` pip package pulls in torch, so
+  its ONNX model file is vendored at `py/vox_py/models/silero_vad.onnx` with its MIT
+  licence and SHA-256 (pinned in plan R5), and `vox_py.vad` calls it directly. Framing falls back to Apple Vision through
+  `pyobjc-framework-Vision` (MIT), which is now a v1 dependency, not only styles Part C.
 - Images: Wikimedia Commons + Openverse (no key) with a licence allowlist; `rembg`
   cutouts with a permissively licensed model (never `bria-rmbg`). Local image
   generation is deferred to v1.1 (see "Image generation provider").
@@ -47,7 +52,7 @@ they need are defined here.
 3. A sequence compiles to one HyperFrames composition. The same compiled HTML is used
    for live preview and final render, so preview matches export. (Exception: if the
    spike fails, export uses the layer renderer; see "Spike".)
-4. Ingest, transcription, face tracking, asset fetching and cutouts are cached,
+4. Ingest, transcription, shot detection, face tracking, asset fetching and cutouts are cached,
    resumable, idempotent stages.
 5. Export to MP4, SRT/VTT captions, and an editable OTIO timeline for DaVinci Resolve.
 6. A stable library API with change events and job progress, so the desktop app (4) and
@@ -77,7 +82,15 @@ videoeditor/
       src/history/           # change records, undo cursor, recovery, lockfile
       src/compile/           # sequence → HyperFrames project (in memory + to disk)
       src/audio/             # ffmpeg mix graph from the model
-      src/stages/            # ingest, transcribe, facetrack, assets, render, export
+      src/render/            # layer renderer (ProRes 4444 MOV) + hybrid compositor
+      src/stages/            # ingest, transcribe, shots, facetrack, assets, render (+ mux,
+                             # uses src/render), export, audioQa, quickClips
+                             # (shots.ts runs ffmpeg `scdet` itself; no Python)
+      src/export/target.ts   # export targets {file}|{dir}: temp + rename, no silent replace
+      src/net/               # filtering proxy, private-address check
+      src/errors.ts          # VoxError + codes
+      src/log.ts             # logs/engine.log writer, rotated at 5 MB, 3 files (plan D-16)
+      src/text/fillers.ts    # filler word lists per language (plan D-15)
       src/styles/            # style registry + loader (format defined in spec 2)
       src/jobs.ts            # job runner with progress events
       src/api.ts             # public library API
@@ -94,7 +107,10 @@ videoeditor/
   py/                        # uv project, Python 3.12
     pyproject.toml
     vox_py/transcribe.py     # mlx-whisper
-    vox_py/facetrack.py      # MediaPipe Tasks FaceDetector
+    vox_py/vad.py            # Silero VAD (ONNX, onnxruntime); used by transcribe.py
+    vox_py/models/silero_vad.onnx  # vendored, MIT; SHA-256 in plan R5
+    vox_py/facetrack.py      # MediaPipe Tasks FaceDetector + Apple Vision body and
+                             # saliency (pyobjc-framework-Vision)
     vox_py/cutout.py         # rembg
     vox_py/timeline.py       # opentimelineio export
   projects/                  # dev scratch only, gitignored (real projects: "Project folder")
@@ -143,17 +159,26 @@ or app), then `~/.vox/styles`. Tool paths: the app's tools directory
   history/                   # rotated history segments + snapshots
   project.lock               # cross-process write lock (transient)
   media/<mediaId>.<ext>      # originals
+  media/<mediaId>.cfr.mp4    # constant-frame-rate copy of a VFR video (plan D-15)
   proxies/<mediaId>.mp4      # 540p H.264, all-keyframe-every-0.5 s, for preview
   audio/<mediaId>.m4a        # extracted audio for preview <audio> elements
   thumbs/<mediaId>.jpg       # sprite sheet (1 frame / 2 s) for the UI
   peaks/<mediaId>.json       # audio waveform peaks for the UI
   transcripts/<mediaId>.json
+  shots/<mediaId>.json       # shot list { startMs, endMs }[] (see "Shots and framing")
   facetracks/<mediaId>.json
   build/<sequenceId>/        # compiled HyperFrames project (regenerated)
-  renders/                   # exports
-  snapshots/<name>.json      # named project snapshots
+  renders/                   # default export folder (CLI without -o/--out-dir; agent never exports)
+  renders/qa/<sequenceId>/   # audio QA: qa.json, qa.png, LISTEN.md (see "Audio QA"); last run kept
+  runs/<runId>.jsonl         # agent run records (spec 3 "Agent loop"); kept with the project
+  logs/engine.log            # engine log lines (e.g. migrations); rotated at 5 MB, 3 files kept
+  snapshots/<name>.json      # named project snapshots; auto-pre-migrate-v<N>.json before a migration
   cache/                     # hash-keyed stage outputs; cache/assets/<queryHash>.json
+  cache/prerender/<hash>.mp4 # preview pre-render cache, only if enabled (see "Layer renderer")
 ```
+
+Exports may also be written outside the project folder, but only to a path the user
+chose (see "Export targets").
 
 All paths in `project.json` are relative to the project folder. Path rule, used by the
 loader, compile, and the desktop app's `vox-media://` protocol handler: decode once; reject NUL bytes,
@@ -165,21 +190,33 @@ copied, never symlinked.
 
 ### Time and the frame grid
 
-Timeline times are integer milliseconds that lie on the sequence's frame grid:
-`ms(f) = Math.round(f * 1000 / fps)` for an integer frame `f`, and
-`frame(ms) = Math.round(ms * fps / 1000)`, which round-trips exactly for grid values.
+A frame rate is a rational `{ num, den }` from a fixed set (plan D-15): 24/1, 25/1, 30/1,
+60/1, 24000/1001, 30000/1001 and 60000/1001 (23.976, 29.97 and 59.94 fps). Times stay
+integer milliseconds.
+
+Timeline times lie on the sequence's frame grid:
+`ms(f) = Math.round(f * 1000 * den / num)` for an integer frame `f`, and
+`frame(ms) = Math.round(ms * num / (1000 * den))`, which round-trips exactly for grid
+values at every rate in the set.
 Every operation snaps an item's start and end to the grid, then stores
 `durationMs = end − start`, so adjacent items never gap or overlap by a frame. Compile
 uses `startFrame = frame(startMs)` and `endFrame = frame(startMs + durationMs)`.
 Changing a sequence's fps re-snaps all items in that sequence (one history entry).
-Source offsets (`inMs`) are snapped to the same grid.
+Source offsets (`inMs`) are snapped to the **source** frame grid (`MediaItem.fps`), not
+the sequence grid, so a 29.97 source in a 30 fps sequence never lands between source
+frames. Media with no `fps` (audio, images) use the sequence grid.
 
 ### Schema
 
 Loading rejects unknown fields, so a new field always comes with a `schemaVersion` bump
-and a load-time migration.
+and a load-time migration. The plan D-15 fields below are part of `schemaVersion: 2`:
+the contracts are not frozen until phase 02, so they need no migration.
 
 ```ts
+Fps { num: number; den: number }   // one of 24/1, 25/1, 30/1, 60/1,
+                                   // 24000/1001, 30000/1001, 60000/1001
+
+
 Project {
   schemaVersion: 2
   id: string; name: string
@@ -197,6 +234,12 @@ MediaItem {
   textPath?: string                                // documents: extracted plain text
   durationMs?: number        // video/audio only
   width?: number; height?: number; hasAudio?: boolean
+  fps?: { num: number; den: number }   // video only: source rate, any value
+                             // (for VFR, the CFR copy's rate); see "Ingest analysis"
+  vfr?: boolean              // video only: variable frame rate detected at ingest
+  cfrPath?: string           // VFR only: media/<id>.cfr.mp4, used instead of `path`
+  loudness?: { integratedLufs: number; truePeakDb: number }  // audio-bearing media
+  shotsPath?: string         // video only: shots/<id>.json
   origin: { type: 'url' | 'upload' | 'archive' | 'generated'
             url?: string; license?: string; licenseUrl?: string
             author?: string; attribution?: string; prompt?: string }
@@ -207,7 +250,7 @@ MediaItem {
 
 Sequence {
   id: string; name: string
-  canvas: { width: number; height: number; fps: 24 | 25 | 30 | 60 }
+  canvas: { width: number; height: number; fps: Fps }   // default 30/1
   styleId: string            // default style for captions, overlays, agent hints
   videoTracks: Track[]       // index 0 is the bottom layer
   audioTracks: Track[]
@@ -239,12 +282,17 @@ MediaClip extends ItemBase {
   mediaId: string
   inMs: number               // offset into the source; 0 for images
   // video tracks:
-  frame?: { mode: 'cover' | 'contain' | 'facetrack' | 'manual'
-            x?: number; y?: number; scale?: number; faceIndex?: number }
+  frame?: { mode: 'cover' | 'contain' | 'facetrack' | 'auto' | 'manual'
+            x?: number; y?: number; scale?: number; faceIndex?: number
+            stability?: 'locked' | 'smooth' | 'follow'     // default 'smooth'
+            trackSpeed?: 'slow' | 'normal' | 'fast'        // default 'normal'
+            keyframes?: { atMs: number; x: number; y: number; scale: number }[] }
+            // atMs relative to the item start (see "Shots and framing")
   motion?: { type: 'none' | 'push-in' | 'pan'; amount: number }   // images only
   // audio tracks:
   volume?: number            // linear gain 0..2, default 1
   fadeInMs?: number; fadeOutMs?: number   // default 0
+  denoise?: 'off' | 'light' | 'strong'    // default 'off' (see "Audio")
 }
 
 SceneClip extends ItemBase {
@@ -252,6 +300,7 @@ SceneClip extends ItemBase {
   template: string           // '<styleId>/<templateName>', e.g. 'vox/paper-collage'
   templateVersion: string    // the template's full semver when placed; compile compares majors
   variables: Record<string, unknown>   // validated against the template's schema
+  sfxOff?: string[]          // names of this scene's sfxCues that are muted (plan D-14)
 }
 
 CaptionTrack {
@@ -259,9 +308,14 @@ CaptionTrack {
   sourceTrackIds: string[]   // audio tracks whose clips provide the spoken words
   preset: string             // full id '<styleId>/<presetName>'
   maxWords: number           // words per chunk, default 3
+  maxLines: number           // lines per chunk, default 1
+  maxCharsPerLine: number    // default 18
+  gapFillMs: number          // default 400 (see "Captions")
+  autoEmphasis?: boolean     // default false: mark numbers and capitalised non-initial words
   position: { yPct: number } // default from the preset
   overrides: { wordKey: string; text?: string | null; breakAfter?: boolean
-               startMs?: number; endMs?: number }[]   // startMs/endMs in source-media time
+               startMs?: number; endMs?: number    // startMs/endMs in source-media time
+               emphasis?: boolean }[]
 }
 ```
 
@@ -280,25 +334,79 @@ Track-kind rules:
 A sequence may use templates from any installed style; `styleId` only sets defaults
 (caption preset, overlays, which templates the agent is offered first).
 
+### Transcripts (plan D-15)
+
+`transcripts/<mediaId>.json` is written by the `transcribe` stage. Times are source-media
+milliseconds.
+
+```ts
+Transcript {
+  language: string
+  words: TranscriptWord[]    // in time order; wordIndex = position in this array
+  speechRegions: { startMs: number; endMs: number }[]   // from the speech gate
+}
+
+TranscriptWord {
+  text: string               // '' for a pause
+  startMs: number; endMs: number
+  kind: 'word' | 'pause' | 'repeat' | 'filler'
+}
+```
+
+`kind` is computed by the engine after Whisper returns, never by Whisper:
+
+- `filler`: the word is in the filler list for the transcript's language
+  (`src/text/fillers.ts`).
+- `repeat`: a 1–3-word n-gram that is repeated back to back; the earlier copy is marked,
+  so the speaker's restart is kept.
+- `pause`: a gap of at least 350 ms (the `removePauses` default `minPauseMs`) between two
+  words, stored as a pseudo-word with empty `text`.
+- `word`: everything else.
+
+Pause pseudo-words count in `wordIndex`, so they have a `wordKey` like any word.
+
 ### Captions
 
 `deriveCaptions(project, sequenceId) → CaptionChunk[]` is a pure function exported from
 the model module, used by compile and the SRT/VTT exporter. The library API wraps it as
 `engine.captions(projectId, sequenceId)` for the UI caption lane.
 
+```ts
+CaptionChunk { startMs: number; endMs: number; lines: { words: CaptionWord[] }[] }
+CaptionWord  { key: string; text: string; startMs: number; endMs: number; emphasis: boolean }
+// key = wordKey; all times are timeline ms
+```
+
+Presets get each word's times, so they can style read, active and unread words
+(karaoke). Case, punctuation and the safe area are preset settings (spec 2), not track
+fields; compile applies `case` and `stripPunctuation` (see "Compile").
+
 - For each `MediaClip` on a source audio track, take transcript words whose midpoint lies
   in `[inMs, inMs + durationMs)`, shift them to timeline time, and clamp them to the clip.
+  Pause pseudo-words (`kind: 'pause'`) are never captions; fillers and repeats are,
+  until they are cut.
   Zero-length words get one frame. Overlapping words are trimmed to the next word's start.
 - Apply overrides. `wordKey` = `<mediaId>:<transcriptRev>:<wordIndex>`, so a
   re-transcription orphans old overrides instead of misapplying them; orphans are
   reported by `vox doctor <project>` and dropped by `setCaptions`.
 - Chunk by `maxWords`, by pauses over 300 ms, at clip boundaries and after any word
   with `breakAfter`.
+- Lines (plan D-15): words fill a line up to `maxCharsPerLine` characters (a single
+  longer word gets a line of its own). A chunk that would need more than `maxLines`
+  lines ends early, and the next chunk starts with the word that did not fit.
+- Emphasis: a word's `emphasis` is its override's `emphasis` when set. Otherwise, with
+  `autoEmphasis`, numbers and capitalised words that are not the first word of a
+  sentence are emphasised; without it, no word is.
+- Timing: inside a chunk, each word's end extends to the next word's start, so the
+  active word never blinks off. A chunk's end extends to the next chunk's start when the
+  gap between them is shorter than `gapFillMs`.
 - Where two source tracks overlap in time, the lower track index wins.
 - For languages written without spaces (e.g. Japanese, Chinese), Whisper's tokens are
   used as-is and chunking is by character count (`maxWords × 4`).
 
-Trimming or moving a clip keeps captions correct because they are derived.
+Trimming or moving a clip keeps captions correct because they are derived. SRT and VTT
+write one cue per chunk and one text line per chunk line; the preset's `case` and
+`stripPunctuation` do not apply to them.
 
 Editing captions (plan D-11): transcripts are sometimes wrong, so every caption is
 editable through `setCaptions` overrides, one undoable entry per edit:
@@ -310,7 +418,10 @@ editable through `setCaptions` overrides, one undoable entry per edit:
   and snapped to the frame grid like any word).
 - `breakAfter` ends a chunk after the word; it is how chunks are split or (by removing
   it) merged.
+- `emphasis` turns emphasis on or off for one word, over `autoEmphasis` (plan D-15).
 - The transcript itself is never edited, so "reset" removes the overrides.
+- Each override is its own history entity (`captionOverride:<seqId>/<wordKey>`, see
+  "History"), so a word edit records one small entity.
 
 ### Transitions
 
@@ -321,6 +432,8 @@ track, centred on the cut, for `durationMs`. Templates that blend the two shots 
 crossfade) need source handles: the outgoing and incoming media must extend
 `durationMs / 2` beyond the cut. If not, the op fails with `NO_HANDLES` and
 the hint suggests a cover-style transition. Items still never overlap in the model.
+A quick clip is one source range with no handles beyond `sourceRange`, so Stylize and
+the clipper default to cover-style transitions at clip edges (plan D-15).
 
 ### Base style
 
@@ -339,7 +452,9 @@ Every other style `extends: base`, directly or through a chain.
 
 `src/ops/` exports pure functions `(project, args) => project`, each with a zod schema
 for `args`. Every operation that touches a timeline takes `sequenceId`. The agent's
-write tools are generated from this table, so every op is available to the agent.
+write tools are generated from this table, so every op is reachable by the agent: each
+workflow exposes a small set directly and the rest through `describe_tool`/`call_tool`
+(agent spec "Tools", plan D-15).
 
 | Operation | Purpose |
 |---|---|
@@ -357,10 +472,25 @@ write tools are generated from this table, so every op is available to the agent
 | `rippleDelete` | delete a range and close the gap on the track and all sync-locked tracks |
 | `link`, `unlink` | set or clear `linkId` on items |
 | `setTransition` | set or clear `transitionIn` on an item |
-| `setCaptions` | enable/configure captions, word overrides |
+| `setCaptions` | enable/configure captions, word overrides (including `emphasis`) |
+| `removePauses` | `{ sequenceId, minPauseMs = 350, keepMs = 80, kinds = ['pause'], wordKeys?, dryRun? }`: cut pauses (and, if `kinds` adds `'filler'` or `'repeat'`, those words) from the spoken audio; `wordKeys` limits the cut to the listed ranges; see below |
+| `removeWords` | `{ sequenceId, wordKeys[], dryRun? }`: text-based cutting; cut the named words from the spoken audio |
 | `pasteItems` | place copied items (serialised items with new ids) at a time on mapped tracks |
 | `restoreSnapshot` | replace sequences and media with a snapshot's (one history entry) |
 | `batch` | apply a list of operations atomically (all or nothing, one history entry) |
+
+`removePauses` and `removeWords` (plan D-15) find their words the way `deriveCaptions`
+does (the caption source tracks; `A1` when captions are off) and map each word to a
+timeline range. A pause range keeps `keepMs` of silence (half at each edge); a pause
+shorter than `minPauseMs` is kept. With `wordKeys?: string[]`, only the pause, filler and
+repeat ranges whose word keys are listed are removed, still keeping `keepMs` at the edges;
+this is how a ticked subset of the review list is applied. Ranges are snapped to the
+frame grid and merged where they touch. The op expands to one `batch` of `rippleDelete`
+ranges, latest first, over the linked video and audio items, so the whole removal is
+one undo entry. With
+`dryRun: true` it returns the ranges (`{ startMs, endMs, kind, wordKeys }`) in its result
+and writes nothing: no history entry, version unchanged. That list is the review list
+the app and the agent show before applying.
 
 Rules enforced by every operation (invalid input throws `VoxError` with `code`,
 `message`, `hint`):
@@ -375,7 +505,8 @@ Rules enforced by every operation (invalid input throws `VoxError` with `code`,
   fails with `TRACK_LOCKED` naming the track).
 - Scene variables must match the template's schema (recursively for `stack` panels);
   duration must be within the template's bounds.
-- Times are snapped to the frame grid before validation.
+- Times are snapped to the frame grid before validation (`inMs` to the source grid, see
+  "Time and the frame grid").
 
 ## History
 
@@ -392,11 +523,12 @@ stable keys:
 | `sequence:<seqId>` | sequence fields + ordered track ids |
 | `track:<seqId>/<trackId>` | track fields (no items) |
 | `item:<seqId>/<itemId>` | an item plus its `trackId` |
-| `captions:<seqId>` | the CaptionTrack |
+| `captions:<seqId>` | the CaptionTrack's own fields (no overrides) |
+| `captionOverride:<seqId>/<wordKey>` | one caption override (plan D-15) |
 
 `normalise(project) → Map<key, entity>` and `denormalise(map) → project` convert both
-ways (items re-sorted by `startMs`). After an op runs, the engine diffs the normalised
-before/after views and records only changed entities:
+ways (items re-sorted by `startMs`, caption overrides by `wordKey`). After an op runs,
+the engine diffs the normalised before/after views and records only changed entities:
 
 ```ts
 HistoryEntry {
@@ -405,7 +537,10 @@ HistoryEntry {
   kind: 'op' | 'undo' | 'redo'
   actor: 'user' | 'agent' | 'cli' | 'external'
   runId?: string             // agent run that produced it
+  jobId?: string             // job whose result it applied (plan D-15)
   op?: string; args?: unknown           // for 'op'
+  coalesceKey?: string       // see "Coalescing"
+  replaces?: number          // the coalesced entry this one replaces
   targets?: number[]         // for 'undo'/'redo': the versions being undone/redone
                              // (one for a normal undo, several for undoRun)
   changes: { key: string; before: Entity | null; after: Entity | null }[]
@@ -414,6 +549,19 @@ HistoryEntry {
 
 `before: null` = created, `after: null` = deleted. The set of keys is the entry's
 touched set.
+
+Because overrides are separate entities, `undoRun` conflicts on captions are per word:
+a user's edit of one word no longer conflicts with an agent's edit of another.
+
+### Coalescing (plan D-15)
+
+Sliders and typing send many small ops. `applyOp(..., { coalesceKey })` merges them into
+one undo step. A new `op` entry coalesces with the previous entry when that entry is the
+newest in the log, is an `op`, and has the same `coalesceKey`, `actor` and `runId`, and
+when it is less than 1 s old. The log stays append-only: the new entry gets the next
+version and `replaces` the previous one. Its `after` values are the new ones; for each
+key the previous entry touched, its `before` is the previous entry's `before`. The undo
+cursor drops the replaced entry, so one undo reverts the whole gesture.
 
 ### Undo / redo cursor
 
@@ -440,7 +588,25 @@ undo.
 
 ### Write order, crash recovery, locking
 
-`applyOp(projectId, op, { actor, runId?, baseVersion? }) → { version, changes }`:
+`applyOp(projectId, op, { actor, runId?, baseVersion?, coalesceKey?, jobId? }) → ApplyResult`:
+
+```ts
+ApplyResult {
+  version: number
+  changes: { key: string; before: Entity | null; after: Entity | null }[]
+  results: { op: string; status: 'succeeded' | 'failed' | 'conflicted'
+             error?: VoxError; items?: Item[] }[]   // items: touched items' new state
+}
+```
+
+`results` has one entry per op: one for a single op, one per op inside a `batch`
+(plan D-15). An op rejected by validation is `failed`; one rejected because the project
+moved on (`STALE`, `JOB_CONFLICT`) is `conflicted`; each carries its `VoxError`. A batch
+stays all or nothing: when any op is rejected, nothing is applied, `version` is
+unchanged, `changes` is empty, and the other ops are `failed` with no error of their
+own. Lock and file errors (`LOCKED`, `HISTORY_CORRUPT`) still throw.
+
+Steps:
 
 1. Take the cross-process lock: create `project.lock` with `O_EXCL`, containing
    `{ pid, host, startedAt }`. If it exists, was written by this host, and its pid is
@@ -450,7 +616,9 @@ undo.
 2. If `project.json`'s on-disk version differs from the cached one (another process
    wrote), reload and emit `project.changed` with `actor: 'external'`.
 3. If `baseVersion` is given and differs from `project.version`, fail `STALE`.
-4. Run the op and compute `changes`.
+   A job result (`jobId` set) instead fails `JOB_CONFLICT` only when an entry after the
+   job's `baseVersion` touched a key the result touches (see "Library API").
+4. Run the op and compute `changes`; apply coalescing (see "Coalescing").
 5. Append the history line and `fsync` the file.
 6. Write `project.json` to a temp file, `fsync` it, rename over the old file, `fsync`
    the directory.
@@ -459,6 +627,11 @@ undo.
 
 On load, before anything else:
 
+- If `project.json`'s `schemaVersion` is newer than this engine supports, the load fails
+  with `SCHEMA_TOO_NEW` (hint: update Vox Studio) and writes nothing: no lock, no
+  recovery, no migration, no log line in the project (plan D-15).
+- Before a load-time migration from `schemaVersion` N, the engine copies `project.json`
+  to `snapshots/auto-pre-migrate-v<N>.json`; then it migrates.
 - A last history line that does not parse (torn write) is truncated.
 - If the last entry's `version` is `project.version + 1`, its `after` values are
   applied and `project.json` is rewritten (the crash happened between steps 5 and 6).
@@ -499,7 +672,9 @@ Output:
   Hidden tracks are skipped.
 - Each video-track `MediaClip` becomes a timed, always-muted `<video>` or `<img>`
   (`data-start`, `data-duration`, `data-media-start`). `preview` uses proxies; `render`
-  uses originals. `facetrack` framing becomes GSAP keyframes on `object-position`; image
+  uses originals, or the CFR copy (`cfrPath`) for a VFR video (plan D-15). `facetrack`,
+  `auto` and `manual` keyframes (see "Shots and framing") become GSAP keyframes on a CSS
+  `transform` (translate + scale), not `object-position`, so the crop can zoom; image
   `motion` becomes a GSAP transform.
 - Each `SceneClip` becomes a sub-composition mount pointing at a **per-instance file**
   `build/<seq>/scenes/<itemId>.html`. Compile writes it from the template's HTML and
@@ -518,13 +693,19 @@ Output:
   - the output of the template's optional build hook (spec 2), e.g. a projected map SVG.
 - A media id that is not in the library fails compile with `MEDIA_MISSING`.
 - Captions become one generated sub-composition from `deriveCaptions` and the preset's
-  HTML.
+  HTML. Compile passes the `CaptionChunk[]` (word times and emphasis) to the preset
+  through `vox.vars(el)`. Compile, not the preset, applies the preset's `case` and
+  `stripPunctuation` to the word text first (plan D-15).
+- Entrance skip (plan D-15): when a scene's template sets `minEntranceMs` (spec 2) and
+  the item's duration is below it, compile injects the reserved variable
+  `skipEntrance: true` into that scene's variables, and the template skips its entrance
+  animation.
 - Preview audio: each audio-track clip becomes a timed `<audio>` element using
   `audio/<mediaId>.m4a` with static volume (`data-volume`), so the player has sound.
   Fades are approximated with a GSAP volume tween if the spike confirms it works;
   otherwise preview plays without fades. Muted tracks are skipped.
-- SFX: if `sequence.sfx` is true, each scene's `sfxCues` become timed `<audio>`
-  elements in preview.
+- SFX: if `sequence.sfx` is true, the sequence's cue list (see "Sound cues") becomes
+  timed `<audio>` elements in preview.
 - Referenced files are hard-linked (or copied across devices) into the build folder.
 
 Compile is deterministic: the same project and version produce byte-identical output.
@@ -532,11 +713,75 @@ Compile is deterministic: the same project and version produce byte-identical ou
 ### Audio
 
 Final audio never goes through HyperFrames. `src/audio/` builds one ffmpeg filter graph
-from the model: every audio-track clip (`atrim` at `inMs`, `adelay` to `startMs`,
-`volume`, `afade` for fades), SFX cues, track mutes, then `amix` with normalisation off
-and a limiter. `render` renders the picture with HyperFrames (silent) and muxes it with
+from the model: every audio-track clip (`atrim` at `inMs`, `afftdn` when `denoise` is
+not `off`, a gain-to-target, `adelay` to `startMs`, `volume`, `afade` for fades), SFX
+cues, track mutes, then `amix` with normalisation off and a limiter, then `loudnorm`
+(two-pass) to the export loudness target integrated and −1 dBTP true peak.
+
+Per-source level (plan D-15): each clip whose media has `loudness` gets a gain of
+(target − `integratedLufs`) dB before `amix`, so sources recorded at different levels
+match; the final two-pass `loudnorm` stays. `denoise: 'light' | 'strong'` maps to two
+fixed `afftdn` strengths (ffmpeg built in; no RNNoise model files in v1).
+
+The export loudness target is a preset: `youtube` = −14 LUFS (default), `tiktok` =
+−12 LUFS, `broadcast` = −23 LUFS (`render --loudness`).
+`render` renders the picture with HyperFrames (silent) and muxes it with
 this mix. Audio and picture are both placed from the same frame-grid times, so sync
 does not depend on the browser. Ducking (v1.1) adds `sidechaincompress` per track.
+The same graph can write three stems (speech = audio tracks with captions sources,
+other audio tracks, SFX) as WAV for the audio QA; stems skip `loudnorm`.
+
+### Sound cues (plan D-14)
+
+Sound effects are placed from events on the timeline, never typed by hand as frame
+numbers. Compile writes the cue list to `build/<sequenceId>/audio/cues.json`:
+
+```ts
+Cue { atMs: number; sfx: string; type: 'cut' | 'move' | 'land' | 'appear' | 'hero'
+      itemId: string; cueName: string }
+CueList { cues: Cue[]; dropped: { cue: Cue; reason: 'spacing' | 'hero-spacing' | 'muted' }[] }
+```
+
+- Sources: each scene's and each transition's template `sfxCues` (spec 2: `atMs`
+  relative to the item's start, or `'entrance'`; each cue has a `type`), placed at the
+  item's start plus the offset and snapped to the frame grid. A cue named in the item's
+  `sfxOff` is dropped as `muted`; `sequence.sfx: false` drops all.
+- Types follow what happens on screen: `cut` = full-frame change, `move` = frame of peak
+  motion, `land` = frame where motion stops, `appear` = an element pops in, `hero` = the
+  one big moment of a scene (a logo, a reveal).
+- Spacing: a cue closer than 120 ms to an earlier kept cue is dropped (`spacing`); a
+  `hero` cue within 4,000 ms of an earlier kept `hero` is dropped (`hero-spacing`).
+  Drops are listed, never silent.
+- Templates are checked for cue timing by measurement (spec 2 "Testing"), so a cue's
+  `atMs` matches the template's own animation.
+
+### Audio QA (plan D-14)
+
+The engine cannot hear, so it measures. `vox audio-qa <project> [--seq id] [--loudness preset]` (job kind
+`audioQa`, Python tool `vox_py.audioqa`, numpy only, audio read as PCM through ffmpeg)
+renders the stems and the final mix (no picture) and checks:
+
+| Check | Pass rule |
+|---|---|
+| cue timing | each kept cue has an SFX-stem onset within 1 frame of its `atMs` |
+| one event per cue | no second onset inside a cue's sample (two events in one clip) |
+| spacing | no two SFX-stem onsets closer than 120 ms |
+| SFX under speech | while speech is active, SFX short-term loudness is ≥ 6 LU below speech |
+| loudness | final mix at the chosen target ±1 LU integrated (default `youtube`, −14 LUFS); true peak ≤ −1 dBTP; no clipped samples |
+
+It writes `renders/qa/<sequenceId>/qa.json` (each check with its numbers and
+pass/fail), `qa.png` (stem waveforms with a labelled marker per cue, drawn with ffmpeg
+`showwavespic` and `drawbox`/`drawtext`, so a vision model can look at it) and
+`LISTEN.md`: five timecodes for a human ear check (hero cues first, then the loudest SFX
+moments, then the largest speech/SFX overlaps), each with what to listen for. The
+thresholds live in `py/vox_py/audioqa_thresholds.json`; changing one needs a plan
+DECISIONS entry, and a threshold is never loosened to make a check pass. The file
+stores the loudness tolerance (±1 LU), not the target; the target comes from the
+`--loudness` preset (plan D-15), which is not a loosening. The QA reports
+numbers; it never states that the sound is good, because only a person can judge that.
+
+`vox audio-qa --kit <styleId>` checks a style's SFX files instead (spec 2 "SFX rules")
+and writes `qa/kit-<styleId>.png`, one waveform and spectrogram per file.
 
 ### Layer renderer (shared)
 
@@ -549,7 +794,14 @@ transition, the captions, overlays) to ProRes 4444 MOV with alpha using
   `overlay` in the same bottom-to-top order compile uses, then muxed with the audio
   mix. In that case preview (player) and export differ in implementation, and the
   spec's Goal 3 holds only visually; the integration test compares sampled frames of
-  both within a tolerance.
+  both within a tolerance;
+- the preview pre-render cache, if enabled (below).
+
+**Pre-render cache** (plan D-15, conditional): it is built only if the spike's preview
+fps margin on heavy scenes is under 20% (item 4). The app then renders scene instances
+in the background with `renderLayers` into `cache/prerender/<hash>.mp4`, keyed by the
+hash of the instance file, and the player mounts the cached clip instead of the live
+scene. A changed instance file gets a new hash, so a stale clip is never shown.
 
 ### Spike (first implementation task)
 
@@ -564,13 +816,15 @@ source with a burnt-in frame counter and an audio click track:
 - 8 scenes from `base` plus a stand-in `stack` (2 nested panels) and one scene with a
   video slot;
 - an image clip with `push-in`, a `crossfade` transition, captions on;
-- audio on `A1` linked to the cuts.
+- audio on `A1` linked to the cuts;
+- a VFR phone-style clip (variable frame durations, its own burnt-in frame counter) on
+  `V1`, rendered through its CFR copy (plan D-15).
 
 Pass bar (all must hold, measured on the M5):
 
 1. **Cut accuracy**: at every cut, the rendered frame before and after the cut matches
    the ffmpeg-extracted reference frame (frame counter OCR or pixel diff); no ±1-frame
-   error, no grey or black frames.
+   error, no grey or black frames. This includes the cuts on the VFR clip.
 2. **A/V sync**: click-track onsets vs burnt-in flash frames differ by < 1 frame.
 3. **Render speed**: ≤ 5× real time at `--quality draft` (≤ 7.5 min for 90 s).
 4. **Preview**: `<hyperframes-player>` plays the preview build at ≥ 24 fps with no
@@ -582,6 +836,9 @@ Pass bar (all must hold, measured on the M5):
    default), and vendored runtime/GSAP. Opaque mode drops the player's parent-media
    audio proxy and direct timeline access, so the spike also checks that `<audio>`
    inside the composition stays within 1 frame of picture during play and after seeks.
+   The spike also records the **fps margin on heavy scenes** (plan D-15): the lowest
+   fps over any 1 s window while the `stack` scene and the video-slot scene play,
+   as a percentage above 24 fps. It is recorded even when item 4 passes.
 5. **Memory**: peak RSS of the render under 12 GB.
 6. **Op → preview latency**: one `trimItem` → in-memory compile → player update in
    < 1 s; the spike tries a scene-only patch path (replace one instance file and
@@ -590,6 +847,14 @@ Pass bar (all must hold, measured on the M5):
    (`vox.vars(el)` returns each scene's own data), scoped token styles, muted video with
    separate `<audio>`, and GSAP volume tweens either work or are recorded as not
    working.
+8. **Fillers** (recorded, not a pass condition; plan D-15): on a speech fixture that
+   contains "um" and "uh", transcribe with and without the filler `initial_prompt`
+   and record how many fillers survive in each.
+9. **NTSC rate** (plan D-15): the fixture is also rendered as a 30000/1001 sequence
+   (a 29.97 fps source on `V1`). Cut accuracy (item 1) and A/V sync (item 2) must hold.
+   If HyperFrames cannot render a fractional rate frame-exactly, GATE 1 records it,
+   `canvas.fps` keeps only the integer rates, and NTSC sources conform to the nearest
+   integer rate (the CFR copy is made at that rate).
 
 Each item gets up to 3 measurement attempts (fixing the measuring script between attempts
 is allowed). An item still unmeasured after the third attempt counts as failed. The
@@ -618,6 +883,8 @@ Outcome:
 - 4 fails in both sandbox modes, or 6 fails → spec 4 switches to its pre-written "Preview
   fallback" (scene-only player, video via native `<video>` elements outside the player)
   before UI work starts.
+- Item 4 passes but its fps margin on heavy scenes is under 20% → the pre-render cache
+  (see "Layer renderer") is built. GATE 1 records the margin.
 
 The pinned HyperFrames version and the measured numbers are written into this spec.
 
@@ -628,13 +895,14 @@ and a rerun with unchanged inputs is a no-op. Stages run as jobs (below).
 
 | CLI | Does |
 |---|---|
-| `vox doctor` | checks ffmpeg, ffprobe, yt-dlp (+ `yt-dlp-ejs` and deno or node, offers `yt-dlp -U`), uv env, Chromium for HyperFrames, pinned HyperFrames version, model downloads and their licences; prints fixes |
+| `vox doctor` | checks ffmpeg, ffprobe, yt-dlp (+ `yt-dlp-ejs` and deno or node, offers `yt-dlp -U`; reports whether `--impersonate` targets exist, which some TikTok pages need), uv env, Chromium for HyperFrames, pinned HyperFrames version, model downloads and their licences; prints fixes |
 | `vox paths [--json]` | prints the resolved projects folder, styles folders and tool paths (see "Project folder") |
-| `vox quick <url\|path> [--count 3] [--length 30-60] [--name n] [--render]` | quick clips (below): new project, ingest, transcribe, facetrack, `count` captioned 9:16 clips with no style beats and no AI key needed; `--render` also writes MP4 (subtitles burned in) + SRT per clip |
+| `vox quick <url\|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]` | quick clips (below): new project, then the chain ingest → shots → transcribe → facetrack → quickClips, `count` captioned 9:16 clips with no style beats and no AI key needed; `--render` also writes MP4 (subtitles burned in) + SRT per clip, into `--out-dir` when given (see "Export targets"), else the project's `renders/` |
 | `vox new <name>` | creates a project with one empty 9:16 sequence; `styleId` is `vox` if installed, else `base` |
-| `vox ingest <project> <url\|path>...` | download or copy; content-sniffed type; ffprobe metadata; proxy, extracted audio, thumbs, peaks; `addMedia`. Text files (`.txt`, `.md`, `.fountain`, `.pdf`) become `document` media with plain text at `media/<id>.txt` (`.pdf` text via `pypdf`, BSD, in `py/`). `--no-proxies` (API `{ proxies: false }`) skips proxy, thumbs and peaks; styles Part C uses it for reference videos |
-| `vox transcribe <project> [mediaId...]` | mlx-whisper (pinned repo), auto language, word timestamps |
-| `vox facetrack <project> <mediaId>` | MediaPipe Tasks `FaceDetector` (full-range model, downloaded `.tflite`) at 5 fps; tracks every face, picks the largest by default (`faceIndex` overrides); smoothed → crop-centre keyframes |
+| `vox ingest <project> <url\|path>... [--playlist]` | download (YouTube, Instagram, TikTok or any yt-dlp URL; see "Ingest sources") or copy a local file; content-sniffed type; ffprobe metadata; source fps, VFR check and CFR copy, loudness (see "Ingest analysis"); proxy, extracted audio, thumbs, peaks; `addMedia`. Text files (`.txt`, `.md`, `.fountain`, `.pdf`) become `document` media with plain text at `media/<id>.txt` (`.pdf` text via `pypdf`, BSD, in `py/`). `--no-proxies` (API `{ proxies: false }`) skips proxy, thumbs and peaks; styles Part C uses it for reference videos |
+| `vox transcribe <project> [mediaId...]` | Silero VAD speech gate, then mlx-whisper (pinned repo) with a filler `initial_prompt`, auto language, word timestamps; drops non-speech; computes word kinds (see "Speech gate") |
+| `vox shots <project> <mediaId>` | shot detection with ffmpeg `scdet` on the proxy (else the original, scaled) → `shots/<mediaId>.json` (see "Shots and framing") |
+| `vox facetrack <project> <mediaId>` | MediaPipe Tasks `FaceDetector` (full-range model, downloaded `.tflite`) plus Apple Vision body and saliency, at 12 fps on the proxy scaled to 360p; per-shot subject choice with hysteresis (`faceIndex` overrides) → `{ atMs, x, y, scale }` crop keyframes (see "Shots and framing") |
 | `vox assets search <project> "<query>" [--source commons,openverse]` | candidates with licence + author, stored in `cache/assets/<queryHash>.json`; the job result returns them |
 | `vox assets fetch <project> <candidateId>` | download, record licence, `addMedia` (origin `archive`) |
 | `vox assets cutout <project> <mediaId>` | rembg (pinned permissive model) → transparent PNG as a new media item; refused for no-derivatives licences |
@@ -646,47 +914,171 @@ and a rerun with unchanged inputs is a no-op. Stages run as jobs (below).
 | `vox preview <project> [--seq id]` | compile + `npx hyperframes play` |
 | `vox frames <project> [--seq id] --at-ms 1200,5000` | still PNGs of the compiled sequence at canvas size |
 | `vox media-frames <project> <mediaId> --at-ms 1200,5000` | source stills via ffmpeg (agent footage tagging) |
-| `vox render <project> [--seq id] [--range-ms a-b] [--quality draft\|standard\|high] [--captions burn\|none] [-o file]` | final MP4 (quality passed explicitly; HyperFrames' own default is `looks`); `--captions none` renders without subtitles (default `burn` when captions are enabled) |
-| `vox export-captions <project> [--seq id] --format srt\|vtt` | caption file from `deriveCaptions` |
-| `vox export-timeline <project> [--seq id]` | `.otio` timeline referencing originals + layer MOVs (Resolve 18.5+ reportedly imports OTIO natively; secondary sources only, so done-when #5 is the gate, including alpha on the MOV layers) |
+| `vox render <project> [--seq id \| --all] [--range-ms a-b] [--quality draft\|standard\|high] [--captions burn\|none] [--loudness youtube\|tiktok\|broadcast] [-o file \| --out-dir dir] [--overwrite]` | final MP4 (quality passed explicitly; HyperFrames' own default is `looks`); `--captions none` renders without subtitles (default `burn` when captions are enabled); `--loudness` sets the mix target (default `youtube`, see "Audio"); target per "Export targets" |
+| `vox audio-qa <project> [--seq id] [--loudness youtube\|tiktok\|broadcast] [--kit styleId]` | audio QA (see "Audio QA") against the chosen loudness target; prints the check table and the five listen timecodes |
+| `vox export-captions <project> [--seq id] --format srt\|vtt [-o file \| --out-dir dir]` | caption file from `deriveCaptions` |
+| `vox export-timeline <project> [--seq id] [-o file \| --out-dir dir]` | `.otio` timeline referencing originals + layer MOVs (Resolve 18.5+ reportedly imports OTIO natively; secondary sources only, so done-when #5 is the gate, including alpha on the MOV layers) |
 | `vox credits <project>` | licence/attribution list for archive assets used |
 
 `<project>` in every command is the project id, or a project name that matches exactly
 one project; an ambiguous name fails and lists the matching ids.
 
+### Ingest analysis (plan D-15)
+
+- **Frame rate**: ingest stores the video's rate from ffprobe `r_frame_rate` as
+  `MediaItem.fps` (any rate; only `canvas.fps` is limited to the fixed set).
+- **VFR**: a video is variable frame rate when `r_frame_rate` ≠ `avg_frame_rate`, or when
+  its pts deltas spread over more than 1 frame. A VFR video gets a constant-frame-rate
+  copy `media/<id>.cfr.mp4` (`cfrPath`, `vfr: true`) at the rate of the fixed set nearest
+  its average rate (libx264 `-crf 18`, audio copied); `fps` is that rate. The proxy is
+  made from the copy, and render uses it instead of the original, because Chromium
+  seeking on a VFR file lands on a neighbouring frame.
+- **Loudness**: each audio-bearing source is measured with ffmpeg `ebur128` (true peak
+  on) into `MediaItem.loudness { integratedLufs, truePeakDb }`, for the per-clip gain in
+  "Audio".
+
+### Speech gate and word kinds (plan D-15)
+
+`transcribe` runs Silero VAD first (`vox_py.vad`). The ONNX model is vendored at
+`py/vox_py/models/silero_vad.onnx` (MIT, SHA-256 checked on load) and runs through
+`onnxruntime`, so nothing is downloaded at run time and torch is not needed. Then:
+
+- Whisper gets an `initial_prompt` built from the English filler list, so it keeps more
+  fillers (the spike records how many survive).
+- Words whose midpoint lies outside every speech region are dropped. Whisper segments
+  with `no_speech_prob > 0.6` or `compression_ratio > 2.4` are dropped whole. This stops
+  invented text over music and silence.
+- The engine computes word kinds and pause pseudo-words (see "Transcripts"), writes
+  `transcripts/<mediaId>.json` with `speechRegions`, and updates `transcriptRev`.
+
+### Shots and framing (plan D-15)
+
+**Shots.** `src/stages/shots.ts` runs ffmpeg `scdet` (threshold 10, about `scene > 0.35`)
+on the proxy (or, when the media has no proxy, on the original scaled to 360p in the
+same ffmpeg filter graph) and writes `shots/<mediaId>.json` = `{ startMs, endMs }[]`, covering the
+whole media, then sets `shotsPath`. Job kind `shots`. `vox quick` and the clipper run it
+after ingest. TransNetV2 (MIT) is the documented fallback if the fixture test misses
+cuts; it is not built in v1.
+
+**Detection.** `vox_py.facetrack` samples at 12 fps on the proxy scaled to 360p (the original
+when there is no proxy). Each
+sample holds the faces (MediaPipe), and the body boxes (Vision
+`VNDetectHumanRectanglesRequest`) and attention saliency box (Vision
+`VNGenerateAttentionBasedSaliencyImageRequest`). It writes `facetracks/<mediaId>.json`,
+once per media.
+
+**Path.** The engine turns the detections into crop keyframes `{ atMs, x, y, scale }`:
+
+- Smoothing resets at every shot boundary (from `shots/<mediaId>.json`), so the crop
+  jumps to the new shot's subject at the cut and never drifts across it.
+- Subject per shot: `facetrack` uses faces only, else the centre. `auto` falls back
+  from face to body to saliency to the centre. `faceIndex` pins one face.
+- The first subject in each shot is the largest face, unless `faceIndex` pins one;
+  hysteresis then keeps it.
+- Hysteresis: the path keeps the current face unless another face is more than 30%
+  larger for at least 1 s, so two podcast guests do not flap.
+- `stability`: `locked` gives one static crop per shot when the subject stays inside a
+  10% dead zone (a shot where it leaves is treated as `smooth`); `smooth` follows with
+  smoothing; `follow` follows closely. `trackSpeed` (`slow`, `normal`, `fast`) sets how
+  fast the crop may move.
+- The path is cached under the key (media hash, aspect, mode, stability, trackSpeed),
+  where aspect is the sequence canvas's.
+
+**Keyframes on the clip.** `frame.keyframes` times are relative to the item start, so
+moving an item keeps them and a trim of the start shifts them. In `manual` mode they are
+the crop (without them, `x`, `y`, `scale` are a static crop). In `facetrack` and `auto`
+mode each one is a user override: it pins the crop at that time, and the crop blends back
+to the tracked path over 300 ms. Compile emits the result as a CSS `transform` (see
+"Compile").
+
 ### Quick clips
 
 The simple path (plan D-11): URL in, captioned clips out, no style work and no AI key.
-`quickClips(projectId, mediaId, { count = 3, minMs = 30000, maxMs = 60000, scorer? })`
-runs as job kind `quickClips` after ingest, transcribe and facetrack:
+`quickClips(projectId, mediaId, { count = 3, minMs = 30000, maxMs = 60000, scorer?, prompt? })`
+runs as job kind `quickClips` at the end of the chain `ingest → shots → transcribe →
+facetrack → quickClips`:
 
 1. Split the transcript into sentence units at words ending a sentence (`.`, `?`, `!`
    and their equivalents) or at pauses ≥ 700 ms.
 2. Candidates are runs of whole units whose length is within `[minMs, maxMs]`, so every
-   clip starts and ends on a sentence boundary.
-3. Score each candidate. The built-in heuristic scorer uses speech ratio (spoken time ÷
-   length) minus 0.5 per internal pause over 1.5 s; ties go to the earlier start. A
+   clip starts and ends on a sentence boundary. Boundaries (plan D-15): a clip starts
+   120 ms before its first word, but never inside the previous word. A start that falls
+   within 2 frames before a shot cut moves to the cut. Pauses at the clip's edges are
+   trimmed, so it ends at its last word's end.
+3. Score each candidate. The built-in heuristic scorer uses speech ratio (time inside
+   the transcript's `speechRegions` ÷ length) minus 0.5 per internal pause over 1.5 s.
+   It adds three no-AI signals (plan D-15), each scaled to 0..1 and added with equal
+   weight: energy (variance of short-term loudness over the candidate), hook (the first
+   sentence is a question or holds a number) and coverage (share of the candidate with a
+   face on screen, from facetrack). Ties go to the earlier start. A
    registered scorer (`engine.quickClips.registerScorer(id, fn)`; the agent registers an
-   LLM scorer when a `fast` model exists, spec 3) gets each candidate's text and times
-   and returns a score per candidate; the heuristic is the fallback when it fails.
+   LLM scorer when a `fast` model exists, spec 3) gets each candidate's text and times,
+   plus `prompt` (e.g. "moments about pricing"), and returns a score per candidate; the
+   heuristic ignores `prompt` and is the fallback when the scorer fails.
    `scorer` omitted → the most recently registered scorer, else the heuristic;
    `scorer: 'heuristic'` forces the built-in one.
 4. Pick the top `count` candidates that do not overlap. Fewer fitting candidates means
    fewer clips, reported in the result.
 5. Each pick becomes a sequence in one `batch`: name "Clip <n>", 1080×1920 at the
-   supported fps nearest the source, `styleId: 'base'`, `sourceRange` set, the range
-   placed once as a linked pair (`V1` with `facetrack` framing when a face track exists,
-   else `cover`; `A1` speech), captions on (`sourceTrackIds: ['A1']`, preset
+   source's rate when it is in the fixed set, else the nearest rate in the set,
+   `styleId: 'base'`, `sourceRange` set, the range
+   placed once as a linked pair (`V1` with `auto` framing, which falls back from face
+   to body to saliency to the centre (plan D-15); `A1` speech), captions on (`sourceTrackIds: ['A1']`, preset
    `base/plain`, `maxWords` 3). No scenes, transitions or overlays.
 
 The result lists the sequence ids, the chosen ranges with their text, and the scorer
 used. Selection is deterministic for the same transcript, options and scorer output.
+The `batch` carries the job's `jobId`, so "Undo quick clips" is one history entry. When
+Stylize or the clipper later add transitions at clip edges, they default to cover-style
+ones (see "Transitions").
 Styling is a separate, optional step (spec 3 "Stylize"; or by hand in the app).
 
 Encoding: ffmpeg comes from Homebrew (plan D-05), whose build includes libx264. Proxies
 use libx264 at 540p with `-crf 23` and a keyframe every 0.5 s (`-g` and `-keyint_min` set
 from the source fps). `render` muxes HyperFrames' H.264 output with the audio mix using
 `-c:v copy` and AAC audio, so the picture is encoded only once.
+
+### Export targets (plan D-13)
+
+Every export (`render`, `exportCaptions`, `exportTimeline`) takes an optional target:
+`{ file: absPath }` or `{ dir: absPath }`. Without one it writes to the project's
+`renders/` with an engine-generated name `<project>-<sequence>[-<n>].<ext>`.
+
+- Only trusted callers pass a target: the CLI (`-o`, `--out-dir`) and the desktop app's
+  engine host, which passes only a path the user picked in a native dialog this session
+  (spec 4). The agent has no export tool and no path argument (spec 3).
+- The target must be absolute; its folder must exist and be writable (else
+  `EXPORT_PATH` with a hint). It may be anywhere the user can write, including outside
+  the projects folder.
+- The file is written as a temp file in the target folder, then renamed, so a failed
+  export never leaves a half file. An existing file is replaced only with `--overwrite`
+  (CLI) or after the native save dialog's own "Replace?" confirmation (app); in folder
+  mode the engine never replaces a file and adds ` (2)`, ` (3)` … instead.
+- `--all` / batch writes one file per sequence into the folder.
+- An `.otio` written outside the project references the project's media by absolute
+  path and puts its layer MOVs in a folder `<name>-layers/` beside it.
+- The job result lists every written path; the app records them for "Reveal in Finder".
+
+### Ingest sources (plan D-13)
+
+- **Links**: any `http(s)` URL that yt-dlp supports. YouTube (watch, `youtu.be`,
+  Shorts), Instagram (reel, post, IGTV) and TikTok (video page and `vm.`/`vt.` short
+  links) are named in the UI and tested; `src/stages/sources.ts` classifies a URL as
+  `youtube | instagram | tiktok | other` for the UI badge and error hints only; the
+  download path is the same yt-dlp path for all.
+- **Files**: a video, audio or image file the user already has (chosen in a dialog,
+  dragged in, or given to the CLI), or a folder of them. Containers are detected from
+  content: MP4/MOV/M4V, WebM, MKV for video; the copy goes to `media/`.
+- **Login walls**: public posts need no account. When yt-dlp reports that a post needs a
+  login, is private or is rate-limited, ingest fails with `LOGIN_REQUIRED` and the hint
+  "This post needs a login. Download the video yourself and drop the file here, or turn
+  on 'Use browser cookies' in Settings." The opt-in setting `ingest.cookiesFromBrowser`
+  (`'safari' | 'chrome' | 'firefox' | null`, default `null`, in `~/.vox/config.json`)
+  adds `--cookies-from-browser <browser>`. It is set only by the user (Settings or
+  `vox config set`), never by a URL, a project file or the agent, and its value is
+  shown with a note that yt-dlp then sends that browser's login cookies to the site.
+- **Multi-video posts** (Instagram carousels, playlists): only the first video is taken
+  (`--playlist-items 1`) and the result says how many there were; `--playlist` takes all.
 
 ### Ingest hardening
 
@@ -696,9 +1088,12 @@ from the source fps). `render` muxes HyperFrames' H.264 output with the audio mi
   The proxy resolves each `CONNECT`/request host itself and refuses private, loopback,
   link-local and multicast addresses, connecting to the IP it checked (no DNS-rebinding
   window). Archive and image downloads by the engine use the same check in-process.
-- yt-dlp runs with `--ignore-config --no-plugin-dirs --no-playlist
-  --max-filesize 4G -f "bv*[height<=1080]+ba/b[height<=1080]" --merge-output-format mp4`
-  (`--playlist` opt-in), output to an engine-generated name, never the remote title.
+- yt-dlp runs with `--ignore-config --no-plugin-dirs --no-playlist --playlist-items 1
+  --max-filesize 4G -f "bv*+ba/b" -S "res:1080" --merge-output-format mp4`
+  (`--playlist` opt-in removes `--no-playlist` and `--playlist-items 1`), output to an
+  engine-generated name, never the remote title. `-S "res:1080"` limits the smaller side,
+  so vertical 1080×1920 reels and TikToks keep full quality (a `height<=1080` filter
+  would drop them).
   YouTube needs `yt-dlp-ejs` and a JS runtime: deno is preferred (yt-dlp's default);
   if only node exists, the engine passes `--js-runtimes node` and `vox doctor` warns
   that yt-dlp considers node less safe.
@@ -755,7 +1150,8 @@ readConfig() → Config; writeConfig(patch) → Config   // ~/.vox/config.json (
 
 Engine {
   listProjects(), createProject(name), getProject(id), deleteProject(id)
-  applyOp(projectId, op, opts) → { version, changes }
+  applyOp(projectId, op, opts) → ApplyResult   // { version, changes, results }; see "Write order"
+  view(projectId, sequenceId) → SequenceView   // compact read for the agent (plan D-15)
   undo(projectId), redo(projectId), undoRun(projectId, runId)
   history(projectId, { sinceVersion? })
   snapshot(projectId, name), listSnapshots(projectId)
@@ -769,9 +1165,10 @@ Engine {
   frames(projectId, sequenceId, atMs[]) → png paths      // compiled stills, cached
   mediaFrames(projectId, mediaId, atMs[]) → png paths    // source stills, cached
   jobs: {
-    start(kind, args) → jobId   // ingest | transcribe | facetrack | quickClips | assets.search |
+    start(kind, args) → jobId   // ingest | transcribe | shots | facetrack | quickClips | assets.search |
                                 // assets.fetch | assets.cutout | assets.generate |
-                                // render | frames | exportCaptions | exportTimeline
+                                // render | frames | exportCaptions | exportTimeline |
+                                // audioQa
     register(kind, handler)     // other packages add kinds, e.g. agent's style.extract
     get(jobId) → { status, progress, result?, error? }
     cancel(jobId), list(projectId)
@@ -779,12 +1176,35 @@ Engine {
   on(event, handler)   // 'project.changed' | 'job.started' | 'job.progress' |
                        // 'job.done' | 'job.failed' | 'job.cancelled'
 }
+
+SequenceView {
+  version: number
+  items: { id: string; track: string; startMs: number; endMs: number
+           kind: 'video' | 'audio' | 'image' | 'scene'
+           mediaId?: string                 // media clips
+           template?: string; text?: string // scenes; text = first string variable, if any
+         }[]
+  captions: { startMs: number; endMs: number; text: string }[]   // chunk text
+}
 ```
+
+Job args include `quickClips { mediaId, count?, minMs?, maxMs?, scorer?, prompt? }` and
+`render { ..., loudness?: 'youtube' | 'tiktok' | 'broadcast' }` (default `youtube`).
+
+**Compact view** (plan D-15). `view` returns a flat, token-cheap read of one sequence.
+The agent reads this, not the full project (spec 3).
+
+**Job results** (plan D-15). A job that writes to the model (ingest, transcribe, shots,
+facetrack, quickClips, assets fetch/cutout/generate) records the project `version` as its
+`baseVersion` when it starts. At the end it applies its result as one `batch` with its
+`jobId` on the history entry (actor `cli` or `user`). If an entry after `baseVersion`
+touched any key the batch touches, the job fails with `JOB_CONFLICT`, listing those keys,
+and overwrites nothing. A job's result is therefore one undo entry.
 
 **Config.** `src/config.ts` is the only code that reads or writes `~/.vox/config.json`;
 the engine, agent, CLI and app all go through it. It owns the zod schema (the provider,
-role and limit sections are defined in spec 3; `contact` and `projectsDir` are
-defined here), writes with
+role and limit sections are defined in spec 3; `contact`, `projectsDir` and
+`ingest.cookiesFromBrowser` are defined here), writes with
 mode `0600` from the very first write (temp file, `fsync`, rename), and a `writeConfig`
 patch replaces only the keys it names, so one writer never drops another's fields.
 
@@ -808,40 +1228,108 @@ the child process. The CLI is a thin wrapper over this API; every command suppor
 - Network stages retry 3× with backoff. If an archive search returns nothing, the
   stage says so; it never silently substitutes generated images (the agent decides).
 - `ingest` accepts a local path when yt-dlp fails; the error hint says so.
+- `LOGIN_REQUIRED` (login-walled, private or rate-limited post; see "Ingest sources") and
+  `EXPORT_PATH` (export folder missing, not writable, or file exists without
+  `--overwrite`) carry hints that name the next step.
+- `SCHEMA_TOO_NEW` (the project was saved by a newer Vox Studio; nothing is written) and
+  `JOB_CONFLICT` (a job's result touches entities changed since the job started; lists
+  the keys) also carry hints (plan D-15).
 
 ## Testing
 
 - **Unit (vitest)**:
   - every operation: overlap rules, insert/ripple across sync-locked tracks, linked
-    items, trim/split math on the frame grid at 24/25/30/60 fps (no 1-frame gaps after
-    100 random splits), locked tracks, track-kind rules, batch atomicity, STALE, `removeMedia` leaving the file on disk;
+    items, trim/split math on the frame grid at every rate in the fixed set, including
+    23.976/29.97/59.94 (no 1-frame gaps after 100 random splits), locked tracks,
+    track-kind rules, batch atomicity, STALE, `removeMedia` leaving the file on disk;
+  - frame rates (plan D-15): `frame(ms(f)) = f` for every frame of 10 hours at 30000/1001
+    and the other rates; a 29.97 source in a 30 fps sequence keeps `inMs` on the source
+    grid after trims and splits;
+  - `removePauses` / `removeWords`: one undo entry that cuts linked video and audio
+    together, `keepMs` kept, `kinds` with `filler` and `repeat`, `dryRun` returns the
+    ranges and leaves version and history unchanged, `wordKeys` removes only the listed
+    ranges and each still keeps `keepMs`;
+  - write results: per-op `succeeded`/`failed`/`conflicted` in a `batch`, nothing applied
+    when one op fails, `items` hold the new state;
   - history: normalise/denormalise round-trip, multi-level undo then redo returns the
     exact project, redo cleared by a new op, `undoRun` with and without conflicts;
+    `undoRun` conflicts per caption word (`captionOverride` entities);
+  - coalescing (plan D-15): ten slider ops with one `coalesceKey` within 1 s give one
+    undo entry that restores the first `before`; a different key, actor or `runId`, an
+    entry in between, or a gap over 1 s gives separate entries;
+  - job results: a user edit to an entity a job writes makes the job fail
+    `JOB_CONFLICT` and change nothing; an unrelated edit does not; "Undo quick clips" is
+    one entry;
   - crash recovery: kill between history append and project write (both orders),
     torn last line, lockfile with a dead pid;
-  - captions: trims, overrides (multi-word `text`, `text: null`, `startMs`/`endMs`),
-    `breakAfter`, re-transcription orphans, chunking, overlap priority, word clamping;
+  - schema safety: a project with a newer `schemaVersion` fails `SCHEMA_TOO_NEW` and its
+    folder is byte-identical afterwards (no lock, log or snapshot); a migration writes
+    `snapshots/auto-pre-migrate-v<N>.json` first;
+  - captions: trims, overrides (multi-word `text`, `text: null`, `startMs`/`endMs`,
+    `emphasis`), `breakAfter`, re-transcription orphans, chunking, overlap priority,
+    word clamping; lines by `maxCharsPerLine` and `maxLines`; gap fill (a 300 ms gap is
+    filled, a 500 ms gap is not, with `gapFillMs` 400); word ends extended inside a chunk;
+    `autoEmphasis`; no pause pseudo-words in captions;
+  - transcripts: word kinds from fixture word lists (fillers, 1–3-word repeats, pauses
+    ≥ 350 ms); words outside speech regions and segments over the `no_speech_prob` or
+    `compression_ratio` limits dropped;
+  - framing: no drift across a cut (the first keyframe after a shot boundary is on the
+    new shot's subject); a two-face fixture does not switch subject unless the other face
+    is > 30% larger for ≥ 1 s; a no-face shot uses saliency in `auto`; `locked` gives one
+    crop per shot; keyframe overrides blend back over 300 ms and shift with a start trim;
+  - audio: two sources measured 10 LU apart mix within 1 LU of each other; `denoise` and
+    each `--loudness` preset appear in the graph snapshot; audio QA uses the chosen
+    target;
   - quick clips: sentence-bounded ranges within `[minMs, maxMs]`, no overlaps,
-    deterministic picks, scorer fallback, sequence shape (plan D-11);
+    deterministic picks, scorer fallback, sequence shape (plan D-11); 120 ms lead-in,
+    start moved to a shot cut 2 frames later, edge pauses trimmed, the three new signals,
+    `prompt` passed to a registered scorer and ignored by the heuristic, NTSC source
+    gives a 30000/1001 sequence (plan D-15);
+  - `view`: snapshot of the compact view for a fixture sequence;
   - path rule: `..`, encoded `..`, absolute, NUL, symlink escaping the project;
   - ingest guards: the filtering proxy refuses private-IP hosts, redirects to private
     IPs and a DNS name that resolves to 127.0.0.1; a concat/HLS file disguised as
     `.mp4` is rejected by `-format_whitelist`; an SVG disguised as PNG is rejected;
-  - template variable validation, including nested `stack` panels.
-- **Compile snapshots**: fixture projects → in-memory build snapshots.
+  - template variable validation, including nested `stack` panels;
+  - ingest sources (plan D-13): URL classifier for YouTube/Instagram/TikTok forms and short
+    links; yt-dlp argv snapshot with and without `--playlist` and with the cookies opt-in;
+    recorded yt-dlp stderr for login-walled Instagram and TikTok posts maps to
+    `LOGIN_REQUIRED`; a vertical 1080×1920 format list picks the 1080×1920 stream;
+  - export targets: `-o` and `--out-dir` write there; missing or read-only folder →
+    `EXPORT_PATH`; no replace without `--overwrite`; folder mode adds ` (2)`; a killed
+    export leaves no partial file; `.otio` outside the project resolves its media;
+  - sound cues and audio QA (plan D-14): cue list from fixtures (offsets, `entrance`,
+    `sfxOff`, spacing and hero-spacing drops); each QA check fails on its generated bad
+    fixture (late cue, two events in one sample, cues 50 ms apart, SFX over speech,
+    clipped mix) and passes on a good one; `qa.png` and `LISTEN.md` are written.
+- **Compile snapshots**: fixture projects → in-memory build snapshots, including
+  `skipEntrance` on a scene shorter than its template's `minEntranceMs`, a preset's
+  `case`/`stripPunctuation` applied in the build but not in the SRT, and facetrack
+  keyframes as a `transform` (plan D-15).
 - **HyperFrames contract tests**: `npx hyperframes lint --json` on the emitted build
   reports zero errors, and a 3 s fixture renders with `render --strict-all` and the
   expected frames, on the pinned version. A
   HyperFrames upgrade must pass these before the pin changes.
 - **Audio graph**: the ffmpeg graph for a fixture timeline matches a snapshot; rendered
   click-track offsets are within 1 frame.
-- **Python tools (pytest)**: request/response schemas; transcribe on a fixture.
+- **Python tools (pytest)**: request/response schemas; transcribe on a fixture; VAD
+  regions on speech plus silence and music; facetrack detections on a face and a no-face
+  fixture.
 - **Offline fixture**: `test/fixtures/make.sh` builds a 20 s talking-head stand-in
-  with ffmpeg `testsrc2` video and macOS `say` speech, plus the spike fixture.
+  with ffmpeg `testsrc2` video and macOS `say` speech, plus the spike fixture. It also
+  builds a 29.97 fps clip, a VFR phone-style clip and a clip with known hard cuts
+  (plan D-15). The offline (CI) quick-clips project ships seeded `shots/<mediaId>.json`
+  and `facetracks/<mediaId>.json` alongside the cached transcript and uses the seeded
+  shots and facetrack files, so `auto` framing, shot snapping and the "Pin frame" E2E
+  work offline.
+- **Ingest and shots**: the VFR clip is detected and gets a CFR copy; a CFR clip does
+  not; loudness is measured; `shots` finds every known cut of the cut fixture within
+  1 frame.
 - **Integration**: fixture → ingest (local) → transcribe → place linked clips + one
   `base/title` scene → captions → render draft → assert duration, resolution, audio
   stream, 3 non-blank sampled frames, and SRT export.
-- **Manual end-to-end**: one real YouTube URL through ingest → render.
+- **Manual end-to-end**: one real YouTube URL through ingest → render; one public
+  Instagram reel and one public TikTok video through ingest.
 
 ## Done when
 
@@ -859,3 +1347,12 @@ the child process. The CLI is a thin wrapper over this API; every command suppor
 7. `vox quick <url>` with no provider configured produces 3 captioned 9:16 clips
    (MP4 + SRT with `--render`), and an edited caption word shows in both the SRT and the
    rendered MP4 (plan D-11).
+8. `vox ingest` takes a public Instagram reel, a public TikTok video and a local video
+   file; a login-walled post fails with `LOGIN_REQUIRED` and its hint; `vox render -o`
+   and `--out-dir` write to a folder outside the project (plan D-13).
+9. `vox audio-qa` on the GATE 2 clip writes `qa.json`, `qa.png` and `LISTEN.md`, and
+   every check fails on its bad fixture (plan D-14).
+10. `vox quick` on the 29.97 fps fixture and on the VFR fixture renders clips whose
+    frames match the reference frames exactly; `removePauses` on a quick clip is one
+    undo entry; a project with a newer `schemaVersion` is refused with `SCHEMA_TOO_NEW`
+    and left unchanged (plan D-15).

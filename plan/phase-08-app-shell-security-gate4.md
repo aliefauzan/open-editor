@@ -32,7 +32,11 @@ UI, GATE 4 decides whether the timeline uses `@xzdarcy/react-timeline-editor` or
 - `src/engine-host/`: `utilityProcess` running `openEngine`; `MessagePort` to main; restart on crash
   with a banner and project reload.
 - `src/shared/api.ts`: the one zod schema for every `window.vox` method and event (app spec table);
-  `src/preload/` generated typed bridge; main validates args and sender for every call.
+  `src/preload/` generated typed bridge; main validates args and sender for every call. The table's
+  D-15 shapes are in it from the start: `ops.apply` takes `coalesceKey?` and returns
+  `{ version, changes, results }` (`dryRun` ranges for `removePauses`/`removeWords`),
+  `captions.get` returns `CaptionChunk[]`, `render` and `audioQa` take `loudness`, `agent.run` takes
+  `confirmPlan?`, and the agent events carry `scope`, `kind` and `agent.todos` (D-15).
 - Player component: `<hyperframes-player>` with `sandbox-origin` per GATE 1, pointed at `preview.url()`.
 - `apps/desktop/bench/timeline.ts` + a throwaway prototype for GATE 4.
 - Security tests (main / engine-host) from the app spec "Testing".
@@ -48,7 +52,9 @@ UI, GATE 4 decides whether the timeline uses `@xzdarcy/react-timeline-editor` or
        after the drop; a marquee over 50 items selects exactly those 50. Both are automated checks.
 3. [ ] Pass = fps ≥ 50 and both prototype checks pass (app spec "Timeline implementation"). Write
        numbers + verdict to the log and a DECISIONS entry. STOP for the owner only if it fails or lands
-       within 10 % of the bar (README §5); otherwise continue.
+       within 10 % of the bar (README §5); otherwise continue. When it stops, GATE 4 is a gate inside the
+       phase (PROMPT 6g, D-16): steps 4–10 do not depend on the timeline choice, so finish them, mark the
+       phase `[~] waiting: GATE 4`, and do not merge until the owner answers.
 
 ### B. Shell and security (tests first)
 
@@ -62,15 +68,15 @@ UI, GATE 4 decides whether the timeline uses `@xzdarcy/react-timeline-editor` or
        denied; window `webPreferences` asserted (`contextIsolation`, `sandbox`, `nodeIntegration: false`,
        `nodeIntegrationInSubFrames: false`, `webSecurity`); `vox-app://` responses carry the app CSP with `frame-ancestors 'none'`; external
        links open only for allowlisted hosts (S10, S12, S15, S28).
-8. [ ] Engine host: projects list/create/open, `ops.apply` with `baseVersion`, events forwarded; crash
-       → restart + reload + banner.
+8. [ ] Engine host: projects list/create/open, `ops.apply` with `baseVersion` (and `coalesceKey`, result
+       with per-op `results`; D-15), events forwarded; crash → restart + reload + banner.
 9. [ ] Minimal UI: project picker + a preview pane playing the 90 s fixture build from `vox-media://`.
-       Playwright for Electron smoke test `e2e/smoke.spec.ts`: the app starts, opens the fixture, the player's
+       Playwright for Electron (pin set in R5 now, D-16) smoke test `e2e/smoke.spec.ts`: the app starts, opens the fixture, the player's
        current time advances during play, no console errors.
 10. [ ] Skeleton `.dmg`: minimal electron-builder config, ad-hoc signed arm64; `pnpm dist` builds it and
         the app launches from `/Applications` on this account. MANUAL STEP (owner, optional — does not block
-        merge): open it once on the second account to surface Gatekeeper issues early (phase 09 has the
-        required run).
+        merge): open it once through "Open Anyway" to surface Gatekeeper issues early (phase 09 has the
+        automated clean-install test; no second account is needed, D-16).
 
 ## Verify
 

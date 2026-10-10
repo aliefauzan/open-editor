@@ -19,8 +19,12 @@ Read in order and in full:
 5. docs/superpowers/specs/2026-10-10-vox-app-design.md
 6. plan/README.md, plan/PROMPT.md, plan/PROGRESS.md, plan/TODO.md
 7. plan/log/DECISIONS.md (newer decisions beat older text)
-8. plan/phase-00 … plan/phase-15 (all, incl. phase-10a and phase-10b)
+8. plan/phase-00 … plan/phase-15 (all, incl. phase-10a, phase-10b and the 14a–14g sub-phases
+   inside phase-14)
 9. plan/ref/R1 … R7 (all)
+10. docs/research/2026-10-10-capcut-engine-teardown.md and
+    docs/research/2026-10-10-capcut-agent-teardown.md (background for D-15: a static analysis of
+    CapCut 9.4.1; they are evidence, not specs, and the specs win where they differ)
 </reading>
 
 <verify>
@@ -34,7 +38,10 @@ D. DEPENDENCIES. Does each phase have everything it needs from earlier phases? I
 E. GATES. Is each gate decidable from the evidence the phase produces? Is the fallback concrete?
 F. SECURITY. Is every invariant in R4 tested in some phase's "Verify" section?
 G. AUTOMATION. Can plan/PROMPT.md auto mode run without a human between gates? List ambiguous steps.
-H. RISK. Where is the most risk (technical, scope, dependency on the owner)? Is every gate's fallback
+H. TEARDOWN. Every change proposed in the comparison sections of the two research reports is either
+   in the specs as D-15 describes, or listed in D-15 as deferred. List any that is in neither, and
+   any D-15 item that no spec or phase carries.
+I. RISK. Where is the most risk (technical, scope, dependency on the owner)? Is every gate's fallback
    written down so the gate can be decided from evidence? (The plan has no time estimates, D-10.)
 </verify>
 
@@ -44,7 +51,8 @@ H. RISK. Where is the most risk (technical, scope, dependency on the owner)? Is 
 3. Findings table, most severe first:
    | # | Severity (CRITICAL/HIGH/MEDIUM/LOW) | File § section | Problem | Suggested fix |
    Max 25 rows. Each finding names a specific file and section. Do not guess.
-4. Uncovered spec items (from B), one bullet each.
+4. Uncovered spec items (from B) and teardown changes in neither the specs nor the deferred list
+   (from H), one bullet each.
 5. The five biggest risks to shipping v1.0, each with a mitigation.
 6. Questions the owner must answer before phase 00 (max 8).
 If you could not verify something, say so plainly.
