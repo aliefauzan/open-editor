@@ -829,3 +829,54 @@ Adding an image or audio type later means one sniff signature plus its demuxer w
 - Spec edits made with this entry: engine "Audio QA" (`qa.png` sentence, request and kit sheet), phase 05 deliverables line, R5 numpy row.
 
 **Why**: One option that works with the ffmpeg on the M5 and stays in numpy, which the tool already needs. Pillow or a bundled font would add a pin for a picture that only needs lines and digits. A vision model reads the numbers next to the markers and takes the legend from `qa.json`.
+
+## D-28 · 2026-10-11 · phase 02 · Engine contract details fixed at the freeze
+
+**Decision**: Details the engine spec and D-18 left open or that review changed, fixed before the
+phase 02 contracts freeze (R2 rows "02"):
+- **`OpResult.error` is `VoxErrorJson`** (`{ code, message, hint, details? }`), not a `VoxError`
+  instance, so an `ApplyResult` crosses IPC and `--json` unchanged. Thrown errors stay `VoxError`.
+  `isVoxError` also accepts a VoxError from another copy of the module (name, string `code` and
+  `hint`); the `VoxError` constructor is unchanged.
+- **History lines are read loosely**: unknown fields from a newer engine are kept, not rejected
+  (`project.json` stays strict). A line is invalid when an `op` entry has no `op` or an
+  `undo`/`redo` entry has no `targets`. Only the last line can be torn (unterminated or not JSON);
+  a complete JSON line that fails the schema is `HISTORY_CORRUPT` wherever it is, never truncated.
+- **Recovery of a coalesced entry** (crash between history append and project write): the replaced
+  entry's `before` values are applied first, then the entry's `after` values, because a coalesced
+  entry drops keys that returned to their start.
+- **A write that fails** (thrown error, not a crash) after the history append takes the line out
+  again, so a write reported as failed never comes back as a recovered version.
+- **Lock**: `project.lock` is created by hard-linking a fully written temp file
+  (`.project.lock.<nonce>`; `link` fails with EEXIST like `O_EXCL`), so a killed writer never leaves
+  an empty or torn lock. Content `{ pid, host, startedAt, nonce }`. Breakers of a stale lock are
+  serialised by `.project.lock.break` (cleared when older than 10 s) and remove the lock only if it
+  still holds the stale content. Only `ESRCH` means a dead pid; `EPERM` counts as alive.
+- **S36 order**: when the files changed on disk, the schema is checked before the lock is taken, so
+  `SCHEMA_TOO_NEW` leaves no lock file and no log line.
+- **External changes**: `getProject`, `view` and `history` reload when another process wrote and
+  emit `project.changed` with `actor: 'external'`, like `applyOp`; the event is emitted even when the
+  op that found the change fails. A listener that throws never fails a write that landed.
+- **Snapshots**: names starting with `auto-` are reserved for the engine (`vox snapshot` refuses
+  them; `restoreSnapshot` may still restore them). Snapshots are written to a temp file and
+  hard-linked into place.
+- **Ids**: prefix + 8 base-36 time digits + 4 base-36 digits from a counter that starts at a random
+  value each millisecond and counts up within it (D-18 said "4 random"), so ids made in the same
+  millisecond still sort by creation.
+- **Validation tightened** (no shape change): override `startMs < endMs` when both are set,
+  `sourceRange.outMs > inMs`, transcript `speechRegions` `endMs >= startMs`, `meta.createdAt` and
+  `meta.updatedAt` are ISO date-times.
+- **Engine API**: `@vox/engine` lists its exports by name (no `export *`). A project folder must be
+  a real folder (a symlink is `PROJECT_NOT_FOUND`) whose `project.json` id equals the folder name
+  (else `VALIDATION`). `engine.log` writes are best effort.
+- **CLI**: `vox undo <project> --run <runId>` runs `undoRun`; `vox op` takes `--actor user|agent|cli`
+  (`external` is engine-only), `--run-id`, `--base-version`, `--coalesce-key`; `vox snapshot
+  <project> --list`; `vox paths --json` prints `tools: { dir }` until phase 04 fills tool paths.
+  Text output drops terminal control characters (names come from project files).
+- Spec edits made with this entry: engine "History" (history line reading), "Write order, crash
+  recovery, locking" (`ApplyResult.error`, lock step 1, step 2 reads, coalesced recovery),
+  "Project folder" (`auto-` snapshot names), CLI table (`undo --run`, `op` flags, `snapshot --list`).
+
+**Why**: Review findings (code, TypeScript, type design, security S1/S25/S36/S22) on the phase 02
+diff. Each option is the smallest that keeps done-when #6 (no lost or corrupt project under kill)
+and S36 testable, and an `ApplyResult` must be plain data for the app's IPC (phase 08).

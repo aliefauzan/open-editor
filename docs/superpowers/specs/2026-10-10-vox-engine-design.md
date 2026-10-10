@@ -172,7 +172,7 @@ or app), then `~/.vox/styles`. Tool paths: the app's tools directory
   renders/qa/<sequenceId>/   # audio QA: qa.json, qa.png, LISTEN.md (see "Audio QA"); last run kept
   runs/<runId>.jsonl         # agent run records (spec 3 "Agent loop"); kept with the project
   logs/engine.log            # engine log lines (e.g. migrations); rotated at 5 MB, 3 files kept
-  snapshots/<name>.json      # named project snapshots; auto-pre-migrate-v<N>.json before a migration
+  snapshots/<name>.json      # named project snapshots (names `auto-*` reserved); auto-pre-migrate-v<N>.json before a migration
   cache/                     # hash-keyed stage outputs; cache/assets/<queryHash>.json
   cache/prerender/<hash>.mp4 # preview pre-render cache, only if enabled (see "Layer renderer")
 ```
@@ -606,6 +606,10 @@ HistoryEntry {
 `before: null` = created, `after: null` = deleted. The set of keys is the entry's
 touched set.
 
+A history line may carry fields this engine does not know (a newer engine wrote them);
+they are kept. A line is invalid when an `op` entry has no `op` or an `undo`/`redo`
+entry has no `targets` (plan D-28).
+
 Because overrides are separate entities, `undoRun` conflicts on captions are per word:
 a user's edit of one word no longer conflicts with an agent's edit of another.
 
@@ -651,7 +655,8 @@ ApplyResult {
   version: number
   changes: { key: string; before: Entity | null; after: Entity | null }[]
   results: { op: string; status: 'succeeded' | 'failed' | 'conflicted'
-             error?: VoxError; items?: Item[]       // items: touched items' new state,
+             error?: VoxErrorJson                   // plain { code, message, hint, details? } (D-28)
+             items?: Item[]                         // touched items' new state,
                                                     // each with its trackId
              report?: unknown }[]  // op output, e.g. removePauses ranges (plan D-18)
 }
@@ -659,20 +664,23 @@ ApplyResult {
 
 `results` has one entry per op: one for a single op, one per op inside a `batch`
 (plan D-15). An op rejected by validation is `failed`; one rejected because the project
-moved on (`STALE`, `JOB_CONFLICT`) is `conflicted`; each carries its `VoxError`. A batch
+moved on (`STALE`, `JOB_CONFLICT`) is `conflicted`; each carries its error (`VoxErrorJson`). A batch
 stays all or nothing: when any op is rejected, nothing is applied, `version` is
 unchanged, `changes` is empty, and the other ops are `failed` with no error of their
 own. Lock and file errors (`LOCKED`, `HISTORY_CORRUPT`) still throw.
 
 Steps:
 
-1. Take the cross-process lock: create `project.lock` with `O_EXCL`, containing
-   `{ pid, host, startedAt }`. If it exists, was written by this host, and its pid is
-   dead (or it is older than 60 s), remove and retry; otherwise wait up to 5 s, then
+1. Take the cross-process lock: create `project.lock` exclusively (a fully written temp
+   file hard-linked into place, which fails like `O_EXCL`; plan D-28), containing
+   `{ pid, host, startedAt, nonce }`. If it exists, was written by this host, and its pid is
+   dead (or it is older than 60 s), remove it (one breaker at a time, only if unchanged)
+   and retry; otherwise wait up to 5 s, then
    fail `LOCKED`. A lock from another host is never broken automatically (projects on
    shared drives are not supported; `vox doctor <project> --unlock` removes it).
 2. If `project.json`'s on-disk version differs from the cached one (another process
    wrote), reload and emit `project.changed` with `actor: 'external'`.
+   `getProject`, `view` and `history` make the same check when they read (plan D-28).
 3. If `baseVersion` is given and differs from `project.version`, fail `STALE`.
    A job result (`jobId` set) instead fails `JOB_CONFLICT` only when an entry after the
    job's `baseVersion` touched a key the result touches (see "Library API").
@@ -690,9 +698,11 @@ On load, before anything else:
   recovery, no migration, no log line in the project (plan D-15).
 - Before a load-time migration from `schemaVersion` N, the engine copies `project.json`
   to `snapshots/auto-pre-migrate-v<N>.json`; then it migrates.
-- A last history line that does not parse (torn write) is truncated.
+- A last history line that is unterminated or not JSON (torn write) is truncated; a
+  complete line that fails the schema is `HISTORY_CORRUPT`.
 - If the last entry's `version` is `project.version + 1`, its `after` values are
-  applied and `project.json` is rewritten (the crash happened between steps 5 and 6).
+  applied (a coalesced entry after the replaced entry's `before` values; plan D-28) and
+  `project.json` is rewritten (the crash happened between steps 5 and 6).
   The recovered entry keeps its own version; recovery adds no history line and does not
   bump the version; it only logs a line to `logs/engine.log`.
 - Any other gap fails with `HISTORY_CORRUPT` and a hint to restore from `snapshots/`.
@@ -967,9 +977,9 @@ and a rerun with unchanged inputs is a no-op. Stages run as jobs (below).
 | `vox assets fetch <project> <candidateId>` | download, record licence, `addMedia` (origin `archive`) |
 | `vox assets cutout <project> <mediaId>` | rembg (pinned permissive model) → transparent PNG as a new media item; refused for no-derivatives licences |
 | `vox assets generate <project> "<prompt>" [--style id] [--provider id]` | image from a registered `ImageProvider` → new media item (origin `generated`); fails with a hint when none is registered |
-| `vox op <project> <opName> '<json>'` | apply an edit operation |
-| `vox undo <project>` / `vox redo <project>` / `vox history <project>` | history |
-| `vox snapshot <project> <name>` | named snapshot |
+| `vox op <project> <opName> '<json>' [--actor user\|agent\|cli] [--run-id id] [--base-version n] [--coalesce-key k]` | apply an edit operation |
+| `vox undo <project> [--run <runId>]` / `vox redo <project>` / `vox history <project> [--since <version>]` | history (`--run`: `undoRun`) |
+| `vox snapshot <project> <name>` / `vox snapshot <project> --list` | named snapshot; list them |
 | `vox compile <project> [--seq id] [--mode preview\|render]` | writes `build/` |
 | `vox preview <project> [--seq id]` | compile + `npx hyperframes play` |
 | `vox frames <project> [--seq id] --at-ms 1200,5000` | still PNGs of the compiled sequence at canvas size |
