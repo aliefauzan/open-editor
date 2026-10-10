@@ -689,3 +689,48 @@ tokens are spelled.
 work for a partial child (`vox style new --extends`), keep projects on a built-in style unchanged when a
 user installs a duplicate id, and keep token values from injecting CSS or HTML into builds. Review
 (typescript-reviewer, twice) found the self-declared trust, the Ajv `$id` cache and `url()` in values.
+
+## D-24 · 2026-10-11 · phase 04 (early E4) · Shot list and facetrack crop path details
+
+**Context**: Early package E4 (D-19) builds phase 04's `stages/shots.ts` (step 9c core) and the TS
+facetrack path builder `stages/facetrack.ts` (step 12c). The spec fixes the rules (shot resets,
+hysteresis, stability, trackSpeed, 300 ms pins, cache key) but not the crop coordinates or the numbers
+behind "smooth", "follow" and the speeds.
+**Decision**:
+- **Shots**: `scdet=threshold=10` then `metadata=mode=print:key=lavfi.scd.time:file=-`; the cut time is
+  each printed `pts_time` rounded to ms. The proxy is read as is; the original (no proxy) gets
+  `scale=-2:360` first in the same graph. Cuts at 0 or at/after `durationMs` are dropped; the list is
+  contiguous from 0 to `MediaItem.durationMs`. No minimum shot length. Errors: `TOOL_MISSING`,
+  `TOOL_FAILED` (stderr tail in `cause`), `CANCELLED` (codes shared with E2/E3).
+- **Crop coordinates**: `x`, `y` = crop centre, normalised to the source frame (0..1, origin top-left);
+  `scale` = zoom relative to the cover crop of the sequence aspect (1 = largest crop of that aspect that
+  fits the source). The tracked path pans at scale 1 and keeps the crop inside the source. User pins
+  are clamped to scale 1..8 and to a centre that keeps the crop inside the source.
+- **Subject per shot**: a class (face, then body and saliency in `auto`) counts when present in at
+  least 25 % of the shot's samples (at least one), so a stray detection does not take a shot. The
+  target is the box centre. A face or body is followed by nearest centre within the box's size; a
+  subject unmatched for 1 s is replaced by the largest box (a pinned face by its index). Hysteresis
+  compares box areas (> 1.3×) over a continuous 1 s while the subject is matched; losing the subject
+  restarts the count. Each shot reports `subject`, effective `stability`, `switchesAtMs` and
+  `faceIndexMissing`, so a fallback is never silent.
+- **`faceIndex`**: index in left-to-right order of the faces in the shot's first sample with faces; a
+  shot with fewer faces uses the largest (`faceIndexMissing: true`). A pinned face never switches by
+  hysteresis. `faceIndex` is added to the cache key, because it changes the path.
+- **Stability**: `locked` = the subject centre stays within ±10 % of the crop size of the mid-range
+  centre over the whole shot → one static crop at that centre; otherwise the shot is `smooth`.
+  `smooth` and `follow` are an exponential follow with time constant 0.4 s and 0.1 s. **trackSpeed**
+  caps crop speed at 0.5 / 1 / 2 crop sizes per second (slow / normal / fast).
+- **Path shape**: source-time keyframes, linear between keyframes; each shot has a keyframe at its
+  start (on the new subject) and a hold at `endMs - 1`; values rounded to 4 decimals; repeated values
+  pruned. Repeated sample times keep the last sample.
+- **Pins**: a user keyframe holds the crop at its time and blends linearly to and from the tracked path
+  over 300 ms on both sides (the spec names only the blend back; a one-sided pin would jump at the pin).
+  Two pins up to 600 ms apart join directly. A blend never crosses a shot boundary. Pin times are
+  item-relative (`source = inMs + atMs`), so a start trim that shifts `atMs` keeps the pin on its frame.
+- **Cache key**: SHA-256 over (path version 1, media hash, aspect reduced by gcd, mode, stability
+  default `smooth`, trackSpeed default `normal`, `faceIndex`, optional `inputsHash` of the shots and
+  detections files).
+
+**Why**: Smallest choices that make the D-15 fixture tests pass on synthetic and real detections
+(`cuts-2shot`, `podcast-2face`); coordinates relative to the cover crop let compile emit translate +
+scale directly.
