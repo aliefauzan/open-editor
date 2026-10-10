@@ -45,4 +45,17 @@ describe('VoxError', () => {
     ])
       expect(ERROR_CODES).toContain(c);
   });
+
+  test('media, tool and export codes are known (early e3, D-25)', async () => {
+    const { ERROR_CODES } = await import('../src/errors.ts');
+    for (const c of [
+      'MEDIA_UNSUPPORTED',
+      'TOOL_MISSING',
+      'TOOL_FAILED',
+      'CANCELLED',
+      'EXPORT_PATH',
+    ])
+      expect(ERROR_CODES).toContain(c);
+    expect(new Set(ERROR_CODES).size).toBe(ERROR_CODES.length);
+  });
 });
