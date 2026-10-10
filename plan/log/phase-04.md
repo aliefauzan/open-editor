@@ -218,5 +218,5 @@ after `make.sh` (fresh worktree had no generated audio-QA fixtures).
   the proxy / CFR copy / image re-encode into an O_EXCL temp then move it (rule in `proxy.ts`); pass the
   tools folder and `engine.redactor.redact` to `runTool`; use 02's `model/fps.ts` and model types in
   place of the local `Fps`; audio m4a, thumbnails and peaks; E4's shots runner onto `run.ts`.
-- **Branch**: `early/e3-media-export` at a4d3a88, pushed; worktree kept. Merge state: ready, waiting
-  for 02 (merge after 02).
+- **Branch**: `early/e3-media-export`, shim swapped to errors.ts after 02; merged to main as bfcdb3f; worktree
+  removed (verify: pnpm test 1238 passed / 1 skipped, pytest 109 passed).
