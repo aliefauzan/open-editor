@@ -9,7 +9,7 @@
 
 import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import {
   parseCaptionPreset,
   parseStyle,

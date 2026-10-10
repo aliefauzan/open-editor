@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 import type { Tokens } from '../../src/styles/schema.ts';
 import { tokenName, tokenVars, tokensCss } from '../../src/styles/tokens.ts';
 

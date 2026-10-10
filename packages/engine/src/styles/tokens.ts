@@ -2,7 +2,7 @@
 // Which style's tokens a scene gets (token scoping) is decided by compile (phase 03).
 // Output is sorted, so the same tokens always give byte-identical CSS (compile snapshots).
 
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { kebabKey, TokensSchema, type Tokens } from './schema.ts';
 
 export type TokenGroup = 'color' | 'font' | 'texture' | 'motion';

@@ -5,7 +5,7 @@
 
 import { Ajv, type ValidateFunction } from 'ajv';
 import { z } from 'zod';
-import { VoxError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 
 const ID = /^[a-z0-9-]+$/;
 const PRESET_ID = /^[a-z0-9-]+\/[a-z0-9-]+$/;

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/transcribe.result",
+  "title": "vox_py.transcribe result",
+  "description": "Raw words for the engine's computeWordKinds (text, startMs, endMs; no kind). Times are source-media ms.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["language", "words", "speechRegions", "dropped", "model"],
+  "properties": {
+    "language": { "type": "string", "minLength": 1 },
+    "words": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "startMs", "endMs"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "startMs": { "type": "integer", "minimum": 0 },
+          "endMs": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "speechRegions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["startMs", "endMs"],
+        "properties": {
+          "startMs": { "type": "integer", "minimum": 0 },
+          "endMs": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "dropped": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segments", "words"],
+      "properties": {
+        "segments": { "type": "integer", "minimum": 0 },
+        "words": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "revision"],
+      "properties": {
+        "repo": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    }
+  }
+}

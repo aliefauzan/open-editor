@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, test } from 'vitest';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 import { loadStyleRegistry, MAX_EXTENDS_DEPTH } from '../../src/styles/registry.ts';
 
 const FIX = fileURLToPath(new URL('../fixtures/styles/', import.meta.url));

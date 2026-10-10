@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { VoxError } from '../../src/errors.pending.ts';
+import { VoxError } from '../../src/errors.ts';
 import {
   captionSafeArea,
   parseCaptionPreset,

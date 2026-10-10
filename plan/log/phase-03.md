@@ -40,3 +40,39 @@ worktree removed). Verify in the worktree before merge: `pnpm typecheck`, `eslin
 **Handoff**
 - Natural Earth data is public domain; no attribution required. IBM Plex Mono OFL has reserved name "Plex": do not rename or subset the files.
 - Format of fonts is TTF (no woff2 conversion; see SOURCES.md).
+
+## Early steps (D-19) — e5-style-format
+
+Package E5 (style format: schema, registry, tokens). Branch `early/e5-style-format` (commits 0fd46b9, 6fbe0f6),
+**pushed, not merged: waiting for 02** (uses `VoxError` through the shim `src/errors.pending.ts`). Worktree kept at
+`.worktrees/early-e5-style-format`. Decision: D-23. Verify in the worktree: `pnpm typecheck`, `pnpm lint`
+(eslint + prettier) green; `pnpm test` 10 files, 213 tests (styles 3 files, 140); `uv run --project py pytest` 4 passed.
+Reviewed twice (typescript-reviewer); fixes in 6fbe0f6 (self-declared trust, Ajv `$id` cache, `url()` in token
+values, realpath containment on every read).
+
+**Steps done**: 1 (format: `style.json`, `template.json`, caption preset `.json` from D-15, `sfx` from D-14,
+`minEntranceMs`, variables schema checked with ajv), 2 (registry: search order, duplicates, `extends` chain,
+merge, template identity `<styleId>/<name>`, S8 trust from the declaring style), the token-name part of 3
+(`--tok-<group>-<name>`, sorted, byte-stable CSS).
+
+**Files**
+- `packages/engine/src/styles/schema.ts`, `registry.ts`, `tokens.ts`; `packages/engine/src/errors.pending.ts` (shim,
+  byte-identical to the orchestrator copy).
+- `packages/engine/package.json` dependencies `zod 4.6.5`, `ajv 8.20.0` (same pins as 02; exports/scripts unchanged),
+  `pnpm-lock.yaml`.
+- Tests `packages/engine/test/styles/{schema,registry,tokens}.test.ts`; test styles in
+  `packages/engine/test/fixtures/styles/` (`builtin/base`, `builtin/paper`, `user/draft`, duplicate `user/base`).
+  No `styles/**` content (A1 owns it).
+- New error codes (append to `ERROR_CODES` at the shim swap): `STYLE_NOT_FOUND`, `STYLE_INVALID`, `STYLE_DUPLICATE`.
+
+**Left for phase 03**
+- Shim swap after 02 merges: `errors.pending.ts` imports to `../errors.ts`, codes appended to `ERROR_CODES`.
+- Token scoping inside compile (GATE 1 item 7); compile passes `assetUrl` built from `files.texture.paper`
+  (the real path) to `tokensCss`.
+- Step 4: `registry.template()` behind 02's template lookup in ops; `vox new` picks the style; `engine.styles`
+  in `api.ts` (`list`, `get`; `accept`/`remove` are 06).
+- The real `styles/base/style.json` (with A1's fonts), templates, fixtures and `guide.md`.
+- Optional: swap the local path-string checks in `schema.ts` for `paths.ts` helpers.
+
+**Left for phase 06**: trust store behind the registry's `isTrusted(styleId, dir)` (`vox style trust`), the
+`maxLength` rule for text variables in `vox style validate`.
