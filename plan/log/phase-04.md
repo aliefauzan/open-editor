@@ -1,6 +1,26 @@
 # Phase 04 — Engine: jobs, Python bridge, ingest, transcribe, facetrack
 
-Status: not started; early steps done under D-19
+Status: [~] in progress (started 2026-10-11, single agent, worktree `.worktrees/phase-04`, branch
+`phase/04-engine-jobs-ingest-transcribe`)
+
+## Plan (full phase run)
+
+Early packages E1–E4 and P1 did steps 1, 2, 3 (TS + pytest), 4, 5 (argv), 5b (URL table), 6, 7, 8,
+9b (measuring), 9c core, 10b, 11, 12 (tool), 12b, 12c. This run wires them in:
+1. Tools: `resolveToolPaths` (tools dir, then PATH) → `EngineOptions.tools`; config `projectsDir` in
+   CLI; redactor into `EngineLog`, `VoxError` JSON/cause redacted.
+2. Jobs on the engine: `engine.jobs` (runner + kinds), `engine.on('job.*')`, job results as one
+   `batch` with `{ jobId, baseVersion }` (step 1b tests).
+3. yt-dlp: S33 cookies from `readConfig()` only, `--js-runtimes node` when deno is absent, env proxy
+   vars stripped, `LOGIN_REQUIRED` mapping, recorded fixtures (format choice, carousel), retry 3×.
+4. Ingest stage (local file/folder/URL/doc): copy → sniff → analyse → CFR copy → proxy → audio m4a
+   → thumbs sprite → peaks → `addMedia`; cache by input hash; `{ proxies: false }`.
+5. Stages `transcribe`, `shots`, `facetrack` (detections + path cache), `mediaFrames`.
+6. CLI: `doctor`, `ingest`, `transcribe`, `shots`, `facetrack`, `media-frames`.
+7. Commit `transcripts/`, `shots/`, `facetracks/` fixtures for `talking-head-20s`.
+Test order: tools/config → jobs 1b → ytdlp → ingest → transcribe/shots/facetrack → doctor → CLI.
+
+Resume notes: none yet.
 
 ## Early steps (D-19) — e1-net-sources
 
