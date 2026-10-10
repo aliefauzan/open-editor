@@ -465,3 +465,23 @@ the path rule (R2). The spec names every op but not all argument shapes, and a f
 
 **Why**: Smallest choices that keep the phase-02 done-when and give phase 03, 04, 08 and 11 one stable
 target. Nothing here changes a frozen contract.
+
+## D-19 · 2026-10-11 · orchestration · Early start of independent steps from later phases
+
+**Context**: The owner asked (2026-10-11) not to leave the machine idle while phases 01 and 02 run:
+steps of later phases whose real inputs already exist should start now.
+**Decision**: Steps that need nothing from an unfinished phase run early as "work packages", each in
+its own worktree `.worktrees/early-<id>` on branch `early/<id>`:
+- P1 · 04 Python tools (`vad`, `transcribe`, `facetrack`, `doctext`, vendored Silero VAD);
+  P2 · 05 audio QA tool + `make.sh` audio set; N1 · 11 Apple helper (`native/apple-llm`) + fake helper;
+  U1 · 08 GATE 4 timeline benchmark (Chromium first, re-run in Electron by 08); A1 · 03/07 fonts,
+  Natural Earth data, `geo.search`, `vox` asset candidates; G1 · 11 pure agent utilities.
+- E1 · 04 net proxy + URL classes + yt-dlp argv; E2 · 04 config, redactor, job runner, Python bridge;
+  E3 · 04 media safety/analysis + 05 export target; E4 · 04 shots + facetrack path builder;
+  E5 · 03 style schema/registry/tokens. E-packages use a temporary `src/errors.pending.ts` shim with
+  phase 02's `VoxError` signature and merge only after 02 is on main (shim swapped for `errors.ts`).
+- Packages never wire into `api.ts` and never touch files owned by a running phase. Each records what
+  it did in an "Early steps" section of `plan/log/phase-<NN>.md`; the owning phase then skips those
+  steps, wires them in and still runs its full Verify, review and done-when.
+**Consequences**: More parallel agents share CPU; timed measurements take `.git/vox-bench.lock`. Phase
+prerequisites in README §3 are unchanged for the phases as a whole.
