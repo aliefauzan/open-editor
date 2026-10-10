@@ -1,5 +1,5 @@
 // Local test servers for the net tests (S3, S29). No internet: "public" hosts resolve through a fake
-// resolver to a TEST-NET address, and the proxy's `dial` seam maps that address to a local server.
+// resolver to a public address, and the `dial` seam maps that address to a local server.
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,8 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect as tlsConnect } from 'node:tls';
 
-/** TEST-NET-2 address the fake resolver hands out for "public" names (RFC 5737, not blocked). */
-export const PUBLIC_IP = '198.51.100.7';
+/** Public address the fake resolver hands out for "public" names; `dial` maps it to a local server. */
+export const PUBLIC_IP = '93.184.216.34';
 export const PUBLIC_HOST = 'public.test';
 
 export interface Cert {

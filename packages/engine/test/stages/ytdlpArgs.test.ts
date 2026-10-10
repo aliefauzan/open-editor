@@ -106,6 +106,11 @@ describe('buildYtdlpArgs (S4)', () => {
     expect(argv.at(-1)).toBe('https://example.com/--exec=x');
   });
 
+  test('the URL passed is the one that was checked (parsed and normalised)', () => {
+    const argv = buildYtdlpArgs({ ...base, url: '  https://YOUTU.BE/dQw4w9WgXcQ\n' });
+    expect(argv.at(-1)).toBe('https://youtu.be/dQw4w9WgXcQ');
+  });
+
   test('only http(s) URLs', () => {
     for (const url of ['ftp://x.test/a', 'file:///etc/passwd', 'ytsearch:cats', '-o /tmp/x', '']) {
       expect(

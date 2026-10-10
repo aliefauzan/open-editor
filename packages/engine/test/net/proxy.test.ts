@@ -1,6 +1,6 @@
 // S3: yt-dlp connects only through the filtering proxy; the proxy refuses private, loopback,
 // link-local and multicast targets and connects to the IP it checked. No internet: the fake resolver
-// maps public.test to a TEST-NET address and `dial` maps that address to a local server.
+// maps public.test to a public address and `dial` maps that address to a local server.
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { startFilteringProxy } from '../../src/net/proxy.ts';
@@ -205,6 +205,19 @@ describe('filtering proxy: plain HTTP (S3)', () => {
 });
 
 describe('filtering proxy: lifecycle', () => {
+  test('an idle tunnel is closed after idleTimeoutMs', async () => {
+    const p = await startFilteringProxy({
+      resolver: async () => [PUBLIC_IP],
+      dial: () => ({ host: '127.0.0.1', port: tlsPublic.port }),
+      idleTimeoutMs: 150,
+    });
+    const { status, socket } = await connectVia(p.port, `${PUBLIC_HOST}:443`);
+    expect(status).toBe(200);
+    await new Promise<void>((resolve) => socket.once('close', () => resolve()));
+    expect(socket.destroyed).toBe(true);
+    await p.close();
+  });
+
   test('close() ends open tunnels', async () => {
     const p = await startFilteringProxy({
       resolver: async () => [PUBLIC_IP],

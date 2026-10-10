@@ -34,6 +34,7 @@ function invalid(message: string): VoxError {
 }
 
 export function buildYtdlpArgs(opts: YtdlpArgsOptions): string[] {
+  // Check and pass the same string: the parsed, normalised href.
   if (classifyUrl(opts.url) === 'invalid') {
     throw new VoxError(
       'URL_INVALID',
@@ -41,6 +42,7 @@ export function buildYtdlpArgs(opts: YtdlpArgsOptions): string[] {
       'Paste an http(s) link, or add the video as a local file.',
     );
   }
+  const url = new URL(opts.url.trim()).href;
   const port = Number(PROXY_URL.exec(opts.proxyUrl)?.[1] ?? 0);
   if (port < 1 || port > 65535) {
     throw invalid(`yt-dlp must use the local filtering proxy, got "${opts.proxyUrl}".`);
@@ -76,6 +78,6 @@ export function buildYtdlpArgs(opts: YtdlpArgsOptions): string[] {
     ...(opts.jsRuntime === 'node' ? ['--js-runtimes', 'node'] : []),
     ...(cookies === null ? [] : ['--cookies-from-browser', cookies]),
     '--',
-    opts.url,
+    url,
   ];
 }

@@ -28,7 +28,17 @@ beforeAll(async () => {
       '/relative': '/ok',
       '/to-ftp': 'ftp://public.test/x',
       '/loop': '/loop',
+      '/to-other-origin': `http://${PUBLIC_HOST}/echo`,
+      '/to-same-origin': '/echo',
+      '/malformed': 'http://[bad',
     };
+    if (req.url === '/echo') {
+      text(`auth=${req.headers.authorization ?? '-'} cookie=${req.headers.cookie ?? '-'}`)(
+        req,
+        res,
+      );
+      return;
+    }
     const loc = req.url === undefined ? undefined : redirects[req.url];
     if (loc !== undefined) {
       res.writeHead(302, { location: loc });
@@ -37,7 +47,16 @@ beforeAll(async () => {
     }
     text(`tls ${req.url ?? ''} ${req.headers.host ?? ''}`)(req, res);
   });
-  httpPublic = await httpServer(text('plain http'));
+  httpPublic = await httpServer((req, res) => {
+    if (req.url === '/echo') {
+      text(`auth=${req.headers.authorization ?? '-'} cookie=${req.headers.cookie ?? '-'}`)(
+        req,
+        res,
+      );
+      return;
+    }
+    text('plain http')(req, res);
+  });
   const resolver: Resolver = async (host) => {
     lookups.push(host);
     if (host === PUBLIC_HOST) return [PUBLIC_IP];
@@ -130,6 +149,19 @@ describe('fetchPublic (S29)', () => {
       resolver: async () => [PUBLIC_IP],
     };
     await expect(fetchPublic('https://other.test/ok', wrong)).rejects.toThrow();
+  });
+
+  test('credentials are kept on the same origin and dropped on another origin', async () => {
+    const headers = { Authorization: 'Bearer x', Cookie: 'a=b', 'User-Agent': 'VoxStudio/test' };
+    const same = await fetchPublic(`https://${PUBLIC_HOST}/to-same-origin`, { ...opts, headers });
+    expect((await readBody(same)).toString()).toBe('auth=Bearer x cookie=a=b');
+    const other = await fetchPublic(`https://${PUBLIC_HOST}/to-other-origin`, { ...opts, headers });
+    expect(other.url).toBe(`http://${PUBLIC_HOST}/echo`);
+    expect((await readBody(other)).toString()).toBe('auth=- cookie=-');
+  });
+
+  test('a malformed redirect is URL_INVALID', async () => {
+    expect(await codeOf(fetchPublic(`https://${PUBLIC_HOST}/malformed`, opts))).toBe('URL_INVALID');
   });
 
   test('readBody stops at maxBytes', async () => {

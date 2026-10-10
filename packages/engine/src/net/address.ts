@@ -21,8 +21,12 @@ for (const [net, prefix] of [
   ['169.254.0.0', 16], // link-local (incl. cloud metadata)
   ['172.16.0.0', 12], // private
   ['192.0.0.0', 24], // IETF protocol assignments
+  ['192.0.2.0', 24], // TEST-NET-1 (documentation)
+  ['192.88.99.0', 24], // deprecated 6to4 relay anycast
   ['192.168.0.0', 16], // private
   ['198.18.0.0', 15], // benchmarking
+  ['198.51.100.0', 24], // TEST-NET-2 (documentation)
+  ['203.0.113.0', 24], // TEST-NET-3 (documentation)
   ['224.0.0.0', 4], // multicast
   ['240.0.0.0', 4], // reserved + broadcast
 ] as const) {
@@ -30,6 +34,11 @@ for (const [net, prefix] of [
 }
 for (const [net, prefix] of [
   ['::', 96], // unspecified, loopback, deprecated IPv4-compatible
+  ['::ffff:0:0:0', 96], // SIIT IPv4-translated
+  ['64:ff9b:1::', 48], // local-use NAT64
+  ['100::', 64], // discard-only
+  ['2001::', 32], // Teredo (IPv4 hidden in the address)
+  ['2001:db8::', 32], // documentation
   ['fc00::', 7], // unique local
   ['fe80::', 10], // link-local
   ['fec0::', 10], // site-local (deprecated)

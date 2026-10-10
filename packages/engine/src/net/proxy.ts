@@ -32,6 +32,10 @@ export interface FilteringProxyOptions {
   /** Called for every refused or failed target, so ingest can explain a yt-dlp failure. */
   onRefused?: (refusal: ProxyRefusal) => void;
   connectTimeoutMs?: number;
+  /** An open tunnel or request with no traffic for this long is closed (default 120 s). */
+  idleTimeoutMs?: number;
+  /** Cap on simultaneous client connections (default 256). */
+  maxConnections?: number;
 }
 
 export interface FilteringProxy {
@@ -104,6 +108,7 @@ export async function startFilteringProxy(
   const resolver = opts.resolver ?? systemResolver;
   const dial: Dial = opts.dial ?? ((host, port) => ({ host, port }));
   const timeoutMs = opts.connectTimeoutMs ?? 30_000;
+  const idleMs = opts.idleTimeoutMs ?? 120_000;
   const report = (r: ProxyRefusal): void => opts.onRefused?.(r);
   const open = new Set<Duplex>();
   const track = (s: Duplex): void => {
@@ -112,6 +117,7 @@ export async function startFilteringProxy(
   };
 
   const server = createServer();
+  server.maxConnections = opts.maxConnections ?? 256;
 
   server.on('connect', (req: IncomingMessage, client: Duplex, head: Buffer) => {
     track(client);
@@ -137,19 +143,23 @@ export async function startFilteringProxy(
       const upstream: Socket = netConnect({ host: to.host, port: to.port });
       track(upstream);
       upstream.setTimeout(timeoutMs, () => upstream.destroy(new Error('connect timeout')));
+      let established = false;
       upstream.once('connect', () => {
-        upstream.setTimeout(0);
+        established = true;
+        upstream.setTimeout(idleMs, () => upstream.destroy());
         client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
         if (head.length > 0) upstream.write(head);
         upstream.pipe(client);
         client.pipe(upstream);
       });
       upstream.on('error', () => {
-        if (upstream.connecting || !upstream.readable) {
-          report({ ...target, address, code: 'UPSTREAM' });
+        if (established) {
+          // inside an open tunnel the client speaks TLS: never write a plaintext status into it
+          client.destroy();
+          return;
         }
+        report({ ...target, address, code: 'UPSTREAM' });
         refuseSocket(client, 502, 'Bad Gateway', 'UPSTREAM');
-        client.destroy();
       });
       upstream.on('close', () => client.destroy());
       client.on('close', () => upstream.destroy());
@@ -200,12 +210,16 @@ export async function startFilteringProxy(
         path: `${url.pathname}${url.search}`,
         headers,
         agent: false,
-        timeout: timeoutMs,
+        timeout: idleMs,
       });
       upstream.on('timeout', () => upstream.destroy(new Error('upstream timeout')));
       upstream.on('response', (up) => {
         res.writeHead(up.statusCode ?? 502, up.statusMessage, stripHopByHop(up.headers));
         up.pipe(res);
+        res.on('close', () => up.destroy());
+      });
+      res.on('close', () => {
+        if (!res.writableFinished) upstream.destroy();
       });
       upstream.on('error', () => {
         report({ host, port, address, code: 'UPSTREAM' });

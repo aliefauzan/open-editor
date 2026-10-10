@@ -33,6 +33,8 @@ export interface FetchPublicResult {
 }
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+/** Never sent to another origin after a redirect. */
+const CREDENTIAL_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization']);
 
 function parseHttpUrl(raw: string): URL {
   let url: URL;
@@ -105,8 +107,20 @@ export async function fetchPublic(
   const dial: Dial = opts.dial ?? ((host, port) => ({ host, port }));
   const maxRedirects = opts.maxRedirects ?? 5;
   let url = parseHttpUrl(rawUrl);
+  const origin = url.origin;
   for (let hop = 0; ; hop += 1) {
-    const res = await requestOnce(url, opts, resolver, dial);
+    const sameOrigin = url.origin === origin;
+    const hopOpts: FetchPublicOptions = sameOrigin
+      ? opts
+      : {
+          ...opts,
+          headers: Object.fromEntries(
+            Object.entries(opts.headers ?? {}).filter(
+              ([k]) => !CREDENTIAL_HEADERS.has(k.toLowerCase()),
+            ),
+          ),
+        };
+    const res = await requestOnce(url, hopOpts, resolver, dial);
     const status = res.statusCode ?? 0;
     const location = res.headers.location;
     if (!REDIRECTS.has(status) || location === undefined) {
@@ -121,7 +135,20 @@ export async function fetchPublic(
         { details: { url: url.href } },
       );
     }
-    url = parseHttpUrl(new URL(location, url).href);
+    let next: string;
+    try {
+      next = new URL(location, url).href;
+    } catch {
+      throw new VoxError(
+        'URL_INVALID',
+        `${url.host} sent a malformed redirect.`,
+        'Try another link.',
+        {
+          details: { url: url.href },
+        },
+      );
+    }
+    url = parseHttpUrl(next);
   }
 }
 
