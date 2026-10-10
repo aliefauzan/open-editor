@@ -37,6 +37,10 @@ export const ERROR_CODES = [
   'NET_DNS',
   'NET_REDIRECTS',
   'NET_TOO_LARGE',
+  // external tools and jobs (early E4: shots, facetrack)
+  'TOOL_MISSING',
+  'TOOL_FAILED',
+  'CANCELLED',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
