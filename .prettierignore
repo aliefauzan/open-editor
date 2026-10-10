@@ -8,3 +8,6 @@ plan/
 .remember/
 .worktrees/
 packages/engine/test/fixtures/transcripts/spike-90s.json
+packages/engine/data/
+styles/**/vendor/
+styles/**/assets/geo/

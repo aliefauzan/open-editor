@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/vad.request",
+  "title": "vox_py.vad request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["audioPath"],
+  "properties": {
+    "audioPath": { "type": "string", "minLength": 1 },
+    "ffmpeg": { "type": "string", "minLength": 1 },
+    "formatWhitelist": { "type": "string", "minLength": 1 },
+    "threshold": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+    "minSpeechMs": { "type": "integer", "minimum": 0 },
+    "minSilenceMs": { "type": "integer", "minimum": 0 },
+    "speechPadMs": { "type": "integer", "minimum": 0 }
+  }
+}

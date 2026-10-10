@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/progress",
+  "title": "vox_py tool progress line (JSON line on stderr)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["progress", "message"],
+  "properties": {
+    "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+    "message": { "type": "string" }
+  }
+}

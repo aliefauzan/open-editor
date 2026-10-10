@@ -11,6 +11,8 @@ interface Probe {
   format: { duration: string };
   streams: {
     codec_type: string;
+    channels?: number;
+    sample_rate?: string;
     width?: number;
     height?: number;
     r_frame_rate: string;
@@ -25,7 +27,7 @@ const probe = (f: string): Probe =>
         '-v',
         'error',
         '-show_entries',
-        'format=duration:stream=codec_type,width,height,r_frame_rate,avg_frame_rate',
+        'format=duration:stream=codec_type,channels,sample_rate,width,height,r_frame_rate,avg_frame_rate',
         '-of',
         'json',
         f,
@@ -181,5 +183,48 @@ describe('make.sh', () => {
     const p = probe(out('music-silence.wav'));
     expect(Number(p.format.duration)).toBeGreaterThan(13);
     expect(Number(p.format.duration)).toBeLessThan(17);
+  });
+
+  // Audio QA set (plan 05 step 8d0, D-14): duration, channel count and sample rate only.
+  describe('audio QA set', () => {
+    const cases = [
+      'good',
+      'bad-late',
+      'bad-double-hit',
+      'bad-close-cues',
+      'bad-sfx-over-speech',
+      'bad-clipped',
+    ];
+
+    test.each(cases)('%s: 13 s stereo mix, mono sfx and speech stems, cues file', (name) => {
+      const mix = probe(out(`audio/${name}.wav`));
+      expect(Number(mix.format.duration)).toBeCloseTo(13, 1);
+      expect(audio(mix)[0]).toMatchObject({ channels: 2, sample_rate: '48000' });
+      for (const stem of ['sfx', 'speech']) {
+        const p = probe(out(`audio/${name}.${stem}.wav`));
+        expect(Number(p.format.duration)).toBeCloseTo(13, 1);
+        expect(audio(p)[0]).toMatchObject({ channels: 1, sample_rate: '48000' });
+      }
+      const cues = JSON.parse(readFileSync(out(`audio/${name}.cues.json`), 'utf8')) as {
+        fps: number;
+        target: number;
+        cues: { atMs: number; type: string; hero: boolean }[];
+      };
+      expect(cues.fps).toBe(30);
+      expect(cues.target).toBe(-14);
+      expect(cues.cues.length).toBe(name === 'bad-close-cues' ? 7 : 6);
+      expect(cues.cues.filter((c) => c.hero)).toHaveLength(2);
+    });
+
+    test.each([
+      ['kit-beep', 0.3],
+      ['kit-noise-bed', 2],
+      ['kit-click-start', 0.18],
+      ['kit-double-hit', 0.45],
+    ])('%s is a mono 48 kHz sample of about %s s', (name, seconds) => {
+      const p = probe(out(`audio/${name}.wav`));
+      expect(Number(p.format.duration)).toBeCloseTo(seconds, 1);
+      expect(audio(p)[0]).toMatchObject({ channels: 1, sample_rate: '48000' });
+    });
   });
 });
