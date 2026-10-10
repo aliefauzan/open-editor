@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: Helvetica, Arial, sans-serif;
+        }
+        .l-box {
+          position: absolute;
+          left: 60px;
+          top: 1480px;
+          width: 960px;
+          height: 200px;
+          background: var(--tok-bg);
+          border-left: 24px solid var(--tok-accent);
+        }
+        .l-text {
+          position: absolute;
+          left: 60px;
+          top: 50px;
+          width: 860px;
+          height: 100px;
+          font-size: 72px;
+          color: var(--tok-fg);
+        }
+        .l-swatch,
+        .l-token {
+          position: absolute;
+          top: 1720px;
+          width: 100px;
+          height: 100px;
+        }
+        .l-swatch {
+          left: 60px;
+        }
+        .l-token {
+          left: 180px;
+          background: var(--tok-accent);
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="1080"
+        data-height="1920"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="l-box"><div class="l-text"></div></div>
+        <div class="l-swatch"></div>
+        <div class="l-token"></div>
+      </div>
+      <script>
+        (function () {
+          var root = document.querySelector('[data-composition-id="__ID__"]');
+          var box = root.querySelector('.l-box');
+          var v = vox.vars(box);
+          root.querySelector('.l-text').textContent = v.title;
+          root.querySelector('.l-swatch').style.background = v.swatch;
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo(box, { x: -1100 }, { x: 0, duration: 0.4 }, 0);
+          window.__timelines['__ID__'] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

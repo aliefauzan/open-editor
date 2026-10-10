@@ -70,6 +70,8 @@ export interface Sequence {
   height: number;
   durF: number;
   items: Item[];
+  /** Captions sub-composition over the whole sequence (from the transcript fixture). */
+  captions?: boolean;
 }
 
 /** Where the landscape sources sit on the 9:16 canvas (scale 0.5, so barcode cells are 20 px). */
@@ -249,7 +251,15 @@ export function makeMainSequence(): Sequence {
   lastAudio.fade = { fromF: 2600, toF: 2660, from: 1, to: 0.1 };
   scene(b, 'lower-third', 'vox', 'V2', 300, 90, 'Lower third one');
   scene(b, 'lower-third', 'base', 'V2', 2000, 90, 'Lower third two');
-  return { name: 'spike-90s', fps: FPS30, width: 1080, height: 1920, durF: 2700, items: b.items };
+  return {
+    name: 'spike-90s',
+    fps: FPS30,
+    width: 1080,
+    height: 1920,
+    durF: 2700,
+    items: b.items,
+    captions: true,
+  };
 }
 
 /** NTSC variant (item 9): 18 s of 30000/1001 cuts of the 29.97 source, linked audio. */

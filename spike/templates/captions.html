@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+          font-family: Helvetica, Arial, sans-serif;
+        }
+        .c-chunk {
+          position: absolute;
+          left: 60px;
+          top: 1290px;
+          width: 960px;
+          height: 110px;
+          font-size: 76px;
+          font-weight: 700;
+          text-align: center;
+          color: #ffffff;
+          text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+          opacity: 0;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="1080"
+        data-height="1920"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+      </div>
+      <script>
+        (function () {
+          var root = document.querySelector('[data-composition-id="__ID__"]');
+          var chunks = vox.vars(root).chunks;
+          var tl = gsap.timeline({ paused: true });
+          for (var i = 0; i < chunks.length; i++) {
+            var c = chunks[i];
+            var el = document.createElement('div');
+            el.className = 'c-chunk';
+            el.textContent = c.text;
+            root.appendChild(el);
+            tl.set(el, { opacity: 1 }, c.start);
+            tl.set(el, { opacity: 0 }, c.end);
+          }
+          window.__timelines['__ID__'] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

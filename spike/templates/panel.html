@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: var(--tok-bg);
+          border: 8px solid var(--tok-accent);
+          box-sizing: border-box;
+          font-family: Helvetica, Arial, sans-serif;
+        }
+        .p-title {
+          position: absolute;
+          left: 60px;
+          top: 120px;
+          width: 840px;
+          height: 120px;
+          font-size: 90px;
+          color: var(--tok-fg);
+        }
+        .p-swatch,
+        .p-token {
+          position: absolute;
+          top: 600px;
+          width: 100px;
+          height: 100px;
+        }
+        .p-swatch {
+          left: 60px;
+        }
+        .p-token {
+          left: 180px;
+          background: var(--tok-accent);
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="960"
+        data-height="760"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="p-title"></div>
+        <div class="p-swatch"></div>
+        <div class="p-token"></div>
+      </div>
+      <script>
+        (function () {
+          var root = document.querySelector('[data-composition-id="__ID__"]');
+          var title = root.querySelector('.p-title');
+          var v = vox.vars(title);
+          title.textContent = v.title;
+          root.querySelector('.p-swatch').style.background = v.swatch;
+          var tl = gsap.timeline({ paused: true });
+          tl.fromTo(title, { x: -60, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5 }, 0.1);
+          window.__timelines['__ID__'] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
