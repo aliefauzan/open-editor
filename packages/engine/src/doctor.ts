@@ -402,7 +402,10 @@ export async function doctorProject(
       lock = { pid: 0, host: '?', startedAt: '?' };
   }
   if (lock && opts.unlock) {
-    await unlink(lockPath).catch(() => undefined);
+    // Report removed only when the file is really gone; a permission error propagates.
+    await unlink(lockPath).catch((e: NodeJS.ErrnoException) => {
+      if (e.code !== 'ENOENT') throw e;
+    });
     lock = { ...lock, removed: true };
   }
   return { orphanOverrides, lock };

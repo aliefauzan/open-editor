@@ -4,11 +4,11 @@ import { VoxError } from '../../errors.ts';
 import { FFMPEG_BASE, checkPath, inputArgs } from './ffargs.ts';
 import type { MediaFormat } from './sniff.ts';
 
-/** Thumbnail sprite: one frame every 2 s, cells 90 px high, 10 per row (D-PH4). */
+/** Thumbnail sprite: one frame every 2 s, cells 90 px high, 10 per row (D-31). */
 export const THUMB_EVERY_MS = 2000;
 export const THUMB_HEIGHT = 90;
 export const THUMB_COLUMNS = 10;
-/** Peaks: mono 4 kHz, the largest |sample| of every 40 samples = 100 peaks per second (D-PH4). */
+/** Peaks: mono 4 kHz, the largest |sample| of every 40 samples = 100 peaks per second (D-31). */
 export const PEAKS_SAMPLE_RATE = 4000;
 export const PEAKS_PER_SECOND = 100;
 

@@ -111,6 +111,36 @@ describe('fixture chain (local)', () => {
     }
   }, 600_000);
 
+  test('speech gate and word kinds through the transcribe job (music-silence, speech-fillers)', async () => {
+    const e = engine();
+    const p = await e.createProject('speech');
+    const words = async (file: string) => {
+      const ing = await run<{ media: { mediaId: string }[] }>(e, 'ingest', {
+        projectId: p.id,
+        inputs: [`${fx}out/${file}`],
+      });
+      const tr = await run<{ transcriptPath: string }>(e, 'transcribe', {
+        projectId: p.id,
+        mediaId: ing.media[0]!.mediaId,
+      });
+      return JSON.parse(readFileSync(join(e.projectsDir, p.id, tr.transcriptPath), 'utf8')) as {
+        words: { text: string; startMs: number; kind: string }[];
+        speechRegions: { startMs: number; endMs: number }[];
+      };
+    };
+    const music = await words('music-silence.wav');
+    expect(music.speechRegions.length).toBeGreaterThan(0);
+    const spoken = music.words.filter((w) => w.kind !== 'pause');
+    expect(spoken.length).toBeGreaterThan(0);
+    // The sentence starts at 12 s; nothing survives over the music and silence before it.
+    expect(spoken.every((w) => w.startMs >= music.speechRegions[0]!.startMs - 100)).toBe(true);
+    expect(music.speechRegions[0]!.startMs).toBeGreaterThan(11_000);
+    const fill = await words('speech-fillers.wav');
+    const kinds = new Set(fill.words.map((w) => w.kind));
+    expect(kinds.has('filler')).toBe(true);
+    expect(kinds.has('repeat')).toBe(true);
+  }, 600_000);
+
   test('cuts-2shot with proxies:false: facetrack from the original at 360p, same subjects as the proxy run', async () => {
     if (!existsSync(CUTS))
       throw new Error('Run `bash packages/engine/test/fixtures/make.sh` first.');

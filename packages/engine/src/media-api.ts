@@ -606,7 +606,9 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
       });
       const cacheFile = join(dir, 'cache', 'facetrack', `${key}.json`);
       try {
-        return JSON.parse(await readFile(cacheFile, 'utf8')) as TrackPath;
+        const hit = JSON.parse(await readFile(cacheFile, 'utf8')) as Partial<TrackPath>;
+        // A damaged cache file is rebuilt, not returned.
+        if (Array.isArray(hit.keyframes) && Array.isArray(hit.shots)) return hit as TrackPath;
       } catch {
         // build it
       }
