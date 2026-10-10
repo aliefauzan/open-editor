@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/facetrack.result",
+  "title": "vox_py.facetrack result (facetracks/<mediaId>.json)",
+  "description": "Detections per sample. Boxes are normalised to the frame (0..1), origin top-left. atMs is source-media ms.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sampleFps", "width", "height", "durationMs", "faceModel", "samples"],
+  "properties": {
+    "sampleFps": { "type": "number", "exclusiveMinimum": 0 },
+    "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "faceModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["atMs", "faces", "bodies", "saliency"],
+        "properties": {
+          "atMs": { "type": "integer", "minimum": 0 },
+          "faces": { "type": "array", "items": { "$ref": "#/$defs/box" } },
+          "bodies": { "type": "array", "items": { "$ref": "#/$defs/box" } },
+          "saliency": { "oneOf": [{ "$ref": "#/$defs/box" }, { "type": "null" }] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "w", "h", "score"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "w": { "type": "number", "minimum": 0, "maximum": 1 },
+        "h": { "type": "number", "minimum": 0, "maximum": 1 },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}
