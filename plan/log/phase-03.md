@@ -1,6 +1,35 @@
 # Phase 03 — Engine: styles loader, `base` style, compile, captions, audio
 
-Status: not started; early steps done under D-19
+| Field | Value |
+|---|---|
+| Status | in progress |
+| Started · Finished | 2026-10-11 03:20 · — |
+| Model | Opus 5.5 · high (single agent; owner asked to cut token cost) |
+| Machine | M5, macOS 27 |
+| Branch | phase/03-engine-styles-compile-audio |
+
+## Pre-check
+01 [x] (GATE 1 all pass, D-29: whole-sequence HyperFrames render, no hybrid, NTSC go, no pre-render cache),
+02 [x] (contracts frozen, D-28). Early steps E5 (styles schema/registry/tokens, D-23) and A1 (fonts, geo) merged.
+Tools: node 24.14, ffmpeg 8.1.2, HyperFrames 0.8.145, GSAP 3.15.0 (R5).
+
+## Plan summary
+- A. Wire the E5 registry: `TemplateLookup` from the registry (02's ops), `engine.styles.list/get`,
+  `vox new` picks `vox` when installed, else `base`. Token scoping in compile. `styles/base` content
+  (templates `title`, `text-overlay`, `placeholder`, transitions `crossfade`, `dip-to-black`, preset
+  `base/plain`, A1 fonts, fixtures, `guide.md`).
+- B. `model/captions.ts`: `deriveCaptions` (pure) on 02's `mapWordsToTimeline`, SRT/VTT, `engine.captions`,
+  `SequenceView.captions`.
+- C. `compile/`: in-memory `BuildResult` + `writeBuild`, ported from `spike/lib/compile.ts` and the spike
+  templates (`vox-runtime.js`, `vox-preview.js` helpers per D-29), hooks (S8), framing transforms, CFR
+  copies, captions mount, preview audio, SFX audio, fonts, vendored runtime + GSAP; S9 check.
+- D. `audio/`: cue list (`cues.ts`), ffmpeg graph + two-pass loudnorm + stems; `render/layers.ts` (MOV
+  with alpha). Hybrid export: not needed (GATE 1 go, D-29), step 15 n/a.
+- E. `engine.geo.search` over A1's `src/geo/search.ts`.
+- Test order: registry/lookup → base style → captions → compile snapshots → hooks/S8/S9 → contract
+  (slow: lint + render) → 90 s fixture (slow) → cues → audio graph (+ slow renders) → layers (slow) → geo.
+- Step 7 review: self-review (owner asked to cut token cost; no review agents).
+
 
 ## Early steps (D-19) — a1-assets-geo
 
