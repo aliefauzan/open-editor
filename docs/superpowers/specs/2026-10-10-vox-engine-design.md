@@ -721,7 +721,8 @@ shows up in the open editor.
 
 ## Compile: sequence → HyperFrames
 
-`compile(projectId, sequenceId, { mode: 'preview' | 'render', range? }) → BuildResult`
+`compile(projectId, sequenceId, { mode: 'preview' | 'render', range?, captions? }) → BuildResult`
+(`captions: false` leaves out the caption layer; plan D-32)
 builds the composition **in memory** (a map of path → content plus a list of linked
 media files). `writeBuild(result)` writes it to `build/<sequenceId>/`. The desktop app
 uses the in-memory result to patch the player without a full reload (spec 4).
@@ -785,7 +786,8 @@ Final audio never goes through HyperFrames. `src/audio/` builds one ffmpeg filte
 from the model: every audio-track clip (`atrim` at `inMs`, `afftdn` when `denoise` is
 not `off`, a gain-to-target, `adelay` to `startMs`, `volume`, `afade` for fades), SFX
 cues, track mutes, then `amix` with normalisation off and a limiter, then `loudnorm`
-(two-pass) to the export loudness target integrated and −1 dBTP true peak.
+(two-pass) to the export loudness target integrated and −1.5 dBTP true peak (0.5 dB under
+the audio QA ceiling of −1 dBTP, plan D-32).
 
 Per-source level (plan D-15): each clip whose media has `loudness` gets a gain of
 (target − `integratedLufs`) dB before `amix`, so sources recorded at different levels

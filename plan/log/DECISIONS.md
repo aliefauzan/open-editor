@@ -999,3 +999,34 @@ caption fixes came from the step 12 and 9c tests.
 
 **Why**: Each is the simplest option that meets phase 04's done-when; the values come from the
 fixture tests (sprite and peaks sizes, retry timing) and the M5 doctor run (impersonation warning).
+
+## D-32 · 2026-10-11 · phase 05 · Assets, render, export: mix true peak and implementation choices
+
+**Decision**: Phase 05 changes one contract point and settles these points the specs leave open:
+- Mix true peak (contract change, engine spec "Audio mix"): the final two-pass `loudnorm` aims at
+  −1.5 dBTP (`MIX_TRUE_PEAK_DBTP`), not −1. The audio QA ceiling stays −1 dBTP (`TRUE_PEAK_DBTP`).
+  Aiming exactly at the ceiling left a tiktok (−12 LUFS) mix at about −1.0 dBTP, which the QA's own
+  measurement flagged; 0.5 dB headroom passes on every preset without touching the targets.
+- `compile` takes `captions?: boolean` (default on); `render --captions none` and the per-layer
+  compiles of `export-timeline` use it.
+- Licences: Commons `pd` counts as PDM; NC, ND and GFDL candidates are dropped from search results.
+  `assets.cutout` refuses ND images with the new code `LICENSE_REFUSED`; `assets.generate` without a
+  registered image provider fails with the new code `PROVIDER_MISSING`.
+- Cutout model: rembg `u2net.onnx` (Apache-2.0, SHA-256 pinned, 200 MiB cap) downloaded into
+  `<tools>/models/rembg` on first use, like the face model.
+- Render: default quality `standard`; without `sequenceId` the first sequence renders. The export
+  stem is `<project name>-<sequence name>`. The picture is a silent HyperFrames MP4, muxed with the
+  WAV mix by ffmpeg (video copy, AAC 192k 48 kHz, metadata stripped, `+faststart`).
+- HyperFrames runs with an allowlisted environment (PATH, HOME, locale, TMPDIR, Puppeteer/Chrome and
+  HyperFrames variables) plus telemetry off, so no API key reaches it (its snapshot `--describe`
+  calls Gemini when a key is present).
+- `engine.frames()` uses `hyperframes snapshot`, cached in `cache/frames/<seq>/<build hash>/`.
+- `export-timeline`: OTIO media references are always absolute `file://` paths. Layer MOVs
+  (ProRes 4444 with alpha) are one per scene, transition, overlay item and one for captions, in
+  `<name>-layers/` beside the `.otio`; a name clash takes the same `(2)` suffix as the `.otio`.
+- `credits` lists archive media referenced by any sequence, with its licence and attribution text.
+- Test files for the E3 export target are named `export-target*.test.ts` so the phase verify filter
+  `test -- export-target audio-qa` selects them.
+
+**Why**: The true-peak change is the smallest one that makes the phase 05 loudness check (step 8e)
+pass on the tiktok preset; the rest are the simplest options that meet phase 05's done-when.
