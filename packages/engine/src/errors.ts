@@ -31,11 +31,18 @@ export const ERROR_CODES = [
   'SNAPSHOT_EXISTS',
   'PROJECT_NOT_FOUND',
   'PROJECT_AMBIGUOUS',
-  // media ingest, external tools, export targets (early e3-media-export, D-25)
-  'MEDIA_UNSUPPORTED',
+  // network and links (engine spec "Ingest hardening"; S3, S29)
+  'URL_INVALID',
+  'NET_BLOCKED',
+  'NET_DNS',
+  'NET_REDIRECTS',
+  'NET_TOO_LARGE',
+  // external tools and jobs (early E4: shots, facetrack; early e3-media-export)
   'TOOL_MISSING',
   'TOOL_FAILED',
   'CANCELLED',
+  // media ingest and export targets (early e3-media-export, D-25)
+  'MEDIA_UNSUPPORTED',
   'EXPORT_PATH',
 ] as const;
 
