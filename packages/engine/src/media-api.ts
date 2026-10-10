@@ -53,7 +53,18 @@ export const FACE_MODEL = {
   url: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite',
   sha256: '3698b18f063835bc609069ef052228fbe86d9c9a6dc8dcb7c7c2d69aed2b181b',
   maxBytes: 16 * 1024 * 1024,
+  label: 'face model',
 } as const;
+
+/** A model file the engine downloads once into `<tools>/models` (URL, SHA-256 and size cap pinned). */
+export interface ModelSpec {
+  name: string;
+  url: string;
+  sha256: string;
+  maxBytes: number;
+  /** Words for messages, e.g. "face model". */
+  label: string;
+}
 
 export const FacetrackToolRequestSchema = z.strictObject({
   videoPath: z.string().min(1),
@@ -66,7 +77,7 @@ export const FacetrackToolRequestSchema = z.strictObject({
   minFaceScore: z.number().min(0).max(1).optional(),
 });
 
-const ActorSchema = z.enum(ACTORS).optional();
+export const ActorSchema = z.enum(ACTORS).optional();
 const MediaJobArgs = z.strictObject({
   projectId: z.string(),
   mediaId: MediaIdSchema,
@@ -226,7 +237,7 @@ async function detectionInput(
 }
 
 /** Applies a job's ops as one batch (one history entry), or does nothing when there are none. */
-async function applyJobOps(
+export async function applyJobOps(
   store: ProjectStore,
   ops: OpCall[],
   o: { actor: Actor; jobId: string; baseVersion: number },
@@ -260,32 +271,40 @@ async function readParsed<T>(path: string, schema: z.ZodType<T>): Promise<T | un
 const cancelled = (): VoxError =>
   new VoxError('CANCELLED', 'The download was cancelled.', 'Run it again when ready.');
 
+export interface EnsureModelOptions {
+  signal?: AbortSignal;
+  net?: { resolver?: Resolver; dial?: Dial };
+  /** Test seams. */
+  url?: string;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+}
+
+/** The pinned face model in `<tools>/models`. */
+export function ensureFaceModel(modelsDir: string, o: EnsureModelOptions = {}): Promise<string> {
+  return ensureModel(modelsDir, FACE_MODEL, o);
+}
+
 /**
- * The pinned face model in `<tools>/models` (downloaded once over a checked public connection,
- * SHA-256 verified, written to a temp file and moved into place).
+ * A pinned model in `modelsDir` (downloaded once over a checked public connection, SHA-256 verified,
+ * written to a temp file and moved into place).
  */
-export async function ensureFaceModel(
+export async function ensureModel(
   modelsDir: string,
-  o: {
-    signal?: AbortSignal;
-    net?: { resolver?: Resolver; dial?: Dial };
-    /** Test seams. */
-    url?: string;
-    sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
-  } = {},
+  spec: ModelSpec,
+  o: EnsureModelOptions = {},
 ): Promise<string> {
-  const path = join(modelsDir, FACE_MODEL.name);
-  if ((await sha256File(path)) === FACE_MODEL.sha256) return path;
+  const path = join(modelsDir, spec.name);
+  if ((await sha256File(path)) === spec.sha256) return path;
   await mkdir(modelsDir, { recursive: true, mode: 0o700 });
   const temp = join(
     modelsDir,
-    `.vox-part-${process.pid}-${randomBytes(6).toString('hex')}-${FACE_MODEL.name}`,
+    `.vox-part-${process.pid}-${randomBytes(6).toString('hex')}-${spec.name}`,
   );
   try {
     await withRetry(
       async () => {
         if (o.signal?.aborted) throw cancelled();
-        const res = await fetchPublic(o.url ?? FACE_MODEL.url, {
+        const res = await fetchPublic(o.url ?? spec.url, {
           ...(o.net?.resolver ? { resolver: o.net.resolver } : {}),
           ...(o.net?.dial ? { dial: o.net.dial } : {}),
           ...(o.signal ? { signal: o.signal } : {}),
@@ -295,7 +314,7 @@ export async function ensureFaceModel(
           res.body.resume();
           throw new VoxError(
             'TOOL_FAILED',
-            `The face model download returned HTTP ${res.status}.`,
+            `The ${spec.label} download returned HTTP ${res.status}.`,
             'Check the connection and run it again.',
           );
         }
@@ -306,11 +325,11 @@ export async function ensureFaceModel(
           for await (const chunk of res.body) {
             const b = chunk as Buffer;
             size += b.length;
-            if (size > FACE_MODEL.maxBytes) {
+            if (size > spec.maxBytes) {
               res.body.destroy();
               throw new VoxError(
                 'NET_TOO_LARGE',
-                'The face model download is too large.',
+                `The ${spec.label} download is too large.`,
                 'Run vox doctor.',
               );
             }
@@ -320,10 +339,10 @@ export async function ensureFaceModel(
         } finally {
           await fh.close();
         }
-        if (h.digest('hex') !== FACE_MODEL.sha256) {
+        if (h.digest('hex') !== spec.sha256) {
           throw new VoxError(
             'TOOL_FAILED',
-            'The downloaded face model does not match its pinned SHA-256.',
+            `The downloaded ${spec.label} does not match its pinned SHA-256.`,
             'Run it again; if it keeps failing, run vox doctor.',
           );
         }

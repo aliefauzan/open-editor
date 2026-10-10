@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/cutout.request",
+  "title": "vox_py.cutout request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["input", "output", "modelPath"],
+  "properties": {
+    "input": { "type": "string", "minLength": 1 },
+    "output": { "type": "string", "pattern": "\\.png$" },
+    "modelPath": { "type": "string", "pattern": "u2net\\.onnx$" }
+  }
+}

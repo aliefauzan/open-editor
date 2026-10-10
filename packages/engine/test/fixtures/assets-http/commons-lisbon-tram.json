@@ -1,0 +1,561 @@
+{
+ "batchcomplete": true,
+ "query": {
+  "pages": [
+   {
+    "pageid": 58642223,
+    "ns": 6,
+    "title": "File:Tram 28 Lisbon Portuguese.jpg",
+    "index": 1,
+    "imageinfo": [
+     {
+      "size": 6104934,
+      "width": 2796,
+      "height": 1752,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Tram_28_Lisbon_Portuguese.jpg/1920px-Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1203,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/62/Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tram_28_Lisbon_Portuguese.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Tram 28 Lisbon Portuguese",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:%D0%92%D0%B2%D0%BB%D0%B0%D1%81%D0%B5%D0%BD%D0%BA%D0%BE\" class=\"mw-redirect\" title=\"User:Ввласенко\">Ввласенко</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY-SA 4.0",
+        "source": "commons-desc-page",
+        "hidden": ""
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-sa-4.0",
+        "source": "commons-templates",
+        "hidden": ""
+       }
+      }
+     }
+    ]
+   },
+   {
+    "pageid": 79134901,
+    "ns": 6,
+    "title": "File:Lisbon Tram BW 2018-10-03 11-50-51.jpg",
+    "index": 8,
+    "imageinfo": [
+     {
+      "size": 5393082,
+      "width": 3506,
+      "height": 4995,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/df/Lisbon_Tram_BW_2018-10-03_11-50-51.jpg/1920px-Lisbon_Tram_BW_2018-10-03_11-50-51.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 2735,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/df/Lisbon_Tram_BW_2018-10-03_11-50-51.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lisbon_Tram_BW_2018-10-03_11-50-51.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Lisbon Tram BW 2018-10-03 11-50-51",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:Berthold_Werner\" title=\"User:Berthold Werner\">Berthold Werner</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY-SA 4.0",
+        "source": "commons-desc-page",
+        "hidden": ""
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-sa-4.0",
+        "source": "commons-templates",
+        "hidden": ""
+       }
+      }
+     }
+    ]
+   },
+   {
+    "pageid": 80863515,
+    "ns": 6,
+    "title": "File:Lisbon BW 2018-10-03 13-25-21.jpg",
+    "index": 4,
+    "imageinfo": [
+     {
+      "size": 5807998,
+      "width": 5583,
+      "height": 3387,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3b/Lisbon_BW_2018-10-03_13-25-21.jpg/1920px-Lisbon_BW_2018-10-03_13-25-21.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1165,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/3/3b/Lisbon_BW_2018-10-03_13-25-21.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lisbon_BW_2018-10-03_13-25-21.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Lisbon BW 2018-10-03 13-25-21",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:Berthold_Werner\" title=\"User:Berthold Werner\">Berthold Werner</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY-SA 4.0",
+        "source": "commons-desc-page",
+        "hidden": ""
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-sa-4.0",
+        "source": "commons-templates",
+        "hidden": ""
+       }
+      }
+     }
+    ]
+   },
+   {
+    "pageid": 80863524,
+    "ns": 6,
+    "title": "File:Lisbon BW 2018-10-03 13-25-22.jpg",
+    "index": 3,
+    "imageinfo": [
+     {
+      "size": 7371686,
+      "width": 5860,
+      "height": 3896,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/98/Lisbon_BW_2018-10-03_13-25-22.jpg/1920px-Lisbon_BW_2018-10-03_13-25-22.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1277,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/9/98/Lisbon_BW_2018-10-03_13-25-22.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lisbon_BW_2018-10-03_13-25-22.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Lisbon BW 2018-10-03 13-25-22",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:Berthold_Werner\" title=\"User:Berthold Werner\">Berthold Werner</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY-SA 4.0",
+        "source": "commons-desc-page",
+        "hidden": ""
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-sa-4.0",
+        "source": "commons-templates",
+        "hidden": ""
+       }
+      }
+     }
+    ]
+   },
+   {
+    "pageid": 80885731,
+    "ns": 6,
+    "title": "File:Lisbon BW 2018-10-03 13-34-55.jpg",
+    "index": 5,
+    "imageinfo": [
+     {
+      "size": 5351083,
+      "width": 5099,
+      "height": 3056,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d5/Lisbon_BW_2018-10-03_13-34-55.jpg/1920px-Lisbon_BW_2018-10-03_13-34-55.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1151,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/d5/Lisbon_BW_2018-10-03_13-34-55.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lisbon_BW_2018-10-03_13-34-55.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Lisbon BW 2018-10-03 13-34-55",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:Berthold_Werner\" title=\"User:Berthold Werner\">Berthold Werner</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY-SA 4.0",
+        "source": "commons-desc-page",
+        "hidden": ""
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-sa-4.0",
+        "source": "commons-templates",
+        "hidden": ""
+       }
+      }
+     }
+    ]
+   },
+   {
+    "pageid": 138414208,
+    "ns": 6,
+    "title": "File:Number 28 tram, Calçada de São Francisco, Lisbon, Portugal julesvernex2.jpg",
+    "index": 7,
+    "imageinfo": [
+     {
+      "size": 3933140,
+      "width": 3264,
+      "height": 4441,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/Number_28_tram%2C_Cal%C3%A7ada_de_S%C3%A3o_Francisco%2C_Lisbon%2C_Portugal_julesvernex2.jpg/1920px-Number_28_tram%2C_Cal%C3%A7ada_de_S%C3%A3o_Francisco%2C_Lisbon%2C_Portugal_julesvernex2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 2612,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/b/b4/Number_28_tram%2C_Cal%C3%A7ada_de_S%C3%A3o_Francisco%2C_Lisbon%2C_Portugal_julesvernex2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Number_28_tram,_Cal%C3%A7ada_de_S%C3%A3o_Francisco,_Lisbon,_Portugal_julesvernex2.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Number 28 tram, Calçada de São Francisco, Lisbon, Portugal julesvernex2",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<p><a href=\"//commons.wikimedia.org/wiki/User:Julesvernex2\" title=\"User:Julesvernex2\">Jules Verne Times Two</a>\n</p>\n<ul><li><a rel=\"nofollow\" class=\"external free\" href=\"http://julesvernex2.com\">http://julesvernex2.com</a></li></ul>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY-SA 4.0",
+        "source": "commons-desc-page",
+        "hidden": ""
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-sa-4.0",
+        "source": "commons-templates",
+        "hidden": ""
+       }
+      }
+     }
+    ]
+   },
+   {
+    "pageid": 167647420,
+    "ns": 6,
+    "title": "File:Tram of line 28E on Rua Augusto Rosa in Lisbon, 20250603 2011 9033.jpg",
+    "index": 2,
+    "imageinfo": [
+     {
+      "size": 9957038,
+      "width": 2696,
+      "height": 4037,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/52/Tram_of_line_28E_on_Rua_Augusto_Rosa_in_Lisbon%2C_20250603_2011_9033.jpg/1920px-Tram_of_line_28E_on_Rua_Augusto_Rosa_in_Lisbon%2C_20250603_2011_9033.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 2875,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/5/52/Tram_of_line_28E_on_Rua_Augusto_Rosa_in_Lisbon%2C_20250603_2011_9033.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tram_of_line_28E_on_Rua_Augusto_Rosa_in_Lisbon,_20250603_2011_9033.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Tram of line 28E on Rua Augusto Rosa in Lisbon, 20250603 2011 9033",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:Jakubhal\" title=\"User:Jakubhal\">Jakub Hałun</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY 4.0",
+        "source": "commons-desc-page",
+        "hidden": ""
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-4.0",
+        "source": "commons-templates",
+        "hidden": ""
+       }
+      }
+     }
+    ]
+   },
+   {
+    "pageid": 192185628,
+    "ns": 6,
+    "title": "File:Tram 28 at Largo de Santa Luzia in Lisbon, 20250606 1958 0419.jpg",
+    "index": 6,
+    "imageinfo": [
+     {
+      "size": 8333636,
+      "width": 2391,
+      "height": 3583,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ae/Tram_28_at_Largo_de_Santa_Luzia_in_Lisbon%2C_20250606_1958_0419.jpg/1920px-Tram_28_at_Largo_de_Santa_Luzia_in_Lisbon%2C_20250606_1958_0419.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 2877,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/ae/Tram_28_at_Largo_de_Santa_Luzia_in_Lisbon%2C_20250606_1958_0419.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tram_28_at_Largo_de_Santa_Luzia_in_Lisbon,_20250606_1958_0419.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Tram 28 at Largo de Santa Luzia in Lisbon, 20250606 1958 0419",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:Jakubhal\" title=\"User:Jakubhal\">Jakub Hałun</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY 4.0",
+        "source": "commons-desc-page",
+        "hidden": ""
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-4.0",
+        "source": "commons-templates",
+        "hidden": ""
+       }
+      }
+     }
+    ]
+   },
+   {
+    "pageid": 900001,
+    "ns": 6,
+    "title": "File:Edited licence cc-by-nc-sa-4.0.jpg",
+    "index": 101,
+    "imageinfo": [
+     {
+      "size": 6104934,
+      "width": 2796,
+      "height": 1752,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Tram_28_Lisbon_Portuguese.jpg/1920px-Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1203,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/62/Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tram_28_Lisbon_Portuguese.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Tram 28 Lisbon Portuguese",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:%D0%92%D0%B2%D0%BB%D0%B0%D1%81%D0%B5%D0%BD%D0%BA%D0%BE\" class=\"mw-redirect\" title=\"User:Ввласенко\">Ввласенко</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY-NC-SA 4.0",
+        "source": "commons-desc-page"
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-nc-sa-4.0",
+        "source": "commons-desc-page"
+       }
+      }
+     }
+    ],
+    "_edited": true
+   },
+   {
+    "pageid": 900002,
+    "ns": 6,
+    "title": "File:Edited licence cc-by-nd-4.0.jpg",
+    "index": 102,
+    "imageinfo": [
+     {
+      "size": 6104934,
+      "width": 2796,
+      "height": 1752,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Tram_28_Lisbon_Portuguese.jpg/1920px-Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1203,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/62/Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tram_28_Lisbon_Portuguese.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Tram 28 Lisbon Portuguese",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:%D0%92%D0%B2%D0%BB%D0%B0%D1%81%D0%B5%D0%BD%D0%BA%D0%BE\" class=\"mw-redirect\" title=\"User:Ввласенко\">Ввласенко</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC BY-ND 4.0",
+        "source": "commons-desc-page"
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc-by-nd-4.0",
+        "source": "commons-desc-page"
+       }
+      }
+     }
+    ],
+    "_edited": true
+   },
+   {
+    "pageid": 900003,
+    "ns": 6,
+    "title": "File:Edited licence gfdl.jpg",
+    "index": 103,
+    "imageinfo": [
+     {
+      "size": 6104934,
+      "width": 2796,
+      "height": 1752,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Tram_28_Lisbon_Portuguese.jpg/1920px-Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1203,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/62/Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tram_28_Lisbon_Portuguese.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Tram 28 Lisbon Portuguese",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:%D0%92%D0%B2%D0%BB%D0%B0%D1%81%D0%B5%D0%BD%D0%BA%D0%BE\" class=\"mw-redirect\" title=\"User:Ввласенко\">Ввласенко</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "GFDL",
+        "source": "commons-desc-page"
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "gfdl",
+        "source": "commons-desc-page"
+       }
+      }
+     }
+    ],
+    "_edited": true
+   },
+   {
+    "pageid": 900004,
+    "ns": 6,
+    "title": "File:Edited licence cc0.jpg",
+    "index": 104,
+    "imageinfo": [
+     {
+      "size": 6104934,
+      "width": 2796,
+      "height": 1752,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Tram_28_Lisbon_Portuguese.jpg/1920px-Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1203,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/62/Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tram_28_Lisbon_Portuguese.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Tram 28 Lisbon Portuguese",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<a href=\"//commons.wikimedia.org/wiki/User:%D0%92%D0%B2%D0%BB%D0%B0%D1%81%D0%B5%D0%BD%D0%BA%D0%BE\" class=\"mw-redirect\" title=\"User:Ввласенко\">Ввласенко</a>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "CC0",
+        "source": "commons-desc-page"
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "cc0",
+        "source": "commons-desc-page"
+       }
+      }
+     }
+    ],
+    "_edited": true
+   },
+   {
+    "pageid": 900005,
+    "ns": 6,
+    "title": "File:Edited licence pd.jpg",
+    "index": 105,
+    "imageinfo": [
+     {
+      "size": 6104934,
+      "width": 2796,
+      "height": 1752,
+      "thumburl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/Tram_28_Lisbon_Portuguese.jpg/1920px-Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "thumbwidth": 1920,
+      "thumbheight": 1203,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/62/Tram_28_Lisbon_Portuguese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:Tram_28_Lisbon_Portuguese.jpg",
+      "mime": "image/jpeg",
+      "extmetadata": {
+       "ObjectName": {
+        "value": "Tram 28 Lisbon Portuguese",
+        "source": "mediawiki-metadata"
+       },
+       "Artist": {
+        "value": "<span>Unknown&nbsp;author &amp; <b>friends</b></span><script>x</script>",
+        "source": "commons-desc-page"
+       },
+       "LicenseShortName": {
+        "value": "Public domain",
+        "source": "commons-desc-page"
+       },
+       "LicenseUrl": {
+        "value": "https://creativecommons.org/licenses/by-sa/4.0",
+        "source": "commons-desc-page"
+       },
+       "License": {
+        "value": "pd",
+        "source": "commons-desc-page"
+       }
+      }
+     }
+    ],
+    "_edited": true
+   }
+  ]
+ }
+}

@@ -522,3 +522,18 @@ async function ingestUrl(
     await rm(dl, { recursive: true, force: true });
   }
 }
+
+/**
+ * One local file in as a media item with the given origin (archive downloads, cutouts and generated
+ * images, phase 05). Same checks as a local ingest: content sniffing, a fresh image encode (S6),
+ * analysis; the same bytes again return the earlier item (`reused`).
+ */
+export async function ingestOne(
+  env: IngestEnv,
+  path: string,
+  origin: MediaItem['origin'],
+): Promise<{ media: MediaItem; reused: boolean }> {
+  for (const d of DIRS) await mkdir(join(env.projectDir, d), { recursive: true, mode: 0o700 });
+  const known = new Map(env.existing.map((m) => [m.id, m] as const));
+  return ingestFile(env, path, { origin, proxies: true, known });
+}

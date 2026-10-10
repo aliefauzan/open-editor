@@ -43,6 +43,12 @@ import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
 import { registerMediaJobs, type MediaApi } from './media-api.ts';
+import {
+  createImageProviders,
+  registerAssetJobs,
+  type ImageProvider,
+} from './assets-api.ts';
+import type { GetJson } from './stages/assets.ts';
 import { doctor, doctorProject, type DoctorReport, type ProjectDoctorReport } from './doctor.ts';
 import { ProjectSchema } from './model/schema.ts';
 import type { Resolver } from './net/address.ts';
@@ -285,6 +291,20 @@ export {
   type TranscribeJobResult,
 } from './media-api.ts';
 export { classifyUrl, type UrlKind } from './stages/sources.ts';
+export {
+  CUTOUT_MODEL,
+  type AssetMediaResult,
+  type ImageProvider,
+  type ImageRequest,
+} from './assets-api.ts';
+export {
+  BY_SA_WARNING,
+  LICENSES,
+  classifyLicense,
+  type AssetCandidate,
+  type License,
+  type SearchResult as AssetSearchResult,
+} from './stages/assets.ts';
 export type { CheckLevel, DoctorCheck, DoctorReport, ProjectDoctorReport } from './doctor.ts';
 export { LOGIN_REQUIRED_HINT } from './stages/ytdlp.ts';
 export { WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
@@ -323,6 +343,13 @@ export interface EngineOptions {
   jobs?: { concurrency?: number };
   /** Test seams for downloads (no internet in tests). */
   net?: { resolver?: Resolver; dial?: Dial };
+  /** Test seams for archive search and fetch (recorded replies, local HTTPS, no back-off). */
+  assets?: {
+    getJson?: GetJson;
+    commonsThrottle?: (signal?: AbortSignal) => Promise<void>;
+    ca?: string;
+    sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  };
 }
 
 export interface ProjectSummary {
@@ -365,6 +392,11 @@ export interface Engine {
   /** Job runner with the kinds `ingest`, `transcribe` (GPU), `shots`, `facetrack`. */
   readonly jobs: JobRunner;
   facetrackPath: MediaApi['facetrackPath'];
+  /**
+   * Image generation providers (engine spec "Image generation provider"); none is built in. The
+   * most recently registered one is the default of `assets.generate`.
+   */
+  imageProviders: { register(p: ImageProvider): void; list(): { id: string }[] };
   mediaFrames: MediaApi['mediaFrames'];
   /** Tool, model and config checks (`vox doctor`); `quick` skips the Python import check. */
   doctor(opts?: { quick?: boolean }): Promise<DoctorReport>;
@@ -561,6 +593,21 @@ export function openEngine(opts: EngineOptions): Engine {
     config: opts.config ?? readConfig,
     ...(opts.net ? { net: opts.net } : {}),
   });
+  const imageProviders = createImageProviders();
+  registerAssetJobs(jobs, {
+    tools: opts.tools ?? {},
+    redactor,
+    store,
+    dirOf,
+    config: opts.config ?? readConfig,
+    ...(opts.net ? { net: opts.net } : {}),
+    version,
+    providers: imageProviders,
+    ...(opts.assets?.getJson ? { getJson: opts.assets.getJson } : {}),
+    ...(opts.assets?.commonsThrottle ? { commonsThrottle: opts.assets.commonsThrottle } : {}),
+    ...(opts.assets?.ca ? { ca: opts.assets.ca } : {}),
+    ...(opts.assets?.sleep ? { sleep: opts.assets.sleep } : {}),
+  });
 
   return {
     projectsDir: opts.projectsDir,
@@ -569,6 +616,7 @@ export function openEngine(opts: EngineOptions): Engine {
     redactor,
     jobs,
     facetrackPath: (projectId, mediaId, o) => media.facetrackPath(projectId, mediaId, o),
+    imageProviders: { register: (p) => imageProviders.register(p), list: () => imageProviders.list() },
     mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
     async doctor(o = {}) {
       return doctor({

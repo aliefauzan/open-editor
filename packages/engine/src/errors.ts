@@ -61,6 +61,9 @@ export const ERROR_CODES = [
   'MEDIA_MISSING',
   'TEMPLATE_VERSION',
   'HOOK_UNTRUSTED',
+  // assets, render and export (phase 05)
+  'LICENSE_REFUSED',
+  'PROVIDER_MISSING',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

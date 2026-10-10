@@ -15,6 +15,8 @@ dependencies = [
   "pypdf==6.19.0",
   "cryptography==50.0.1",  # pypdf needs it for AES-encrypted PDFs
   "numpy==2.5.3",  # audio QA (already locked as a dependency of onnxruntime and mediapipe)
+  "rembg==2.0.85",
+  "opentimelineio==0.18.1",
 ]
 
 [dependency-groups]
