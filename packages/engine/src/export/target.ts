@@ -4,14 +4,19 @@
 // cancelled export never leaves a half file. An existing file is never replaced silently:
 // `{ file }` needs `overwrite`; `{ dir }` adds ` (2)`, ` (3)` …; `renders/` adds `-2`, `-3` ….
 // The no-replace move is atomic (`link` + `unlink`), so a file that appears meanwhile is kept.
-// Temps left by a killed engine process are swept by the next export into the same folder.
+// Temps left by a killed engine process are swept by the next export into the same folder: only
+// temps of this host (a short host tag in the name) whose process is gone (ESRCH).
+// The temp name is short (`.vox-tmp-<host>-<pid>-<random>.<ext>`) so a long final name never pushes
+// it past NAME_MAX; the stem is capped at STEM_MAX_BYTES of UTF-8.
 // Only trusted callers (CLI, the app's engine host) pass a target; the agent has none (spec 3).
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { access, link, lstat, mkdir, open, readdir, rename, stat, unlink } from 'node:fs/promises';
+import { access, lstat, mkdir, open, readdir, rename, stat, unlink } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { VoxError } from '../errors.pending.ts';
+import { EXCL_FLAGS, placeNoReplace } from '../fs/no-replace.ts';
 
 export type ExportTarget = { file: string } | { dir: string };
 
@@ -42,7 +47,14 @@ export interface PreparedExport {
 type Mode = 'file' | 'dir' | 'renders';
 
 const MAX_SUFFIX = 9999;
-const TEMP_RE = /^\..*\.vox-tmp-(\d+)-[0-9a-f]+(\.[^.]*)?$/;
+/** UTF-8 bytes kept of a stem; with ` (9999)` and a short extension the name stays under 255. */
+export const STEM_MAX_BYTES = 150;
+/** Six hex chars of the host name: temps of another machine on a shared folder are never swept. */
+export const HOST_TAG = createHash('sha256').update(hostname()).digest('hex').slice(0, 6);
+const TEMP_RE = /^\.vox-tmp-([0-9a-f]{6})-(\d{1,10})-[0-9a-f]{12}\.[A-Za-z0-9]{1,8}$/;
+
+const tempName = (ext: string): string =>
+  `.vox-tmp-${HOST_TAG}-${process.pid}-${randomBytes(6).toString('hex')}.${ext}`;
 
 function exportPath(
   message: string,
@@ -62,7 +74,7 @@ const CHOOSE = 'Choose an existing folder you can write to (an absolute path).';
 
 /** A file-name stem from a project/sequence name: no separators, control characters or leading dots. */
 export function safeStem(name: string): string {
-  let s = name
+  const s = name
     .replace(/[/\\:]/g, '-')
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
@@ -70,8 +82,16 @@ export function safeStem(name: string): string {
     .replace(/^\.+/, '')
     .replace(/[. ]+$/, '')
     .trim();
-  s = Array.from(s).slice(0, 120).join('');
-  return s.length === 0 ? 'export' : s;
+  // Cap by UTF-8 bytes, cutting only between code points, then drop a trailing dot/space again.
+  let bytes = 0;
+  let out = '';
+  for (const ch of s) {
+    bytes += Buffer.byteLength(ch, 'utf8');
+    if (bytes > STEM_MAX_BYTES) break;
+    out += ch;
+  }
+  out = out.replace(/[. ]+$/, '');
+  return out.length === 0 ? 'export' : out;
 }
 
 function checkAbs(p: unknown, what: string): string {
@@ -108,16 +128,18 @@ const exists = async (p: string): Promise<boolean> =>
     },
   );
 
-const pidAlive = (pid: number): boolean => {
+/** Only ESRCH means gone; any other answer (EPERM, a bad pid) keeps the temp. */
+const pidGone = (pid: number): boolean => {
+  if (!Number.isSafeInteger(pid) || pid <= 1) return false;
   try {
     process.kill(pid, 0);
-    return true;
+    return false;
   } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM';
+    return (e as NodeJS.ErrnoException).code === 'ESRCH';
   }
 };
 
-/** Remove export temps in `dir` whose owning process is gone. */
+/** Remove export temps in `dir` made on this host by a process that is gone. */
 export async function sweepStaleTemps(dir: string): Promise<string[]> {
   const removed: string[] = [];
   let names: string[];
@@ -129,8 +151,9 @@ export async function sweepStaleTemps(dir: string): Promise<string[]> {
   for (const n of names) {
     const m = TEMP_RE.exec(n);
     if (!m) continue;
-    const pid = Number(m[1]);
-    if (pid === process.pid || pidAlive(pid)) continue;
+    if (m[1] !== HOST_TAG) continue;
+    const pid = Number(m[2]);
+    if (pid === process.pid || !pidGone(pid)) continue;
     const p = join(dir, n);
     try {
       if ((await lstat(p)).isFile()) {
@@ -188,27 +211,34 @@ export async function prepareExport(o: ExportOptions): Promise<PreparedExport> {
       'This is an engine bug; please report it.',
     );
   const stem = safeStem(o.stem);
-  const t = o.target as Record<string, unknown> | undefined;
+  const t: unknown = o.target;
   let mode: Mode;
   let folder: string;
   let fileName = '';
   if (t === undefined) {
     mode = 'renders';
     folder = checkAbs(o.defaultDir, 'folder');
-    await mkdir(folder, { recursive: true });
+    try {
+      await mkdir(folder, { recursive: true });
+    } catch (e) {
+      throw exportPath(`Cannot create the renders folder: ${folder}`, CHOOSE, { path: folder }, e);
+    }
     await checkFolder(folder);
+  } else if (t === null || typeof t !== 'object' || Array.isArray(t)) {
+    throw exportPath('An export target is either { file } or { dir }.', CHOOSE, { target: t });
   } else {
-    const hasFile = 'file' in t && t['file'] !== undefined;
-    const hasDir = 'dir' in t && t['dir'] !== undefined;
+    const tt = t as Record<string, unknown>;
+    const hasFile = tt['file'] !== undefined;
+    const hasDir = tt['dir'] !== undefined;
     if (hasFile === hasDir)
       throw exportPath('An export target is either { file } or { dir }.', CHOOSE, { target: t });
     if (hasFile) {
       mode = 'file';
-      const file = checkAbs(t['file'], 'file');
+      const file = checkAbs(tt['file'], 'file');
       folder = dirname(file);
       fileName = basename(file);
       await checkFolder(folder);
-      const st = await lstat(file).catch(() => undefined);
+      const st = await lstat(file).catch((): undefined => undefined);
       if (st?.isDirectory())
         throw exportPath(
           `The export file is a folder: ${file}`,
@@ -224,7 +254,7 @@ export async function prepareExport(o: ExportOptions): Promise<PreparedExport> {
       }
     } else {
       mode = 'dir';
-      folder = checkAbs(t['dir'], 'folder');
+      folder = checkAbs(tt['dir'], 'folder');
       await checkFolder(folder);
     }
   }
@@ -236,21 +266,34 @@ export async function prepareExport(o: ExportOptions): Promise<PreparedExport> {
     fileName = free.name;
     n = free.n;
   }
-  const tempPath = join(
-    folder,
-    `.${fileName}.vox-tmp-${process.pid}-${randomBytes(6).toString('hex')}.${ext}`,
-  );
+  const tempPath = join(folder, tempName(ext));
+  const createExcl = async (p: string): Promise<{ dev: number; ino: number }> => {
+    const fh = await open(p, EXCL_FLAGS, 0o644);
+    try {
+      const st = await fh.stat();
+      return { dev: st.dev, ino: st.ino };
+    } finally {
+      await fh.close();
+    }
+  };
+  let tempId: { dev: number; ino: number };
   try {
-    await (
-      await open(
-        tempPath,
-        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-        0o644,
-      )
-    ).close();
+    tempId = await createExcl(tempPath);
   } catch (e) {
     throw exportPath(`Cannot write in the export folder: ${folder}`, CHOOSE, { path: folder }, e);
   }
+  // The temp must still be the file we created: a swap (symlink, another file) in a shared folder
+  // is refused instead of linked into place.
+  const checkTemp = async (): Promise<void> => {
+    const st = await lstat(tempPath).catch((): undefined => undefined);
+    if (!st?.isFile() || st.dev !== tempId.dev || st.ino !== tempId.ino || st.nlink !== 1) {
+      throw exportPath(
+        `The export temp file was changed by something else: ${tempPath}`,
+        'Export again; if it keeps failing, choose a folder only you can write to.',
+        { path: tempPath },
+      );
+    }
+  };
 
   let finalPath = join(folder, fileName);
   let done = false;
@@ -261,29 +304,14 @@ export async function prepareExport(o: ExportOptions): Promise<PreparedExport> {
   const commit = async (): Promise<string> => {
     if (done) return finalPath;
     try {
-      await fsyncPath(tempPath, constants.O_RDONLY);
+      await checkTemp();
+      await fsyncPath(tempPath, constants.O_RDONLY | constants.O_NOFOLLOW);
       if (mode === 'file' && o.overwrite) {
+        // Replaces the name itself (a symlink there is replaced, never written through).
         await rename(tempPath, finalPath);
       } else {
         for (;;) {
-          let placed = false;
-          try {
-            await link(tempPath, finalPath); // fails with EEXIST: never replaces
-            placed = true;
-          } catch (e) {
-            const code = (e as NodeJS.ErrnoException).code;
-            if (code !== 'EEXIST') {
-              // No hard links on this volume (exFAT, some network shares): check, then rename.
-              if (!(await exists(finalPath))) {
-                await rename(tempPath, finalPath);
-                break;
-              }
-            }
-          }
-          if (placed) {
-            await unlink(tempPath);
-            break;
-          }
+          if (await placeNoReplace(tempPath, finalPath)) break;
           if (mode === 'file') {
             throw exportPath(
               `The file already exists: ${finalPath}`,
@@ -323,7 +351,7 @@ export async function prepareExport(o: ExportOptions): Promise<PreparedExport> {
  */
 export async function writeExport(
   o: ExportOptions,
-  produce: (tempPath: string) => Promise<void>,
+  produce: (tempPath: string, signal: AbortSignal | undefined) => Promise<void>,
   run: { signal?: AbortSignal } = {},
 ): Promise<string> {
   const cancelled = (): VoxError =>
@@ -335,10 +363,14 @@ export async function writeExport(
   if (run.signal?.aborted) throw cancelled();
   const p = await prepareExport(o);
   try {
-    await produce(p.tempPath);
+    if (run.signal?.aborted) throw cancelled();
+    await produce(p.tempPath, run.signal);
     if (run.signal?.aborted) throw cancelled();
   } catch (e) {
     await p.discard();
+    // A producer that fails because of the cancel (its own error type) still reports CANCELLED.
+    if (run.signal?.aborted && !(e instanceof VoxError && e.code === 'CANCELLED'))
+      throw cancelled();
     throw e;
   }
   return p.commit();

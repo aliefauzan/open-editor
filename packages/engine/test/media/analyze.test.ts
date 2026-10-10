@@ -2,7 +2,10 @@
 // and a real probe + loudness of the checked-in seed media. The make.sh fixtures (VFR phone clip,
 // NTSC clip) are in analyze.slow.test.ts.
 
-import { describe, expect, test } from 'vitest';
+import { chmodSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterAll, describe, expect, test } from 'vitest';
+import type { VoxError } from '../../src/errors.pending.ts';
 import {
   SILENCE_DB,
   analyzeMedia,
@@ -15,7 +18,7 @@ import {
   ptsDeltaSpread,
 } from '../../src/stages/media/analyze.ts';
 import { sniffFile, type SniffedMedia } from '../../src/stages/media/sniff.ts';
-import { codeOf, fixture } from './helpers.ts';
+import { codeOf, codeOfAsync, fixture, removeDir, tempDir } from './helpers.ts';
 
 const r = (num: number, den = 1) => ({ num, den });
 
@@ -202,6 +205,7 @@ describe('analyzeMedia on the checked-in seed media', () => {
         cfr: undefined,
         hasAudio: true,
       });
+      expect(typeof a.audioCodec).toBe('string');
       expect(Math.abs((a.durationMs ?? 0) - 20000)).toBeLessThanOrEqual(50);
       expect(a.loudness?.integratedLufs).toBeGreaterThan(-30);
       expect(a.loudness?.integratedLufs).toBeLessThan(-5);
@@ -222,5 +226,83 @@ describe('analyzeMedia on the checked-in seed media', () => {
     expect(a.kind).toBe('image');
     expect(a.width).toBeGreaterThan(0);
     expect(a).toMatchObject({ fps: undefined, hasAudio: false, loudness: undefined });
+  });
+});
+
+describe('probe edge cases', () => {
+  const probeJson = (format: object, streams: object[]) => JSON.stringify({ format, streams });
+
+  test('durationMs falls back to the longest stream when the container has none', () => {
+    const p = parseProbeJson(
+      probeJson({ format_name: 'matroska,webm' }, [
+        { codec_type: 'video', width: 64, height: 48, duration: '1.5' },
+        { codec_type: 'audio', codec_name: 'opus', duration: '2.25' },
+      ]),
+      'matroska',
+    );
+    expect(p.durationMs).toBe(2250);
+  });
+});
+
+describe('analyzeMedia refuses what it cannot handle (fake ffprobe)', () => {
+  // A stand-in ffprobe that prints fixed JSON for the stream probe and nothing for the pts scan.
+  const made: string[] = [];
+  afterAll(async () => {
+    for (const d of made) await removeDir(d);
+  });
+  const fakeProbe = (json: string): string => {
+    const dir = tempDir('vox-fakeprobe-');
+    made.push(dir);
+    const bin = join(dir, 'ffprobe');
+    const quoted = json.replaceAll("'", "'\\''");
+    writeFileSync(
+      bin,
+      `#!/bin/sh\ncase "$*" in *show_streams*) printf '%s' '${quoted}' ;; esac\nexit 0\n`,
+    );
+    chmodSync(bin, 0o755);
+    return bin;
+  };
+  const video: SniffedMedia = { kind: 'video', format: 'mov', ext: 'mp4' };
+
+  test('a picture larger than 8192×8192 → MEDIA_UNSUPPORTED before any decode', async () => {
+    const ffprobe = fakeProbe(
+      JSON.stringify({
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2', duration: '1' },
+        streams: [
+          {
+            codec_type: 'video',
+            width: 9000,
+            height: 9000,
+            r_frame_rate: '30/1',
+            avg_frame_rate: '30/1',
+          },
+        ],
+      }),
+    );
+    const err = (await analyzeMedia('/x/a.mp4', video, { tools: { ffprobe } }).catch(
+      (e: unknown) => e,
+    )) as VoxError;
+    expect(err.code).toBe('MEDIA_UNSUPPORTED');
+    expect(err.details).toMatchObject({ detected: '9000x9000' });
+  });
+
+  test('a video with no readable frame rate → MEDIA_UNSUPPORTED', async () => {
+    const ffprobe = fakeProbe(
+      JSON.stringify({
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2', duration: '1' },
+        streams: [
+          {
+            codec_type: 'video',
+            width: 64,
+            height: 48,
+            r_frame_rate: '0/0',
+            avg_frame_rate: '0/0',
+          },
+        ],
+      }),
+    );
+    expect(await codeOfAsync(analyzeMedia('/x/a.mp4', video, { tools: { ffprobe } }))).toBe(
+      'MEDIA_UNSUPPORTED',
+    );
   });
 });

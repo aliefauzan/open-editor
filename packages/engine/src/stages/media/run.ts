@@ -22,6 +22,10 @@ export interface RunOptions {
   redact?: (text: string) => string;
   /** stdout cap; the child is killed and the run fails above it. Default 64 MiB. */
   maxStdoutBytes?: number;
+  /** Kill the child (SIGKILL) and fail with TOOL_FAILED after this long. No limit by default. */
+  timeoutMs?: number;
+  /** Called once with the child pid right after spawn (job runner bookkeeping, tests). */
+  onSpawn?: (pid: number) => void;
 }
 
 export interface RunResult {
@@ -44,13 +48,23 @@ const cancelled = (tool: MediaTool): VoxError =>
     },
   );
 
-/** Last `n` non-empty lines of `text`. */
+const STDERR_LINE_MAX = 500;
+
+/**
+ * Last `n` non-empty lines of `text`, each cut at 500 characters (+ `…`). Control characters
+ * (ANSI escapes from hostile file metadata) are removed so the text is safe to print.
+ */
 export function tailLines(text: string, n = STDERR_TAIL_LINES): string {
-  return text
-    .split(/\r?\n|\r/)
-    .filter((l) => l.trim().length > 0)
-    .slice(-n)
-    .join('\n');
+  return (
+    text
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u0080-\u009f]/g, '')
+      .split(/\r?\n|\r/)
+      .filter((l) => l.trim().length > 0)
+      .slice(-n)
+      .map((l) => (l.length > STDERR_LINE_MAX ? `${l.slice(0, STDERR_LINE_MAX)}…` : l))
+      .join('\n')
+  );
 }
 
 export function runTool(
@@ -59,29 +73,49 @@ export function runTool(
   opts: RunOptions = {},
 ): Promise<RunResult> {
   const bin = opts.tools?.[tool] ?? tool;
-  const redact = opts.redact ?? ((s: string) => s);
   const maxStdout = opts.maxStdoutBytes ?? 64 * 1024 * 1024;
   if (opts.signal?.aborted) return Promise.reject(cancelled(tool));
+  // A throwing redactor must not leave the promise unsettled: drop the text instead.
+  const redact = (text: string): string | undefined => {
+    try {
+      return (opts.redact ?? ((s: string) => s))(text);
+    } catch {
+      return undefined;
+    }
+  };
 
   return new Promise((resolve, reject) => {
     const child = spawn(bin, [...args], { stdio: ['ignore', 'pipe', 'pipe'], shell: false });
     const out: Buffer[] = [];
     let outBytes = 0;
     let overflow = false;
+    let timedOut = false;
     let err = '';
     let aborted = false;
     let spawnError: NodeJS.ErrnoException | undefined;
     let killTimer: NodeJS.Timeout | undefined;
+    let timeoutTimer: NodeJS.Timeout | undefined;
 
+    const running = (): boolean => child.exitCode === null && child.signalCode === null;
     const kill = (sig: NodeJS.Signals): void => {
-      if (child.exitCode === null && child.signalCode === null) child.kill(sig);
+      if (running()) child.kill(sig);
     };
     const onAbort = (): void => {
+      // A run that already exited keeps its own result.
+      if (!running()) return;
       aborted = true;
       kill('SIGTERM');
       killTimer = setTimeout(() => kill('SIGKILL'), KILL_GRACE_MS);
     };
     opts.signal?.addEventListener('abort', onAbort, { once: true });
+    if (opts.timeoutMs !== undefined) {
+      timeoutTimer = setTimeout(() => {
+        if (!running()) return;
+        timedOut = true;
+        kill('SIGKILL');
+      }, opts.timeoutMs);
+    }
+    if (child.pid !== undefined) opts.onSpawn?.(child.pid);
 
     child.stdout.on('data', (chunk: Buffer) => {
       outBytes += chunk.length;
@@ -105,6 +139,7 @@ export function runTool(
     child.on('close', (code, signal) => {
       opts.signal?.removeEventListener('abort', onAbort);
       if (killTimer) clearTimeout(killTimer);
+      if (timeoutTimer) clearTimeout(timeoutTimer);
       const stderr = err.slice(-STDERR_KEEP_BYTES);
       if (aborted) return reject(cancelled(tool));
       if (spawnError) {
@@ -113,20 +148,17 @@ export function runTool(
             new VoxError(
               'TOOL_MISSING',
               `${tool} was not found (${bin}).`,
-              `Install ffmpeg (brew install ffmpeg), then run vox doctor.`,
-              {
-                details: { tool, path: bin },
-              },
+              'Install ffmpeg (brew install ffmpeg), then run vox doctor.',
+              { details: { tool, path: bin } },
             ),
           );
         }
         return reject(
           new VoxError(
             'TOOL_FAILED',
-            `Could not start ${tool}: ${spawnError.message}`,
+            `Could not start ${tool} (${spawnError.code ?? 'error'}).`,
             'Run vox doctor.',
             {
-              cause: spawnError,
               details: { tool, errno: spawnError.code },
             },
           ),
@@ -134,27 +166,26 @@ export function runTool(
       }
       const tail = tailLines(stderr);
       const cause = tail.length > 0 ? redact(tail) : undefined;
-      if (overflow) {
-        return reject(
-          new VoxError(
-            'TOOL_FAILED',
-            `${tool} wrote more than ${maxStdout} bytes.`,
-            'Report this as a bug.',
-            {
-              cause,
-              details: { tool },
-            },
-          ),
+      const fail = (message: string, hint: string, details: Record<string, unknown>): void =>
+        reject(
+          new VoxError('TOOL_FAILED', message, hint, { cause, details: { tool, ...details } }),
+        );
+      if (timedOut) {
+        return fail(
+          `${tool} took longer than ${String(opts.timeoutMs)} ms.`,
+          'The file may be damaged; try another file.',
+          {
+            timeoutMs: opts.timeoutMs,
+          },
         );
       }
+      if (overflow)
+        return fail(`${tool} wrote more than ${maxStdout} bytes.`, 'Report this as a bug.', {});
       if (code !== 0) {
-        return reject(
-          new VoxError(
-            'TOOL_FAILED',
-            `${tool} failed (${signal ? `signal ${signal}` : `exit code ${String(code)}`}).`,
-            'The file may be damaged or in a format ffmpeg cannot read; try another file or run vox doctor.',
-            { cause, details: { tool, exitCode: code, signal } },
-          ),
+        return fail(
+          `${tool} failed (${signal ? `signal ${signal}` : `exit code ${String(code)}`}).`,
+          'The file may be damaged or in a format ffmpeg cannot read; try another file or run vox doctor.',
+          { exitCode: code, signal },
         );
       }
       resolve({ stdout: Buffer.concat(out).toString('utf8'), stderr });

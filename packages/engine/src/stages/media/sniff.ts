@@ -3,6 +3,8 @@
 // (HLS, PLS, DASH), concat lists and any other markup are never media. Text is a document only
 // under a document extension (.txt, .md, .fountain); a PDF is a document from its content.
 // The extension is used only to name a text document; everything else ignores it.
+// A head that decodes as UTF-8 text is never media, whatever signature it carries: real media heads
+// hold NUL bytes or invalid UTF-8, so a polyglot such as `<!--ftypisom--><html>` stays markup.
 
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
@@ -70,9 +72,30 @@ const IMAGE_BRANDS = new Set([
 // Top-level QuickTime atoms that can open a .mov written without `ftyp`.
 const QT_ATOMS = new Set(['moov', 'mdat', 'wide', 'free', 'skip', 'pnot']);
 
+/** Box size at bytes 0-3: 0 (to end of file), 1 (64-bit size follows) or at least the header. */
+const plausibleBoxSize = (b: Uint8Array): boolean => {
+  const size = Buffer.from(b.subarray(0, 4)).readUInt32BE(0);
+  return size === 0 || size === 1 || size >= 8;
+};
+const printable4 = (b: Uint8Array, at: number): boolean =>
+  b.length >= at + 4 &&
+  [0, 1, 2, 3].every((i) => (b[at + i] ?? 0) >= 0x20 && (b[at + i] ?? 0) < 0x7f);
+
+/** A valid MPEG audio frame header (MP3 without ID3): version, layer, bitrate and rate not reserved. */
+function mpegAudioHeader(b: Uint8Array): boolean {
+  if (b.length < 4) return false;
+  const b1 = b[1] ?? 0;
+  const b2 = b[2] ?? 0;
+  const version = (b1 >> 3) & 0x3;
+  const layer = (b1 >> 1) & 0x3;
+  const bitrate = (b2 >> 4) & 0xf;
+  const rate = (b2 >> 2) & 0x3;
+  return version !== 1 && layer !== 0 && bitrate !== 0xf && rate !== 0x3;
+}
+
 function sniffBinary(b: Uint8Array): Sniffed | string | undefined {
   // ISO BMFF / QuickTime
-  if (b.length >= 12 && ascii(b, 4, 8) === 'ftyp') {
+  if (b.length >= 12 && ascii(b, 4, 8) === 'ftyp' && plausibleBoxSize(b) && printable4(b, 8)) {
     const brand = ascii(b, 8, 12);
     if (brand === 'qt  ') return { kind: 'video', format: 'mov', ext: 'mov' };
     if (brand === 'M4A ' || brand === 'M4B ') return { kind: 'audio', format: 'mov', ext: 'm4a' };
@@ -82,7 +105,7 @@ function sniffBinary(b: Uint8Array): Sniffed | string | undefined {
     if (IMAGE_BRANDS.has(brand)) return 'heif';
     return { kind: 'video', format: 'mov', ext: 'mp4' };
   }
-  if (b.length >= 8 && QT_ATOMS.has(ascii(b, 4, 8)))
+  if (b.length >= 8 && QT_ATOMS.has(ascii(b, 4, 8)) && plausibleBoxSize(b))
     return { kind: 'video', format: 'mov', ext: 'mov' };
   // EBML: Matroska or WebM (DocType sits in the EBML header, within the first bytes)
   if (startsWith(b, [0x1a, 0x45, 0xdf, 0xa3])) {
@@ -105,14 +128,18 @@ function sniffBinary(b: Uint8Array): Sniffed | string | undefined {
   if (ascii(b, 0, 4) === 'OggS') return { kind: 'audio', format: 'ogg', ext: 'ogg' };
   if (ascii(b, 0, 4) === 'fLaC') return { kind: 'audio', format: 'flac', ext: 'flac' };
   if (ascii(b, 0, 3) === 'ID3') return { kind: 'audio', format: 'mp3', ext: 'mp3' };
-  if (ascii(b, 0, 5) === '%PDF-') return { kind: 'document', format: 'pdf', ext: 'pdf' };
   if (ascii(b, 0, 4) === 'GIF8') return 'gif';
-  if (b.length >= 2 && b[0] === 0xff && ((b[1] ?? 0) & 0xe0) === 0xe0) {
+  if (b.length >= 4 && b[0] === 0xff && ((b[1] ?? 0) & 0xe0) === 0xe0) {
     const b1 = b[1] ?? 0;
     const layer = (b1 >> 1) & 0x3;
-    // ADTS AAC: 12-bit sync and layer 00. MPEG audio (MP3): 11-bit sync and a non-zero layer.
-    if ((b1 & 0xf0) === 0xf0 && layer === 0) return { kind: 'audio', format: 'aac', ext: 'aac' };
-    if (layer !== 0) return { kind: 'audio', format: 'mp3', ext: 'mp3' };
+    // ADTS AAC: 12-bit sync, layer 00, sampling index not reserved (13-15).
+    if ((b1 & 0xf0) === 0xf0 && layer === 0) {
+      return (((b[2] ?? 0) >> 2) & 0xf) < 13
+        ? { kind: 'audio', format: 'aac', ext: 'aac' }
+        : undefined;
+    }
+    // MPEG audio (MP3): 11-bit sync and a valid frame header.
+    if (mpegAudioHeader(b)) return { kind: 'audio', format: 'mp3', ext: 'mp3' };
   }
   return undefined;
 }
@@ -125,6 +152,9 @@ function classifyText(b: Uint8Array): string {
   if (t.startsWith('#extm3u') || t.startsWith('#ext-x-')) return 'hls';
   if (t.startsWith('ffconcat')) return 'concat';
   if (t.startsWith('[playlist]')) return 'playlist';
+  // Markup is judged only when the text opens with a tag, so a note that mentions `<svg>` or
+  // `<script>` in its body is still a document. Any text opening with `<` is never a document.
+  if (!t.startsWith('<')) return 'text';
   if (/<svg[\s>/]/.test(t)) return 'svg';
   if (
     t.startsWith('<!doctype html') ||
@@ -132,8 +162,7 @@ function classifyText(b: Uint8Array): string {
   ) {
     return 'html';
   }
-  if (t.startsWith('<')) return 'xml';
-  return 'text';
+  return 'xml';
 }
 
 function isUtf8Text(b: Uint8Array): boolean {
@@ -156,10 +185,13 @@ function isUtf8Text(b: Uint8Array): boolean {
  */
 export function sniffBytes(head: Uint8Array, name?: string): Sniffed {
   if (head.length === 0) throw unsupported('an empty file', name);
-  const bin = sniffBinary(head);
-  if (typeof bin === 'object') return bin;
-  if (typeof bin === 'string') throw unsupported(bin, name);
-  if (!isUtf8Text(head)) throw unsupported('unknown binary data', name);
+  // A PDF may be pure ASCII; it is a document by content either way.
+  if (ascii(head, 0, 5) === '%PDF-') return { kind: 'document', format: 'pdf', ext: 'pdf' };
+  if (!isUtf8Text(head)) {
+    const bin = sniffBinary(head);
+    if (typeof bin === 'object') return bin;
+    throw unsupported(bin ?? 'unknown binary data', name);
+  }
   const kind = classifyText(head);
   if (kind !== 'text') throw unsupported(kind, name);
   const ext = name === undefined ? '' : extname(name).slice(1).toLowerCase();
@@ -172,10 +204,11 @@ export async function sniffFile(path: string): Promise<Sniffed> {
   let fh;
   try {
     // O_NONBLOCK: opening a FIFO must not hang; the stat check below then rejects it.
-    fh = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
+    fh = await open(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code === 'EISDIR') throw unsupported('a folder', path);
+    if (code === 'ELOOP') throw unsupported('a symbolic link', path);
     throw new VoxError(
       'NOT_FOUND',
       `Cannot read "${path}" (${code ?? 'error'}).`,

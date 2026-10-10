@@ -2,6 +2,7 @@
 // followed. Folder trees with hostile links are built in a temp folder by the test.
 
 import {
+  chmodSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -91,6 +92,27 @@ describe('listFolderFiles (S2)', () => {
     const few = await listFolderFiles(src, { maxFiles: 2 });
     expect(few.files).toHaveLength(2);
     expect(few.truncated).toBe(true);
+    // Entries of any kind count: a folder full of links or FIFOs cannot make the walk unbounded.
+    const capped = await listFolderFiles(src, { maxEntries: 3 });
+    expect(capped.truncated).toBe(true);
+    expect(capped.files.length + capped.skipped.length).toBeLessThanOrEqual(3);
+  });
+
+  test('an unreadable sub-folder is skipped and reported; an unreadable picked folder fails', async () => {
+    const locked = join(src, 'sub', 'locked');
+    mkdirSync(locked);
+    writeFileSync(join(locked, 'z.mp4'), 'Z');
+    chmodSync(locked, 0o000);
+    try {
+      const r = await listFolderFiles(src);
+      expect(r.skipped).toContainEqual({ path: locked, reason: 'unreadable' });
+      expect(r.files).toHaveLength(3);
+      chmodSync(src, 0o000);
+      expect(await codeOfAsync(listFolderFiles(src))).toBe('PATH_INVALID');
+    } finally {
+      chmodSync(src, 0o755);
+      chmodSync(locked, 0o755);
+    }
   });
 
   test('the folder itself must be a folder', async () => {
@@ -157,6 +179,24 @@ describe('copyFileSafe (S2)', () => {
     ac.abort();
     expect(await codeOfAsync(p)).toBe('CANCELLED');
     expect(readdirSync(dest)).toEqual([]);
+  });
+
+  test('a successful copy leaves only the destination (the temp is moved into place)', async () => {
+    await copyFileSafe(join(src, 'a.mp4'), join(dest, 'one.bin'), { within: src });
+    expect(readdirSync(dest)).toEqual(['one.bin']);
+  });
+
+  test('maxBytes refuses a larger source and leaves nothing', async () => {
+    const err = copyFileSafe(join(src, 'sub', 'deeper', 'c.png'), join(dest, 'c.bin'), {
+      maxBytes: 2,
+    });
+    expect(await codeOfAsync(err)).toBe('VALIDATION');
+    expect(readdirSync(dest)).toEqual([]);
+  });
+
+  test('within "/" works (prefix is not "//")', async () => {
+    const r = await copyFileSafe(join(src, 'a.mp4'), join(dest, 'root.bin'), { within: '/' });
+    expect(r.bytes).toBe(1);
   });
 
   test('a FIFO source is refused without blocking', async () => {

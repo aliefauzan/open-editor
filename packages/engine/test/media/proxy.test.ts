@@ -2,7 +2,7 @@
 // the contract phase 04 wires; real encodes of the make.sh fixtures are in analyze.slow.test.ts.
 
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import {
@@ -11,6 +11,7 @@ import {
   keyframeInterval,
   proxyArgs,
 } from '../../src/stages/media/proxy.ts';
+import { probeMedia, readVideoPts } from '../../src/stages/media/analyze.ts';
 import { runTool } from '../../src/stages/media/run.ts';
 import { sniffFile } from '../../src/stages/media/sniff.ts';
 import { codeOf, removeDir, tempDir } from './helpers.ts';
@@ -29,6 +30,10 @@ const IN = [
   'mov,mp4,m4a,3gp,3g2,mj2',
   '-f',
   'mov',
+  '-enable_drefs',
+  '0',
+  '-use_absolute_path',
+  '0',
   '-i',
 ];
 
@@ -67,7 +72,7 @@ describe('argv snapshots', () => {
       ...IN,
       '/p/media/m_1.cfr.mp4',
       '-map',
-      '0:v:0',
+      '0:V:0',
       '-an',
       '-sn',
       '-dn',
@@ -112,7 +117,7 @@ describe('argv snapshots', () => {
       ...IN,
       '/p/media/m_1.mp4',
       '-map',
-      '0:v:0',
+      '0:V:0',
       '-map',
       '0:a:0?',
       '-c:v',
@@ -133,6 +138,23 @@ describe('argv snapshots', () => {
       '+faststart',
       '/p/media/m_1.cfr.mp4',
     ]);
+  });
+
+  test.each([
+    ['aac', ['-c:a', 'copy']],
+    ['opus', ['-c:a', 'copy']],
+    ['pcm_s16le', ['-c:a', 'aac', '-b:a', '256k']],
+    ['vorbis', ['-c:a', 'aac', '-b:a', '256k']],
+  ])('cfrCopyArgs audio %s → %j (MP4 cannot hold every codec)', (audioCodec, want) => {
+    const argv = cfrCopyArgs({
+      input: '/a.mov',
+      format: 'mov',
+      output: '/b.mp4',
+      fps: r(30),
+      audioCodec,
+    });
+    const i = argv.indexOf('-c:a');
+    expect(argv.slice(i, i + want.length)).toEqual(want);
   });
 
   test('the CFR rate is a parameter (GATE 1 integer fallback → 30/1)', () => {
@@ -190,5 +212,49 @@ describe('image re-encode (S6)', () => {
     await runTool('ffmpeg', imageReencodeArgs({ input: src, format: 'jpeg', output: out }));
     expect(await sniffFile(out)).toMatchObject({ kind: 'image', format: 'jpeg' });
     expect(readFileSync(out).includes('TRAILING-PAYLOAD')).toBe(false);
+  });
+});
+
+describe('cover art (attached picture) before the video stream', () => {
+  test('the proxy and the pts scan use the real video, not the cover picture', async () => {
+    const cover = join(dir, 'cover.png');
+    const src = join(dir, 'with-cover.mp4');
+    const mk = (args: string[]) => {
+      const g = spawnSync('ffmpeg', ['-v', 'error', '-y', ...args]);
+      expect(g.status, String(g.stderr)).toBe(0);
+    };
+    mk(['-f', 'lavfi', '-i', 'testsrc=s=64x48:d=1', '-frames:v', '1', cover]);
+    // Stream 0 is the cover (attached_pic), stream 1 the 2 s video at 25 fps.
+    mk([
+      '-i',
+      cover,
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=s=320x240:r=25:d=2',
+      '-map',
+      '0',
+      '-map',
+      '1',
+      '-c:v:0',
+      'png',
+      '-disposition:v:0',
+      'attached_pic',
+      '-c:v:1',
+      'libx264',
+      '-disposition:v:1',
+      'default',
+      src,
+    ]);
+    const probe = await probeMedia(src, 'mov');
+    expect(probe.video).toMatchObject({ width: 320, height: 240 });
+    const pts = await readVideoPts(src, 'mov');
+    expect(pts.length).toBe(50);
+    const out = join(dir, 'with-cover.proxy.mp4');
+    await runTool('ffmpeg', proxyArgs({ input: src, format: 'mov', output: out, fps: r(25) }));
+    expect(existsSync(out)).toBe(true);
+    const proxied = await probeMedia(out, 'mov');
+    expect(proxied.durationMs).toBe(2000);
+    expect(await readVideoPts(out, 'mov')).toHaveLength(50);
   });
 });

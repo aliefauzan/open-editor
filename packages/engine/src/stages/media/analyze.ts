@@ -246,31 +246,47 @@ export function parseProbeJson(json: string, format: MediaFormat): ProbeInfo {
         channels: num(a['channels']) ?? 0,
       }
     : undefined;
-  const dur = num(fmt['duration']);
+  // The container duration, else the longest stream (some muxers leave the format duration out).
+  const streamDurs = streams.map((s) => num(s['duration'])).filter((d) => d !== undefined);
+  const dur = num(fmt['duration']) ?? (streamDurs.length > 0 ? Math.max(...streamDurs) : undefined);
   return {
     formatName,
-    durationMs: dur === undefined ? undefined : Math.round(dur * 1000),
+    durationMs: dur === undefined || !(dur >= 0) ? undefined : Math.round(dur * 1000),
     video,
     audio,
   };
 }
+
+/** Default ffprobe time limit: a damaged or hostile file must not hang an import. */
+export const PROBE_TIMEOUT_MS = 120_000;
+/** Largest picture accepted (8192 × 8192): decode bombs stop here, before any re-encode. */
+export const MAX_PIXELS = 8192 * 8192;
+
+const withProbeTimeout = (opts: RunOptions): RunOptions => ({
+  ...opts,
+  timeoutMs: opts.timeoutMs ?? PROBE_TIMEOUT_MS,
+});
 
 export async function probeMedia(
   path: string,
   format: MediaFormat,
   opts: RunOptions = {},
 ): Promise<ProbeInfo> {
-  const { stdout } = await runTool('ffprobe', ffprobeStreamsArgs(path, format), opts);
+  const { stdout } = await runTool(
+    'ffprobe',
+    ffprobeStreamsArgs(path, format),
+    withProbeTimeout(opts),
+  );
   return parseProbeJson(stdout, format);
 }
 
-/** Packet pts (seconds) of the first video stream, in file order. */
+/** Packet pts (seconds) of the first real video stream (not cover art), in file order. */
 export async function readVideoPts(
   path: string,
   format: MediaFormat,
   opts: RunOptions = {},
 ): Promise<number[]> {
-  const { stdout } = await runTool('ffprobe', ffprobePtsArgs(path, format), opts);
+  const { stdout } = await runTool('ffprobe', ffprobePtsArgs(path, format), withProbeTimeout(opts));
   // `N/A` (no pts) lines and blank lines drop out.
   return stdout
     .split('\n')
@@ -283,8 +299,11 @@ export async function measureLoudness(
   path: string,
   format: MediaFormat,
   opts: RunOptions = {},
+  durationMs?: number,
 ): Promise<Loudness> {
-  const { stderr } = await runTool('ffmpeg', ebur128Args(path, format), opts);
+  // ebur128 decodes the whole file: the default limit grows with the length (at least 4× real time).
+  const timeoutMs = opts.timeoutMs ?? Math.max(PROBE_TIMEOUT_MS, (durationMs ?? 0) / 4);
+  const { stderr } = await runTool('ffmpeg', ebur128Args(path, format), { ...opts, timeoutMs });
   return parseEbur128(stderr);
 }
 
@@ -299,6 +318,8 @@ export interface MediaAnalysis {
   /** Set when phase 04 must write `media/<id>.cfr.mp4` at this rate (proxy.ts `cfrCopyArgs`). */
   cfr: { fps: Fps; reason: 'vfr' | 'integer-rate' } | undefined;
   hasAudio: boolean;
+  /** Codec of the first audio stream (picks `cfrCopyArgs` `audioCodec`: copy or AAC). */
+  audioCodec: string | undefined;
   /** `MediaItem.loudness` for every audio-bearing source. */
   loudness: Loudness | undefined;
 }
@@ -315,6 +336,17 @@ export async function analyzeMedia(
   opts: AnalyzeOptions = {},
 ): Promise<MediaAnalysis> {
   const probe = await probeMedia(path, sniffed.format, opts);
+  if (probe.video) {
+    const { width, height } = probe.video;
+    if (!(width > 0 && height > 0) || width * height > MAX_PIXELS) {
+      throw new VoxError(
+        'MEDIA_UNSUPPORTED',
+        `The picture size ${width}×${height} is not supported.`,
+        'Use a file up to 8192×8192 pixels.',
+        { details: { detected: `${width}x${height}` } },
+      );
+    }
+  }
   if (sniffed.kind === 'image') {
     if (!probe.video) {
       throw new VoxError(
@@ -333,6 +365,7 @@ export async function analyzeMedia(
       vfr: false,
       cfr: undefined,
       hasAudio: false,
+      audioCodec: undefined,
       loudness: undefined,
     };
   }
@@ -356,8 +389,18 @@ export async function analyzeMedia(
         ? undefined
         : await readVideoPts(path, sniffed.format, opts);
     plan = planFrameRate({ rFrameRate, avgFrameRate, pts }, opts.cfrRates ?? 'all');
+    if (!plan) {
+      throw new VoxError(
+        'MEDIA_UNSUPPORTED',
+        'The video has no readable frame rate.',
+        'Re-export the video from its app (constant frame rate), then import it again.',
+        { details: { detected: probe.formatName } },
+      );
+    }
   }
-  const loudness = probe.audio ? await measureLoudness(path, sniffed.format, opts) : undefined;
+  const loudness = probe.audio
+    ? await measureLoudness(path, sniffed.format, opts, probe.durationMs)
+    : undefined;
   return {
     kind: isVideo ? 'video' : 'audio',
     durationMs: probe.durationMs,
@@ -367,6 +410,7 @@ export async function analyzeMedia(
     vfr: plan?.vfr ?? false,
     cfr: plan?.cfr,
     hasAudio: probe.audio !== undefined,
+    audioCodec: probe.audio?.codec,
     loudness,
   };
 }

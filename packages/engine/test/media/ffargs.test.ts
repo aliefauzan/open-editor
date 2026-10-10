@@ -36,9 +36,14 @@ describe('argv builders always whitelist protocols and demuxers (S5)', () => {
       'mov,mp4,m4a,3gp,3g2,mj2',
       '-f',
       'mov',
+      '-enable_drefs',
+      '0',
+      '-use_absolute_path',
+      '0',
       '-i',
       '/m/a.mp4',
     ]);
+    expect(inputArgs('/m/a.wav', 'wav')).not.toContain('-enable_drefs');
     expect(inputArgs('/m/a.webm', 'matroska')[3]).toBe('matroska,webm');
     expect(inputArgs('/m/a.png', 'png')[3]).toBe('png_pipe');
     expect(inputArgs('/m/a.jpg', 'jpeg')[3]).toBe('jpeg_pipe');
@@ -107,6 +112,29 @@ describe('argv builders always whitelist protocols and demuxers (S5)', () => {
     // A second input does not inherit the first one's whitelist.
     expect(inputsAreWhitelisted([...inputArgs('/a', 'mov'), '-i', '/b'])).toBe(false);
     expect(inputsAreWhitelisted([...inputArgs('/a', 'mov'), ...inputArgs('/b', 'wav')])).toBe(true);
+  });
+
+  test('inputsAreWhitelisted needs a known whitelist and a forced demuxer inside it', () => {
+    const P = ['-protocol_whitelist', 'file,pipe'];
+    // no -f
+    expect(
+      inputsAreWhitelisted([...P, '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2', '-i', '/a']),
+    ).toBe(false);
+    // a whitelist that is not one of ours
+    expect(
+      inputsAreWhitelisted([...P, '-format_whitelist', 'concat', '-f', 'concat', '-i', '/a']),
+    ).toBe(false);
+    // a forced demuxer outside the whitelist
+    expect(
+      inputsAreWhitelisted([...P, '-format_whitelist', 'wav', '-f', 'lavfi', '-i', '/a']),
+    ).toBe(false);
+    // a filter that opens files
+    expect(inputsAreWhitelisted([...inputArgs('/a', 'wav'), '-vf', 'movie=/etc/passwd'])).toBe(
+      false,
+    );
+    expect(inputsAreWhitelisted([...inputArgs('/a', 'wav'), '-af', 'anull,amovie=/x.wav'])).toBe(
+      false,
+    );
   });
 
   test.each(['relative/a.mp4', 'a.mp4', '-i', '/m/a\0.mp4', ''])(

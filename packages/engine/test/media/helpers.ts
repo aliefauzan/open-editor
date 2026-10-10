@@ -4,13 +4,14 @@ import { mkdtempSync, realpathSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { VoxError } from '../../src/errors.pending.ts';
 
 const fx = new URL('../fixtures/', import.meta.url);
 
 /** Absolute path of a file under `packages/engine/test/fixtures/`. */
 export function fixture(p: string): string {
-  return new URL(p, fx).pathname;
+  return fileURLToPath(new URL(p, fx));
 }
 
 /** A fresh temp folder (realpath, so macOS `/var` → `/private/var` never confuses a path check). */

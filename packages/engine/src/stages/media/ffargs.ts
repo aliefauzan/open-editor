@@ -53,6 +53,18 @@ export const FORCED_DEMUXER: Readonly<Record<MediaFormat, string>> = {
   jpeg: 'jpeg_pipe',
 };
 
+/**
+ * MOV/MP4 data references (dref) can point at other files, which the `file` protocol would allow.
+ * ffmpeg's defaults already ignore them; they are pinned off here so a changed default cannot open
+ * sibling files.
+ */
+export const MOV_SAFE_OPTIONS: readonly string[] = [
+  '-enable_drefs',
+  '0',
+  '-use_absolute_path',
+  '0',
+];
+
 /** The whitelisted input block for one untrusted file: `… -format_whitelist <wl> -f <demuxer> -i <path>`. */
 export function inputArgs(path: string, format: MediaFormat): string[] {
   const wl = FORMAT_WHITELIST[format];
@@ -66,6 +78,7 @@ export function inputArgs(path: string, format: MediaFormat): string[] {
     wl,
     '-f',
     demuxer,
+    ...(format === 'mov' ? MOV_SAFE_OPTIONS : []),
     '-i',
     checkPath(path, 'input'),
   ];
@@ -84,13 +97,13 @@ export function ffprobeStreamsArgs(path: string, format: MediaFormat): string[] 
   ];
 }
 
-/** ffprobe pts of every packet of the first video stream, one per line (no decode). */
+/** ffprobe pts of every packet of the first real video stream (`V`: not a cover picture), one per line (no decode). */
 export function ffprobePtsArgs(path: string, format: MediaFormat): string[] {
   return [
     '-v',
     'error',
     '-select_streams',
-    'v:0',
+    'V:0',
     '-show_entries',
     'packet=pts_time',
     '-of',
@@ -119,22 +132,32 @@ export function ebur128Args(path: string, format: MediaFormat): string[] {
 }
 
 /**
- * True when every `-i` in `argv` is preceded (since the previous `-i`) by both whitelists.
+ * True when every `-i` in `argv` is preceded (since the previous `-i`) by both whitelists (a known
+ * format whitelist) and a forced demuxer inside it, and no filter opens files (`movie=`, `amovie=`).
  * Used by tests and as a guard before running ffmpeg on untrusted input.
  */
 export function inputsAreWhitelisted(argv: readonly string[]): boolean {
+  const known = new Set(Object.values(FORMAT_WHITELIST));
   let proto = false;
-  let fmt = false;
+  let fmt: string | undefined;
+  let forced: string | undefined;
   let inputs = 0;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '-protocol_whitelist') proto = argv[i + 1] === PROTOCOL_WHITELIST;
-    if (a === '-format_whitelist') fmt = typeof argv[i + 1] === 'string' && argv[i + 1] !== '';
+    const next = argv[i + 1];
+    if (a === '-protocol_whitelist') proto = next === PROTOCOL_WHITELIST;
+    if (a === '-format_whitelist') fmt = next !== undefined && known.has(next) ? next : undefined;
+    if (a === '-f') forced = next;
+    if (typeof a === 'string' && /(^|[,;[\s])a?movie=/.test(a)) return false;
     if (a === '-i') {
-      if (!proto || !fmt) return false;
+      // A forced demuxer must be one the whitelist allows.
+      if (!proto || fmt === undefined || forced === undefined || !fmt.split(',').includes(forced)) {
+        return false;
+      }
       inputs++;
       proto = false;
-      fmt = false;
+      fmt = undefined;
+      forced = undefined;
     }
   }
   return inputs > 0;

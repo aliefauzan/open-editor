@@ -9,14 +9,20 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { VoxError } from '../../src/errors.pending.ts';
 import {
+  HOST_TAG,
+  STEM_MAX_BYTES,
   prepareExport,
   safeStem,
+  sweepStaleTemps,
   writeExport,
   type ExportTarget,
 } from '../../src/export/target.ts';
@@ -58,6 +64,16 @@ const opts = (target?: ExportTarget, overwrite = false) => ({
   overwrite,
 });
 const visible = (d: string) => readdirSync(d).filter((n) => !n.startsWith('.'));
+const temps = (d: string) => readdirSync(d).filter((n) => n.startsWith('.vox-tmp-'));
+
+/** Poll until `check` is true (instead of a fixed sleep), failing after `ms`. */
+async function until(check: () => boolean, ms = 10_000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > end) throw new Error('timed out waiting');
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
 
 describe('targets', () => {
   test('{ file } writes exactly there and returns the path; no temp is left', async () => {
@@ -101,6 +117,8 @@ describe('EXPORT_PATH', () => {
       () => ({ file: join(out, 'a.srt'), dir: out }) as unknown as ExportTarget,
     ],
     ['neither', () => ({}) as unknown as ExportTarget],
+    ['null', () => null as unknown as ExportTarget],
+    ['a string', () => out as unknown as ExportTarget],
   ])('%s', async (_label, target) => {
     const err = (await writeExport(opts(target()), write('x')).catch(
       (e: unknown) => e,
@@ -155,7 +173,7 @@ describe('EXPORT_PATH', () => {
 });
 
 describe('failed, cancelled or killed exports leave nothing (S32)', () => {
-  const ffmpegWrite = (signal?: AbortSignal) => (tmp: string) =>
+  const ffmpegWrite = (onSpawn?: (pid: number) => void) => (tmp: string, signal?: AbortSignal) =>
     runTool(
       'ffmpeg',
       [
@@ -173,8 +191,11 @@ describe('failed, cancelled or killed exports leave nothing (S32)', () => {
         'libx264',
         tmp,
       ],
-      signal ? { signal } : {},
+      { ...(signal ? { signal } : {}), ...(onSpawn ? { onSpawn } : {}) },
     ).then(() => undefined);
+  // ffmpeg has written something into the hidden temp file.
+  const tempHasBytes = (d: string): boolean =>
+    temps(d).some((n) => readFileSync(join(d, n)).length > 0);
 
   test('a throwing producer → the error, and an empty folder', async () => {
     const err = await writeExport(opts({ dir: out }), async (tmp) => {
@@ -187,29 +208,30 @@ describe('failed, cancelled or killed exports leave nothing (S32)', () => {
 
   test('a render cancelled mid-write (ffmpeg running) → CANCELLED, empty folder', async () => {
     const ac = new AbortController();
-    const p = writeExport(
-      { ...opts({ file: join(out, 'a.mp4') }), ext: 'mp4' },
-      ffmpegWrite(ac.signal),
-      { signal: ac.signal },
-    );
-    await new Promise((r) => setTimeout(r, 800));
-    expect(readdirSync(out).some((n) => n.startsWith('.') && n.endsWith('.mp4'))).toBe(true);
+    const p = writeExport({ ...opts({ file: join(out, 'a.mp4') }), ext: 'mp4' }, ffmpegWrite(), {
+      signal: ac.signal,
+    });
+    await until(() => tempHasBytes(out));
+    expect(temps(out).every((n) => n.endsWith('.mp4'))).toBe(true);
     ac.abort();
     expect(await codeOfAsync(p)).toBe('CANCELLED');
     expect(readdirSync(out)).toEqual([]);
   });
 
   test('a render whose ffmpeg is killed from outside → TOOL_FAILED, empty folder', async () => {
-    const p = writeExport({ ...opts({ dir: out }), ext: 'mp4' }, ffmpegWrite());
-    await new Promise((r) => setTimeout(r, 800));
-    const pk = spawn('pkill', ['-KILL', '-f', 'testsrc=d=30:s=320x240'], { stdio: 'ignore' });
-    await new Promise((r) => pk.on('close', r));
+    let pid = 0;
+    const p = writeExport(
+      { ...opts({ dir: out }), ext: 'mp4' },
+      ffmpegWrite((n) => (pid = n)),
+    );
+    await until(() => pid > 0 && tempHasBytes(out));
+    process.kill(pid, 'SIGKILL');
     expect(await codeOfAsync(p)).toBe('TOOL_FAILED');
     expect(readdirSync(out)).toEqual([]);
   });
 
   test('an engine process killed mid-write leaves only a hidden temp, which the next export sweeps', async () => {
-    const target = new URL('../../src/export/target.ts', import.meta.url).pathname;
+    const target = fileURLToPath(new URL('../../src/export/target.ts', import.meta.url));
     const script =
       `import { prepareExport } from ${JSON.stringify(target)};\n` +
       `import { writeFileSync } from 'node:fs';\n` +
@@ -220,25 +242,75 @@ describe('failed, cancelled or killed exports leave nothing (S32)', () => {
     const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
       stdio: ['ignore', 'pipe', 'inherit'],
     });
-    await new Promise<void>((resolve, reject) => {
-      child.stdout.on('data', (d: Buffer) => d.toString().includes('ready') && resolve());
-      child.on('exit', (c) => reject(new Error(`child exited early (${String(c)})`)));
-    });
-    child.kill('SIGKILL');
-    await new Promise((r) => child.on('close', r));
+    const closed = new Promise((r) => child.on('close', r));
+    try {
+      await new Promise<void>((resolve, reject) => {
+        child.stdout.on('data', (d: Buffer) => d.toString().includes('ready') && resolve());
+        child.on('exit', (c) => reject(new Error(`child exited early (${String(c)})`)));
+      });
+    } finally {
+      child.kill('SIGKILL');
+      await closed;
+    }
     // No visible file; one hidden temp from the dead process.
     expect(visible(out)).toEqual([]);
-    expect(readdirSync(out).filter((n) => n.includes('.vox-tmp-'))).toHaveLength(1);
+    expect(temps(out)).toHaveLength(1);
     // The next export into the same folder removes it.
     await writeExport(opts({ dir: out }), write('ok'));
     expect(readdirSync(out)).toEqual(['My Project-Main.srt']);
   });
 
-  test('a live export temp of another process is not swept', async () => {
-    const live = join(out, `.x.mp4.vox-tmp-${process.pid}-abcdef.mp4`);
-    writeFileSync(live, 'busy');
-    await writeExport(opts({ dir: out }), write('ok'));
-    expect(existsSync(live)).toBe(true);
+  test('only temps of this host whose process is gone (ESRCH) are swept', async () => {
+    const name = (tag: string, pid: number | string) => `.vox-tmp-${tag}-${pid}-abcdef012345.mp4`;
+    const otherTag = HOST_TAG === 'ffffff' ? 'eeeeee' : 'ffffff';
+    const kept = [
+      name(HOST_TAG, process.pid), // live (this process)
+      name(HOST_TAG, 1), // pid 1 is never treated as gone
+      name(HOST_TAG, '9999999999'), // out of range: kill() fails with something other than ESRCH
+      name(otherTag, 999_999), // another machine on a shared folder
+      '.x.mp4.vox-tmp-999999-abcdef.mp4', // not our temp pattern
+    ];
+    const gone = name(HOST_TAG, 999_999); // no such process on macOS (pid max 99998)
+    for (const n of [...kept, gone]) writeFileSync(join(out, n), 'x');
+    expect(await sweepStaleTemps(out)).toEqual([join(out, gone)]);
+    for (const n of kept) expect(existsSync(join(out, n))).toBe(true);
+  });
+
+  test('a temp swapped for a symlink before commit is refused; the link target is untouched', async () => {
+    const victim = join(root, 'victim.txt');
+    writeFileSync(victim, 'precious');
+    const err = (await writeExport(opts({ dir: out }), async (tmp) => {
+      writeFileSync(tmp, 'mine');
+      renameSync(tmp, `${tmp}.moved`);
+      symlinkSync(victim, tmp);
+    }).catch((e: unknown) => e)) as VoxError;
+    expect(err.code).toBe('EXPORT_PATH');
+    expect(readFileSync(victim, 'utf8')).toBe('precious');
+    expect(visible(out)).toEqual([]);
+  });
+
+  test('a temp swapped for another regular file before commit is refused', async () => {
+    const err = (await writeExport(opts({ dir: out }), async (tmp) => {
+      writeFileSync(`${tmp}.theirs`, 'theirs');
+      renameSync(`${tmp}.theirs`, tmp);
+    }).catch((e: unknown) => e)) as VoxError;
+    expect(err.code).toBe('EXPORT_PATH');
+    expect(visible(out)).toEqual([]);
+  });
+
+  test('the producer gets the signal; a producer failing because of the cancel → CANCELLED', async () => {
+    const ac = new AbortController();
+    const err = writeExport(
+      opts({ dir: out }),
+      async (_tmp, signal) => {
+        expect(signal).toBe(ac.signal);
+        ac.abort();
+        throw new Error('aborted inside');
+      },
+      { signal: ac.signal },
+    );
+    expect(await codeOfAsync(err)).toBe('CANCELLED');
+    expect(readdirSync(out)).toEqual([]);
   });
 });
 
@@ -246,11 +318,21 @@ describe('prepareExport', () => {
   test('the temp file is hidden, in the target folder, ends with the extension; discard removes it', async () => {
     const p = await prepareExport({ ...opts({ file: join(out, 'final.mp4') }), ext: 'mp4' });
     expect(p.finalPath).toBe(join(out, 'final.mp4'));
-    expect(p.tempPath.startsWith(join(out, '.'))).toBe(true);
+    expect(p.tempPath.startsWith(join(out, `.vox-tmp-${HOST_TAG}-${process.pid}-`))).toBe(true);
     expect(p.tempPath.endsWith('.mp4')).toBe(true);
     expect(existsSync(p.tempPath)).toBe(true);
     await p.discard();
     expect(readdirSync(out)).toEqual([]);
+  });
+
+  test('a long final name still works: the temp name is short and the stem is byte-capped', async () => {
+    const long = 'é'.repeat(200); // 400 bytes of UTF-8
+    const got = await writeExport({ ...opts({ dir: out }), stem: long }, write('x'));
+    const name = got.slice(out.length + 1);
+    expect(Buffer.byteLength(name)).toBeLessThanOrEqual(255);
+    expect(name).toBe(`${'é'.repeat(STEM_MAX_BYTES / 2)}.srt`);
+    const file = join(out, `${'a'.repeat(240)}.srt`);
+    expect(await writeExport(opts({ file }), write('y'))).toBe(file);
   });
 });
 
@@ -263,7 +345,9 @@ describe('safeStem', () => {
     ['  spaced  ', 'spaced'],
     ['tab\tnew\nline\0nul', 'tab new line nul'],
     ['', 'export'],
-    ['x'.repeat(300), 'x'.repeat(120)],
+    ['x'.repeat(300), 'x'.repeat(STEM_MAX_BYTES)],
+    ['ab' + '✂'.repeat(100), 'ab' + '✂'.repeat(49)], // 3-byte chars: never cut mid-character
+    ['x'.repeat(STEM_MAX_BYTES - 1) + ' y', 'x'.repeat(STEM_MAX_BYTES - 1)],
     ['Café ✂️', 'Café ✂️'],
   ])('%j → %j', (input, want) => expect(safeStem(input)).toBe(want));
 });

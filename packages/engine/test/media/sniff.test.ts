@@ -3,7 +3,7 @@
 // Every hostile file is generated in a temp folder by the test; real media is made with ffmpeg.
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { VoxError } from '../../src/errors.pending.ts';
@@ -170,6 +170,63 @@ describe('sniffFile: hostile files are rejected with MEDIA_UNSUPPORTED (S5, S6)'
   test('a folder is not media', async () => {
     expect(await codeOfAsync(sniffFile(dir))).toBe('MEDIA_UNSUPPORTED');
   });
+
+  test.each([
+    [
+      'ftyp inside an HTML comment',
+      'poly1.mp4',
+      '<!--ftypisom--><html><script>x()</script></html>',
+      'html',
+    ],
+    [
+      'free atom inside an SVG comment',
+      'poly2.mov',
+      '<!--free--><svg xmlns="http://www.w3.org/2000/svg"/>',
+      'svg',
+    ],
+    ['moov atom name in plain text', 'poly3.mov', 'abcdmoov and some words', 'plain text'],
+    ['ID3 tag name in plain text', 'poly4.mp3', 'ID3 is a tag format', 'plain text'],
+  ])(
+    'a text polyglot with a media signature is not media: %s',
+    async (_l, name, content, detected) => {
+      writeFileSync(at(name), content);
+      const err = (await sniffFile(at(name)).catch((e: unknown) => e)) as VoxError;
+      expect(err.code).toBe('MEDIA_UNSUPPORTED');
+      expect(err.details).toMatchObject({ detected });
+    },
+  );
+
+  test('UTF-16 SVG (NUL bytes) is not media', async () => {
+    writeFileSync(
+      at('utf16.png'),
+      Buffer.from('\uFEFF<svg xmlns="http://www.w3.org/2000/svg"/>', 'utf16le'),
+    );
+    expect(await codeOfAsync(sniffFile(at('utf16.png')))).toBe('MEDIA_UNSUPPORTED');
+  });
+
+  test('an ftyp box with an impossible size or a non-ASCII brand is not media', () => {
+    const head = Buffer.alloc(32);
+    head.writeUInt32BE(5, 0);
+    head.write('ftypisom', 4, 'latin1');
+    expect(() => sniffBytes(head)).toThrow(VoxError);
+    head.writeUInt32BE(24, 0);
+    head[8] = 0x00;
+    expect(() => sniffBytes(head)).toThrow(VoxError);
+  });
+
+  test('an MPEG sync word with a reserved bitrate or sample rate is not MP3', () => {
+    const frame = (b2: number) => Buffer.from([0xff, 0xfb, b2, 0x00, 0x00, 0x01, 0x80, 0x00]);
+    expect(sniffBytes(frame(0x90))).toMatchObject({ format: 'mp3' }); // 128 kb/s, 44.1 kHz
+    expect(() => sniffBytes(frame(0xf0))).toThrow(VoxError); // bitrate index 15
+    expect(() => sniffBytes(frame(0x9c))).toThrow(VoxError); // sample-rate index 3
+  });
+
+  test('a symbolic link is not followed', async () => {
+    symlinkSync(at('tone.wav'), at('link.wav'));
+    const err = (await sniffFile(at('link.wav')).catch((e: unknown) => e)) as VoxError;
+    expect(err.code).toBe('MEDIA_UNSUPPORTED');
+    expect(err.details).toMatchObject({ detected: 'a symbolic link' });
+  });
 });
 
 describe('sniffFile: documents', () => {
@@ -192,6 +249,26 @@ describe('sniffFile: documents', () => {
     writeFileSync(at('pic.txt'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
     expect(await codeOfAsync(sniffFile(at('page.md')))).toBe('MEDIA_UNSUPPORTED');
     expect(await codeOfAsync(sniffFile(at('pic.txt')))).toBe('MEDIA_UNSUPPORTED');
+  });
+
+  test('a note that mentions <svg> or <script> in its body is still a document', async () => {
+    writeFileSync(
+      at('howto.md'),
+      '# Embeds\n\nUse <script src="x.js"></script> or an <svg width="1"> tag.\n',
+    );
+    expect(await sniffFile(at('howto.md'))).toEqual({
+      kind: 'document',
+      format: 'text',
+      ext: 'md',
+    });
+  });
+
+  test('a pure-ASCII PDF is a PDF, not text', () => {
+    expect(sniffBytes(Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n'))).toEqual({
+      kind: 'document',
+      format: 'pdf',
+      ext: 'pdf',
+    });
   });
 
   test('binary content named .txt is rejected', async () => {

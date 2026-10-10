@@ -2,6 +2,11 @@
 // hardening"; D-15): the 540p preview proxy, the constant-frame-rate copy of a VFR (or, under the
 // GATE 1 NTSC fallback, NTSC) video, and the PNG/JPEG re-encode of an image (S6). Every input is
 // whitelisted (ffargs.ts). The CFR rate is a parameter: analyze.ts picks it from GATE 1's result.
+// Output rule for callers (phase 04): `output` is a temp file the engine has just created itself
+// with O_CREAT|O_EXCL|O_NOFOLLOW in the target folder (as export/target.ts does); ffmpeg overwrites
+// it (`-y`), and the caller renames it into place when ffmpeg succeeds and removes it on failure or
+// cancel. `-n` is not used: ffmpeg 8 exits 0 when `-n` refuses an existing file, so a refused write
+// would look like success.
 
 import { VoxError } from '../../errors.pending.ts';
 import { FFMPEG_BASE, checkPath, inputArgs } from './ffargs.ts';
@@ -55,7 +60,7 @@ export function proxyArgs(o: ProxyArgsOptions): string[] {
     '-y',
     ...inputArgs(o.input, o.format),
     '-map',
-    '0:v:0',
+    '0:V:0',
     '-an',
     '-sn',
     '-dn',
@@ -90,17 +95,37 @@ export interface CfrCopyArgsOptions {
   output: string;
   /** Target rate from analyze.ts (`MediaAnalysis.cfr.fps`). */
   fps: Fps;
+  /** `MediaAnalysis.audioCodec`: copied when MP4 can hold it, else re-encoded to AAC. */
+  audioCodec?: string | undefined;
 }
 
-/** `media/<mediaId>.cfr.mp4`: libx264 `-crf 18` at a constant `fps`, first audio stream copied. */
+/** Audio codecs the MP4 muxer holds as they are; anything else (PCM, Vorbis …) becomes AAC. */
+export const MP4_COPY_AUDIO: ReadonlySet<string> = new Set([
+  'aac',
+  'mp3',
+  'alac',
+  'ac3',
+  'eac3',
+  'opus',
+  'flac',
+]);
+
+/**
+ * `media/<mediaId>.cfr.mp4`: libx264 `-crf 18` at a constant `fps`. The first audio stream is
+ * copied when MP4 can hold it; otherwise (e.g. PCM from a MOV, Vorbis from a WebM) it is AAC 256k.
+ */
 export function cfrCopyArgs(o: CfrCopyArgsOptions): string[] {
   const fps = checkFps(o.fps);
+  const audio =
+    o.audioCodec === undefined || MP4_COPY_AUDIO.has(o.audioCodec)
+      ? ['-c:a', 'copy']
+      : ['-c:a', 'aac', '-b:a', '256k'];
   return [
     ...FFMPEG_BASE,
     '-y',
     ...inputArgs(o.input, o.format),
     '-map',
-    '0:v:0',
+    '0:V:0',
     '-map',
     '0:a:0?',
     '-c:v',
@@ -115,8 +140,7 @@ export function cfrCopyArgs(o: CfrCopyArgsOptions): string[] {
     'cfr',
     '-r',
     `${fps.num}/${fps.den}`,
-    '-c:a',
-    'copy',
+    ...audio,
     '-movflags',
     '+faststart',
     checkPath(o.output, 'output'),
@@ -141,7 +165,7 @@ export function imageReencodeArgs(o: ImageReencodeOptions): string[] {
     '-y',
     ...inputArgs(o.input, o.format),
     '-map',
-    '0:v:0',
+    '0:V:0',
     '-frames:v',
     '1',
     '-map_metadata',
