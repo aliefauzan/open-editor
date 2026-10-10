@@ -4,8 +4,8 @@ Status: not started; early steps done under D-19
 
 ## Early steps (D-19) — e1-net-sources
 
-Branch `early/e1-net-sources` (worktree `.worktrees/early-e1-net-sources`), pushed; **not merged**:
-waits for phase 02 (merge after 02, shim swap). Commits 1017749, 972662c.
+Branch `early/e1-net-sources`, pushed; **merged** into main as 02cf19b (2026-10-11, after 02 at
+5d89ddd). Commits 1017749, 972662c, shim swap 928dc27; worktree removed.
 
 **Steps done**: 4 (proxy, S3), 5 argv part (S4; S33 argv part only), 5b classify part (D-13 URL
 table), plus the S29 core for phase 05 (in-process checked fetch).
@@ -56,9 +56,13 @@ idle tunnels / no connection cap, LOW missed special ranges, LOW abort cleanup, 
 into an open tunnel, LOW malformed `Location`. Not done (left to 04): proxy port allowlist and
 per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
 
+**Merge (after 02)**: shim swapped (`../errors.ts` in 4 src + 3 test files, shim deleted), the five
+codes appended to `ERROR_CODES`. Verify after merging main: typecheck, lint (prettier) green;
+`pnpm test` 961 passed / 1 skipped (one run hit the 30 s timeout in 02's `log.test.ts` rotation
+test at load average 22 from parallel agents; it passes in 2 s alone, twice); pytest 109 passed
+after `make.sh` (fresh worktree had no generated audio-QA fixtures).
+
 **Left for phase 04**
-- Shim swap: `errors.pending.ts` → `../errors.ts` imports in the 5 src + 3 test files, delete the
-  shim, append the codes above.
 - S33 config sourcing (`ingest.cookiesFromBrowser` from `readConfig()` only; a URL, project file or
   ingest argument cannot set it) + its tests; `jsRuntime` detection (deno absent → `node`).
 - `LOGIN_REQUIRED` mapping from yt-dlp stderr, recorded `fixtures/ytdlp/*` (1080×1920 format choice,
