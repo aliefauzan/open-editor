@@ -1,5 +1,14 @@
 packages:
   - packages/*
   - apps/*
+  - spike
+allowBuilds:
+  esbuild: true
 minimumReleaseAgeExclude:
   - prettier@3.9.10
+  - '@hyperframes/core@0.8.145'
+  - '@hyperframes/lint@0.8.145'
+  - '@hyperframes/parsers@0.8.145'
+  - '@hyperframes/player@0.8.145'
+  - '@hyperframes/studio-server@0.8.145'
+  - hyperframes@0.8.145
