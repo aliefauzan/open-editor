@@ -68,16 +68,20 @@ export const appleErrorCodes = [
 export const AppleErrorCode = z.enum(appleErrorCodes);
 export type AppleErrorCode = z.infer<typeof AppleErrorCode>;
 
-const id = z.string().min(1).optional();
+const optionalId = z.string().min(1).optional();
 
-export const AppleTextAnswer = z.strictObject({ id, text: z.string(), usage: AppleUsage });
+export const AppleTextAnswer = z.strictObject({
+  id: optionalId,
+  text: z.string(),
+  usage: AppleUsage,
+});
 export const AppleJsonAnswer = z.strictObject({
-  id,
+  id: optionalId,
   json: z.json(),
   usage: AppleUsage,
 });
 export const AppleErrorAnswer = z.strictObject({
-  id,
+  id: optionalId,
   error: z.strictObject({ code: AppleErrorCode, message: z.string() }),
 });
 export const AppleResponse = z.union([AppleTextAnswer, AppleJsonAnswer, AppleErrorAnswer]);
@@ -85,9 +89,39 @@ export type AppleResponse = z.infer<typeof AppleResponse>;
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
-/** Validates a request and returns it as one JSON line (newline-terminated). */
+/**
+ * Validates a request and returns it as one JSON line (newline-terminated). U+2028 and U+2029 are
+ * escaped too (`JSON.stringify` leaves them raw), so no line splitter can break the line.
+ */
 export function encodeAppleRequest(request: AppleRequestInput): string {
-  return JSON.stringify(AppleRequest.parse(request)) + '\n';
+  return (
+    JSON.stringify(AppleRequest.parse(request)).replace(/[\u2028\u2029]/g, (c) =>
+      c === '\u2028' ? '\\u2028' : '\\u2029',
+    ) + '\n'
+  );
+}
+
+/**
+ * Splits decoded stdout text into lines on `\n` only (a trailing `\r` is dropped). Use this
+ * instead of `node:readline`, which also splits on `\r`, U+2028 and U+2029: characters that may
+ * appear raw inside a JSON string.
+ */
+export class JsonLineSplitter {
+  private rest = '';
+
+  /** Adds a chunk and returns the lines it completes. */
+  push(chunk: string): string[] {
+    const parts = (this.rest + chunk).split('\n');
+    this.rest = parts.pop() ?? '';
+    return parts.map((line) => (line.endsWith('\r') ? line.slice(0, -1) : line));
+  }
+
+  /** Returns the unterminated last line, if any, once the stream has ended. */
+  end(): string | null {
+    const last = this.rest;
+    this.rest = '';
+    return last === '' ? null : last;
+  }
 }
 
 function parseLine<T>(schema: z.ZodType<T>, line: string): Parsed<T> {
@@ -95,7 +129,7 @@ function parseLine<T>(schema: z.ZodType<T>, line: string): Parsed<T> {
   try {
     raw = JSON.parse(line);
   } catch (err) {
-    return { ok: false, error: `not JSON: ${(err as Error).message}` };
+    return { ok: false, error: `not JSON: ${err instanceof Error ? err.message : String(err)}` };
   }
   const result = schema.safeParse(raw);
   return result.success

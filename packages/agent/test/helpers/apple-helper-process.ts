@@ -1,7 +1,8 @@
 // Test-only driver for a JSON-lines Apple helper (the fake `fake-apple-llm.mjs` or the real
-// `vox-apple-llm`). Spawns with an argument array and no shell (S26).
+// `vox-apple-llm`). Spawns with an argument array and no shell (S26). Lines are split on `\n`
+// only (JsonLineSplitter), never with `node:readline`.
 import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
+import { JsonLineSplitter } from '../../src/providers/apple-protocol.ts';
 
 export interface Exit {
   code: number | null;
@@ -16,19 +17,49 @@ export interface Command {
   env?: Record<string, string>;
 }
 
-/** Runs the helper to completion (e.g. with `--status`) and collects its output. */
-export function runOnce(cmd: Command, extraArgs: string[], stdin = ''): Promise<Exit> {
+/** The runner's environment without its own `VOX_FAKE_*` script, plus the command's variables. */
+function childEnv(cmd: Command): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key.startsWith('VOX_FAKE_')) env[key] = value;
+  }
+  return { ...env, ...cmd.env };
+}
+
+/**
+ * Runs the helper to completion (e.g. with `--status`) and collects its output. A helper still
+ * running after `timeoutMs` is killed and the promise rejects.
+ */
+export function runOnce(
+  cmd: Command,
+  extraArgs: string[],
+  stdin = '',
+  timeoutMs = 60_000,
+): Promise<Exit> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd.command, [...cmd.args, ...extraArgs], {
-      env: { ...process.env, ...cmd.env },
+      env: childEnv(cmd),
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '';
     let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${cmd.command} did not finish within ${timeoutMs} ms`));
+    }, timeoutMs);
     child.stdout.setEncoding('utf8').on('data', (d: string) => (stdout += d));
     child.stderr.setEncoding('utf8').on('data', (d: string) => (stderr += d));
-    child.on('error', reject);
-    child.on('close', (code, signal) => resolve({ code, signal, stdout, stderr }));
+    child.stdin.on('error', () => {
+      /* the helper may exit before reading its input */
+    });
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal, stdout, stderr });
+    });
     child.stdin.end(stdin);
   });
 }
@@ -39,6 +70,7 @@ export interface Session {
   nextLine(timeoutMs: number): Promise<string | null>;
   endInput(): void;
   kill(): void;
+  /** Resolves once the process has ended; `code` is null when it never started. */
   exited: Promise<Exit>;
   isRunning(): boolean;
 }
@@ -46,7 +78,7 @@ export interface Session {
 /** Starts a long-lived helper process for request/response exchanges. */
 export function startSession(cmd: Command): Session {
   const child = spawn(cmd.command, cmd.args, {
-    env: { ...process.env, ...cmd.env },
+    env: childEnv(cmd),
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let stdout = '';
@@ -54,36 +86,47 @@ export function startSession(cmd: Command): Session {
   let running = true;
   const lines: string[] = [];
   const waiters: Array<(line: string | null) => void> = [];
-  let closed = false;
+  const splitter = new JsonLineSplitter();
 
-  createInterface({ input: child.stdout }).on('line', (line) => {
-    stdout += line + '\n';
+  const deliver = (line: string) => {
     const waiter = waiters.shift();
     if (waiter) waiter(line);
     else lines.push(line);
+  };
+  child.stdout.setEncoding('utf8').on('data', (d: string) => {
+    stdout += d;
+    for (const line of splitter.push(d)) deliver(line);
   });
   child.stderr.setEncoding('utf8').on('data', (d: string) => (stderr += d));
   child.stdin.on('error', () => {
     /* the helper may exit before reading everything (crash tests) */
   });
 
+  let finish: (exit: Exit) => void = () => {};
   const exited = new Promise<Exit>((resolve) => {
-    child.on('close', (code, signal) => {
+    finish = (exit) => {
+      if (!running) return;
       running = false;
-      closed = true;
+      const last = splitter.end();
+      if (last !== null) deliver(last);
       for (const waiter of waiters.splice(0)) waiter(null);
-      resolve({ code, signal, stdout, stderr });
-    });
+      resolve(exit);
+    };
   });
+  child.on('error', (err) => {
+    stderr += `${err.message}\n`;
+    finish({ code: null, signal: null, stdout, stderr });
+  });
+  child.on('close', (code, signal) => finish({ code, signal, stdout, stderr }));
 
   return {
     send: (line) => {
-      child.stdin.write(line.endsWith('\n') ? line : line + '\n');
+      if (running) child.stdin.write(line.endsWith('\n') ? line : line + '\n');
     },
     nextLine: (timeoutMs) => {
       const ready = lines.shift();
       if (ready !== undefined) return Promise.resolve(ready);
-      if (closed) return Promise.resolve(null);
+      if (!running) return Promise.resolve(null);
       return new Promise((resolve) => {
         const waiter = (line: string | null) => {
           clearTimeout(timer);

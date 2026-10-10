@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   appleStatusValues,
   encodeAppleRequest,
@@ -13,7 +13,7 @@ import {
   type AppleRequestInput,
   type AppleResponse,
 } from '../../src/providers/apple-protocol.ts';
-import { invalidRequests } from '../helpers/apple-cases.ts';
+import { awkwardRequest, invalidRequests } from '../helpers/apple-cases.ts';
 import {
   runOnce,
   startSession,
@@ -43,8 +43,12 @@ const open = (env: Record<string, string> = {}): Session => {
   sessions.push(s);
   return s;
 };
-afterEach(() => {
-  for (const s of sessions.splice(0)) if (s.isRunning()) s.kill();
+afterEach(async () => {
+  for (const s of sessions.splice(0)) {
+    if (s.isRunning()) s.kill();
+    await s.exited;
+  }
+  vi.unstubAllEnvs();
 });
 
 async function answer(s: Session, timeoutMs = 5_000): Promise<AppleResponse> {
@@ -74,6 +78,27 @@ describe('fake apple helper: --status', () => {
     expect(parseAppleStatusLine(out.stdout)).toEqual({
       ok: true,
       value: { status: 'ready', contextSize: 8192 },
+    });
+  });
+
+  test.each([
+    ['not JSON', 'nope'],
+    ['not an array', '{"text":"a"}'],
+    ['an entry of no known kind', '[{"foo":1}]'],
+    ['a text entry that is not a string', '[{"text":1}]'],
+    ['an error entry with an unknown code', '[{"error":{"code":"boom","message":"x"}}]'],
+  ])('a malformed VOX_FAKE_APPLE_ANSWERS (%s) exits 2 at start', async (_name, answers) => {
+    const out = await runOnce(fake({ VOX_FAKE_APPLE_ANSWERS: answers }), ['--status']);
+    expect(out.code).toBe(2);
+    expect(out.stderr).toContain('VOX_FAKE_APPLE_ANSWERS');
+  });
+
+  test("the driver does not pass the test runner's own VOX_FAKE_* variables to the helper", async () => {
+    vi.stubEnv('VOX_FAKE_APPLE_STATUS', 'notEnabled');
+    const out = await runOnce(fake(), ['--status']);
+    expect(parseAppleStatusLine(out.stdout)).toMatchObject({
+      ok: true,
+      value: { status: 'ready' },
     });
   });
 
@@ -110,12 +135,29 @@ describe('fake apple helper: requests', () => {
         { text: 'three' },
       ]),
     });
-    for (const id of ['a', 'b', 'c']) s.send(encodeAppleRequest(request({ id })));
+    s.send(encodeAppleRequest(request({ id: 'a' })));
+    s.send(encodeAppleRequest(request({ id: 'b', schema: { type: 'array' } })));
+    s.send(encodeAppleRequest(request({ id: 'c' })));
     expect(await answer(s)).toMatchObject({ id: 'a', text: 'one' });
     expect(await answer(s)).toMatchObject({ id: 'b', json: [1, 2] });
     expect(await answer(s)).toMatchObject({ id: 'c', text: 'three' });
     s.endInput();
     expect((await s.exited).code).toBe(0);
+  });
+
+  test('U+2028, U+2029 and a lone surrogate pass through as one line each way', async () => {
+    const text = 'a\u2028b\u2029c \udc00';
+    const s = open({ VOX_FAKE_APPLE_ANSWERS: JSON.stringify([{ text }]) });
+    s.send(JSON.stringify(awkwardRequest));
+    expect(await answer(s)).toMatchObject({ id: 'awkward', text });
+  });
+
+  test('a scripted answer of the wrong kind for the request gets a generation error', async () => {
+    const s = open({ VOX_FAKE_APPLE_ANSWERS: JSON.stringify([{ json: { n: 1 } }, { text: 'x' }]) });
+    s.send(encodeAppleRequest(request({ id: 'plain' })));
+    expect(await answer(s)).toMatchObject({ id: 'plain', error: { code: 'generation' } });
+    s.send(encodeAppleRequest(request({ id: 'schema', schema: { type: 'object' } })));
+    expect(await answer(s)).toMatchObject({ id: 'schema', error: { code: 'generation' } });
   });
 
   test('a scripted error is sent as an error line', async () => {
@@ -239,5 +281,24 @@ describe('fake apple helper: requests', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('helper driver', () => {
+  test('runOnce kills a helper that does not finish in time and rejects', async () => {
+    const hang = fake({ VOX_FAKE_APPLE_ANSWERS: JSON.stringify([{ hang: true }]) });
+    await expect(runOnce(hang, [], encodeAppleRequest(request()), 300)).rejects.toThrow(
+      /did not finish/,
+    );
+  });
+
+  test('a session whose command cannot start ends with no lines instead of throwing', async () => {
+    const s = startSession({ command: '/nonexistent/vox-apple-llm', args: [] });
+    sessions.push(s);
+    s.send(encodeAppleRequest(request()));
+    expect(await s.nextLine(2_000)).toBeNull();
+    const exit = await s.exited;
+    expect(exit.code).toBeNull();
+    expect(exit.stderr).toMatch(/ENOENT/);
   });
 });

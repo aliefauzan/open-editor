@@ -47,6 +47,11 @@ struct ProtocolTests {
       #"{"id":"x","system":"s","messages":[{"role":"user","content":"a"}],"schema":"string","maxTokens":8,"temperature":0}"#,
       #"{"id":"x","system":"s","messages":[{"role":"user","content":"a"}],"maxTokens":8,"temperature":0,"tools":[]}"#,
       #"{"id":"","system":"s","messages":[{"role":"user","content":"a"}],"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a"}],"maxTokens":1e300,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a"}],"maxTokens":9007199254740992,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a"}],"schema":null,"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":{"role":"user","content":"a"},"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a"}],"maxTokens":8,"temperature":"0"}"#,
     ])
   func rejects(_ line: String) {
     guard case .failure(let failure) = Request.parse(line: line) else {
@@ -102,5 +107,21 @@ struct ProtocolTests {
     #expect(Command.parse(["-h"]) == .help)
     #expect(Command.parse(["--bogus"]) == .invalid("--bogus"))
     #expect(Command.parse(["--status", "x"]) == .invalid("x"))
+  }
+
+  @Test("a lone surrogate escape in a request becomes U+FFFD, like JavaScript strings allow")
+  func loneSurrogate() throws {
+    let line =
+      #"{"id":"x","system":"\ud800","messages":[{"role":"user","content":"a\udc00"}],"maxTokens":8,"temperature":0}"#
+    let r = try Request.parse(line: line).get()
+    #expect(r.system == "\u{FFFD}")
+    #expect(r.prompt == "a\u{FFFD}")
+  }
+
+  @Test("maxTokens is capped at the context size")
+  func cappedMaxTokens() throws {
+    let r = try Request.parse(line: minimal).get()
+    #expect(r.maxTokens(cappedAt: 4096) == 64)
+    #expect(r.maxTokens(cappedAt: 32) == 32)
   }
 }

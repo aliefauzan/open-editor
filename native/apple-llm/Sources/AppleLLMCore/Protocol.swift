@@ -40,6 +40,9 @@ public struct Request: Equatable, Sendable {
   /// The final user message (validated to exist).
   public var prompt: String { messages[messages.count - 1].content }
 
+  /// `maxTokens`, at most the model's context size (an answer cannot be longer).
+  public func maxTokens(cappedAt contextSize: Int) -> Int { min(maxTokens, contextSize) }
+
   /// Every input text, for the token estimate (same rule as the fake helper).
   public var inputText: String { system + messages.map(\.content).joined() }
 
@@ -90,9 +93,9 @@ public struct Request: Equatable, Sendable {
     }
     let schema = json["schema"]
     if let schema, schema.objectKeys == nil { return fail("schema must be a JSON object") }
-    guard let maxTokens = json["maxTokens"]?.integralValue, maxTokens > 0 else {
-      return fail("maxTokens must be a positive integer")
-    }
+    guard let maxTokens = json["maxTokens"]?.integralValue, maxTokens > 0,
+      maxTokens <= SchemaNode.safeInteger
+    else { return fail("maxTokens must be a positive safe integer") }
     guard let temperature = json["temperature"]?.doubleValue, temperature >= 0, temperature <= 2
     else { return fail("temperature must be a number from 0 to 2") }
 

@@ -2,6 +2,7 @@
 // every use is behind `#available(macOS 26, *)`, so the helper runs on macOS 14 and 15 and
 // reports `unsupportedOS` there.
 import AppleLLMCore
+import Foundation
 import FoundationModels
 
 enum Model {
@@ -27,7 +28,8 @@ enum Generator {
     let session = LanguageModelSession(
       model: SystemLanguageModel.default, tools: [], transcript: transcript(for: request))
     let options = GenerationOptions(
-      temperature: request.temperature, maximumResponseTokens: request.maxTokens)
+      temperature: request.temperature,
+      maximumResponseTokens: request.maxTokens(cappedAt: Model.status().1))
     do {
       if let json = request.schema {
         let schema: GenerationSchema
@@ -93,8 +95,13 @@ enum Generator {
     return Usage.estimate(input: input, output: output)
   }
 
+  /// Maps a framework error to a protocol code and a short message (the framework's
+  /// description, not its debug dump with the full context).
   static func classify(_ error: any Error) -> (ErrorCode, String) {
-    let message = String(describing: error)
+    let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    if #available(macOS 27, *), error is SystemLanguageModel.Error {
+      return (.unavailable, message)  // assetsUnavailable, the only case
+    }
     if #available(macOS 27, *), let e = error as? LanguageModelError {
       switch e {
       case .contextSizeExceeded: return (.contextOverflow, message)
@@ -133,8 +140,9 @@ enum Generator {
     case .stringChoice(let name, let choices):
       return DynamicGenerationSchema(name: name, anyOf: choices)
     case .integer(let minimum, let maximum):
+      // SchemaNode drops contradictory bounds, so minimum <= maximum here.
       var guides: [GenerationGuide<Int>] = []
-      if let minimum, let maximum, minimum <= maximum {
+      if let minimum, let maximum {
         guides.append(.range(minimum...maximum))
       } else {
         if let minimum { guides.append(.minimum(minimum)) }
@@ -143,7 +151,7 @@ enum Generator {
       return DynamicGenerationSchema(type: Int.self, guides: guides)
     case .number(let minimum, let maximum):
       var guides: [GenerationGuide<Double>] = []
-      if let minimum, let maximum, minimum <= maximum {
+      if let minimum, let maximum {
         guides.append(.range(minimum...maximum))
       } else {
         if let minimum { guides.append(.minimum(minimum)) }

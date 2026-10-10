@@ -24,6 +24,19 @@ struct JSONValueTests {
     #expect(v == .string("a\"b\\c/d\n\té😀"))
   }
 
+  @Test(
+    "a lone surrogate escape decodes to U+FFFD and the next escape is kept",
+    arguments: [
+      (#""\ud800""#, "\u{FFFD}"),
+      (#""\udc00a""#, "\u{FFFD}a"),
+      (#""\ud800\u0041""#, "\u{FFFD}A"),
+      (#""\ud800\ud83d\ude00""#, "\u{FFFD}😀"),
+      (#""\ud800x""#, "\u{FFFD}x"),
+    ])
+  func loneSurrogates(_ text: String, _ expected: String) throws {
+    #expect(try JSONValue.parse(text) == .string(expected))
+  }
+
   @Test("an integral number with a fraction or exponent stays a double; a plain one is an int")
   func numbers() throws {
     #expect(try JSONValue.parse("64") == .int(64))

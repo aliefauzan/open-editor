@@ -27,26 +27,48 @@ public indirect enum SchemaNode: Equatable, Sendable {
   case anyOf(name: String, choices: [SchemaNode])
 
   /// Converts a JSON Schema. Object, choice and anyOf names are unique paths from `name`
-  /// (`Root`, `Root_seqs_item`, …), as guided generation needs unique schema names.
+  /// (`Root`, `Root_seqs_item`, …), as guided generation needs unique schema names; a path that
+  /// is already taken (property `a_b` next to nested `a` → `b`) gets a `_2`, `_3`, … suffix.
   public static func from(_ json: JSONValue, name: String = "Root") -> SchemaNode {
-    convert(json, name: name).node
+    var names = Names()
+    return convert(json, name: name, names: &names).node
   }
 
   /// JSON Schema's ±(2^53 - 1), which zod writes for every integer; dropped as a bound.
   static let safeInteger = 9_007_199_254_740_991
 
-  private static func convert(_ json: JSONValue, name: String) -> (node: SchemaNode, nullable: Bool)
+  struct Names {
+    var used: Set<String> = []
+
+    mutating func unique(_ base: String) -> String {
+      var candidate = base
+      var n = 2
+      while used.contains(candidate) {
+        candidate = "\(base)_\(n)"
+        n += 1
+      }
+      used.insert(candidate)
+      return candidate
+    }
+  }
+
+  private static func convert(_ json: JSONValue, name: String, names: inout Names)
+    -> (node: SchemaNode, nullable: Bool)
   {
     // Nullable unions: anyOf / type arrays with a null branch make the value optional.
     if case .array(let branches)? = json["anyOf"] {
       let nonNull = branches.filter { !isNullSchema($0) }
       let nullable = nonNull.count < branches.count
       if nonNull.count == 1, let only = nonNull.first {
-        return (convert(only, name: name).node, nullable)
+        return (convert(only, name: name, names: &names).node, nullable)
       }
       if !nonNull.isEmpty {
-        let choices = nonNull.enumerated().map { convert($1, name: "\(name)_\($0)").node }
-        return (.anyOf(name: name, choices: choices), nullable)
+        let own = names.unique(name)
+        var choices: [SchemaNode] = []
+        for (i, branch) in nonNull.enumerated() {
+          choices.append(convert(branch, name: "\(own)_\(i)", names: &names).node)
+        }
+        return (.anyOf(name: own, choices: choices), nullable)
       }
     }
 
@@ -60,15 +82,21 @@ public indirect enum SchemaNode: Equatable, Sendable {
     types.removeAll { $0 == "null" }
 
     if types.count > 1 {
-      let choices = types.map { typed($0, json, name: name) }
-      return (.anyOf(name: name, choices: choices), nullable)
+      let own = names.unique(name)
+      var choices: [SchemaNode] = []
+      for (i, type) in types.enumerated() {
+        choices.append(typed(type, json, name: "\(own)_\(i)", names: &names))
+      }
+      return (.anyOf(name: own, choices: choices), nullable)
     }
-    if let type = types.first { return (typed(type, json, name: name), nullable) }
+    if let type = types.first { return (typed(type, json, name: name, names: &names), nullable) }
 
     // No type: infer from the keywords present.
-    if let choices = stringChoices(json) { return (.stringChoice(name: name, choices: choices), false) }
-    if json["properties"] != nil { return (typed("object", json, name: name), false) }
-    if json["items"] != nil { return (typed("array", json, name: name), false) }
+    if let choices = stringChoices(json) {
+      return (.stringChoice(name: names.unique(name), choices: choices), false)
+    }
+    if json["properties"] != nil { return (typed("object", json, name: name, names: &names), false) }
+    if json["items"] != nil { return (typed("array", json, name: name, names: &names), false) }
     return (.string, false)
   }
 
@@ -85,15 +113,24 @@ public indirect enum SchemaNode: Equatable, Sendable {
     return nil
   }
 
-  private static func typed(_ type: String, _ json: JSONValue, name: String) -> SchemaNode {
+  /// Drops both bounds when they contradict (minimum above maximum).
+  private static func ordered<T: Comparable>(_ minimum: T?, _ maximum: T?) -> (T?, T?) {
+    if let minimum, let maximum, minimum > maximum { return (nil, nil) }
+    return (minimum, maximum)
+  }
+
+  private static func typed(_ type: String, _ json: JSONValue, name: String, names: inout Names)
+    -> SchemaNode
+  {
     switch type {
     case "object":
+      let own = names.unique(name)
       var required: Set<String> = []
       if case .array(let r)? = json["required"] { required = Set(r.compactMap(\.stringValue)) }
       var properties: [Property] = []
       if case .object(let pairs)? = json["properties"] {
         for (key, schema) in pairs {
-          let (node, nullable) = convert(schema, name: "\(name)_\(key)")
+          let (node, nullable) = convert(schema, name: "\(own)_\(key)", names: &names)
           properties.append(
             Property(
               name: key, description: schema["description"]?.stringValue, schema: node,
@@ -101,25 +138,37 @@ public indirect enum SchemaNode: Equatable, Sendable {
         }
       }
       return .object(
-        name: name, description: json["description"]?.stringValue, properties: properties)
+        name: own, description: json["description"]?.stringValue, properties: properties)
     case "array":
-      let items = json["items"].map { convert($0, name: "\(name)_item").node } ?? .string
-      return .array(
-        items: items, minItems: json["minItems"]?.integralValue,
-        maxItems: json["maxItems"]?.integralValue)
+      let items = json["items"].map { convert($0, name: "\(name)_item", names: &names).node } ?? .string
+      // A negative count is no bound; a minimum of 0 is the default.
+      let minItems = json["minItems"]?.integralValue.flatMap { $0 > 0 ? $0 : nil }
+      let maxItems = json["maxItems"]?.integralValue.flatMap { $0 >= 0 ? $0 : nil }
+      let (lo, hi) = ordered(minItems, maxItems)
+      return .array(items: items, minItems: lo, maxItems: hi)
     case "string":
-      if let choices = stringChoices(json) { return .stringChoice(name: name, choices: choices) }
+      if let choices = stringChoices(json) {
+        return .stringChoice(name: names.unique(name), choices: choices)
+      }
       return .string
     case "integer":
       var minimum = json["minimum"]?.integralValue
       var maximum = json["maximum"]?.integralValue
-      if minimum == nil, let x = json["exclusiveMinimum"]?.integralValue { minimum = x + 1 }
-      if maximum == nil, let x = json["exclusiveMaximum"]?.integralValue { maximum = x - 1 }
-      if let m = minimum, m <= -safeInteger { minimum = nil }
-      if let m = maximum, m >= safeInteger { maximum = nil }
-      return .integer(minimum: minimum, maximum: maximum)
+      // Exclusive bounds move inward by 1; at Int.max / Int.min they stay put (and are then
+      // dropped below as beyond the safe-integer range) instead of overflowing.
+      if minimum == nil, let x = json["exclusiveMinimum"]?.integralValue {
+        minimum = x < Int.max ? x + 1 : x
+      }
+      if maximum == nil, let x = json["exclusiveMaximum"]?.integralValue {
+        maximum = x > Int.min ? x - 1 : x
+      }
+      if let m = minimum, m <= -safeInteger || m >= safeInteger { minimum = nil }
+      if let m = maximum, m >= safeInteger || m <= -safeInteger { maximum = nil }
+      let (lo, hi) = ordered(minimum, maximum)
+      return .integer(minimum: lo, maximum: hi)
     case "number":
-      return .number(minimum: json["minimum"]?.doubleValue, maximum: json["maximum"]?.doubleValue)
+      let (lo, hi) = ordered(json["minimum"]?.doubleValue, json["maximum"]?.doubleValue)
+      return .number(minimum: lo, maximum: hi)
     case "boolean":
       return .boolean
     default:

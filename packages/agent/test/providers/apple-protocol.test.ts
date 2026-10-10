@@ -3,12 +3,13 @@ import {
   AppleRequest,
   appleErrorCodes,
   appleStatusValues,
+  JsonLineSplitter,
   encodeAppleRequest,
   parseAppleResponseLine,
   parseAppleStatusLine,
   type AppleRequestInput,
 } from '../../src/providers/apple-protocol.ts';
-import { invalidRequests } from '../helpers/apple-cases.ts';
+import { awkwardRequest, invalidRequests } from '../helpers/apple-cases.ts';
 
 const minimal: AppleRequestInput = {
   system: 'You write short answers.',
@@ -55,6 +56,8 @@ describe('apple protocol: request', () => {
     ['a schema that is not an object', { ...minimal, schema: 'string' }],
     ['an unknown field', { ...minimal, tools: [] }],
     ['an empty id', { ...minimal, id: '' }],
+    ['a numeric id', { ...minimal, id: 1 }],
+    ['a request that is not an object', [minimal]],
   ])('rejects %s', (_name, value) => {
     expect(AppleRequest.safeParse(value).success).toBe(false);
   });
@@ -67,6 +70,12 @@ describe('apple protocol: request', () => {
     expect(line.endsWith('\n')).toBe(true);
     expect(line.slice(0, -1)).not.toMatch(/[\r\n]/);
     expect(JSON.parse(line).messages[0].content).toBe('line one\nline two\r\n');
+  });
+
+  test('escapes U+2028 and U+2029, so a line splitter that also breaks on them still sees one line', () => {
+    const line = encodeAppleRequest(awkwardRequest);
+    expect(line.slice(0, -1)).not.toMatch(/[\n\r\u2028\u2029]/);
+    expect(JSON.parse(line)).toEqual(awkwardRequest);
   });
 
   test('refuses to encode an invalid request', () => {
@@ -161,5 +170,15 @@ describe('apple protocol: --status', () => {
 
   test('tolerates surrounding whitespace and a trailing newline', () => {
     expect(parseAppleStatusLine(' {"status":"ready","contextSize":4096}\n').ok).toBe(true);
+  });
+});
+
+describe('apple protocol: line splitting', () => {
+  test('splits on \\n only, across chunks, keeping U+2028/U+2029 and dropping a trailing \\r', () => {
+    const split = new JsonLineSplitter();
+    expect(split.push('a\u2028b\u2029c\n{"x"')).toEqual(['a\u2028b\u2029c']);
+    expect(split.push(':1}\r\n\nrest')).toEqual(['{"x":1}', '']);
+    expect(split.end()).toBe('rest');
+    expect(split.end()).toBeNull();
   });
 });

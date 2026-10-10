@@ -15,7 +15,7 @@ import {
   type AppleResponse,
   type AppleStatus,
 } from '../../src/providers/apple-protocol.ts';
-import { invalidRequests } from '../helpers/apple-cases.ts';
+import { awkwardRequest, invalidRequests } from '../helpers/apple-cases.ts';
 import { runOnce, startSession, type Session } from '../helpers/apple-helper-process.ts';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -69,6 +69,11 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
     session ??= startSession({ command: bin, args: [] });
     session.send(line);
     const out = await session.nextLine(timeoutMs);
+    if (out === null) {
+      // A late answer would be read by the next test: start a fresh helper instead.
+      session.kill();
+      session = null;
+    }
     expect(out, 'helper sent no line').not.toBeNull();
     const parsed = parseAppleResponseLine(out ?? '');
     if (!parsed.ok) throw new Error(`invalid response line ${out}: ${parsed.error}`);
@@ -105,6 +110,7 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
     if (!parsed.ok) throw new Error(`invalid status line ${out.stdout}: ${parsed.error}`);
     status = parsed.value;
     console.info(`vox-apple-llm --status: ${JSON.stringify(status)}`);
+    if (Number.isNaN(macosMajor)) return; // sw_vers gave no version: nothing to compare
     if (macosMajor >= 26) expect(status.status).not.toBe('unsupportedOS');
     else expect(status.status).toBe('unsupportedOS');
   });
@@ -136,6 +142,12 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
       });
     }
   });
+
+  test('U+2028, U+2029 and a lone surrogate are not a bad request (one line, valid JSON)', async () => {
+    const res = await exchange(JSON.stringify(awkwardRequest));
+    expect(res.id).toBe('awkward');
+    if ('error' in res) expect(res.error.code).not.toBe('badRequest');
+  }, 180_000);
 
   test('one short text request', async (ctx) => {
     ctx.skip(status?.status !== 'ready', `Apple Intelligence status: ${status?.status}`);

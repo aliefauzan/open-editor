@@ -216,16 +216,24 @@ private struct Parser {
         case UInt8(ascii: "r"): units.append(0x0D)
         case UInt8(ascii: "t"): units.append(0x09)
         case UInt8(ascii: "u"):
+          // A lone surrogate (valid in JSON text and in JavaScript strings, but not in a Swift
+          // String) becomes U+FFFD; an escape after it is read on its own.
           var scalar = UInt32(try hex4())
           if (0xD800...0xDBFF).contains(scalar) {
-            guard peek == UInt8(ascii: "\\"), i + 1 < bytes.count, bytes[i + 1] == UInt8(ascii: "u")
-            else { throw fail("lone high surrogate") }
-            i += 2
-            let low = UInt32(try hex4())
-            guard (0xDC00...0xDFFF).contains(low) else { throw fail("bad low surrogate") }
-            scalar = 0x10000 + ((scalar - 0xD800) << 10) + (low - 0xDC00)
+            let high = scalar
+            scalar = 0xFFFD
+            if peek == UInt8(ascii: "\\"), i + 1 < bytes.count, bytes[i + 1] == UInt8(ascii: "u") {
+              let mark = i
+              i += 2
+              let low = UInt32(try hex4())
+              if (0xDC00...0xDFFF).contains(low) {
+                scalar = 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00)
+              } else {
+                i = mark
+              }
+            }
           } else if (0xDC00...0xDFFF).contains(scalar) {
-            throw fail("lone low surrogate")
+            scalar = 0xFFFD
           }
           guard let u = Unicode.Scalar(scalar) else { throw fail("invalid code point") }
           units.append(contentsOf: Array(String(Character(u)).utf8))

@@ -132,4 +132,70 @@ struct SchemaNodeTests {
       try node(#"{"items":{"type":"boolean"}}"#)
         == .array(items: .boolean, minItems: nil, maxItems: nil))
   }
+
+  @Test("exclusive integer bounds at Int.max / Int.min do not overflow and are dropped")
+  func integerOverflow() throws {
+    #expect(
+      try node(#"{"type":"integer","exclusiveMinimum":9223372036854775807}"#)
+        == .integer(minimum: nil, maximum: nil))
+    #expect(
+      try node(#"{"type":"integer","exclusiveMaximum":-9223372036854775808}"#)
+        == .integer(minimum: nil, maximum: nil))
+  }
+
+  @Test("contradictory or negative bounds are dropped (min above max, negative item counts)")
+  func badBounds() throws {
+    #expect(
+      try node(#"{"type":"array","minItems":-1,"maxItems":-2}"#)
+        == .array(items: .string, minItems: nil, maxItems: nil))
+    #expect(
+      try node(#"{"type":"array","minItems":5,"maxItems":2}"#)
+        == .array(items: .string, minItems: nil, maxItems: nil))
+    #expect(
+      try node(#"{"type":"array","minItems":0,"maxItems":0}"#)
+        == .array(items: .string, minItems: nil, maxItems: 0))
+    #expect(
+      try node(#"{"type":"integer","minimum":5,"maximum":2}"#)
+        == .integer(minimum: nil, maximum: nil))
+    #expect(
+      try node(#"{"type":"integer","exclusiveMinimum":3,"exclusiveMaximum":4}"#)
+        == .integer(minimum: nil, maximum: nil))
+    #expect(
+      try node(#"{"type":"number","minimum":2.5,"maximum":1}"#)
+        == .number(minimum: nil, maximum: nil))
+  }
+
+  @Test("each branch of a type array gets its own name")
+  func typeArrayNames() throws {
+    #expect(
+      try node(#"{"type":["object","string"],"properties":{}}"#)
+        == .anyOf(
+          name: "Root", choices: [.object(name: "Root_0", description: nil, properties: []), .string]))
+  }
+
+  @Test("schema names stay unique when a property name contains the separator")
+  func uniqueNames() throws {
+    let n = try node(
+      #"{"type":"object","properties":{"a_b":{"enum":["x"]},"a":{"type":"object","properties":{"b":{"enum":["y"]}},"required":["b"]}},"required":["a_b","a"]}"#
+    )
+    #expect(
+      n
+        == .object(
+          name: "Root", description: nil,
+          properties: [
+            Property(
+              name: "a_b", description: nil, schema: .stringChoice(name: "Root_a_b", choices: ["x"]),
+              isOptional: false),
+            Property(
+              name: "a", description: nil,
+              schema: .object(
+                name: "Root_a", description: nil,
+                properties: [
+                  Property(
+                    name: "b", description: nil,
+                    schema: .stringChoice(name: "Root_a_b_2", choices: ["y"]), isOptional: false)
+                ]),
+              isOptional: false),
+          ]))
+  }
 }
