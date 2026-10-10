@@ -44,8 +44,8 @@ worktree removed). Verify in the worktree before merge: `pnpm typecheck`, `eslin
 ## Early steps (D-19) — e5-style-format
 
 Package E5 (style format: schema, registry, tokens). Branch `early/e5-style-format` (commits 0fd46b9, 6fbe0f6),
-**pushed, not merged: waiting for 02** (uses `VoxError` through the shim `src/errors.pending.ts`). Worktree kept at
-`.worktrees/early-e5-style-format`. Decision: D-23. Verify in the worktree: `pnpm typecheck`, `pnpm lint`
+shim swapped to `src/errors.ts` after 02 (codes STYLE_NOT_FOUND, STYLE_INVALID, STYLE_DUPLICATE); **merged to main as
+bcaa07a**, worktree removed (post-merge verify: pnpm test 1378 passed / 1 skipped, pytest 109 passed). Decision: D-23. Verify in the worktree: `pnpm typecheck`, `pnpm lint`
 (eslint + prettier) green; `pnpm test` 10 files, 213 tests (styles 3 files, 140); `uv run --project py pytest` 4 passed.
 Reviewed twice (typescript-reviewer); fixes in 6fbe0f6 (self-declared trust, Ajv `$id` cache, `url()` in token
 values, realpath containment on every read).
