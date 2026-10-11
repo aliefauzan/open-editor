@@ -6,7 +6,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { doctor, doctorProject, type Exec } from '../src/doctor.ts';
-import type { Project } from '../src/model/schema.ts';
+import { SCHEMA_VERSION, type Project } from '../src/model/schema.ts';
 import { tempDir } from './helpers/store.ts';
 
 const YTDLP_V = (runtimes: string, impersonate: boolean) =>
@@ -157,7 +157,7 @@ describe('doctor', () => {
 describe('doctorProject', () => {
   const project = (overrides: { wordKey: string }[]): Project =>
     ({
-      schemaVersion: 2,
+      schemaVersion: SCHEMA_VERSION,
       id: 'p_doc',
       name: 'doc',
       version: 1,

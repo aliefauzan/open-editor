@@ -4,8 +4,10 @@ import { z } from 'zod';
 import { checkRelativePath } from '../paths.ts';
 import { VoxError } from '../errors.ts';
 import { isFpsInSet } from './fps.ts';
+import { isSpeedStep, SPEED_MAX, SPEED_MIN } from './speed.ts';
 
-export const SCHEMA_VERSION = 2;
+/** 3 = the v1.1 schema (`MediaClip.speed`; plan D-62); 2 → 3 is migrated on load. */
+export const SCHEMA_VERSION = 3;
 
 const int = () => z.int();
 const nonNeg = () => z.int().min(0);
@@ -103,6 +105,11 @@ export const MotionSchema = z.strictObject({
   amount: z.number(),
 });
 export const DenoiseSchema = z.enum(['off', 'light', 'strong']);
+export const SpeedSchema = z
+  .number()
+  .min(SPEED_MIN)
+  .max(SPEED_MAX)
+  .refine(isSpeedStep, 'speed has at most two decimals (steps of 0.01)');
 export const TransitionInSchema = z.strictObject({
   template: TemplateIdSchema,
   durationMs: z.int().positive(),
@@ -127,6 +134,8 @@ export const MediaClipSchema = z.strictObject({
   fadeInMs: nonNeg().optional(),
   fadeOutMs: nonNeg().optional(),
   denoise: DenoiseSchema.optional(),
+  /** v1.1 (plan D-62): playback speed, absent = 1; see "Clip speed". */
+  speed: SpeedSchema.optional(),
 });
 
 export const SceneClipSchema = z.strictObject({

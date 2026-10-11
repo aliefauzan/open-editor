@@ -10,6 +10,7 @@ import {
   type SceneClip,
 } from '../model/schema.ts';
 import { blendHalf } from '../model/fps.ts';
+import { spanMs, toSourceMs } from '../model/speed.ts';
 import { endOf, fail, findItem, findSeq, findTrack, snapT, type OpContext } from './core.ts';
 import { OnOverlapSchema } from './items.ts';
 import { placeItems } from './timeline.ts';
@@ -168,7 +169,8 @@ export function setTransition(
     const short: string[] = [];
     if (item.type === 'media') {
       const m = media(item.mediaId);
-      if (m && m.kind !== 'image' && item.inMs < before) short.push(item.id);
+      // handles are source time: the cut's half-length × speed (plan D-62)
+      if (m && m.kind !== 'image' && item.inMs < toSourceMs(item, before)) short.push(item.id);
     }
     if (prev?.type === 'media') {
       const m = media(prev.mediaId);
@@ -176,7 +178,7 @@ export function setTransition(
         m &&
         m.kind !== 'image' &&
         m.durationMs !== undefined &&
-        prev.inMs + prev.durationMs + after > m.durationMs
+        prev.inMs + spanMs(prev) + toSourceMs(prev, after) > m.durationMs
       ) {
         short.push(prev.id);
       }

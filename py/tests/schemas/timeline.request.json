@@ -49,7 +49,8 @@
                     "sourceFrame": { "type": "integer", "minimum": 0 },
                     "sourceDurationFrames": { "type": "integer", "minimum": 1 },
                     "mediaDurationFrames": { "type": "integer", "minimum": 1 },
-                    "mediaRate": { "$ref": "#/$defs/rate" }
+                    "mediaRate": { "$ref": "#/$defs/rate" },
+                    "timeScalar": { "type": "number", "minimum": 0.25, "maximum": 4 }
                   }
                 }
               }

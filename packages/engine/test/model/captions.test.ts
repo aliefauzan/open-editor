@@ -28,6 +28,7 @@ interface Clip {
   startMs: number;
   inMs: number;
   durationMs: number;
+  speed?: number;
 }
 
 function project(
@@ -45,6 +46,7 @@ function project(
       startMs: c.startMs,
       inMs: c.inMs,
       durationMs: c.durationMs,
+      ...(c.speed === undefined ? {} : { speed: c.speed }),
     };
     t.items.push(item);
   });
@@ -95,6 +97,34 @@ describe('deriveCaptions', () => {
     expect(w[0]!.startMs).toBe(5000);
     expect(w[1]!.startMs).toBe(5400);
     expect(w.map((v) => v.key)).toEqual(['m_a:r1:1', 'm_a:r1:2']);
+  });
+
+  test('clip speed (D-62): words of the source span map through startMs + (t − inMs) / speed', () => {
+    const ws: W[] = [
+      ['a', 1400, 1600],
+      ['b', 2600, 2800],
+      ['late', 3100, 3300], // outside the 2× span 1000..3000
+    ];
+    const fast = project({ m_a: tr(ws) }, [
+      { startMs: 5000, inMs: 1000, durationMs: 1000, speed: 2 },
+    ]);
+    expect(flat(derive(fast)).map((w) => [w.text, w.startMs])).toEqual([
+      ['a', 5200],
+      ['b', 5800],
+    ]);
+    // 0.5×: source 1000..1500 over 1000 ms of timeline
+    const slow = project(
+      {
+        m_a: tr([
+          ['c', 1200, 1300],
+          ['d', 1600, 1700],
+        ]),
+      },
+      [{ startMs: 5000, inMs: 1000, durationMs: 1000, speed: 0.5 }],
+    );
+    const w = flat(derive(slow));
+    expect(w.map((v) => v.text)).toEqual(['c']);
+    expect(w[0]!.startMs).toBe(5400);
   });
 
   test('zero-length words get one frame; times sit on the frame grid', () => {

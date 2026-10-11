@@ -1,6 +1,7 @@
 // Timeline primitives shared by the item ops: trim, split, cut (ripple), clear (overwrite), insert.
 // All times are on the sequence grid already; inMs is re-snapped to the source grid.
 import type { Item, Project, Sequence, Track } from '../model/schema.ts';
+import { spanMs, toSourceMs } from '../model/speed.ts';
 import {
   endOf,
   fail,
@@ -22,9 +23,9 @@ export function fitIn(p: Project, s: Sequence, it: Item): void {
   const media = p.media.find((m) => m.id === it.mediaId);
   if (!media?.durationMs || media.kind === 'image') return;
   const fps = sourceFps(p, s, it);
-  const over = it.inMs + it.durationMs - media.durationMs;
+  const over = it.inMs + spanMs(it) - media.durationMs;
   if (over > 0 && over <= Math.ceil((1000 * fps.den) / fps.num)) {
-    const pulled = snapDown(media.durationMs - it.durationMs, fps);
+    const pulled = snapDown(media.durationMs - spanMs(it), fps);
     if (pulled >= 0) it.inMs = pulled;
   }
 }
@@ -39,14 +40,14 @@ export function shiftItem(p: Project, s: Sequence, it: Item, frames: number): vo
   fitIn(p, s, it);
 }
 
-/** Move an item's start edge by `delta` ms (positive = later), keeping its end. */
+/** Move an item's start edge by `delta` ms (positive = later), keeping its end; `inMs` moves by delta × speed. */
 export function trimStartBy(p: Project, s: Sequence, it: Item, delta: number): void {
   it.startMs += delta;
   it.durationMs -= delta;
   if (it.type === 'media') {
     const media = p.media.find((m) => m.id === it.mediaId);
     if (media?.kind !== 'image') {
-      const next = it.inMs + delta;
+      const next = it.inMs + toSourceMs(it, delta);
       if (next < 0) {
         fail(
           'MEDIA_BOUNDS',
@@ -78,7 +79,7 @@ export function splitAt(p: Project, s: Sequence, it: Item, at: number, newItemId
   if (it.type === 'media' && right.type === 'media') {
     delete it.fadeOutMs;
     delete right.fadeInMs;
-    right.inMs = snapIn(p, s, right, it.inMs + offset);
+    right.inMs = snapIn(p, s, right, it.inMs + toSourceMs(it, offset));
     fitIn(p, s, right);
     if (right.frame?.keyframes) for (const k of right.frame.keyframes) k.atMs -= offset;
   }
