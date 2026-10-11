@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "media": "m_cutout", "x": 25, "y": 22, "scale": 1, "rotate": -8 },
+    { "media": "m_cutout", "x": 72, "y": 20, "scale": 0.8, "rotate": 6 },
+    { "media": "m_cutout", "x": 50, "y": 42, "scale": 1.2, "rotate": 0 },
+    { "media": "m_cutout", "x": 22, "y": 62, "scale": 0.7, "rotate": 10 },
+    { "media": "m_cutout", "x": 76, "y": 60, "scale": 0.9, "rotate": -12 },
+    { "media": "m_cutout", "x": 50, "y": 72, "scale": 0.6, "rotate": 4 }
+  ],
+  "label": "Bengaluru, the garden city!!",
+  "labelPos": "center"
+}

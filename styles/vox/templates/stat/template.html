@@ -11,10 +11,15 @@
           position: absolute;
           inset: 0;
           overflow: hidden;
+        }
+        .v-page {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
           background-color: var(--tok-color-paper);
           color: var(--tok-color-ink);
         }
-        #root.bg-paper::before {
+        .v-page.bg-paper::before {
           content: '';
           position: absolute;
           inset: 0;
@@ -23,11 +28,11 @@
           mix-blend-mode: multiply;
           opacity: 0.3;
         }
-        #root.bg-dark {
+        .v-page.bg-dark {
           background-color: var(--tok-color-dark);
           color: var(--tok-color-paper);
         }
-        #root.bg-highlight {
+        .v-page.bg-highlight {
           background-color: var(--tok-color-highlight);
         }
         .s-photo {
@@ -40,7 +45,7 @@
           opacity: 0.28;
           mix-blend-mode: multiply;
         }
-        #root.bg-dark .s-photo {
+        .v-page.bg-dark .s-photo {
           mix-blend-mode: screen;
           opacity: 0.18;
         }
@@ -96,7 +101,7 @@
           letter-spacing: 0.04em;
           overflow-wrap: anywhere;
         }
-        #root.bg-highlight .s-tag {
+        .v-page.bg-highlight .s-tag {
           background: var(--tok-color-ink);
           color: var(--tok-color-highlight);
         }
@@ -109,16 +114,18 @@
         data-duration="__DUR__"
       >
         <!--vox:vars-->
-        <img class="s-photo" alt="" />
-        <div class="s-box">
-          <div class="s-value"></div>
-          <div class="s-line2">
-            <span class="s-line2-text"></span>
-            <svg viewBox="0 0 100 10" preserveAspectRatio="none">
-              <path d="M1 6 C 18 3, 34 8, 52 5 S 84 3, 99 6" vector-effect="non-scaling-stroke" />
-            </svg>
+        <div class="v-page">
+          <img class="s-photo" alt="" />
+          <div class="s-box">
+            <div class="s-value"></div>
+            <div class="s-line2">
+              <span class="s-line2-text"></span>
+              <svg viewBox="0 0 100 10" preserveAspectRatio="none">
+                <path d="M1 6 C 18 3, 34 8, 52 5 S 84 3, 99 6" vector-effect="non-scaling-stroke" />
+              </svg>
+            </div>
+            <div class="s-tag"></div>
           </div>
-          <div class="s-tag"></div>
         </div>
       </div>
       <script>
@@ -272,7 +279,8 @@
           var W = __W__;
           var DUR = __DUR__;
           var M = voxMotion.create(root, '__ID__');
-          root.className = 'bg-' + (v.bg || 'paper');
+          var page = root.querySelector('.v-page');
+          page.classList.add('bg-' + (v.bg || 'paper'));
           var photo = root.querySelector('.s-photo');
           var value = root.querySelector('.s-value');
           var line2 = root.querySelector('.s-line2');

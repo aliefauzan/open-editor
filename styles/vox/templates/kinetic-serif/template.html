@@ -11,14 +11,19 @@
           position: absolute;
           inset: 0;
           overflow: hidden;
+        }
+        .v-page {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
           background-color: var(--tok-color-dark);
           color: var(--tok-color-paper);
         }
-        #root.bg-paper {
+        .v-page.bg-paper {
           background-color: var(--tok-color-paper);
           color: var(--tok-color-ink);
         }
-        #root.bg-paper::before {
+        .v-page.bg-paper::before {
           content: '';
           position: absolute;
           inset: 0;
@@ -27,7 +32,7 @@
           mix-blend-mode: multiply;
           opacity: 0.3;
         }
-        #root.bg-highlight {
+        .v-page.bg-highlight {
           background-color: var(--tok-color-highlight);
           color: var(--tok-color-ink);
         }
@@ -69,7 +74,9 @@
         data-duration="__DUR__"
       >
         <!--vox:vars-->
-        <div class="k-box"></div>
+        <div class="v-page">
+          <div class="k-box"></div>
+        </div>
       </div>
       <script>
         // vox:motion:begin
@@ -222,7 +229,8 @@
           var W = __W__;
           var DUR = __DUR__;
           var M = voxMotion.create(root, '__ID__');
-          root.className = 'bg-' + (v.bg || 'dark');
+          var page = root.querySelector('.v-page');
+          page.classList.add('bg-' + (v.bg || 'dark'));
           var box = root.querySelector('.k-box');
           if (v.align === 'left') box.className = 'k-box k-left';
           box.style.fontSize = Math.round(W * 0.088) + 'px';

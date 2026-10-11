@@ -1,0 +1,41 @@
+{
+  "name": "paper-collage",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "One to six archive cutouts scattered on warm paper, each with a red outline, popping in one after another while the camera slowly pushes in, with an optional serif label on a yellow tag. Like the Bengaluru collage in the reference reel.",
+  "useWhen": [
+    "the speaker lists several things, places or objects",
+    "a city, company or era is described by its objects",
+    "a montage of archive images"
+  ],
+  "durationMs": { "min": 1800, "default": 3000, "max": 5000 },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "media": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "x": { "type": "number", "minimum": 0, "maximum": 100 },
+            "y": { "type": "number", "minimum": 0, "maximum": 100 },
+            "scale": { "type": "number", "minimum": 0.2, "maximum": 2 },
+            "rotate": { "type": "number", "minimum": -30, "maximum": 30 }
+          },
+          "required": ["media", "x", "y"],
+          "additionalProperties": false
+        }
+      },
+      "label": { "type": "string", "maxLength": 28 },
+      "labelPos": { "enum": ["top", "center", "bottom"] },
+      "bg": { "enum": ["paper", "dark", "highlight"] }
+    },
+    "required": ["items"],
+    "additionalProperties": false
+  },
+  "slots": { "items/*/media": "cutout" },
+  "sfxCues": [{ "name": "first-pop", "atMs": "entrance", "sfx": "paper-pop", "type": "appear" }]
+}

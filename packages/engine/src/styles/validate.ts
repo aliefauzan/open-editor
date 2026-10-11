@@ -253,7 +253,8 @@ async function makeSampleMedia(ffmpeg: string, projectDir: string): Promise<void
     '-f',
     'lavfi',
     '-i',
-    'color=c=black@0.0:s=800x800,format=rgba,drawbox=x=200:y=150:w=400:h=500:color=0xe07a2f@1:t=fill',
+    // an opaque box on a transparent canvas (drawbox would leave the alpha at 0)
+    'color=c=0xe07a2f:s=400x500,format=rgba,pad=800:800:200:150:color=black@0.0',
     '-frames:v',
     '1',
     join(dir, 'm_cutout.png'),

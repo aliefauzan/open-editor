@@ -53,7 +53,7 @@
     "default": "base/plain",
     "presets": ["base/plain"]
   },
-  "templates": ["kinetic-serif", "stat"],
+  "templates": ["kinetic-serif", "stat", "paper-collage"],
   "transitions": [],
   "overlays": [],
   "pacing": {

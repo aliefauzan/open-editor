@@ -18,6 +18,21 @@
     },
     {
       "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "dark-single"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "two"
+    },
+    {
+      "kind": "scene",
       "template": "vox/stat",
       "fixture": "coffee"
     },
