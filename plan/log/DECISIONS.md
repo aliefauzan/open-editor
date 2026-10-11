@@ -1811,3 +1811,32 @@ identity migration cannot lose data, and the pre-migrate copy is the way back fo
 without a version bump like D-61 (a v1.0 engine would fail `VALIDATION` instead of `SCHEMA_TOO_NEW`).
 **Open**: preview playback at speed is not measured (no GUI tool; the HyperFrames runtime sets the
 element's `playbackRate`); listed for the owner's screen check.
+
+## D-63 — Claude Code skill: CLI only, no new command; manual run done as a stand-in (phase 14c, 2026-10-12)
+**Context**: The agent spec says the skill uses `vox ... --json`, the shared workflow prompts and `vox frames`.
+The in-app tools `get_transcript` (sequence-time words) and the frame health flags have no CLI command. The
+MANUAL STEP asked for a run inside Claude Code, but the headless `claude -p` login is expired.
+**Decision**: (1) The skill adds no CLI command and copies no workflow text: it tells Claude to read
+`packages/agent/workflows/clipper.md`, `stylize.md` and `styles/vox/guide.md`, and gives a `jq` recipe that
+maps transcript words to sequence ms from the project files. It runs `vox` as `pnpm -s exec vox` from the repo
+root. (2) `.claude/skills/vox-studio/SKILL.md` is added with `git add -f` because the root checkout lists
+`.claude/` in the local `.git/info/exclude`. (3) The MANUAL STEP was done by the phase agent following SKILL.md
+step by step with the real commands on the owner's test video (3 clips, rendered, `vox audio-qa` pass after one
+fix round); that proves the commands and the steps, not that Claude Code's skill loader drives them. A real
+Claude Code run stays an optional TODO item. (4) `skill.test.ts` checks the skill against `vox --help --json`,
+the engine op names, the style's templates and the files it names.
+**Why**: A new CLI command would be a contract change for a v1.1 sub-phase that only needs a text file; the jq
+recipe works today and is tested by the run. The stand-in follows owner delegation (D-49, D-58).
+**Alternatives**: `vox transcript` and `vox frames --health` commands (listed as handoff for a later phase);
+copying the workflow prompts into the skill (would drift from `packages/agent/workflows/`).
+
+## D-64 — FCPXML export: `export-timeline --format fcpxml`, own layer folder, DTD plus structure check as the import stand-in (phase 14g, 2026-10-12)
+**Context**: Overview step 7 and the plan put FCPXML export (via `otio-fcpx-xml-adapter`) in 14g; GATE 2 did not need it (D-39), so the engine side did not exist. Done-when says "FCPXML imports in Final Cut Pro or Resolve (owner check)". Neither is installed (D-39).
+**Decision**:
+- **Engine**: `exportTimeline` takes `format: 'otio' | 'fcpxml'` (default `otio`, so nothing existing changes). The same tracks, layer MOVs and media references go through `py/vox_py/timeline.py` (`format`, `width`, `height`, per-clip `mediaDurationFrames` in the request), which writes FCPXML 1.8 with `otio-fcpx-xml-adapter==1.0.0` (pinned in `py/pyproject.toml`, `py/uv.lock`; Apache-2.0). Output extension `.fcpxml`; the export-target rules (`-o`, `--out-dir`, ` (2)`, `--overwrite`, S32) are the same.
+- **Layer folder**: `<name>-fcpxml-layers/` for FCPXML (OTIO keeps `<name>-layers/`), so one export of both formats into the same folder does not collide on the layer folder (it renders the layers twice; the cost of the simple rule).
+- **Adapter fixes** (`_write_fcpxml`): the adapter repeats every asset as a loose `asset-clip` at the document root, writes an empty project `uid` and gives the format no size. The writer drops the loose clips, drops the empty `uid`, puts the project inside an `<event>`, and sets the format `width`/`height` (canvas size) and a name. Asset duration is the whole source file (`mediaDurationFrames`), not the used part.
+- **CLI**: `vox export-timeline <project> [--format otio|fcpxml]`. **Dialog**: new checkbox "Final Cut Pro timeline (FCPXML)" next to "Editable timeline (OTIO)"; it starts `exportTimeline` with `format: 'fcpxml'`.
+- **Import check (owner-delegated manual step, honest result)**: `scripts/fcpxml-check.py` validates the file against Apple's FCPXML 1.8 DTD (`xmllint --dtdvalid`; the DTD is Apple's, not committed: `--fetch-dtd` caches it in `~/.cache/vox-studio/`, or `--dtd`/`VOX_FCPXML_DTD`) and checks the structure: asset files exist, every `ref`/`format` resolves, the spine is gap-free and ends at the sequence duration, lane clips lie inside their parent clip, no clip reads past its asset. Tests skip only the DTD part when the DTD is not cached. This is recorded as **"not imported in an NLE"**: DTD validity and structure do not prove that Final Cut Pro or Resolve opens the file. A real import stays an optional owner item in TODO.
+**Known limits** (adapter output left as is): the adapter does not write transitions, speed effects or effects (the layer MOVs carry the look anyway); audio lane clips wrap a `gap` whose duration is the asset length, longer than the parent clip.
+**Consequences**: spec edits with this entry: engine spec (`export-timeline` row, Stages note), app spec (Export dialog), R5 pin. A real FCP or Resolve import, when someone has one, replaces the stand-in; if it rejects the file, fix `_write_fcpxml` or the structure and keep the checker.

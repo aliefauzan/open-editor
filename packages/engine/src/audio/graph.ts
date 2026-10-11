@@ -5,6 +5,11 @@
 // times; muted tracks are left out. Everything goes through `amix` (normalisation off) and a limiter,
 // then a two-pass `loudnorm` to the export target, aiming at -1.5 dBTP so the file stays under -1 dBTP. Stems (speech = the captions source
 // tracks, other audio tracks, SFX) use the same chains, without the limiter and `loudnorm`.
+// Ducking (v1.1, plan 14f): a track with `duck: true` that is not a captions source has its clips mixed
+// into one bus, which `sidechaincompress` lowers whenever the speech bus (every speech clip, after its
+// gain-to-target, volume and fades) is loud. This sits after each clip's gain-to-target and before the
+// final `amix`, so it ducks level-matched sources. Speech and SFX are never ducked; with no speech clip
+// the flag does nothing. The stems keep the same ducking, so `other` is what the mix hears.
 import { execFile } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
@@ -39,6 +44,13 @@ export const DENOISE_FILTERS = {
 } as const;
 /** -1 dBFS sample-peak limiter before `loudnorm`; delay compensated, no auto level. */
 export const LIMITER = 'alimiter=limit=0.891251:attack=5:release=50:level=0:latency=1';
+
+/**
+ * The ducking compressor: music under speech drops while someone talks (the detector is the
+ * level-matched speech bus) and comes back over 400 ms, so short gaps between words do not pump.
+ */
+export const DUCK_FILTER =
+  'sidechaincompress=threshold=0.04:ratio=5:attack=20:release=400:makeup=1:link=average:detection=rms';
 
 export type StemKind = 'speech' | 'other' | 'sfx';
 export const STEMS: readonly StemKind[] = ['speech', 'other', 'sfx'];
@@ -113,6 +125,8 @@ interface Source {
   kind: StemKind;
   file: string;
   chain: string[];
+  /** The id of the ducked track (`duck: true` on a non-speech audio track). */
+  duckTrack?: string;
 }
 
 function sources(input: MixInput): Source[] {
@@ -152,7 +166,13 @@ function sources(input: MixInput): Source[] {
         chain.push(`afade=t=out:st=${sec(it.durationMs - fadeOut)}:d=${sec(fadeOut)}`);
       }
       chain.push(`adelay=delays=${samples(it.startMs)}S:all=1`);
-      out.push({ id: it.id, kind, file: abs(m.audioPath ?? m.path), chain });
+      out.push({
+        id: it.id,
+        kind,
+        file: abs(m.audioPath ?? m.path),
+        chain,
+        ...(track.duck && kind === 'other' ? { duckTrack: track.id } : {}),
+      });
     }
   }
   if (seq.sfx) {
@@ -184,17 +204,63 @@ export function mixGraph(input: MixInput, stem?: StemKind): MixGraph {
   }
   const all = sources(input);
   const picked = stem ? all.filter((s) => s.kind === stem) : all;
-  const inputs: string[] = [];
-  const lines: string[] = [];
-  const pads: string[] = [];
-  for (const [n, s] of picked.entries()) {
-    let k = inputs.indexOf(s.file);
-    if (k < 0) k = inputs.push(s.file) - 1;
-    lines.push(`[${k}:a]${s.chain.join(',')}[s${n}]`);
-    pads.push(`[s${n}]`);
-  }
+  const ducked = picked.filter((s) => s.duckTrack);
+  // the speech clips are the detector of every ducked track, also in the `other` stem
+  const keys = ducked.length > 0 ? all.filter((s) => s.kind === 'speech') : [];
+  const duckTracks = keys.length > 0 ? [...new Set(ducked.map((s) => s.duckTrack!))] : [];
+  const isDucked = (s: Source) => duckTracks.includes(s.duckTrack ?? '');
+  const needed = all.filter((s) => picked.includes(s) || keys.includes(s));
   const len = samples(input.durationMs);
   const end = `apad=whole_len=${len},atrim=end_sample=${len}`;
+  const inputs: string[] = [];
+  const lines: string[] = [];
+  const pad = new Map<Source, string>();
+  const keyCopy = new Map<Source, string>();
+  for (const [n, s] of needed.entries()) {
+    let k = inputs.indexOf(s.file);
+    if (k < 0) k = inputs.push(s.file) - 1;
+    const out = `[s${n}]`;
+    if (keys.includes(s) && picked.includes(s)) {
+      // a speech clip feeds both the mix and the detector
+      lines.push(`[${k}:a]${s.chain.join(',')},asplit=2[s${n}m][s${n}k]`);
+      pad.set(s, `[s${n}m]`);
+      keyCopy.set(s, `[s${n}k]`);
+    } else {
+      lines.push(`[${k}:a]${s.chain.join(',')}${out}`);
+      pad.set(s, out);
+      if (keys.includes(s)) keyCopy.set(s, out);
+    }
+  }
+  const pads: string[] = [];
+  const mixOf = (list: string[], name: string) => {
+    if (list.length === 1) return list[0]!;
+    lines.push(
+      `${list.join('')}amix=inputs=${list.length}:normalize=0:duration=longest:dropout_transition=0${name}`,
+    );
+    return name;
+  };
+  if (duckTracks.length > 0) {
+    const speech = mixOf(
+      keys.map((s) => keyCopy.get(s)!),
+      '[spk]',
+    );
+    const copies = duckTracks.map((_, d) => `[dk${d}]`);
+    lines.push(
+      duckTracks.length === 1
+        ? `${speech}${end}${copies[0]}`
+        : `${speech}${end},asplit=${duckTracks.length}${copies.join('')}`,
+    );
+    for (const [d, t] of duckTracks.entries()) {
+      const bus = mixOf(
+        picked.filter((s) => s.duckTrack === t).map((s) => pad.get(s)!),
+        `[bus${d}]`,
+      );
+      lines.push(`${bus}${end}[bp${d}]`);
+      lines.push(`[bp${d}]${copies[d]}${DUCK_FILTER}[duck${d}]`);
+      pads.push(`[duck${d}]`);
+    }
+  }
+  for (const s of picked) if (!isDucked(s)) pads.push(pad.get(s)!);
   const tail = stem ? end : `${end},${LIMITER}`;
   if (pads.length === 0) {
     lines.push(`anullsrc=r=${SAMPLE_RATE}:cl=stereo,${FORMAT},atrim=end_sample=${len}[mix]`);

@@ -470,6 +470,38 @@ describe('inspector', () => {
     expect(await history(t)).toBe(n + 1);
   });
 
+  it('audio clip: "Duck under speech" toggles the track flag; a speech track cannot duck', async () => {
+    const t = await testEditor();
+    const a = seq(t).audioTracks[0]!.items[0]!;
+    // A1 is the speech source by default in this project: the box is disabled
+    await t.ctx.editor.getState().apply({
+      op: 'setCaptions',
+      args: { sequenceId: seq(t).id, enabled: true, sourceTrackIds: ['A1'] },
+    });
+    await act(() => idle(t));
+    t.ctx.editor.getState().select(a.id, { alt: true });
+    mount(t, <Inspector />);
+    expect((await screen.findByLabelText('Duck under speech')) as HTMLInputElement).toHaveProperty(
+      'disabled',
+      true,
+    );
+    await t.ctx.editor.getState().apply({
+      op: 'setCaptions',
+      args: { sequenceId: seq(t).id, sourceTrackIds: [] },
+    });
+    await act(() => idle(t));
+    const box = (await screen.findByLabelText('Duck under speech')) as HTMLInputElement;
+    expect(box.disabled).toBe(false);
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    await act(() => idle(t));
+    expect(seq(t).audioTracks[0]!.duck).toBe(true);
+    expect((screen.getByLabelText('Duck under speech') as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByLabelText('Duck under speech'));
+    await act(() => idle(t));
+    expect(seq(t).audioTracks[0]!.duck ?? false).toBe(false);
+  });
+
   it('caption settings with nothing selected', async () => {
     const t = await testEditor();
     mount(t, <Inspector />);

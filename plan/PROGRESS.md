@@ -23,11 +23,11 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 14 | v1.1 (done when 14a–14g are all [x]) | 14a–14g | [ ] | | | | log/phase-14.md |
 | 14a | `vox` v1.1 templates + GATE 6 | 13 | [ ] | | | | log/phase-14a.md |
 | 14b | Screenplay match workflow | 13 | [~] | 2026-10-12 | | In progress (worktree .worktrees/phase-14b) | log/phase-14b.md |
-| 14c | Claude Code skill | 13 | [ ] | | | | log/phase-14c.md |
+| 14c | Claude Code skill | 13 | [x] | 2026-10-12 | 2026-10-12 | `vox-studio` skill (9 steps, 6 checkpoints) + test of its commands; manual run done by hand as a stand-in (D-63): 3 clips rendered, audio QA pass; real Claude Code run optional in TODO | log/phase-14c.md |
 | 14d | Local image generation (mflux) | 13 | [~] | 2026-10-12 | | | log/phase-14d.md |
 | 14e | Clip speed + GATE 7 | 13 | [~] | 2026-10-12 05:52 | | | log/phase-14e.md |
-| 14f | Audio ducking | 13 | [~] | 2026-10-12 | | | log/phase-14f.md |
-| 14g | FCPXML export option | 13 | [ ] | | | | log/phase-14g.md |
+| 14f | Audio ducking | 13 | [x] | 2026-10-12 | 2026-10-12 | `duck` flag on audio tracks, `sidechaincompress` per ducked track keyed by the speech bus (-11.5 dB on real speech), inspector toggle, audio QA passes; D-61 | log/phase-14f.md |
+| 14g | FCPXML export option | 13 | [x] | 2026-10-12 05:45 | 2026-10-12 | `export-timeline --format fcpxml` + dialog option; DTD-valid and structure-checked, not imported in an NLE (D-64) | log/phase-14g.md |
 | 15 | Styles Part C: style from reference | 13 | [~] | 2026-10-12 | | In progress | log/phase-15.md |
 
 ## Gates and milestones
