@@ -5,6 +5,7 @@ import { useCtx, useEditor, useUi } from './context.tsx';
 import { AgentPanel } from './AgentPanel.tsx';
 import { Inspector } from './Inspector.tsx';
 import { useKeyboard } from './keyboard.ts';
+import { NextSteps } from './NextSteps.tsx';
 import { PreviewPanel } from './PreviewPanel.tsx';
 import { StylePanel } from './StylePanel.tsx';
 import { Timeline } from './Timeline.tsx';
@@ -97,8 +98,11 @@ export function Editor(props: { onClose?: () => void; onOpenSetup?: () => void }
         <div className="w-60 shrink-0 border-r border-neutral-800">
           <AgentPanel />
         </div>
-        <div className="min-w-0 flex-1">
-          <PreviewPanel />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <NextSteps />
+          <div className="min-h-0 flex-1">
+            <PreviewPanel />
+          </div>
         </div>
         {inspectorOpen ? (
           <div className="relative w-80 shrink-0 border-l border-neutral-800">

@@ -75,7 +75,7 @@ describe('engine host (step 8)', () => {
   it('restarts the engine host after a crash, reloads the open project and shows a banner', async () => {
     // the picker's create form reloads the list (the API-made project shows up too)
     await page.getByLabel('New project name').fill('From the picker');
-    await page.getByRole('button', { name: 'Create' }).click();
+    await page.getByRole('button', { name: 'New empty project' }).click();
     await page.getByRole('button', { name: 'From the picker' }).waitFor();
     await page.getByRole('button', { name: 'Host test' }).click();
     await page.getByTestId('player').waitFor({ timeout: 60_000 });

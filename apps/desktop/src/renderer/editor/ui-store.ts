@@ -5,7 +5,7 @@ import type { Item } from '../../shared/project.ts';
 
 export type Tool = 'select' | 'blade';
 export type Stage = 'upload' | 'describe' | 'review' | 'export';
-export type LeftTab = 'styles' | 'media';
+export type LeftTab = 'styles' | 'media' | 'subtitles';
 
 export interface UiState {
   tool: Tool;
@@ -26,6 +26,10 @@ export interface UiState {
   snapshotsOpen: boolean;
   exportOpen: boolean;
   settingsOpen: boolean;
+  galleryOpen: boolean;
+  /** The quick-clips next-steps bar above the preview (10b), and its note (fewer clips than asked). */
+  nextSteps: boolean;
+  quickNote: string | null;
   /** Copied items with their track ids, times relative to the first one. */
   clipboard: { trackId: string; item: Item }[];
   /** A "render this frame" still (vox-media URL), shown over the preview. */
@@ -57,6 +61,9 @@ export function createUiStore(): UiStore {
     snapshotsOpen: false,
     exportOpen: false,
     settingsOpen: false,
+    galleryOpen: false,
+    nextSteps: false,
+    quickNote: null,
     clipboard: [],
     still: null,
     set: (patch) => set(patch),
