@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { readRunRecord } from '../../src/loop/record.ts';
 import type { PauseDecision, PauseInfo, TightenRange } from '../../src/loop/types.ts';
-import { ALWAYS_PRESENT } from '../../src/tools/registry.ts';
+import { ALWAYS_PRESENT, buildRegistry } from '../../src/tools/registry.ts';
 import { loadWorkflow } from '../../src/workflows/load.ts';
 import { runWorkflow, type WorkflowRequest } from '../../src/workflows/run-workflow.ts';
 import { sequenceEndMs } from '../../src/workflows/stylize.ts';
@@ -190,4 +190,43 @@ describe('clipper D-15 (step 8b)', () => {
     ).rejects.toMatchObject({ code: 'ROLE_MISSING' });
     expect(kit.jobs).toHaveLength(0);
   });
+});
+
+describe('tighten list: ranges without words', () => {
+  test('a dry-run range with no wordKeys is left out of the list', async () => {
+    const kit = await workflowKit();
+    const base = buildRegistry(kit.engine);
+    kit.deps.registry = {
+      ...base,
+      get: (name) => {
+        const t = base.get(name);
+        if (name !== 'remove_pauses' || !t) return t;
+        return {
+          ...t,
+          run: async (ctx, args) => {
+            const out = await t.run(ctx, args);
+            if (!(args as { dryRun?: boolean }).dryRun) return out;
+            const res = out.result as { results: { report?: { ranges?: unknown[] } }[] };
+            res.results[0]?.report?.ranges?.push({
+              startMs: 0,
+              endMs: 400,
+              kind: 'pause',
+              wordKeys: [],
+            });
+            return out;
+          },
+        };
+      },
+    };
+    const seen: PauseInfo[] = [];
+    kit.deps.onPause = (p: PauseInfo): Promise<PauseDecision> => {
+      seen.push(p);
+      return Promise.resolve(p.kind === 'pauses' ? { action: 'continue' } : { action: 'stop' });
+    };
+    const r = await clipper(kit, { tighten: 'ask', count: 1 });
+    expect(r.done.status, r.done.summary).toBe('completed');
+    const ranges = seen.filter((p) => p.kind === 'pauses').flatMap((p) => p.ranges ?? []);
+    expect(ranges.length).toBeGreaterThan(0);
+    for (const x of ranges) expect(typeof x.wordKey, JSON.stringify(x)).toBe('string');
+  }, 120_000);
 });

@@ -78,7 +78,9 @@ async function tighten(
       };
     }[];
   };
-  const raw = res.results[0]?.report?.ranges ?? [];
+  const all = res.results[0]?.report?.ranges ?? [];
+  // a range with no words cannot be ticked or cut by key: it is left out of the list
+  const raw = all.filter((r) => r.wordKeys.length > 0);
   const alias = run.aliases.aliasOf(sequenceId);
   if (raw.length === 0) {
     cp.met('tighten', sequenceId, 'no pauses to cut');
@@ -109,7 +111,7 @@ async function tighten(
   }
   const ticked = keys === undefined ? raw : raw.filter((r) => keys.includes(r.wordKeys[0]!));
   const args =
-    ticked.length === raw.length
+    ticked.length === raw.length && raw.length === all.length
       ? { sequenceId }
       : { sequenceId, wordKeys: ticked.flatMap((r) => r.wordKeys) };
   const out = await run.workflowCall('remove_pauses', args);
