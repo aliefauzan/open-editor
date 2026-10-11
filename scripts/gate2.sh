@@ -126,6 +126,14 @@ youtube_edit() {
   echo "$pr" | jq . >"$EVIDENCE/14-youtube-probe.json"
   record "youtube edit (done-when 4)" "$(jq '.video.width == 1080 and .video.height == 1920 and .audio.codec_name == "aac"' <<<"$pr")" \
     "$(jq -cn --argjson pr "$pr" --arg otio "$(jq -r '.path // .files[0].path // empty' "$WORK/yt-otio.json" | redact)" '{probe: $pr, otio: $otio}')"
+  # done-when 5 stand-in (owner has no Resolve): the .otio reads back, media exists, layer MOVs have alpha
+  local check
+  if check="$(uv run --frozen --project "$REPO/py" python "$REPO/scripts/otio-check.py" \
+    "$(jq -r '.path // .files[0].path' "$WORK/yt-otio.json")" --out "$EVIDENCE/15-otio-check.json")"; then
+    record "otio check: media + alpha layers (done-when 5, Resolve not tested)" true "$(jq -c '{tracks, layers}' <<<"$check")"
+  else
+    record "otio check: media + alpha layers (done-when 5, Resolve not tested)" false "$(jq -c '{problems}' <<<"$check")"
+  fi
 }
 
 # --- done-when 7: vox quick <url> --render → 3 captioned clips (MP4 + SRT), then one caption edit
@@ -270,7 +278,7 @@ if [ "$LOCAL" = 1 ]; then
   schema_check "$vfr"
 fi
 
-jq -s '{yt_dlp: $v, sections: ., pass: (map(.pass) | all)}' --arg v "$(yt-dlp --version 2>/dev/null || echo none)" "$SUMMARY" \
+jq -s '{yt_dlp: $v, sections: ., pass: (map(.pass) | all)}' --arg v "$({ [ -x "${VOX_TOOLS_DIR:-/nonexistent}/bin/yt-dlp" ] && "$VOX_TOOLS_DIR/bin/yt-dlp" --version; } 2>/dev/null || yt-dlp --version 2>/dev/null || echo none)" "$SUMMARY" \
   | redact >"$EVIDENCE/14-gate2-summary.json"
 echo "projects: $PROJECTS" >&2
 echo "evidence: $EVIDENCE" >&2
