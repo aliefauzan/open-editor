@@ -145,6 +145,9 @@ importers:
       '@hyperframes/player':
         specifier: 0.8.145
         version: 0.8.145(@types/node@24.19.1)
+      '@vox/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@vox/engine':
         specifier: workspace:*
         version: link:../../packages/engine

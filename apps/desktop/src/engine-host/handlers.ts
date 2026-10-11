@@ -6,8 +6,10 @@ import { projectDirFor, resolveProjectPath } from '@vox/engine/paths';
 import { access, readFile } from 'node:fs/promises';
 import type { EventName, Method, MethodArgs, SetupStatusData } from '../shared/api.ts';
 import { join } from 'node:path';
+import type { AgentHost } from './agent.ts';
 import type { AppSetup } from './app-setup.ts';
 import type { PreviewPipeline } from './preview.ts';
+import type { SettingsHost } from './settings.ts';
 import { APP_JOB_KINDS, type AppJobs } from './quick.ts';
 import type { Handlers } from './rpc.ts';
 import { watchProject } from './watch.ts';
@@ -26,6 +28,10 @@ export interface EditorHost {
   watch?: boolean;
   /** App jobs beside the engine's runner (`makeClips`, phase 10b). */
   appJobs?: AppJobs;
+  /** Agent runs (phase 13). */
+  agent?: AgentHost;
+  /** Provider settings, keys (Keychain), roles, cookies opt-in (phase 13). */
+  settings?: SettingsHost;
 }
 
 type ProjectMedia = Awaited<ReturnType<Engine['getProject']>>['media'][number];
@@ -159,6 +165,23 @@ export function createHandlers(
     'styles.accept': async (id: A<'styles.accept'>[0]) => engine.styles.accept(id),
     'styles.remove': async (id: A<'styles.remove'>[0]) => engine.styles.remove(id),
     'geo.search': async (q: A<'geo.search'>[0]) => engine.geo.search(q),
+    ...(editor.agent === undefined
+      ? {}
+      : {
+          'agent.run': async (a: A<'agent.run'>[0]) => editor.agent!.run(a),
+          'agent.runs': async (id: A<'agent.runs'>[0]) => editor.agent!.runs(id),
+          'agent.stop': async (runId: A<'agent.stop'>[0]) => editor.agent!.stop(runId),
+          'agent.decide': async (runId: A<'agent.decide'>[0], d: A<'agent.decide'>[1]) =>
+            editor.agent!.decide(runId, d),
+          'agent.undoRun': async (runId: A<'agent.undoRun'>[0]) => editor.agent!.undoRun(runId),
+        }),
+    ...(editor.settings === undefined
+      ? {}
+      : {
+          'settings.get': async () => editor.settings!.get(),
+          'settings.save': async (patch: A<'settings.save'>[0]) => editor.settings!.save(patch),
+          'settings.probe': async (ref: A<'settings.probe'>[0]) => editor.settings!.probe(ref),
+        }),
     ...(setup === undefined
       ? {}
       : {

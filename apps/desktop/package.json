@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@hyperframes/player": "0.8.145",
+    "@vox/agent": "workspace:*",
     "@vox/engine": "workspace:*",
     "zod": "4.6.5"
   },

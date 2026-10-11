@@ -61,3 +61,30 @@ describe('frontmatter list forms', () => {
     expect(w.prompt).toBe('body');
   });
 });
+
+describe('packaged workflows folder (phase 13)', () => {
+  test('setWorkflowsDir points the loader at the app Resources copy; undefined restores the repo folder', async () => {
+    const { cpSync, mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const { setWorkflowsDir, workflowsDir } = await import('../../src/workflows/load.ts');
+    const repoDir = fileURLToPath(new URL('../../workflows/', import.meta.url));
+    const dir = join(mkdtempSync(join(tmpdir(), 'vox-wf-')), 'workflows');
+    cpSync(repoDir, dir, { recursive: true });
+    const edited = loadWorkflow('edit');
+    writeFileSync(
+      join(dir, 'edit.md'),
+      `---\nname: edit\nallowedTools: [get_sequence]\nroles: [editor]\ncheckpoints: []\n---\npackaged copy\n`,
+    );
+    try {
+      setWorkflowsDir(dir);
+      expect(workflowsDir()).toBe(dir);
+      expect(loadWorkflow('edit').prompt).toBe('packaged copy');
+      expect(loadWorkflow('clipper').name).toBe('clipper');
+    } finally {
+      setWorkflowsDir(undefined);
+    }
+    expect(loadWorkflow('edit')).toEqual(edited);
+  });
+});
