@@ -17,6 +17,7 @@ import {
   type Engine,
   VoxError,
   hyperframesBin,
+  imagegenStatus,
   openEngine,
   readConfig,
   repoPyProject,
@@ -284,6 +285,19 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
   late.agent = agent;
   const settings = new SettingsHost({
     cfg,
+    imagegen: async () => ({
+      models: (await imagegenStatus(tools['models'])).map((m) => ({
+        id: m.id,
+        label: m.label,
+        license: m.license,
+        licenseUrl: m.licenseUrl,
+        gated: m.gated,
+        installed: m.installed,
+        downloadBytes: m.downloadBytes,
+        installedBytes: m.installedBytes,
+        sizeOnDisk: m.sizeOnDisk,
+      })),
+    }),
     appleHelper: appleHelper && apple !== undefined,
     ...(apple && { apple }),
   });

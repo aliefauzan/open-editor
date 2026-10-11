@@ -17,6 +17,7 @@ dependencies = [
   "numpy==2.5.3",  # audio QA (already locked as a dependency of onnxruntime and mediapipe)
   "rembg==2.0.85",
   "opentimelineio==0.18.1",
+  "mflux==0.22.0",  # 14d: local image generation (Z-Image-Turbo default); pulls torch, transformers
 ]
 
 [dependency-groups]

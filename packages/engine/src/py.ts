@@ -404,6 +404,9 @@ export const TOOL_ERROR_HINTS: Readonly<Record<string, string>> = {
   INPUT_NOT_FOUND: 'The media file is missing from the project folder; ingest it again.',
   MEDIA_UNREADABLE: 'The file may be damaged; try another file.',
   MODEL_MISSING: 'Run vox doctor; it shows how to get the model.',
+  MODEL_GATED:
+    'The model needs accepted terms and a Hugging Face token; run vox doctor for the steps.',
+  NETWORK: 'The download failed; check the connection and try again (it resumes).',
   MODEL_HASH_MISMATCH: 'The model file is damaged; delete it and run the stage again to fetch it.',
   TOOL_MISSING: 'Run vox doctor to repair the Python environment.',
   VISION_FAILED: 'Apple Vision failed on this file; run vox doctor.',

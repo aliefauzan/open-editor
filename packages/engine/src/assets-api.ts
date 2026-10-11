@@ -54,6 +54,14 @@ export interface ImageRequest {
 
 export interface ImageProvider {
   id: string;
+  /**
+   * False while the provider cannot work yet (a local model that is not installed). Such a provider
+   * is left out of `list()` and is never the default, but `get(id)` still returns it, so asking for
+   * it by name fails with its own hint. Absent = available.
+   */
+  available?(): boolean;
+  /** True when the returned file is a temporary one that the job deletes after copying it. */
+  disposable?: boolean;
   /** Writes an image file and resolves to its absolute path. */
   generate(
     req: ImageRequest,
@@ -68,6 +76,7 @@ export interface ImageProviders {
 }
 
 const PROVIDER_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const usable = (p: ImageProvider): boolean => p.available?.() !== false;
 
 export function createImageProviders(): ImageProviders {
   const byId = new Map<string, ImageProvider>();
@@ -90,9 +99,9 @@ export function createImageProviders(): ImageProviders {
       }
       byId.set(p.id, p);
     },
-    list: () => [...byId.keys()].map((id) => ({ id })),
-    // the most recently registered provider is the default
-    get: (id) => (id === undefined ? [...byId.values()].at(-1) : byId.get(id)),
+    list: () => [...byId.values()].filter(usable).map((p) => ({ id: p.id })),
+    // the most recently registered available provider is the default
+    get: (id) => (id === undefined ? [...byId.values()].filter(usable).at(-1) : byId.get(id)),
   };
 }
 
@@ -148,7 +157,7 @@ const noProvider = (): VoxError =>
   new VoxError(
     'PROVIDER_MISSING',
     'No image provider is registered, so nothing was generated.',
-    'Add an image provider (agent settings), or find archive images with `vox assets search`.',
+    'Turn on local image generation (Settings, or `vox imagegen install`), add an image provider (agent settings), or find archive images with `vox assets search`.',
   );
 
 export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void {
@@ -386,6 +395,7 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
         return { ...r, provider: p.id };
       } finally {
         await unlink(tmp).catch(() => undefined);
+        if (p.disposable) await unlink(file).catch(() => undefined);
       }
     },
   });

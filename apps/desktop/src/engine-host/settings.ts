@@ -41,6 +41,7 @@ import { VoxError, type ConfigPatch } from '@vox/engine';
 type LanguageModelV4 = ReturnType<typeof createLanguageModel>;
 import {
   SETTINGS_ROLES,
+  type ImageGenData,
   type ProbedData,
   type SettingsData,
   type SettingsPatchData,
@@ -56,6 +57,8 @@ export interface SettingsDeps {
   createModel?: (entry: ProviderEntry, modelId: string, apiKey: string | null) => LanguageModelV4;
   /** Test seam for the probe (scripted checks, context). */
   probe?: Omit<ProbeRunDeps, 'apple'>;
+  /** Local image models (phase 14d); absent = the Settings dialog hides the toggle. */
+  imagegen?: () => Promise<ImageGenData>;
   /** Local model lists (Ollama `/api/tags`); tests replace it. */
   listLocalModels?: (entry: ProviderEntry) => Promise<string[]>;
 }
@@ -186,6 +189,7 @@ export class SettingsHost {
     const ingest = (raw as { ingest?: { cookiesFromBrowser?: unknown } }).ingest;
     const cookies = ingest?.cookiesFromBrowser;
     const contact = (raw as { contact?: unknown }).contact;
+    const imagegen = await this.#d.imagegen?.().catch(() => undefined);
     return {
       providers,
       presets: presetIds
@@ -211,6 +215,7 @@ export class SettingsHost {
           cookies === 'safari' || cookies === 'chrome' || cookies === 'firefox' ? cookies : null,
       },
       contact: typeof contact === 'string' ? contact : null,
+      ...(imagegen && { imagegen }),
     };
   }
 
