@@ -100,7 +100,7 @@ async function main(argv: string[]): Promise<void> {
       enabled: true,
       preset,
       autoEmphasis: true,
-      position: { yPct: preset === 'vox/mono-box' ? 50 : 78 },
+      position: { yPct: preset === 'vox/serif-lower' ? 78 : 50 },
     },
   });
   // addSequence creates V1 and V2; the speaker is on V1, the scenes go on V2

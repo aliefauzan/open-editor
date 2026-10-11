@@ -38,6 +38,8 @@ If none fits, stay on the speaker.
   emphasis words sit on a red box.
 - `vox/serif-lower`: white serif low in the frame, for sequences where most beats are full collage and
   the centre is busy.
+- `vox/word-reveal`: no box, word by word at mid height (unread words hidden), emphasis words in a large
+  italic serif; for documentary-style edits that are mostly b-roll and archive footage.
 
 ## Pacing
 

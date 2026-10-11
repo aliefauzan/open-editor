@@ -83,6 +83,10 @@
     {
       "kind": "caption",
       "preset": "vox/serif-lower"
+    },
+    {
+      "kind": "caption",
+      "preset": "vox/word-reveal"
     }
   ]
 }

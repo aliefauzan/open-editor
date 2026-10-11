@@ -51,7 +51,7 @@
   },
   "captions": {
     "default": "vox/mono-box",
-    "presets": ["vox/mono-box", "vox/serif-lower"]
+    "presets": ["vox/mono-box", "vox/serif-lower", "vox/word-reveal"]
   },
   "templates": ["kinetic-serif", "stat", "paper-collage", "map-route"],
   "transitions": ["paper-tear", "slide-paper"],
