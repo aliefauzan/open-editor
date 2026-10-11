@@ -80,6 +80,21 @@ export interface Repair {
   what: string;
 }
 
+/**
+ * The retry hint for a plan with nothing to apply: says why each scene beat was dropped (a caption
+ * preset used as a scene template, a beat that does not fit), so the next answer can fix it.
+ */
+export function emptyPlanHint(repairs: readonly Repair[]): string {
+  const dropped = repairs.filter((r) => r.what.startsWith('dropped'));
+  if (dropped.length === 0)
+    return 'Plan at least one change: add a scene beat with a scene template from the list.';
+  const why = dropped
+    .slice(0, 8)
+    .map((r) => r.what.replace(/^dropped: /, ''))
+    .join('; ');
+  return `Plan at least one change. Scene beats not applied: ${why}. Use scene templates from the list.`;
+}
+
 const issuesOf = (e: z.ZodError) =>
   e.issues
     .slice(0, 12)
@@ -212,13 +227,11 @@ export async function clipPlanToOps(
       (t) => t.id !== 'V1' && t.items.every((it) => it.type !== 'media'),
     );
     let trackId = free?.id;
+    // the Scenes track is added only when at least one scene beat of this sequence applies
+    const addTrackAt = trackId ? -1 : ops.length;
     if (!trackId) {
       const n = Math.max(0, ...seq.videoTracks.map((t) => Number(t.id.slice(1)))) + 1;
       trackId = `V${String(n)}`;
-      ops.push({
-        op: 'addTrack',
-        args: { sequenceId: sp.sequenceId, kind: 'video', name: 'Scenes' },
-      });
     }
     const occupied = (free?.items ?? []).map(
       (it) => [it.startMs, it.startMs + it.durationMs] as const,
@@ -332,6 +345,11 @@ export async function clipPlanToOps(
         },
       });
     }
+    if (addTrackAt >= 0 && ops.length > addTrackAt)
+      ops.splice(addTrackAt, 0, {
+        op: 'addTrack',
+        args: { sequenceId: sp.sequenceId, kind: 'video', name: 'Scenes' },
+      });
   }
   return { ops, repairs };
 }
@@ -451,7 +469,7 @@ export async function planTurn(run: AgentRun, opts: TurnOptions): Promise<TurnRe
           throw new VoxError(
             'PLAN_INVALID',
             'the plan has nothing to apply',
-            'Plan at least one change.',
+            emptyPlanHint(repairs),
           );
       } catch (err) {
         if (!isVoxError(err) || err.code !== 'PLAN_INVALID') throw err;

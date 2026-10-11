@@ -308,6 +308,36 @@ describe('plan mode (step 9)', () => {
     );
   });
 
+  test('ClipPlan with nothing to apply: the retry says why each beat was dropped, no empty track', async () => {
+    const f = await fixtureProject({ engine: { templates: lookup } });
+    const tracksBefore = (await f.engine.getProject(f.projectId)).sequences[0]!.videoTracks.length;
+    const plan = (template: string) => ({
+      sequences: [
+        {
+          sequenceId: 's1',
+          beats: [
+            { startMs: 0, endMs: 2000, kind: 'speaker' },
+            { startMs: 2000, endMs: 4000, kind: 'scene', template, variables: { title: 'Two' } },
+          ],
+        },
+      ],
+    });
+    // a caption preset is not a scene template: the beat is dropped and the plan is empty
+    const m = scriptedModel([{ json: plan('vox/word-reveal') }, { json: plan('base/title') }]);
+    const { deps } = runDeps(f, roleModel(m.model), { templates: lookup });
+    const { done } = await runAgent(deps, req(f, { planKind: 'clip' }));
+    expect(done.status, done.summary).toBe('completed');
+    expect(m.prompts).toHaveLength(2);
+    expect(promptText(m.prompts[1]!)).toMatch(
+      /nothing to apply\. Plan at least one change\. Scene beats not applied: vox\/word-reveal is not a scene template/,
+    );
+    const seq = (await f.engine.getProject(f.projectId)).sequences[0]!;
+    expect(seq.videoTracks).toHaveLength(Math.max(tracksBefore, 2));
+    expect(seq.videoTracks.flatMap((t) => t.items).filter((i) => i.type === 'scene')).toHaveLength(
+      1,
+    );
+  });
+
   test('confirm plan: pauses (approval, kind plan); stop applies nothing', async () => {
     const f = await fixtureProject();
     const m = scriptedModel([
