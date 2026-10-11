@@ -1336,3 +1336,114 @@ Decision: every step that needs a real provider key or a live model moves to pha
 Phases 11 and 12 merge on mock-model, replay and Apple on-device evidence; their logs mark these
 items "deferred to 13 (D-44)". Phase 13 step 7b runs them and records the results in the phase 11 and
 12 logs. Nothing else changes: keys still go only to the Keychain (S18), never through argv.
+
+## D-45 — Editor core B: export targets in main, window.vox additions, quick-clips job, subtitle rules (phase 10b, 2026-10-11)
+
+Phase 10b built the quick-clips start screen, the Subtitles panel, the media bin, the export dialog,
+the style gallery, the error states and the E2E suites. Decisions:
+- **Export targets live in main** (as the phase file says; the app spec said "engine host"): main opens
+  the dialog, keeps `targetId → path` for the session and turns a job's `targetId` into the engine's
+  `target` after the zod check (file mode gets `overwrite`, since the save dialog already asked; folder
+  mode keeps the engine's ` (2)` names). An unknown or previous-session `targetId` fails with
+  `EXPORT_TARGET`. R4 S32 "reused `targetId`" is read as "from a previous session": one dialog choice
+  serves every job of one export (MP4 + SRT). `exports.lastFolder(projectId)` returns a registered
+  folder target `{ targetId, displayPath }` (the default needs no dialog); the folder last used per
+  project is a plain path in `<VOX_HOME>/export-folders.json`, written by main. `exports.reveal` accepts
+  a file under `<projectsDir>/<projectId>/renders/`, the file of a file target, or a file directly in a
+  folder target of this session (real paths, so a symlink cannot widen it).
+- **`window.vox` grows additively:** `exports.chooseTarget` takes an optional `projectId` (the dialog
+  opens in that project's last folder); `media.search(projectId, q)` → media ids (names, tags,
+  descriptions, transcript text); `projects.open` adds `offline: mediaId[]` (files missing on disk);
+  `media.importUrl` is built (plain text that is not a link never starts a job); `jobs.start` kinds may
+  carry one dot (`assets.search`); raw-path keys rejected by the schema now also include `outDir`,
+  `input`, `inputs` and `target`. Finder drops: the preload exposes `vox.dropFiles(projectId, files)`,
+  which turns real dropped `File`s into paths (`webUtils.getPathForFile`; a `File` made in page JS has
+  none) and calls `vox:drop`; main checks the sender and that each path is absolute and exists.
+- **Test builds** (`VOX_E2E=1`, unpackaged only): main answers the next native dialog from a queue
+  (`__voxTest.answerDialog`), so the E2E can "choose" files and export folders.
+- **Quick clips** run as one app job `makeClips` in the engine host beside the engine's runner (a job
+  waiting on jobs in the same runner could take every slot): shots → transcribe → facetrack →
+  `quickClips`, one progress; the import before it is its own job, and the start screen shows both as
+  one progress view (import 0–20 %). Test builds seed transcript, shots and facetrack by the SHA-256 of
+  any of the three checked-in seed files (`VOX_E2E_NO_SEED=1` runs unseeded, the `local` E2E). A
+  cancelled "Choose file…" keeps the empty project, and the next attempt on the screen reuses it.
+- **Subtitles panel:** "Merge with next" only removes a break the user set (`breakAfter`); breaks from
+  the caption settings (words per chunk, pauses) cannot merge per chunk. A nudge without an override
+  starts from the derived word time (on the frame grid). Find and replace is a case-insensitive
+  substring match over word texts in one op; an empty result hides the word. "Pauses & fillers" starts
+  with pauses, fillers and repeats ticked; the slider runs 350–2000 ms in 50 ms steps.
+- **"Pin frame here"** uses the crop handle's coalesceKey (`frame:<itemId>`), so a pin and the drag that
+  follows within the engine's 1 s window are one undo entry (the step 9 E2E).
+- **Media bin:** archive results show title, licence, author and warning but no thumbnail (the
+  renderer CSP loads no http(s) image); the generated tab waits for an image provider (phase 13). Items
+  also go to the timeline by keyboard (Enter, or "Add at playhead" in the item menu).
+- **Engine fixes found by the E2E:** the HyperFrames child keeps `ELECTRON_RUN_AS_NODE` (the app starts
+  it with its own Electron binary, which ran as a Chromium helper and failed every app render and OTIO
+  export); `writeBuildTo` swaps the build folder in by rename (an open preview saw it missing and logged
+  404s) and a preview build skips a missing media file (offline media no longer breaks the preview;
+  render still fails with `MEDIA_MISSING`).
+
+- **Two more fixes from the clean-install rerun:** the audio mix runs the engine's resolved ffmpeg (an
+  installed app's PATH has no Homebrew; export tools are read at use, so an ffmpeg setup finds later
+  counts), and setup's `<tools>/bin` links use a unique temp name (two checks in one host collided).
+
+**Why**: The specs fix the behaviour, not these shapes; each is the simplest choice that keeps the 10b
+done-when (S32 raw paths never reach the engine, one undo entry per edit, quick clips with no model,
+E2E on the offline fixture). Evidence: `plan/log/phase-10b.md`, `docs/evidence/phase-10b/`.
+
+## D-46 — `vox` style v1 build choices (phase 07, 2026-10-11)
+
+**Context**: Phase 07 builds the first real style. The spec and plan leave these points open or
+conflict slightly with the frozen Part A checks.
+**Decision**:
+- **Display font**: DM Serif Display. Both candidates were rendered on `kinetic-serif` and `stat`
+  (`docs/evidence/phase-07/font-*.jpg`); Libre Caslon Display was too light next to the reference and was
+  deleted with its OFL text.
+- **Motion helpers**: `styles/vox/assets/motion.js` is the source; each composition inlines a copy between
+  `// vox:motion:begin` / `end` markers (`scripts/sync-vox-motion.mjs` writes them, a test checks every copy).
+  A template cannot load a style script by one relative path in both builds (preview inlines templates into
+  `index.html`, render loads `scenes/<id>.html`), and validate rejects other file references. No compile or
+  template contract change.
+- **Backgrounds and caption chunks live inside the composition's own markup** (`.v-page`, `.c-layer`):
+  HyperFrames scopes a composition's styles to its own root, so classes on `mount.root` (the host) and
+  elements appended to it lose them in a real render, while validate's DOM harness still shows them. The
+  same bug in `base/plain` (Times, black, no outline in renders) is fixed the same way.
+- **`vox/serif-lower` active word**: full white and underlined in red. Part A (frozen, D-34 checks) needs the
+  active look to differ from read; the Part B text "active and read words full white" stays true.
+- **Push-in vs `minEntranceMs`**: `stat` runs its photo push-in inside the entrance (0–1.5 s) so the resting
+  state check holds; `paper-collage` and `map-route` push in for the whole scene and set no `minEntranceMs`.
+- **Scene text in the upper half** (`kinetic-serif`, `stat`), so it never sits under the mid-height
+  `vox/mono-box` captions.
+- **SFX**: Commons "Public domain" (PDSounds) files are written as `licence: "CC0"` in `style.json`; the true
+  licence stays in `CREDITS.md`. Files were re-processed (10/15 ms fades, 6 ms silence pads, -1.2 dBFS
+  peak; `paper-slide` cut before its click cluster; `whoosh` shaped into one swell); `thump-tap` is 11 dB
+  lower so the hero cue stays 6 LU under speech (`sfxUnderSpeech`). `typewriter` (a margin bell with tone
+  lines on the sheet) is removed from the kit until a key strike is recorded for the project (optional
+  manual step). No threshold was changed.
+- **`vox style validate`**: runs the kit check (rule `sfx-kit`, sheet `previews/sfx-sheet.png`; option
+  `kit: false` for test styles with generated tones); measures transition cues from the cut; compares a cue
+  window that starts at render frame 0 with the black canvas; the sample cutout is now opaque inside
+  (`drawbox` had left it fully transparent).
+- **Verify `vox audio-qa --kit vox`** runs with a project positional (the CLI is frozen and needs one); the
+  kit result does not depend on the project.
+- **Reference frames** go to `docs/evidence/phase-07/ref-frames/` (the `reference/` folder is gitignored
+  whole); `tiktok-2.mp4` is a second style reference the owner chose.
+- `vox` is now the default style of new projects (engine `defaultId`, built in); the cli and wiring tests
+  follow.
+
+**Why**: Smallest choices that keep the frozen contracts unchanged, make every template pass
+`vox style validate vox` and the demo pass audio QA, and look right in a real render, not only in the
+validate harness.
+
+## D-47 — `vox/word-reveal` caption preset from the documentary references (phase 07, 2026-10-11)
+
+**Context**: Before GATE 3 the owner added ten more style references (latest five videos each of
+tiktok.com/@metro.media.house3 and tiktok.com/@attentioncompound; gitignored, list in
+`docs/evidence/phase-07/reference/REFERENCES.md`). Their clearest shared trait that `vox` lacked: box-free
+captions revealed one word at a time at mid frame, with single words set larger in an italic serif.
+**Decision**: one bounded iteration: a third caption preset `vox/word-reveal` (`case: asis`, punctuation
+kept, `position.yPct` 50, default safe area). Unread words are hidden, the active word is full white, read
+words stay at 80 %, emphasis words use the display serif in italic at 1.4x. `vox/mono-box` stays the
+default; `guide.md` says when to pick it. No contract change (a preset is style data).
+**Why**: The gap shows in every new reference; a preset is the smallest change that closes it without
+touching the templates the owner is about to review.

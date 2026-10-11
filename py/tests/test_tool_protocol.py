@@ -50,3 +50,47 @@ def test_progress_lines_match_schema():
 
     line = _tool.format_progress(0.42, "decoding")
     validate("progress.json", json.loads(line))
+
+
+# A tool whose native libraries crash while the interpreter shuts down, after the result is out:
+# mlx and onnxruntime can abort in their exit-time destructors under load ("libc++abi: ...
+# recursive_mutex lock failed", exit 134). An atexit abort stands in for that crash.
+CRASHES_AT_EXIT = """
+import atexit, os
+from vox_py import _tool
+
+def handle(raw):
+    atexit.register(os.abort)
+    if raw.get("fail"):
+        raise _tool.ToolError("BOOM", "failed on purpose")
+    return {"ok": raw["n"]}
+
+_tool.main(handle)
+"""
+
+
+def test_a_crash_after_the_result_does_not_fail_the_tool():
+    proc = subprocess.run(
+        [sys.executable, "-I", "-c", CRASHES_AT_EXIT],
+        input='{"n": 7}',
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == '{"ok":7}\n'
+
+
+def test_a_crash_after_the_error_line_keeps_exit_1_and_the_error_last():
+    proc = subprocess.run(
+        [sys.executable, "-I", "-c", CRASHES_AT_EXIT],
+        input='{"n": 7, "fail": true}',
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 1
+    assert proc.stdout == ""
+    assert stderr_error(proc.stderr) == {"code": "BOOM", "message": "failed on purpose"}

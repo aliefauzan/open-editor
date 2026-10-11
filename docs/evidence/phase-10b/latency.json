@@ -1,0 +1,138 @@
+{
+  "bench": "op → visible preview update, 90 s spike fixture",
+  "date": "2026-10-11T12:45:11.893Z",
+  "barMs": 1000,
+  "pass": true,
+  "patch": {
+    "n": 10,
+    "p50": 53,
+    "p95": 87,
+    "max": 87,
+    "min": 40
+  },
+  "reload": {
+    "n": 10,
+    "p50": 196,
+    "p95": 435,
+    "max": 435,
+    "min": 106
+  },
+  "everyUpdateInPlayerDocument": true,
+  "samples": [
+    {
+      "kind": "patch",
+      "ms": 71,
+      "version": 1
+    },
+    {
+      "kind": "reload",
+      "ms": 201,
+      "version": 2
+    },
+    {
+      "kind": "patch",
+      "ms": 52,
+      "version": 3
+    },
+    {
+      "kind": "reload",
+      "ms": 196,
+      "version": 4
+    },
+    {
+      "kind": "patch",
+      "ms": 46,
+      "version": 5
+    },
+    {
+      "kind": "reload",
+      "ms": 435,
+      "version": 6
+    },
+    {
+      "kind": "patch",
+      "ms": 55,
+      "version": 7
+    },
+    {
+      "kind": "reload",
+      "ms": 134,
+      "version": 8
+    },
+    {
+      "kind": "patch",
+      "ms": 55,
+      "version": 9
+    },
+    {
+      "kind": "reload",
+      "ms": 203,
+      "version": 10
+    },
+    {
+      "kind": "patch",
+      "ms": 87,
+      "version": 11
+    },
+    {
+      "kind": "reload",
+      "ms": 125,
+      "version": 12
+    },
+    {
+      "kind": "patch",
+      "ms": 47,
+      "version": 13
+    },
+    {
+      "kind": "reload",
+      "ms": 112,
+      "version": 14
+    },
+    {
+      "kind": "patch",
+      "ms": 52,
+      "version": 15
+    },
+    {
+      "kind": "reload",
+      "ms": 205,
+      "version": 16
+    },
+    {
+      "kind": "patch",
+      "ms": 40,
+      "version": 17
+    },
+    {
+      "kind": "reload",
+      "ms": 106,
+      "version": 18
+    },
+    {
+      "kind": "patch",
+      "ms": 53,
+      "version": 19
+    },
+    {
+      "kind": "reload",
+      "ms": 148,
+      "version": 20
+    }
+  ],
+  "machine": {
+    "cpu": "Apple M5",
+    "cores": 10,
+    "loadStart": [
+      5.52734375,
+      12.11962890625,
+      23.10546875
+    ],
+    "loadEnd": [
+      6.140625,
+      11.93310546875,
+      22.84619140625
+    ]
+  },
+  "consoleErrors": []
+}

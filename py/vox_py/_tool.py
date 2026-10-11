@@ -160,6 +160,7 @@ def main(handler: Callable[[dict], dict]) -> None:
     os.close(saved_stdout)
     sys.stdout.write(out + "\n")
     sys.stdout.flush()
+    _exit(0)
 
 
 def _flush_c_stdio() -> None:
@@ -176,4 +177,16 @@ def _flush_c_stdio() -> None:
 def _fail(code: str, message: str) -> None:
     _flush_c_stdio()
     print(json.dumps({"error": {"code": code, "message": message}}), file=sys.stderr, flush=True)
-    sys.exit(1)
+    _exit(1)
+
+
+def _exit(code: int) -> None:
+    """End the process at once, without interpreter teardown.
+
+    The result (or the error line) is already written and flushed. Native libraries (mlx,
+    onnxruntime) can abort in their exit-time destructors under load ("libc++abi: ...
+    recursive_mutex lock failed", exit 134), which would turn a finished run into a failure.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
