@@ -131,7 +131,7 @@ const USAGE = `usage:
        [--captions burn|none] [--loudness youtube|tiktok|broadcast] [-o file | --out-dir dir] [--overwrite]
   vox audio-qa <project> [--seq id] [--loudness youtube|tiktok|broadcast] [--kit styleId]
   vox export-captions <project> [--seq id] --format srt|vtt [-o file | --out-dir dir] [--overwrite]
-  vox export-timeline <project> [--seq id] [-o file | --out-dir dir] [--overwrite]
+  vox export-timeline <project> [--seq id] [--format otio|fcpxml] [-o file | --out-dir dir] [--overwrite]
   vox credits <project>                   licence and attribution of the archive assets used
   vox style validate <style> [--no-render] [--no-dom]   check a style; writes its previews/
   vox style new <id> [--extends <style>] [--name <name>]   scaffold a draft user style
@@ -232,6 +232,7 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
   'export-timeline': {
     ...COMMON,
     seq: { type: 'string' },
+    format: { type: 'string' },
     output: { type: 'string', short: 'o' },
     'out-dir': { type: 'string' },
     overwrite: { type: 'boolean' },
@@ -930,7 +931,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const format =
         cmd === 'export-captions'
           ? oneOf(values['format'], 'format', ['srt', 'vtt'] as const)
-          : undefined;
+          : oneOf(values['format'], 'format', ['otio', 'fcpxml'] as const);
       if (cmd === 'export-captions' && !format)
         throw new UsageError('--format srt|vtt is required');
       const e = await engineFor(values, io);

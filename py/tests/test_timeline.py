@@ -15,26 +15,47 @@ def write_request(tmp_path, media, layer):
                 "kind": "video",
                 "name": "V1",
                 "clips": [
-                    {"name": "a", "path": str(media), "startFrame": 0, "durationFrames": 60,
-                     "sourceFrame": 30, "mediaRate": {"num": 30000, "den": 1001}},
-                    {"name": "b", "path": str(media), "startFrame": 90, "durationFrames": 30,
-                     "sourceFrame": 300},
+                    {
+                        "name": "a",
+                        "path": str(media),
+                        "startFrame": 0,
+                        "durationFrames": 60,
+                        "sourceFrame": 30,
+                        "mediaRate": {"num": 30000, "den": 1001},
+                    },
+                    {
+                        "name": "b",
+                        "path": str(media),
+                        "startFrame": 90,
+                        "durationFrames": 30,
+                        "sourceFrame": 300,
+                    },
                 ],
             },
             {
                 "kind": "video",
                 "name": "Layers",
                 "clips": [
-                    {"name": "title", "path": str(layer), "startFrame": 15, "durationFrames": 45,
-                     "sourceFrame": 0},
+                    {
+                        "name": "title",
+                        "path": str(layer),
+                        "startFrame": 15,
+                        "durationFrames": 45,
+                        "sourceFrame": 0,
+                    },
                 ],
             },
             {
                 "kind": "audio",
                 "name": "A1",
                 "clips": [
-                    {"name": "a", "path": str(media), "startFrame": 0, "durationFrames": 60,
-                     "sourceFrame": 30},
+                    {
+                        "name": "a",
+                        "path": str(media),
+                        "startFrame": 0,
+                        "durationFrames": 60,
+                        "sourceFrame": 30,
+                    },
                 ],
             },
         ],
@@ -85,3 +106,55 @@ def test_overlap_and_relative_paths_are_refused(tmp_path):
     req = write_request(tmp_path, "relative/m.mp4", tmp_path / "l.mov")
     code, _, stderr = run_tool("timeline", req)
     assert code == 1 and "absolute" in stderr_error(stderr)["message"]
+
+
+def test_fcpxml_write_is_valid_xml_with_clips_timing_and_assets(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    media = tmp_path / "media with space.mp4"
+    media.write_bytes(b"x")
+    layer = tmp_path / "cut-layers" / "title.mov"
+    layer.parent.mkdir()
+    layer.write_bytes(b"y")
+    req = write_request(tmp_path, media, layer)
+    req["format"] = "fcpxml"
+    req["output"] = str(tmp_path / "cut.fcpxml")
+    req["width"], req["height"] = 1080, 1920
+    req["rate"] = {"num": 30, "den": 1}
+    for t in req["tracks"]:
+        for c in t["clips"]:
+            c.pop("mediaRate", None)
+            c["mediaDurationFrames"] = 900
+    validate("timeline.request.json", req)
+    code, result, stderr = run_tool("timeline", req)
+    assert code == 0, stderr
+    validate("timeline.result.json", result)
+    assert result == {"output": req["output"], "tracks": 3, "clips": 4}
+
+    root = ET.parse(req["output"]).getroot()
+    assert root.tag == "fcpxml" and root.get("version") == "1.8"
+    assets = root.findall("./resources/asset")
+    assert sorted(a.get("src") for a in assets) == sorted([media.as_uri(), layer.as_uri()])
+    assert {a.get("duration") for a in assets} == {"30/1s"}  # 900 frames at 30 fps
+    fmt = root.find("resources/format")
+    assert (fmt.get("width"), fmt.get("height")) == ("1080", "1920")
+    assert root.findall("asset-clip") == []
+    assert root.find("event/project") is not None and "uid" not in root.find("event/project").attrib
+    seq = root.find("./event/project/sequence")
+    assert seq is not None and seq.get("duration") == "4/1s"  # last V1 clip ends at frame 120
+    spine = seq.find("spine")
+    assert [e.tag for e in spine] == ["clip", "gap", "clip"]
+    assert [e.get("offset") for e in spine] == ["0s", "2s", "3s"]
+    assert [e.get("duration") for e in spine] == ["2/1s", "1/1s", "1/1s"]
+    assert spine[0].get("start") == "1s" and spine[2].get("start") == "10s"
+
+
+def test_fcpxml_output_must_match_format(tmp_path):
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    layer = tmp_path / "l.mov"
+    layer.write_bytes(b"y")
+    req = write_request(tmp_path, media, layer)
+    req["format"] = "fcpxml"  # output still ends .otio
+    code, _, stderr = run_tool("timeline", req)
+    assert code != 0 and "INVALID_REQUEST" in stderr
