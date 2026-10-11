@@ -1,5 +1,7 @@
-# Skeleton packaging (phase 08 step 10): ad-hoc signed arm64 .dmg. Phase 09 extends it (bundled
-# tools, notarization-free clean-install test, resources).
+# Packaging (phase 08 skeleton, phase 09): ad-hoc signed arm64 .dmg, macOS 14+, < 300 MB. The
+# Resources of plan R1 "Packaged app" are staged by `scripts/build.ts --package` into out-resources/
+# (styles, engine-data, hyperframes/node_modules, py/, bin/uv, cli/). Fuses per R4 S27. Notarization
+# hooks stay off until there is a Developer ID (TODO).
 appId: app.vox.studio
 productName: Vox Studio
 directories:
@@ -11,9 +13,20 @@ files:
   - package.json
   - '!**/node_modules/**'
 extraResources:
-  - from: ../../styles
-    to: styles
-    filter: ['**/*', '!**/node_modules/**']
+  - from: out-resources
+    to: .
+    filter: ['**/*']
+asar: true
+afterPack: scripts/after-pack.cjs
+artifactName: Vox-Studio-${version}-arm64.${ext}
+electronFuses:
+  runAsNode: true # the vox CLI and the HyperFrames CLI run with Electron as Node
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
 npmRebuild: false
 nodeGypRebuild: false
 electronDist: node_modules/electron/dist
@@ -22,7 +35,9 @@ mac:
     - target: dmg
       arch: arm64
   category: public.app-category.video
+  minimumSystemVersion: '14.0'
   identity: '-'
+  notarize: false
   hardenedRuntime: false
   gatekeeperAssess: false
 dmg:

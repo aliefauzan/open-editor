@@ -7,6 +7,7 @@ import { basename, isAbsolute, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import { selfTest } from './self-test.ts';
 import {
   isVoxError,
   classifyUrl,
@@ -38,9 +39,14 @@ export interface Io {
   spawn?: (command: string, args: readonly string[], opts: { cwd: string }) => Promise<number>;
   /** Extra engine options (tests: a HyperFrames stand-in). */
   engine?: Partial<EngineOptions>;
+  /**
+   * The app's Resources folder when this CLI runs bundled in Vox Studio (plan R1 "Packaged app"):
+   * built-in styles, `py/`, the bundled uv and Electron-as-Node come from there.
+   */
+  resources?: string;
 }
 
-const defaultIo: Io = {
+export const defaultIo: Io = {
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
   env: process.env,
@@ -77,6 +83,7 @@ const USAGE = `usage:
   vox facetrack <project> <mediaId>       face, body and saliency detections
   vox media-frames <project> <mediaId> --at-ms <ms>[,<ms>...]   PNG stills (paths)
   vox doctor [<project>] [--unlock] [--quick]   check tools, models, config (and a project)
+  vox self-test                           check the files this build ships with (styles, data, runtime)
   vox quick <url|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]
                                           new project → ingest, shots, transcribe, facetrack → clips
   vox assets search <project> "<query>" [--source commons,openverse] [--limit n]
@@ -133,6 +140,7 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
   facetrack: COMMON,
   'media-frames': { ...COMMON, 'at-ms': { type: 'string' } },
   doctor: { ...COMMON, unlock: { type: 'boolean' }, quick: { type: 'boolean' } },
+  'self-test': COMMON,
   quick: {
     ...COMMON,
     count: { type: 'string' },
@@ -285,8 +293,22 @@ function toolsDir(io: Io): string {
 const voxHomeOf = (io: Io) => io.env['VOX_HOME'] ?? join(io.env['HOME'] ?? homedir(), '.vox');
 
 function stylesDirs(io: Io): string[] {
-  const builtIn = fileURLToPath(new URL('../../../styles', import.meta.url));
+  const builtIn =
+    io.resources === undefined
+      ? fileURLToPath(new URL('../../../styles', import.meta.url))
+      : join(io.resources, 'styles');
   return [builtIn, join(voxHomeOf(io), 'styles')];
+}
+
+/** Tool paths; a bundled CLI uses the app's uv and `py/`, and the app's Electron as Node. */
+function toolPathsFor(io: Io): Record<string, string | undefined> {
+  if (io.resources === undefined) return resolveToolPaths({ toolsDir: toolsDir(io), env: io.env });
+  const tools = resolveToolPaths({
+    toolsDir: toolsDir(io),
+    env: io.env,
+    pyProject: join(io.resources, 'py'),
+  });
+  return { ...tools, uv: join(io.resources, 'bin', 'uv'), node: process.execPath };
 }
 
 async function engineFor(values: Parsed['values'], io: Io): Promise<Engine> {
@@ -302,7 +324,7 @@ async function engineFor(values: Parsed['values'], io: Io): Promise<Engine> {
   return openEngine({
     projectsDir: dir,
     stylesDirs: stylesDirs(io),
-    tools: resolveToolPaths({ toolsDir: toolsDir(io), env: io.env }),
+    tools: toolPathsFor(io),
     trustFile: join(voxHomeOf(io), 'trust.json'),
     config,
     ...io.engine,
@@ -394,6 +416,18 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
   const out = (v: unknown, text: string) =>
     io.stdout(json ? `${JSON.stringify(v, null, 2)}\n` : clean(text));
   switch (cmd) {
+    case 'self-test': {
+      const pyDir = toolPathsFor(io)['py'];
+      if (pyDir === undefined) throw new Error('no uv project (py/) found');
+      const r = await selfTest({
+        ...(io.resources === undefined ? {} : { resources: io.resources }),
+        stylesDirs: stylesDirs(io).slice(0, 1),
+        pyDir,
+      });
+      const mark = { passed: 'ok  ', failed: 'FAIL', skipped: 'skip', notBuilt: 'skip' } as const;
+      out(r, r.checks.map((c) => `${mark[c.status]} ${c.name}: ${c.detail}\n`).join(''));
+      return r.ok ? 0 : 1;
+    }
     case 'paths': {
       const e = await engineFor(values, io);
       out(

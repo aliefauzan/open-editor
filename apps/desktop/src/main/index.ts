@@ -3,7 +3,9 @@
 import { join } from 'node:path';
 import {
   BrowserWindow,
+  Menu,
   app,
+  dialog,
   ipcMain,
   protocol,
   session,
@@ -15,6 +17,7 @@ import { projectDirFor } from '@vox/engine/paths';
 import { type EventName, type Method } from '../shared/api.ts';
 import { handleCall, isAllowedExternal, type FrameLike } from './guard.ts';
 import { EngineHost } from './host.ts';
+import { installCli } from './install-cli.ts';
 import {
   CSP_APP,
   CSP_MEDIA,
@@ -76,7 +79,11 @@ function broadcast(name: EventName, payload: unknown): void {
 
 const host = new EngineHost({
   entry: HOST_ENTRY,
-  init: { builtinStyles: BUILTIN_STYLES },
+  init: {
+    builtinStyles: BUILTIN_STYLES,
+    appVersion: app.getVersion(),
+    ...(app.isPackaged ? { resources: process.resourcesPath } : {}),
+  },
   onEvent: broadcast,
   onRestart: (info) => broadcast('host.restarted', info),
   log,
@@ -196,8 +203,66 @@ function webContentsOf(frame: WebFrameMain): WebContents {
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => host.stop());
 
+/** Menu "Install `vox` command" (packaged app only: the script lives in Resources/cli). */
+async function installVoxCommand(): Promise<void> {
+  const choice = await dialog.showMessageBox({
+    type: 'question',
+    message: 'Install the vox command',
+    detail:
+      'Links vox to the CLI inside this app. "For me" needs no password; "For all users" ' +
+      'asks for an administrator password.',
+    buttons: ['For me (~/.local/bin)', 'For all users (/usr/local/bin)', 'Cancel'],
+    cancelId: 2,
+  });
+  if (choice.response === 2) return;
+  try {
+    const r = await installCli({
+      resources: process.resourcesPath,
+      target: choice.response === 0 ? 'user' : 'system',
+      home: app.getPath('home'),
+      path: process.env['PATH'] ?? '',
+    });
+    await dialog.showMessageBox({
+      message: `Installed ${r.link}`,
+      detail: r.onPath
+        ? 'Open a new Terminal window and run: vox --help'
+        : 'Add ~/.local/bin to your PATH (for zsh: echo \'export PATH="$HOME/.local/bin:$PATH"\' >> ~/.zshrc), then open a new Terminal window.',
+    });
+  } catch (e) {
+    dialog.showErrorBox('Could not install the vox command', String(e));
+  }
+}
+
+function setMenu(): void {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: app.name,
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          {
+            label: 'Install vox Command…',
+            enabled: app.isPackaged,
+            click: () => void installVoxCommand(),
+          },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
+      { role: 'editMenu' },
+      { role: 'windowMenu' },
+    ]),
+  );
+}
+
 void app.whenReady().then(async () => {
   hardenSession();
+  setMenu();
   createWindow();
   await host.start().catch((e: unknown) => log(`engine host failed to start: ${String(e)}`));
 });

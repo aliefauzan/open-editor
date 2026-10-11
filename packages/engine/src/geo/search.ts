@@ -1,6 +1,8 @@
 // Offline place search over the bundled Natural Earth populated places (public domain).
 // Pure: no engine imports (no errors.ts, no api.ts). Phase 03 wires this into `engine.geo.search`.
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { dataDir } from '../resources.ts';
 
 /** `data/places.json`, built by `data/build-places.mjs` from ne_10m_populated_places_simple. */
 export interface PlacesFile {
@@ -137,13 +139,16 @@ export function searchPlaces(index: PlaceIndex, query: string, opts: SearchOptio
   return scored.slice(0, limit).map((s) => s.place);
 }
 
-let defaultIndex: PlaceIndex | undefined;
+let defaultIndex: { file: string; index: PlaceIndex } | undefined;
 
 /** Search the bundled `data/places.json` (loaded once, on first use). */
 export function search(query: string, opts: SearchOptions = {}): Place[] {
-  if (defaultIndex === undefined) {
-    const url = new URL('../../data/places.json', import.meta.url);
-    defaultIndex = createPlaceIndex(JSON.parse(readFileSync(url, 'utf8')) as PlacesFile);
+  const file = join(dataDir(), 'places.json');
+  if (defaultIndex?.file !== file) {
+    defaultIndex = {
+      file,
+      index: createPlaceIndex(JSON.parse(readFileSync(file, 'utf8')) as PlacesFile),
+    };
   }
-  return searchPlaces(defaultIndex, query, opts);
+  return searchPlaces(defaultIndex.index, query, opts);
 }

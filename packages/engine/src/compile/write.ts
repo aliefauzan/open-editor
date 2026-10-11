@@ -1,16 +1,15 @@
 // `writeBuild`: a BuildResult on disk under `build/<sequenceId>/` (replaced each time). Linked files
 // are hard-linked, or copied across devices; vendored files come from the pinned packages.
 import { copyFileSync, existsSync, linkSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { VoxError } from '../errors.ts';
+import { moduleRequire, runtimeDir } from '../resources.ts';
 import type { BuildResult } from './compile.ts';
-
-const RUNTIME = join(import.meta.dirname, 'runtime');
 
 /** Absolute paths of the vendored files: GSAP and the HyperFrames runtime from the pinned packages. */
 export function vendorSources(): Record<string, string> {
-  const req = createRequire(import.meta.url);
+  const req = moduleRequire();
+  const RUNTIME = runtimeDir();
   const pkgDir = (name: string) => dirname(req.resolve(`${name}/package.json`));
   return {
     'gsap.min.js': join(pkgDir('gsap'), 'dist', 'gsap.min.js'),

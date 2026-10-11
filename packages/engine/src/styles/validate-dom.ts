@@ -9,6 +9,7 @@ import { createRequire } from 'node:module';
 import { dirname, extname, join, sep } from 'node:path';
 import { templateInner } from '../compile/compile.ts';
 import { hyperframesBin } from '../render/layers.ts';
+import { moduleRequire } from '../resources.ts';
 import type { CaptionChunk, CaptionWord } from '../model/captions.ts';
 
 export interface Box {
@@ -105,7 +106,7 @@ export function chromePath(): string {
 
 /** puppeteer-core as HyperFrames pins it (not an engine dependency of its own). */
 export async function launchChrome(): Promise<PptrBrowser> {
-  const hf = createRequire(import.meta.url).resolve('hyperframes/package.json');
+  const hf = moduleRequire().resolve('hyperframes/package.json');
   const pptr = createRequire(hf)('puppeteer-core') as {
     launch(o: Record<string, unknown>): Promise<PptrBrowser>;
   };
