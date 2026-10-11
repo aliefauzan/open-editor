@@ -2,6 +2,7 @@
 // electron-builder afterSign (phase 13, D-16): checks the signed app. When build-info.json says the
 // build has the Apple helper, `bin/vox-apple-llm` must exist and carry a valid signature, and the app
 // seal must verify; a release build never ships an unsigned or missing helper.
+// eslint-disable-next-line no-restricted-syntax -- a CommonJS hook cannot use ESM imports; execFileSync only, never a shell (S26)
 const { execFileSync } = require('node:child_process');
 const { existsSync, readFileSync } = require('node:fs');
 const { join } = require('node:path');

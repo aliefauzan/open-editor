@@ -249,11 +249,12 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
   const appleHelper = readBuildInfo(res)?.appleHelper ?? apple !== undefined;
   const mock = testBuild && env['VOX_E2E_AGENT'] === 'mock';
   const agentEmit = (n: EventName, p: unknown) => out.emit?.(n, engine.redactor.redact(p));
-  let agent: AgentHost | undefined;
+  // quick clips score with the agent's fast model; the agent host is made after the job runner
+  const late: { agent?: AgentHost } = {};
   const appJobs = new AppJobs(engine, agentEmit, seeds, () =>
-    agent ? agent.quickScorer() : Promise.resolve(undefined),
+    late.agent ? late.agent.quickScorer() : Promise.resolve(undefined),
   );
-  agent = new AgentHost({
+  const agent = new AgentHost({
     engine,
     cfg,
     ...(apple && appleHelper && { apple }),
@@ -280,6 +281,7 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
       },
     }),
   });
+  late.agent = agent;
   const settings = new SettingsHost({
     cfg,
     appleHelper: appleHelper && apple !== undefined,

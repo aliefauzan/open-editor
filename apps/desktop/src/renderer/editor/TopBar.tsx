@@ -1,6 +1,6 @@
 // Top bar (app spec "Main editor" → Top bar): project name, the step bar (Upload footage · Describe
 // edit · Review cut · Export) that highlights the current stage and jumps to its panel, undo/redo,
-// snapshots menu (save / restore), settings (a stub until phase 13) and Export (the dialog, 10b).
+// snapshots menu (save / restore), settings (the Settings dialog, phase 13) and Export (the dialog, 10b).
 import { useEffect, useState } from 'react';
 import { useCtx, useEditor, useUi } from './context.tsx';
 import { ExportDialog } from './ExportDialog.tsx';
@@ -100,7 +100,6 @@ export function TopBar(props: { onClose?: () => void; onOpenSetup?: () => void }
   const stage = useUi((s) => s.stage);
   const snapshotsOpen = useUi((s) => s.snapshotsOpen);
   const exportOpen = useUi((s) => s.exportOpen);
-  const settingsOpen = useUi((s) => s.settingsOpen);
   const btn = 'rounded px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700';
   const jump = (id: Stage) => {
     // each step opens the panel that belongs to it
@@ -177,29 +176,6 @@ export function TopBar(props: { onClose?: () => void; onOpenSetup?: () => void }
         <SnapshotsMenu onClose={() => ui.getState().set({ snapshotsOpen: false })} />
       )}
       {exportOpen && <ExportDialog />}
-      {settingsOpen && (
-        <div
-          role="dialog"
-          aria-label="Settings"
-          className="absolute top-12 right-3 z-30 w-80 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm shadow-xl"
-        >
-          <p>
-            Model and provider settings come with the agent panel.{' '}
-            {props.onOpenSetup && (
-              <button type="button" className="underline" onClick={props.onOpenSetup}>
-                Open setup
-              </button>
-            )}
-          </p>
-          <button
-            type="button"
-            className={`${btn} mt-3`}
-            onClick={() => ui.getState().set({ settingsOpen: false })}
-          >
-            Close
-          </button>
-        </div>
-      )}
     </header>
   );
 }

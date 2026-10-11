@@ -445,6 +445,8 @@ export interface AgentPauseData {
   detail: string;
   sources?: string[];
   ranges?: TightenRangeData[];
+  /** A `pauses` pause: the sequence of the ranges. */
+  sequenceId?: string;
   /** A `plan` pause: the validated plan (`ClipPlan` for clips, an op list for free-form). */
   plan?: unknown;
   /** A `budget` pause: the cap "Continue" raises the run to. */

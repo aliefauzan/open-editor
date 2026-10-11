@@ -238,6 +238,7 @@ export class AgentHost {
       detail: info.detail,
       ...(info.sources && { sources: info.sources }),
       ...(info.ranges && { ranges: info.ranges }),
+      ...(info.sequenceId !== undefined && { sequenceId: info.sequenceId }),
       ...(info.plan !== undefined && { plan: info.plan }),
       // "Continue with $X": one more default budget on top of the current cap
       ...(info.reason === 'budget' && { continueUsd: Number((cap + baseCap).toFixed(2)) }),

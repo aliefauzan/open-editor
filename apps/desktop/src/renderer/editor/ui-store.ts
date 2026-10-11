@@ -26,6 +26,8 @@ export interface UiState {
   snapshotsOpen: boolean;
   exportOpen: boolean;
   settingsOpen: boolean;
+  /** What the Settings dialog scrolls to and focuses (a LOGIN_REQUIRED hint: the cookies toggle). */
+  settingsFocus: 'cookies' | null;
   galleryOpen: boolean;
   /** The quick-clips next-steps bar above the preview (10b), and its note (fewer clips than asked). */
   nextSteps: boolean;
@@ -61,6 +63,7 @@ export function createUiStore(): UiStore {
     snapshotsOpen: false,
     exportOpen: false,
     settingsOpen: false,
+    settingsFocus: null,
     galleryOpen: false,
     nextSteps: false,
     quickNote: null,

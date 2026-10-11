@@ -4,6 +4,7 @@
 // R4 S27), so the default app is dead weight and one more thing to sign.
 // Phase 13 (D-16): the Apple helper `bin/vox-apple-llm` gets its own ad-hoc signature here, before
 // the app is sealed, so the app's seal covers the signed helper (signing it later would break it).
+// eslint-disable-next-line no-restricted-syntax -- a CommonJS hook cannot use ESM imports; execFileSync only, never a shell (S26)
 const { execFileSync } = require('node:child_process');
 const { existsSync, rmSync } = require('node:fs');
 const { join } = require('node:path');

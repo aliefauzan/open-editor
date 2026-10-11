@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Step A1: the quick-clips start screen (link check, badge, count/length, one progress view,
-// LOGIN_REQUIRED → "Choose file…", the seeded make-clips path) and the next-steps bar ("Captions only"
+// LOGIN_REQUIRED → "Choose file…" and "Open Settings", the seeded make-clips path) and the next-steps bar ("Captions only"
 // is one batch op), on the real engine behind a fake window.vox.
 import { join } from 'node:path';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -90,7 +90,7 @@ describe('quick clips start screen (A1)', () => {
   });
 
   it('LOGIN_REQUIRED shows its hint and "Choose file…", which reuses the same project', async () => {
-    const { fake, onDone } = quickSetup({
+    const { fake, onDone, ctx } = quickSetup({
       'media.importUrl': () => {
         throw {
           code: 'LOGIN_REQUIRED',
@@ -107,6 +107,9 @@ describe('quick clips start screen (A1)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Make clips' }));
     const alert = await screen.findByTestId('quick-error');
     expect(alert.textContent).toContain('Drop the file instead');
+    // "Open Settings" opens the Settings dialog at the browser-cookies toggle (phase 13)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Settings' }));
+    expect(ctx.ui.getState()).toMatchObject({ settingsOpen: true, settingsFocus: 'cookies' });
     fireEvent.click(screen.getAllByRole('button', { name: 'Choose file…' }).at(-1)!);
     await waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 60_000 });
     expect(fake.calls.filter((c) => c.method === 'projects.create')).toHaveLength(1);

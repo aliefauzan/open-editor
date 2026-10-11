@@ -34,7 +34,7 @@ const mediaUrl = (projectId: string, rel: string) =>
   `vox-media://p/${projectId}/${rel.split('/').map(encodeURIComponent).join('/')}`;
 
 /** The first frame of the sprite sheet (10 columns, 90 px high; engine D-31). */
-function Thumb(props: { projectId: string; m: MediaItem; offline: boolean }) {
+export function Thumb(props: { projectId: string; m: MediaItem; offline: boolean }) {
   const { m } = props;
   const w = m.width && m.height ? Math.round((90 * m.width) / m.height) : 160;
   if (props.offline) {
