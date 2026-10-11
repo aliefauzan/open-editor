@@ -256,7 +256,7 @@ export function MediaBin() {
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer?.files?.length || !vox.dropFiles) return;
     e.preventDefault();
-    void vox.dropFiles(projectId, e.dataTransfer.files).then(
+    void vox.dropFiles(projectId, Array.from(e.dataTransfer.files)).then(
       (r) => follow(r, 'Import'),
       (err: unknown) => editor.getState().toast(err),
     );

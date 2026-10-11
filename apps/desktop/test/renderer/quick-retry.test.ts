@@ -84,3 +84,56 @@ describe('quick clips retry', () => {
     );
   });
 });
+
+describe('quick clips drop (GATE 5 finding)', () => {
+  // A dropped FileList does not survive Electron's contextBridge (the preload saw no files, the flow
+  // read that as "cancelled" and left an empty project with no message). The renderer hands over a
+  // plain array of File objects, and a drop that yields nothing is an error the user sees.
+  function dropSetup(dropResult: unknown) {
+    const seen: unknown[] = [];
+    const jobs = createStore<JobsState>()((set, get) => ({
+      rows: [],
+      start: () => Promise.reject(new Error('unused')),
+      track: async (id, kind, label) => {
+        const row: JobRow = { id, kind, label, status: 'done', progress: 1, result: { media: [] } };
+        set({ rows: [...get().rows, row] });
+        return row;
+      },
+      dismiss: (id) => set({ rows: get().rows.filter((r) => r.id !== id) }),
+    }));
+    const vox = {
+      dropFiles: async (_p: string, files: unknown) => {
+        seen.push(files);
+        return dropResult;
+      },
+      jobs: { start: async () => 'j-make' },
+    } as unknown as VoxApi;
+    const file = new File(['x'], 'cuts-2shot.mp4', { type: 'video/mp4' });
+    const list = { 0: file, length: 1, item: () => file } as unknown as FileList;
+    const run = () =>
+      makeQuickClips(
+        vox,
+        jobs,
+        { kind: 'drop', files: list },
+        { count: 1, minMs: 2000, maxMs: 5000 },
+        () => {},
+        'p1',
+      );
+    return { run, seen, file };
+  }
+
+  it('hands the preload a plain array of the dropped File objects', async () => {
+    const { run, seen, file } = dropSetup({ jobId: 'j-ing' });
+    await run();
+    expect(Array.isArray(seen[0])).toBe(true);
+    expect(seen[0]).toEqual([file]);
+  });
+
+  it('a drop that yields no job is an error, not a silent cancel', async () => {
+    const { run } = dropSetup(null);
+    const out = await run();
+    expect(out.ok).toBe(false);
+    expect(out.ok === false && out.cancelled).toBeFalsy();
+    expect(out.ok === false && out.error.message).toMatch(/could not be read/i);
+  });
+});

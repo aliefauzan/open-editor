@@ -30,12 +30,24 @@ vox['on'] = (event: EventName, handler: (payload: unknown) => void) => {
 
 // Finder drops: only real dropped files have a path (a File built in page JS gives ''), so the page
 // never names a path itself; main checks the sender and that each path exists.
+const pathOf = (f: unknown): string => {
+  try {
+    return webUtils.getPathForFile(f as File);
+  } catch {
+    return ''; // not a File
+  }
+};
 vox['dropFiles'] = async (projectId: string, files: unknown) => {
-  const list = Array.from((files ?? []) as ArrayLike<File>);
-  const paths = list
-    .map((f) => (f instanceof File ? webUtils.getPathForFile(f) : ''))
-    .filter(Boolean);
-  if (paths.length === 0) return null;
+  // the renderer sends an array (a FileList arrives here as an empty object, GATE 5)
+  const list = Array.isArray(files) ? (files as unknown[]) : [];
+  const paths = list.map(pathOf).filter(Boolean);
+  if (paths.length === 0) {
+    throw {
+      code: 'MEDIA_UNSUPPORTED',
+      message: 'The dropped item could not be read',
+      hint: 'Drop a video file from Finder, or use Choose file….',
+    };
+  }
   const r = (await ipcRenderer.invoke('vox:drop', projectId, paths)) as CallResult;
   if (r.ok) return r.value;
   throw r.error;

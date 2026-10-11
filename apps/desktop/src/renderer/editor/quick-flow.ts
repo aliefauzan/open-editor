@@ -61,6 +61,12 @@ export function projectName(input: QuickInput): string {
   return 'Quick clips';
 }
 
+const DROP_UNREADABLE: ErrorData = {
+  code: 'MEDIA_UNSUPPORTED',
+  message: 'The dropped item could not be read',
+  hint: 'Drop a video file from Finder, or use Choose file….',
+};
+
 async function importInto(
   vox: VoxApi,
   jobs: JobsStore,
@@ -72,7 +78,9 @@ async function importInto(
   else if (input.kind === 'file') started = await vox.media.importFiles(projectId);
   else {
     if (!vox.dropFiles) throw { code: 'NOT_AVAILABLE', message: 'Drop is not available', hint: '' };
-    started = await vox.dropFiles(projectId, input.files);
+    // a FileList does not cross contextBridge (GATE 5: the preload saw no files); an array does
+    started = await vox.dropFiles(projectId, Array.from(input.files));
+    if (!(started as { jobId?: string } | null)?.jobId) throw DROP_UNREADABLE;
   }
   const jobId = (started as { jobId?: string } | null)?.jobId;
   if (!jobId) return null; // the file dialog was cancelled

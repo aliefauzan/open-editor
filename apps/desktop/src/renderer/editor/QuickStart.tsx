@@ -100,7 +100,7 @@ export function QuickStart(props: QuickStartProps) {
     e.preventDefault();
     if (busy) return;
     const files = e.dataTransfer?.files;
-    if (files && files.length > 0) void run({ kind: 'drop', files });
+    if (files && files.length > 0) void run({ kind: 'drop', files: Array.from(files) });
   };
 
   const field = 'rounded bg-neutral-900 px-2 py-1 text-sm';
