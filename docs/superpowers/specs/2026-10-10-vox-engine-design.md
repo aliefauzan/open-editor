@@ -1284,7 +1284,8 @@ The agent reads this, not the full project (spec 3).
 **Job results** (plan D-15). A job that writes to the model (ingest, transcribe, shots,
 facetrack, quickClips, assets fetch/cutout/generate) records the project `version` as its
 `baseVersion` when it starts. At the end it applies its result as one `batch` with its
-`jobId` on the history entry (actor `cli` or `user`). If an entry after `baseVersion`
+`jobId` on the history entry (the job args' `actor`, default `user`; an agent run also passes its
+`runId`, which the entry carries, so `undoRun` undoes the job's result with the run; plan D-50). If an entry after `baseVersion`
 touched any key the batch touches, the job fails with `JOB_CONFLICT`, listing those keys,
 and overwrites nothing. A job's result is therefore one undo entry.
 

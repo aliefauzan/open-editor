@@ -1489,3 +1489,18 @@ is a measurement stand-in, recorded as such.
 footage is only just readable (its shadow carries it; consider a darker plate or outline on light frames);
 speaker and runtime footage grading needs an engine filter (D-48). The Freesound originals TODO line stays open
 (required before release; needs a Freesound login).
+
+## D-50 — Agent-started jobs carry the run's `runId` (phase 12, 2026-10-11)
+
+**Context**: D-43 left open that job writes started by an agent run (ingest, shots, transcribe, facetrack,
+quickClips, assets fetch/cutout/generate) carry `actor: agent` but no `runId`, so `undoRun` skips them.
+The clipper starts the whole job chain and `quickClips` itself; phase 12's goal is that every result of a
+run is undoable as one run (agent done-when 4).
+**Decision**: every job that writes to the project takes an optional `runId` argument next to `actor`;
+the job's history entry carries it (the store already accepts `runId` with `jobId`). The agent's job tools
+and the clipper pass the run's `runId`. Additive change to the frozen Engine API (job args); the engine
+spec "Job results" says so. Owner delegation (2026-10-11) covers the stop-and-ask rule for this additive
+field, as for D-43.
+**Consequence**: "Undo this run" after a clipper run removes the quick-clip sequences and the ingested
+media too (the entries undo newest first); a user edit to any of them after the run is reported as
+`UNDO_CONFLICT` as before.
