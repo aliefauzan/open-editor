@@ -66,9 +66,8 @@ they need are defined here.
   one generic style, `base` (see "Base style").
 - Music generation, TTS, speaker diarization, colour grading, multiplayer, cloud.
 - v1.1 (built later): local image generation (interface specified here), audio
-  ducking (approach noted under "Audio"), FCPXML export, and clip speed (needs its own
-  design: a `speed` field, duration rule `inMs + durationMs × speed`, audio `atempo`,
-  and a spike on HyperFrames `playbackRate`).
+  ducking (approach noted under "Audio"), FCPXML export, and clip speed (designed in
+  "Clip speed", plan D-62).
 
 ## Repository layout
 
@@ -210,7 +209,9 @@ frames. Media with no `fps` (audio, images) use the sequence grid.
 
 Loading rejects unknown fields, so a new field always comes with a `schemaVersion` bump
 and a load-time migration. The plan D-15 fields below are part of `schemaVersion: 2`:
-the contracts are not frozen until phase 02, so they need no migration.
+the contracts are not frozen until phase 02, so they need no migration. `schemaVersion: 3`
+is the v1.1 schema (plan D-62): it adds `MediaClip.speed` (see "Clip speed"), and its
+migration from 2 only sets the number.
 
 ```ts
 Fps { num: number; den: number }   // one of 24/1, 25/1, 30/1, 60/1,
@@ -218,7 +219,7 @@ Fps { num: number; den: number }   // one of 24/1, 25/1, 30/1, 60/1,
 
 
 Project {
-  schemaVersion: 2
+  schemaVersion: 3
   id: string; name: string
   version: number            // increments on every applied history entry
   media: MediaItem[]
@@ -265,6 +266,7 @@ Track {
   name?: string
   locked: boolean; hidden: boolean; muted: boolean
   syncLock: boolean          // default true; ripple/insert shift this track too
+  duck?: boolean             // audio tracks only (v1.1, plan D-61): lowered under the speech tracks in the mix
   items: Item[]              // stored sorted by startMs; no overlaps within a track
 }
 
@@ -293,6 +295,8 @@ MediaClip extends ItemBase {
   volume?: number            // linear gain 0..2, default 1
   fadeInMs?: number; fadeOutMs?: number   // default 0
   denoise?: 'off' | 'light' | 'strong'    // default 'off' (see "Audio")
+  // video and audio media (v1.1):
+  speed?: number             // playback speed, default 1 (see "Clip speed")
 }
 
 SceneClip extends ItemBase {
@@ -435,6 +439,57 @@ the hint suggests a cover-style transition. Items still never overlap in the mod
 A quick clip is one source range with no handles beyond `sourceRange`, so Stylize and
 the clipper default to cover-style transitions at clip edges (plan D-15).
 
+### Clip speed (v1.1, plan D-62)
+
+A media clip plays its source faster or slower with `speed` (default 1; the field is absent at 1).
+
+- **Range**: 0.25 ≤ `speed` ≤ 4, in steps of 0.01, for a clip on a video track; 0.5 ≤ `speed` ≤ 2
+  for a clip on an audio track, the range where `atempo` keeps the sound within one frame (spike
+  below). Image clips and scenes have no speed.
+- **Source span**: a clip uses the source range `[inMs, inMs + span)` with
+  `span = Math.round(durationMs × speed)`, so the duration rule is
+  `inMs + durationMs × speed ≤` the media duration. Timeline time `t` shows source time
+  `inMs + (t − startMs) × speed`; source time `x` lands at `startMs + (x − inMs) / speed`.
+  `startMs`/`durationMs` stay on the sequence grid and `inMs` on the source grid.
+- **Ops**: every op that touches source offsets uses the span and this mapping: `trimItem` from
+  the start moves `inMs` by the trimmed time × speed, `splitItem` gives the right part
+  `inMs + offset × speed`, and `rippleDelete`, the `replaceMedia` clamp, the fps re-snap and the
+  `NO_HANDLES` check (handles of `durationMs / 2 × speed` in the source) do the same.
+  `setClipSpeed { sequenceId, itemId, speed, unlinked?, onOverlap = 'error' }` keeps `startMs`,
+  `inMs` and the source span, so a slower clip gets longer: `durationMs` = the span / `speed`,
+  snapped, and cut back to the media end if rounding passes it. Linked media clips change with
+  it unless `unlinked`. A longer clip that would overlap the next item fails `OVERLAP` with
+  `onOverlap: 'error'`; `'ripple'` shifts every later item on the clip's tracks and the
+  sync-locked tracks by the change (a shorter clip closes its gap). A sound clip outside
+  0.5–2× fails `VALIDATION` with a hint to unlink it. `speed: 1` removes the field.
+- **Captions and word ranges** (`deriveCaptions`, `removePauses`, `removeWords`) take the words
+  whose midpoint lies in the source span and map them with the formula above, so captions
+  follow the faster or slower speech.
+- **Compile**: a video clip's `<video>` gets `data-playback-rate="<speed>"`;
+  `data-media-start` stays the source offset and `data-duration` the timeline length (the
+  pinned HyperFrames reads the rate in render and in the player). Preview `<audio>` elements get
+  the same attribute (the browser keeps the pitch). `facetrack`/`auto` paths are built on the
+  source span with their keyframe times divided by `speed`; manual keyframes stay item-relative
+  timeline times.
+- **Audio (final mix)**: a sped clip's chain is `atrim` of the source span with a preroll of 1024
+  samples at 48 kHz before `inMs` (silence where the source starts later) → resample →
+  `afftdn` → `atempo=<speed>` → `atrim` to the timeline length → gain-to-target, `volume`,
+  `afade`, `adelay`. ffmpeg's `atempo` drops about its first 1024 input samples, so without the
+  preroll every sped clip sounds early (up to one frame at 0.5×).
+- **Exports**: SRT/VTT follow the derived captions; an OTIO clip keeps its timeline length and
+  gets a `LinearTimeWarp` effect with `time_scalar = speed`. `engine.view` items carry `speed`
+  when it is not 1.
+- **Schema**: `speed` is a new field, so `schemaVersion` is 3. The load-time migration 2 → 3
+  only sets the number (absent `speed` = 1), after the `snapshots/auto-pre-migrate-v2.json`
+  copy. Version 3 is the v1.1 schema; other optional v1.1 fields join it without a second bump.
+  A v1.0 engine refuses a v3 project with `SCHEMA_TOO_NEW` and writes nothing; the snapshot is
+  the way back.
+- **Spike** (plan 14e, `spike/bench/speed.ts`, evidence `docs/evidence/phase-14e/`): HyperFrames
+  0.8.145 renders `data-playback-rate` frame exact (960 of 960 frames at 0.25×, 0.5×, 1×, 2× and
+  4× show the expected source frame). Flash-to-click offset after the mux: max 33.31 ms with plain
+  `atempo` (0.5×), max 9.35 ms with the preroll; isolated `atempo` runs with the preroll stay
+  within ±15 ms for 0.5–2×, and two chained stages below 0.5× reach 53 ms.
+
 ### Base style
 
 The engine ships `styles/base` (format in spec 2) so it works without any other style:
@@ -474,6 +529,7 @@ workflow exposes a small set directly and the rest through `describe_tool`/`call
 | `link`, `unlink` | set or clear `linkId` on items |
 | `setTransition` | set or clear `transitionIn` on an item |
 | `setCaptions` | enable/configure captions, word overrides (including `emphasis`) |
+| `setClipSpeed` | change a media clip's speed; keeps its source range (v1.1, see "Clip speed") |
 | `removePauses` | `{ sequenceId, minPauseMs = 350, keepMs = 80, kinds = ['pause'], wordKeys?, dryRun? }`: cut pauses (and, if `kinds` adds `'filler'` or `'repeat'`, those words) from the spoken audio; `wordKeys` limits the cut to the listed ranges; see below |
 | `removeWords` | `{ sequenceId, wordKeys[], dryRun? }`: text-based cutting; cut the named words from the spoken audio |
 | `pasteItems` | place copied items (serialised items with new ids) at a time on mapped tracks |
@@ -506,7 +562,7 @@ except `inMs` (source ms).
   { sequenceId, name? }` (new ids, link groups kept; reports `sequenceId`),
   `removeSequence { sequenceId }`.
 - `addTrack { sequenceId, kind: 'video' | 'audio', name? }` (next free `V<n>`/`A<n>`, on
-  top), `updateTrack { sequenceId, trackId, name?, locked?, hidden?, muted?, syncLock? }`,
+  top), `updateTrack { sequenceId, trackId, name?, locked?, hidden?, muted?, syncLock?, duck? }`,
   `removeTrack { sequenceId, trackId }` (empty tracks only, else `TRACK_NOT_EMPTY`),
   `reorderTracks { sequenceId, kind, trackIds }` (a permutation).
 - `placeClip { sequenceId, trackId, mediaId, startMs, inMs = 0, durationMs?, withAudio?,
@@ -538,6 +594,8 @@ except `inMs` (source ms).
   "Schema"); `overrides` upserts by `wordKey` and merges the given fields; `resetWords`
   removes overrides; overrides whose `transcriptRev` no longer matches are dropped.
 - `removePauses`, `removeWords` as above; they report `ranges`, dry run or not.
+- `setClipSpeed { sequenceId, itemId, speed, unlinked?, onOverlap = 'error' | 'ripple' }` as in
+  "Clip speed" (v1.1).
 - `pasteItems { sequenceId, atMs, items: { trackId, item }[], trackMap?, onOverlap }`: the
   earliest item lands at `atMs`; ids and `linkId`s are new.
 - `restoreSnapshot { name }`; `batch { ops: { op, args }[] }` (no nested `batch`, no
@@ -743,7 +801,8 @@ Output:
   `V1..Vn` (each followed by its transition layer), style overlays (spec 2), captions.
   Hidden tracks are skipped.
 - Each video-track `MediaClip` becomes a timed, always-muted `<video>` or `<img>`
-  (`data-start`, `data-duration`, `data-media-start`). `preview` uses proxies; `render`
+  (`data-start`, `data-duration`, `data-media-start`, and `data-playback-rate` for a clip
+  with `speed`, see "Clip speed"). `preview` uses proxies; `render`
   uses originals, or the CFR copy (`cfrPath`) for a VFR video (plan D-15). `facetrack`,
   `auto` and `manual` keyframes (see "Shots and framing") become GSAP keyframes on a CSS
   `transform` (translate + scale), not `object-position`, so the crop can zoom; image
@@ -786,7 +845,7 @@ Compile is deterministic: the same project and version produce byte-identical ou
 
 Final audio never goes through HyperFrames. `src/audio/` builds one ffmpeg filter graph
 from the model: every audio-track clip (`atrim` at `inMs`, `afftdn` when `denoise` is
-not `off`, a gain-to-target, `adelay` to `startMs`, `volume`, `afade` for fades), SFX
+not `off`, `atempo` with a preroll for a clip with `speed` (see "Clip speed"), a gain-to-target, `adelay` to `startMs`, `volume`, `afade` for fades), SFX
 cues, track mutes, then `amix` with normalisation off and a limiter, then `loudnorm`
 (two-pass) to the export loudness target integrated and −1.5 dBTP true peak (0.5 dB under
 the audio QA ceiling of −1 dBTP, plan D-32).
@@ -800,7 +859,11 @@ The export loudness target is a preset: `youtube` = −14 LUFS (default), `tikto
 −12 LUFS, `broadcast` = −23 LUFS (`render --loudness`).
 `render` renders the picture with HyperFrames (silent) and muxes it with
 this mix. Audio and picture are both placed from the same frame-grid times, so sync
-does not depend on the browser. Ducking (v1.1) adds `sidechaincompress` per track.
+does not depend on the browser.
+Ducking (v1.1, plan D-61): an audio track with `duck: true` that is not a captions source has its clips
+mixed into one bus, which `sidechaincompress` lowers while the speech bus (the captions source tracks,
+after their gain-to-target, volume and fades) is loud. This sits after each clip's gain-to-target and
+before the final `amix`; speech and SFX are never ducked, and with no speech clip the flag does nothing.
 The same graph can write three stems (speech = audio tracks with captions sources,
 other audio tracks, SFX) as WAV for the audio QA; stems skip `loudnorm`.
 

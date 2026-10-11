@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | waiting: draft Release v1.0.0 to publish (step 9), owner install (step 10), merge by the orchestrator |
+| Status | merged (ee82856); Release v1.0.0 published; waiting: GUI install checks (screen locked), OpenRouter key |
 | Started · Finished | 2026-10-12 · — |
 | Model | Opus 5.5 · high (phase agent, no subagents) |
 | Machine | M5, macOS 27 |
@@ -50,9 +50,9 @@ self-test tests → renderer component tests (panel, cards, settings) → E2E (m
 - [ ] 7b Deferred live checks — keyless providers done by the AI (phase 11 and 12 logs); OpenRouter open
 - [x] 8 Version 1.0.0, `pnpm dist`, release notes (`docs/release-notes/v1.0.0.md`)
 - [x] 8b Fresh-clone check (PASS, see "Verify results")
-- [ ] 9 GitHub Release v1.0.0: draft created by the AI (target `f808c24`, asset `Vox-Studio-1.0.0-arm64.dmg`
+- [x] 9 GitHub Release v1.0.0 (published by the orchestrator): draft created by the AI (target `f808c24`, asset `Vox-Studio-1.0.0-arm64.dmg`
       196822622 bytes, SHA-256 `0b1b8e14…f68d56c`); the orchestrator publishes it
-- [ ] 10 Owner install from the Release (orchestrator / owner)
+- [~] 10 Owner install from the Release: CLI stand-in done (checklist below); GUI checks open
 
 ## Files created / changed
 - Engine host (`apps/desktop/src/engine-host/`): `settings.ts` (new: settings IPC, Keychain, probes, roles,
@@ -155,10 +155,28 @@ phase touches (S1, S17, S18, S32, S33, S34, D-15 rows).
 4. (Owner, step 10) Install from the Release page following the README only; fill the checklist below.
 
 ## Owner install (step 10) checklist
-- [ ] Downloaded `Vox-Studio-1.0.0-arm64.dmg` from the Release page in a browser
-- [ ] Dragged to Applications; first launch blocked; Open Anyway in Privacy & Security worked
-- [ ] Setup screen: Install all finished; self-test green
-- [ ] Quick clips from a URL; one clip exported and played
+Done by the orchestrator on 2026-10-12 (owner delegation, D-58). The screen was locked, so the GUI could
+not be captured or driven; each stand-in is named below. The GUI items stay open.
+- [~] Downloaded `Vox-Studio-1.0.0-arm64.dmg` from the published Release: fetched with `curl`, not a
+      browser (the built-in browser pane does not save downloads). Size 196822622 bytes and SHA-256
+      `0b1b8e14…f68d56c` match the Release asset. A `com.apple.quarantine` attribute was set by hand to
+      stand in for the browser one.
+- [~] Copied to `/Applications` from the mounted .dmg (`ditto`, not a Finder drag); quarantine carried
+      over and `spctl` rejected the app ("no usable signature"), as expected for an ad-hoc build. The
+      README Terminal step (`xattr -dr com.apple.quarantine`) cleared it; `codesign --verify --strict` ok.
+      "Open Anyway" in Privacy & Security not tried (screen locked).
+- [~] Launched with `open -a` (default homes). Not a fresh home: `~/.vox` and the default tools dir
+      already existed. On launch the app re-synced the Python env (new `.vox-src-hash` stamp, D-57).
+      Setup screen not seen. Installed `vox doctor --quick`: every check ok; `vox self-test`: every
+      check ok (incl. apple-helper ready, 52 agent tools).
+- [~] Quick clip from the test URL (`https://www.youtube.com/watch?v=rtcMRI3ARck`) with the installed
+      build's own CLI (`Contents/Resources/cli/vox quick … --count 1 --length 30-60 --render`), not the
+      GUI: exit 0, 4:27 wall (05:57:16 to 06:01:43), heuristic scorer. Clip 1 = 122.7–160.2 s of the
+      source; MP4 1080x1920, 30 fps, 37.5 s, -14.1 LUFS, cropdetect full frame (no bands), captions
+      burned (mono, keyword bold) and an SRT. Evidence: `docs/evidence/phase-13/10-installed-quick-clip-sheet.jpg`,
+      `10-installed-quick-clip.srt`.
+- [ ] GUI: Setup, Install all on a fresh home; quick clip and export in the app; agent panel "Make clips
+      from URL", 3 tabs, play, trim, export (needs the screen unlocked).
 
 ## Handoff notes
 - Phase 14 (Claude Code skill): `workflows/*.md` are staged into `Resources/agent/workflows`; call

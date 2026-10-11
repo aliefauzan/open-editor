@@ -24,7 +24,8 @@ const OP_DESCRIPTIONS: Readonly<Record<OpName, string>> = {
   duplicateSequence: 'Copy a sequence with all its tracks and items.',
   removeSequence: 'Remove a sequence.',
   addTrack: 'Add a video (V) or audio (A) track to a sequence.',
-  updateTrack: 'Lock, hide, mute or change a track.',
+  updateTrack:
+    'Lock, hide, mute or rename a track; duck: true lowers an audio track under the speech tracks.',
   removeTrack: 'Remove an empty track.',
   reorderTracks: 'Reorder the video or audio tracks of a sequence.',
   placeClip: 'Place a media clip on a track (with its linked audio when withAudio).',

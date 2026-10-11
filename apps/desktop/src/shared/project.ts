@@ -105,6 +105,8 @@ export interface Track {
   hidden: boolean;
   muted: boolean;
   syncLock: boolean;
+  /** Audio tracks only: lowered under the speech tracks in the mix (plan 14f). */
+  duck?: boolean;
   items: Item[];
 }
 
