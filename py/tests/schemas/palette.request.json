@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/palette.request",
+  "title": "vox_py.palette request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["videoPath", "atMs"],
+  "properties": {
+    "videoPath": { "type": "string", "minLength": 1 },
+    "atMs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": { "type": "integer", "minimum": 0 }
+    },
+    "ffmpeg": { "type": "string", "minLength": 1 },
+    "ffprobe": { "type": "string", "minLength": 1 },
+    "formatWhitelist": { "type": "string", "minLength": 1 },
+    "k": { "type": "integer", "minimum": 2, "maximum": 16 },
+    "shortSide": { "type": "integer", "minimum": 16, "maximum": 256 }
+  }
+}

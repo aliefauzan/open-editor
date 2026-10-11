@@ -167,6 +167,58 @@ describe('make.sh', () => {
     expect(md5(179)).not.toBe(md5(180));
   });
 
+  test('style-extract-10s.mp4 is 10 s 1080x1920 with its truth file (phase 15)', () => {
+    const p = probe(out('style-extract-10s.mp4'));
+    expect(video(p)[0]).toMatchObject({ width: 1080, height: 1920, r_frame_rate: '30/1' });
+    expect(audio(p)).toHaveLength(0);
+    expect(Number(p.format.duration)).toBeCloseTo(10, 0);
+    const truth = JSON.parse(readFileSync(out('style-extract-10s.truth.json'), 'utf8')) as {
+      cutsMs: number[];
+      captions: { text: string }[];
+    };
+    expect(truth.cutsMs).toEqual([2000, 4500, 7000]);
+    expect(truth.captions.map((c) => c.text)).toEqual([
+      'EMPIRES RISE FAST',
+      'BORDERS MOVE TOO',
+      'MAPS TELL STORIES',
+    ]);
+  });
+
+  test('style-extract-10s.mp4 shows each flat shot colour and a caption box at 75 % height', () => {
+    // one pixel at (40, 40) in the middle of each shot, and the caption box centre at 1 s
+    const px = (t: number, x: number, y: number) =>
+      [
+        ...execFileSync('ffmpeg', [
+          '-nostdin',
+          '-v',
+          'error',
+          '-ss',
+          String(t),
+          '-i',
+          out('style-extract-10s.mp4'),
+          '-vf',
+          `crop=1:1:${x}:${y},format=rgb24`,
+          '-frames:v',
+          '1',
+          '-f',
+          'rawvideo',
+          '-',
+        ]),
+      ];
+    const near = (a: number[], hex: string) => {
+      const b = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      return a.every((v, i) => Math.abs(v - b[i]!) <= 12);
+    };
+    expect(near(px(1, 40, 40), '#D7261E')).toBe(true);
+    expect(near(px(3.2, 40, 40), '#1D4FA0')).toBe(true);
+    expect(near(px(5.7, 40, 40), '#F5C518')).toBe(true);
+    expect(near(px(8.5, 40, 40), '#EDE8DF')).toBe(true);
+    // the box edge (left of the text), dark grey
+    expect(Math.max(...px(1, 80, 1440))).toBeLessThan(60);
+    // between captions (3.2 s) the box is gone
+    expect(near(px(3.2, 80, 1440), '#1D4FA0')).toBe(true);
+  });
+
   test('podcast-2face.mp4 is 12 s of 1080p', () => {
     const p = probe(out('podcast-2face.mp4'));
     expect(video(p)[0]).toMatchObject({ width: 1920, height: 1080 });

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/ocr.request",
+  "title": "vox_py.ocr request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["videoPath"],
+  "properties": {
+    "videoPath": { "type": "string", "minLength": 1 },
+    "ffmpeg": { "type": "string", "minLength": 1 },
+    "ffprobe": { "type": "string", "minLength": 1 },
+    "formatWhitelist": { "type": "string", "minLength": 1 },
+    "fps": { "type": "number", "minimum": 0.5, "maximum": 8 },
+    "shortSide": { "type": "integer", "minimum": 160, "maximum": 1080 },
+    "minConfidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

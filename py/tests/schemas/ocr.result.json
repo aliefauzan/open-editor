@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/ocr.result",
+  "title": "vox_py.ocr result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fps", "width", "height", "durationMs", "frames", "static", "captions", "summary"],
+  "$defs": {
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "w": { "type": "number", "minimum": 0, "maximum": 1 },
+        "h": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "case": { "enum": ["upper", "lower", "asis"] }
+  },
+  "properties": {
+    "fps": { "type": "number", "exclusiveMinimum": 0 },
+    "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["atMs", "lines"],
+        "properties": {
+          "atMs": { "type": "integer", "minimum": 0 },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["text", "box", "confidence"],
+              "properties": {
+                "text": { "type": "string" },
+                "box": { "$ref": "#/$defs/box" },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "static": { "type": "array", "items": { "type": "string" } },
+    "captions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "box", "startMs", "endMs", "reveal", "words", "case"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "box": { "$ref": "#/$defs/box" },
+          "startMs": { "type": "integer", "minimum": 0 },
+          "endMs": { "type": "integer", "minimum": 0 },
+          "reveal": { "type": "boolean" },
+          "words": { "type": "integer", "minimum": 0 },
+          "case": { "$ref": "#/$defs/case" }
+        }
+      }
+    },
+    "summary": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["detected", "captionCount"],
+          "properties": {
+            "detected": { "const": false },
+            "captionCount": { "const": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "detected",
+            "captionCount",
+            "wordsPerCaption",
+            "yPct",
+            "case",
+            "revealShare",
+            "medianCaptionMs"
+          ],
+          "properties": {
+            "detected": { "const": true },
+            "captionCount": { "type": "integer", "minimum": 1 },
+            "wordsPerCaption": { "type": "number", "minimum": 0 },
+            "yPct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "case": { "$ref": "#/$defs/case" },
+            "revealShare": { "type": "number", "minimum": 0, "maximum": 1 },
+            "medianCaptionMs": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    }
+  }
+}
