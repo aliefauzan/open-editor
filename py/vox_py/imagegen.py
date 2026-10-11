@@ -42,7 +42,7 @@ MODELS: dict[str, dict] = {
     },
     "flux1-schnell": {
         "repo": "black-forest-labs/FLUX.1-schnell",
-        "revision": None,
+        "revision": "741f7c3ce8b383c54771c7003378a50191e9efe9",
         "steps": 4,
         "patterns": [
             "model_index.json",
