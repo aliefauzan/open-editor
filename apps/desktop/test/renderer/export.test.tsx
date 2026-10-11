@@ -184,6 +184,27 @@ describe('export dialog (A4)', () => {
     await waitFor(() => expect(s.revealed).toEqual(['/out/Editor - Main.mp4']));
   });
 
+  it('FCPXML option starts exportTimeline with format fcpxml; OTIO keeps the default', async () => {
+    const { s } = await setup();
+    fireEvent.click(screen.getByLabelText('MP4 video'));
+    fireEvent.click(screen.getByLabelText('SRT captions'));
+    fireEvent.click(screen.getByLabelText('Final Cut Pro timeline (FCPXML)'));
+    fireEvent.click(exportBtn());
+    await waitFor(() => expect(s.jobs.map((j) => j.kind)).toEqual(['exportTimeline']));
+    expect(s.jobs[0]!.args).toMatchObject({
+      sequenceId: 'seq_main',
+      format: 'fcpxml',
+      targetId: 't_last',
+    });
+    fireEvent.click(screen.getByLabelText('Editable timeline (OTIO)'));
+    fireEvent.click(exportBtn());
+    await waitFor(() => expect(s.jobs).toHaveLength(3));
+    expect(s.jobs.slice(1).map((j) => (j.args as { format?: string }).format)).toEqual([
+      undefined,
+      'fcpxml',
+    ]);
+  });
+
   it('helpers: check numbers and the qa.png URL', () => {
     expect(checkNumbers(FAIL_QA.checks[0] as never)).toBe(
       'integratedLufs -20.1, targetLufs -14, deltaLu -6.1',

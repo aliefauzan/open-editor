@@ -20,7 +20,10 @@
       "required": ["output", "name", "rate", "tracks"],
       "properties": {
         "mode": { "const": "write" },
-        "output": { "type": "string", "pattern": "\\.otio$" },
+        "format": { "enum": ["otio", "fcpxml"] },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "output": { "type": "string", "pattern": "\\.(otio|fcpxml)$" },
         "name": { "type": "string" },
         "rate": { "$ref": "#/$defs/rate" },
         "tracks": {
@@ -45,6 +48,7 @@
                     "durationFrames": { "type": "integer", "minimum": 1 },
                     "sourceFrame": { "type": "integer", "minimum": 0 },
                     "sourceDurationFrames": { "type": "integer", "minimum": 1 },
+                    "mediaDurationFrames": { "type": "integer", "minimum": 1 },
                     "mediaRate": { "$ref": "#/$defs/rate" }
                   }
                 }
