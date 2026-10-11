@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from conftest import run_tool, stderr_error, validate
+
 from vox_py import imagegen
 
 
@@ -23,16 +24,21 @@ def test_plan_size_keeps_a_small_request_usable():
 
 
 def test_unknown_action_and_fields_are_refused(tmp_path):
-    code, _, stderr = run_tool("imagegen", {"action": "dance", "model": "z-image-turbo", "modelDir": str(tmp_path)})
+    code, _, stderr = run_tool(
+        "imagegen", {"action": "dance", "model": "z-image-turbo", "modelDir": str(tmp_path)}
+    )
     assert code == 1 and stderr_error(stderr)["code"] == "INVALID_REQUEST"
     code, _, stderr = run_tool(
-        "imagegen", {"action": "generate", "model": "z-image-turbo", "modelDir": str(tmp_path), "x": 1}
+        "imagegen",
+        {"action": "generate", "model": "z-image-turbo", "modelDir": str(tmp_path), "x": 1},
     )
     assert code == 1 and stderr_error(stderr)["code"] == "INVALID_REQUEST"
 
 
 def test_unknown_model_is_refused(tmp_path):
-    code, _, stderr = run_tool("imagegen", {"action": "generate", "model": "sdxl", "modelDir": str(tmp_path)})
+    code, _, stderr = run_tool(
+        "imagegen", {"action": "generate", "model": "sdxl", "modelDir": str(tmp_path)}
+    )
     assert code == 1 and stderr_error(stderr)["code"] == "INVALID_REQUEST"
 
 

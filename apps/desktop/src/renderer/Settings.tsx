@@ -298,7 +298,6 @@ function ImageGenSection(props: { data: ImageGenData; reload(): Promise<void> })
   const status = row?.status;
   useEffect(() => {
     if (status && status !== 'running') void props.reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
   if (!model) return null;
   const running = row?.status === 'running';

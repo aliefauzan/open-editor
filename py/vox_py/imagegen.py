@@ -84,7 +84,7 @@ def plan_size(width: int, height: int) -> tuple[int, int]:
         scale *= MIN_SIDE / short
 
     def snap(v: float) -> int:
-        return max(MULTIPLE, int(round(v * scale / MULTIPLE)) * MULTIPLE)
+        return max(MULTIPLE, round(v * scale / MULTIPLE) * MULTIPLE)
 
     return snap(width), snap(height)
 
@@ -114,7 +114,7 @@ class _Progress:
         self.done = 0
         self.last = 0.0
 
-    def tqdm_class(self):  # noqa: ANN201 - returns a class
+    def tqdm_class(self):
         from tqdm.auto import tqdm
 
         outer = self
@@ -169,11 +169,17 @@ def _install(req: dict) -> dict:
             tqdm_class=bar.tqdm_class(),
         )
     except (GatedRepoError, RepositoryNotFoundError) as exc:
-        raise _tool.ToolError("MODEL_GATED", f"{spec['repo']} needs access: {_gated_hint(req['model'])}") from exc
+        raise _tool.ToolError(
+            "MODEL_GATED", f"{spec['repo']} needs access: {_gated_hint(req['model'])}"
+        ) from exc
     except HfHubHTTPError as exc:
-        raise _tool.ToolError("NETWORK", f"download failed: {exc}. {_gated_hint(req['model'])}") from exc
+        raise _tool.ToolError(
+            "NETWORK", f"download failed: {exc}. {_gated_hint(req['model'])}"
+        ) from exc
     except OSError as exc:
-        raise _tool.ToolError("NETWORK", f"download failed: {exc}. {_gated_hint(req['model'])}") from exc
+        raise _tool.ToolError(
+            "NETWORK", f"download failed: {exc}. {_gated_hint(req['model'])}"
+        ) from exc
 
     _tool.progress(0.72, "quantizing")
     tmp = model_dir.parent / (model_dir.name + ".part")
@@ -201,7 +207,7 @@ def _dir_bytes(path: Path) -> int:
     return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
 
 
-def _load(model: str, path: str, quantize: int | None = None):  # noqa: ANN202
+def _load(model: str, path: str, quantize: int | None = None):
     if model == "z-image-turbo":
         from mflux.models.z_image.variants.z_image import ZImage
 
