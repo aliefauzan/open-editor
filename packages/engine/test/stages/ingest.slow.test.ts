@@ -3,8 +3,9 @@
 // derived files (audio, thumbs sprite, peaks), and a link through the fake yt-dlp (post count,
 // cache reuse).
 
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { MediaItemSchema, type MediaItem } from '../../src/model/schema.ts';
@@ -90,6 +91,22 @@ describe('ingest video (slow)', () => {
     },
   );
 
+  test('progress moves with each ffmpeg step (labels, never backwards)', async () => {
+    const dir = await project();
+    const seen: { p: number; m: string | undefined }[] = [];
+    await ingest(env(dir, { progress: (p, m) => seen.push({ p, m }) }), {
+      projectId: 'p',
+      inputs: [HEAD],
+    });
+    const labels = new Set(seen.map((s) => s.m));
+    for (const l of ['Analysing', 'Making proxy', 'Extracting audio']) expect(labels).toContain(l);
+    for (let i = 1; i < seen.length; i++) expect(seen[i]!.p).toBeGreaterThanOrEqual(seen[i - 1]!.p);
+    // ffmpeg -progress reports inside the proxy step, not only at its end.
+    const proxy = seen.filter((s) => s.m === 'Making proxy').map((s) => s.p);
+    expect(new Set(proxy).size).toBeGreaterThan(2);
+    expect(seen.at(-1)!.p).toBeGreaterThan(0.9);
+  });
+
   test('phone VFR gets a CFR copy; the proxy is made from it', async () => {
     const dir = await project();
     const { media } = await ingest(env(dir), { projectId: 'p', inputs: [VFR] });
@@ -97,6 +114,39 @@ describe('ingest video (slow)', () => {
     expect(m.vfr).toBe(true);
     expect(m.cfrPath).toBe(`media/${m.id}.cfr.mp4`);
     expect(existsSync(join(dir, m.cfrPath!))).toBe(true);
+  });
+
+  test('a failed hardware CFR encode falls back to libx264', async () => {
+    const dir = await project();
+    // ffmpeg that refuses h264_videotoolbox (a build that lists it on a machine without it).
+    const bin = join(root, 'ffmpeg-no-vt');
+    const real = execFileSync('which', ['ffmpeg'], { encoding: 'utf8' });
+    const ffmpeg = real.trim();
+    await writeFile(
+      bin,
+      `#!/bin/sh\ncase "$*" in *h264_videotoolbox*-q:v*) echo no hardware >&2; exit 1 ;; esac\nexec '${ffmpeg}' "$@"\n`,
+    );
+    await chmod(bin, 0o755);
+    const seen: (string | undefined)[] = [];
+    const { media } = await ingest(
+      env(dir, { tools: { ffmpeg: bin }, progress: (_p, m) => seen.push(m) }),
+      { projectId: 'p', inputs: [VFR] },
+    );
+    const m = media[0]!.media;
+    expect(m.cfrPath).toBe(`media/${m.id}.cfr.mp4`);
+    const { stdout } = await runTool('ffprobe', [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=codec_name,r_frame_rate',
+      '-of',
+      'csv=p=0',
+      join(dir, m.cfrPath!),
+    ]);
+    expect(stdout.trim()).toBe('h264,30000/1001');
+    expect(seen).toContain('Converting frame rate');
   });
 
   test('NTSC keeps 30000/1001; proxies:false skips proxy, thumbs and peaks but keeps the m4a', async () => {
