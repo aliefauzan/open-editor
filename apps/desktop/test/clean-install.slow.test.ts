@@ -113,7 +113,9 @@ describe('clean install from the quarantined .dmg (D-16)', () => {
             new Promise<string>((r) => setTimeout(() => r('status: no answer in 60 s'), 60_000)),
           ]),
         );
-        rec('setup not ready', `${probe}\n${a.stderr().slice(-3000)}`);
+        // what the doctor is still waiting on (child processes under the temp folder)
+        const procs = spawnSync('/usr/bin/pgrep', ['-fl', root], { encoding: 'utf8' }).stdout;
+        rec('setup not ready', `${probe}\n${procs}\n${a.stderr().slice(-3000)}`);
         throw e;
       });
       for (const id of ['uv', 'deno', 'yt-dlp', 'python-env', 'chrome', 'ffmpeg'])

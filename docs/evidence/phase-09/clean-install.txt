@@ -1,5 +1,5 @@
 $ xattr -p com.apple.quarantine <tmp>/Vox-Studio.dmg  (exit 0)
-0083;6acb4f3a;Safari;
+0083;6acb5422;Safari;
 
 $ xattr -p com.apple.quarantine <tmp>/Applications/Vox Studio.app  (exit 0)
 0083;00000000;;
@@ -10,22 +10,22 @@ $ spctl --assess --type execute -vv <tmp>/Applications/Vox Studio.app  (exit 3)
 $ codesign --verify --deep --strict -vv <tmp>/Applications/Vox Studio.app  (exit 0)
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Renderer).app
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (GPU).app
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Renderer).app
+--prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
+--prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Squirrel.framework/Versions/Current/.
 --validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (GPU).app
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Renderer).app
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
+--prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/ReactiveObjC.framework/Versions/Current/.
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Squirrel.framework/Versions/Current/.
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/ReactiveObjC.framework/Versions/Current/.
+--prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper.app
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper.app
+--prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Plugin).app
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Plugin).app
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/.
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/Helpers/chrome_crashpad_handler
 --validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/Helpers/chrome_crashpad_handler
 --validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/.
---prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Plugin).app
---prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Squirrel.framework/Versions/Current/.
---prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Plugin).app
---prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper.app
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Squirrel.framework/Versions/Current/.
---prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/ReactiveObjC.framework/Versions/Current/.
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper.app
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/ReactiveObjC.framework/Versions/Current/.
 <tmp>/Applications/Vox Studio.app: valid on disk
 <tmp>/Applications/Vox Studio.app: satisfies its Designated Requirement
 
