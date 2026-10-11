@@ -159,8 +159,8 @@ clips!
         }
         .t-box {
           position: absolute;
-          left: 8%;
-          right: 8%;
+          left: 12%;
+          right: 12%;
           top: 30%;
           bottom: 30%;
           display: flex;
@@ -265,8 +265,8 @@ clips!
         }
         .o-band {
           position: absolute;
-          left: 8%;
-          right: 8%;
+          left: 10%;
+          right: 10%;
           display: flex;
           justify-content: center;
         }

@@ -34,10 +34,10 @@ import { checkRelativePath } from '../paths.ts';
 import { cropSize } from '../stages/facetrack.ts';
 import { registryTemplateLookup } from '../styles/lookup.ts';
 import type { ResolvedStyle, StyleRegistry, TemplateDef } from '../styles/registry.ts';
-import { captionSafeArea } from '../styles/schema.ts';
+import { captionSafeArea, variablesValidator } from '../styles/schema.ts';
 import { tokensCss } from '../styles/tokens.ts';
 import { facesFor, fontFaceCss, type FontFace } from './fonts.ts';
-import { runHook } from './hooks.ts';
+import { runHook, runMigrate } from './hooks.ts';
 
 export type CompileMode = 'preview' | 'render';
 
@@ -285,7 +285,7 @@ function emitInstance(
   return '';
 }
 
-function requireDef(ctx: Ctx, templateId: string, itemId: string, version?: string): TemplateDef {
+function requireDef(ctx: Ctx, templateId: string, itemId: string): TemplateDef {
   const def = ctx.input.registry.template(templateId);
   if (!def) {
     throw new VoxError(
@@ -295,15 +295,45 @@ function requireDef(ctx: Ctx, templateId: string, itemId: string, version?: stri
       { details: { template: templateId, itemId } },
     );
   }
-  if (version !== undefined && majorOf(version) !== majorOf(def.version)) {
+  return def;
+}
+
+function versionError(def: TemplateDef, itemId: string, placed: string): VoxError {
+  return new VoxError(
+    'TEMPLATE_VERSION',
+    `${itemId} was placed with ${def.id} ${placed}; the installed version is ${def.version}`,
+    'Re-place the scene with the installed template (its variables may have changed)',
+    { details: { template: def.id, itemId, placed, installed: def.version } },
+  );
+}
+
+/**
+ * A scene's variables for the installed template. Across a major version they go through the
+ * template's `migrate(variables, fromVersion)` export (trusted styles only, S8; an untrusted hook is
+ * never loaded: `HOOK_UNTRUSTED`); without one, `TEMPLATE_VERSION`. Migrated variables must match
+ * the installed variables schema (`VARIABLES_INVALID`).
+ */
+async function placedVariables(
+  ctx: Ctx,
+  s: SceneClip,
+): Promise<{ def: TemplateDef; vars: Record<string, unknown> }> {
+  const def = requireDef(ctx, s.template, s.id);
+  const placed = s.templateVersion;
+  if (placed === undefined || majorOf(placed) === majorOf(def.version)) {
+    return { def, vars: s.variables };
+  }
+  const migrated = await runMigrate(def, s.variables, placed);
+  if (migrated === undefined) throw versionError(def, s.id, placed);
+  const validate = variablesValidator(def.variables as Record<string, unknown>);
+  if (!validate(migrated)) {
     throw new VoxError(
-      'TEMPLATE_VERSION',
-      `${itemId} was placed with ${templateId} ${version}; the installed version is ${def.version}`,
-      'Re-place the scene with the installed template (its variables may have changed)',
-      { details: { template: templateId, itemId, placed: version, installed: def.version } },
+      'VARIABLES_INVALID',
+      `${s.id}: variables migrated from ${def.id} ${placed} do not match ${def.version}`,
+      'Fix migrate() in the template hook, or re-place the scene',
+      { details: { template: def.id, itemId: s.id, placed, errors: validate.errors ?? [] } },
     );
   }
-  return def;
+  return { def, vars: migrated };
 }
 
 function mapSlot(v: unknown, segs: string[], fn: (x: unknown) => unknown): unknown {
@@ -401,8 +431,9 @@ async function panelHosts(
 }
 
 async function sceneHost(ctx: Ctx, s: SceneClip, trackIndex: number): Promise<string> {
-  const def = requireDef(ctx, s.template, s.id, s.templateVersion);
-  const vars = await sceneVars(ctx, def, s.id, s.variables, s.durationMs);
+  const placed = await placedVariables(ctx, s);
+  const def = placed.def;
+  const vars = await sceneVars(ctx, def, s.id, placed.vars, s.durationMs);
   const panels = await panelHosts(ctx, def, s, s.durationMs);
   const src = emitInstance(
     ctx,

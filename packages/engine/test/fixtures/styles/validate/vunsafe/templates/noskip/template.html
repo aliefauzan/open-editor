@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #202020;
+        }
+        .p-card {
+          position: absolute;
+          left: 20%;
+          right: 20%;
+          top: 20%;
+          height: 20%;
+          background: #3060c0;
+        }
+        .p-dot {
+          position: absolute;
+          left: 30%;
+          top: 45%;
+          width: 400px;
+          height: 400px;
+          background: #ffffff;
+          opacity: 0;
+        }
+        .p-label {
+          position: absolute;
+          left: 20%;
+          right: 20%;
+          top: 70%;
+          color: #ffffff;
+          font: 700 60px var(--tok-font-display);
+          text-align: center;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="p-card"></div>
+        <div class="p-dot"></div>
+        <div class="p-label"></div>
+      </div>
+      <script>
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var v = mount.vars;
+          root.querySelector('.p-label').textContent = v.label;
+          var card = root.querySelector('.p-card');
+          var dot = root.querySelector('.p-dot');
+          var skip = false;
+          var tl = gsap.timeline({ paused: true });
+          if (!skip) {
+            tl.fromTo(
+              card,
+              { y: 300, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.4, ease: 'none' },
+              0,
+            );
+          }
+          tl.set(dot, { opacity: 1 }, skip ? 0 : 0.5);
+          window.__timelines[mount.key] = mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

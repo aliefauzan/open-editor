@@ -1,0 +1,49 @@
+{
+  "columns": 6,
+  "cells": [
+    {
+      "kind": "scene",
+      "template": "base/placeholder",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "base/placeholder",
+      "fixture": "short"
+    },
+    {
+      "kind": "scene",
+      "template": "base/text-overlay",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "base/text-overlay",
+      "fixture": "name"
+    },
+    {
+      "kind": "scene",
+      "template": "base/title",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "base/title",
+      "fixture": "short"
+    },
+    {
+      "kind": "transition",
+      "template": "base/crossfade",
+      "fixture": "(cut)"
+    },
+    {
+      "kind": "transition",
+      "template": "base/dip-to-black",
+      "fixture": "(cut)"
+    },
+    {
+      "kind": "caption",
+      "preset": "base/plain"
+    }
+  ]
+}
