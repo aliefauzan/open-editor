@@ -3,11 +3,12 @@
 // answer NOT_AVAILABLE (rpc.ts). Main-only methods (dialogs, reveal) never reach the host.
 import { classifyUrl, type Engine, type OpCall } from '@vox/engine';
 import { projectDirFor, resolveProjectPath } from '@vox/engine/paths';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import type { EventName, Method, MethodArgs, SetupStatusData } from '../shared/api.ts';
 import { join } from 'node:path';
 import type { AppSetup } from './app-setup.ts';
 import type { PreviewPipeline } from './preview.ts';
+import { APP_JOB_KINDS, type AppJobs } from './quick.ts';
 import type { Handlers } from './rpc.ts';
 import { watchProject } from './watch.ts';
 
@@ -23,6 +24,50 @@ export interface EditorHost {
   preview?: PreviewPipeline;
   /** Watch the open project's folder for external edits (default true when `preview` is set). */
   watch?: boolean;
+  /** App jobs beside the engine's runner (`makeClips`, phase 10b). */
+  appJobs?: AppJobs;
+}
+
+type ProjectMedia = Awaited<ReturnType<Engine['getProject']>>['media'][number];
+
+/** Media whose file is gone from disk (moved or deleted): the timeline shows them offline. */
+async function offlineMedia(dir: string, media: readonly ProjectMedia[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const m of media) {
+    try {
+      await access(await resolveProjectPath(dir, m.path));
+    } catch {
+      out.push(m.id);
+    }
+  }
+  return out;
+}
+
+/** The media bin search: names, tags, descriptions and transcript text (app spec "Media bin"). */
+async function searchMedia(dir: string, media: readonly ProjectMedia[], q: string) {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return media.map((m) => m.id);
+  const hits: string[] = [];
+  for (const m of media) {
+    const fields = [m.path.split('/').pop() ?? '', m.origin.url ?? '', m.description ?? '', ...m.tags];
+    let found = fields.some((x) => x.toLowerCase().includes(needle));
+    if (!found && m.transcriptPath) {
+      try {
+        const t = JSON.parse(
+          await readFile(await resolveProjectPath(dir, m.transcriptPath), 'utf8'),
+        ) as { words?: { text?: string }[] };
+        found = (t.words ?? [])
+          .map((w) => w.text ?? '')
+          .join(' ')
+          .toLowerCase()
+          .includes(needle);
+      } catch {
+        found = false;
+      }
+    }
+    if (found) hits.push(m.id);
+  }
+  return hits;
 }
 
 export function createHandlers(
@@ -32,6 +77,8 @@ export function createHandlers(
 ): Handlers {
   const user = { actor: 'user' as const };
   const preview = editor.preview;
+  const appJobs = editor.appJobs;
+  const isAppKind = (k: string) => (APP_JOB_KINDS as readonly string[]).includes(k);
   const watching = { id: '', stop: () => undefined as void };
   const watchOpen = (id: string) => {
     if (!(editor.watch ?? preview !== undefined) || watching.id === id) return;
@@ -45,7 +92,8 @@ export function createHandlers(
     'projects.open': async (id: A<'projects.open'>[0]) => {
       const project = await engine.getProject(id);
       watchOpen(id);
-      return { project, version: project.version };
+      const offline = await offlineMedia(projectDirFor(engine.projectsDir, id), project.media);
+      return { project, version: project.version, offline };
     },
     'ops.apply': async (a: A<'ops.apply'>[0]) => {
       preview?.noteOp(a.projectId, a.coalesceKey);
@@ -76,10 +124,25 @@ export function createHandlers(
       return JSON.parse(await readFile(file, 'utf8')) as unknown;
     },
     'media.classifyUrl': async (url: A<'media.classifyUrl'>[0]) => classifyUrl(url),
+    // a link (YouTube, Instagram, TikTok, any yt-dlp URL); plain text never starts a job
+    'media.importUrl': async (id: A<'media.importUrl'>[0], url: A<'media.importUrl'>[1]) => {
+      if (classifyUrl(url) === 'invalid') {
+        throw {
+          code: 'VALIDATION',
+          message: 'That is not a link',
+          hint: 'Paste an http(s) link from YouTube, Instagram or TikTok, or choose a file.',
+        };
+      }
+      return { jobId: engine.jobs.start('ingest', { projectId: id, inputs: [url] }) };
+    },
+    'media.search': async (id: A<'media.search'>[0], q: A<'media.search'>[1]) =>
+      searchMedia(projectDirFor(engine.projectsDir, id), (await engine.getProject(id)).media, q),
     'jobs.start': async (kind: A<'jobs.start'>[0], args: A<'jobs.start'>[1]) =>
-      engine.jobs.start(kind, args),
-    'jobs.get': async (id: A<'jobs.get'>[0]) => engine.jobs.get(id),
-    'jobs.cancel': async (id: A<'jobs.cancel'>[0]) => engine.jobs.cancel(id),
+      appJobs && isAppKind(kind) ? appJobs.start(kind, args) : engine.jobs.start(kind, args),
+    'jobs.get': async (id: A<'jobs.get'>[0]) =>
+      appJobs?.has(id) ? appJobs.get(id) : engine.jobs.get(id),
+    'jobs.cancel': async (id: A<'jobs.cancel'>[0]) =>
+      appJobs?.has(id) ? appJobs.cancel(id) : engine.jobs.cancel(id),
     'preview.url': async (id: A<'preview.url'>[0], seq: A<'preview.url'>[1]) => {
       if (preview) return preview.open(id, seq);
       const build = await engine.compile(id, seq, { mode: 'preview' });
