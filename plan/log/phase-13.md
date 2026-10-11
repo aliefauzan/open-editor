@@ -35,10 +35,10 @@ Test order: settings host tests (S18, S33) → agent host tests (pauses, decide,
 self-test tests → renderer component tests (panel, cards, settings) → E2E (mock model) → packaging.
 
 ## Checklist
-- [ ] 1 Settings IPC tests (S18) + host
-- [ ] 1b Cookies toggle (S33)
-- [ ] 1c self-test hard checks + packaging (`dist:no-apple`, SDK check)
-- [ ] 2 Agent panel component tests + UI
+- [x] 1 Settings IPC tests (S18) + host
+- [x] 1b Cookies toggle (S33)
+- [x] 1c self-test hard checks + packaging (`dist:no-apple`, SDK check)
+- [x] 2 Agent panel component tests + UI
 - [ ] 3 E2E mock agent run, Add style beats
 - [ ] 3b E2E D-15 (plan card, tighten card, marker + user trim, todos)
 - [ ] 4 UI gate screenshots
