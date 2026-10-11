@@ -39,6 +39,11 @@
     {
       "kind": "scene",
       "template": "vox/paper-collage",
+      "fixture": "clipping"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
       "fixture": "dark-single"
     },
     {
@@ -50,6 +55,11 @@
       "kind": "scene",
       "template": "vox/paper-collage",
       "fixture": "two"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "vhs"
     },
     {
       "kind": "scene",

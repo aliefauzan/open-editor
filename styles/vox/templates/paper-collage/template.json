@@ -1,14 +1,19 @@
 {
   "name": "paper-collage",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "kind": "scene",
-  "description": "One to six archive cutouts scattered on warm paper, each with a red outline, popping in one after another while the camera slowly pushes in, with an optional serif label on a yellow tag. Like the Bengaluru collage in the reference reel.",
+  "description": "One to six archive cutouts scattered on warm paper, each with a red outline, popping in one after another while the camera slowly pushes in, with an optional serif label on a yellow tag. Like the Bengaluru collage in the reference reel. Optional newspaper clipping behind the cutouts with a yellow highlighter drawn over one phrase, and an archive grade (black and white, sepia, faded colour film, VHS) on the cutouts.",
   "useWhen": [
     "the speaker lists several things, places or objects",
     "a city, company or era is described by its objects",
-    "a montage of archive images"
+    "a montage of archive images",
+    "a headline, article or document is quoted (clipping with a highlighted phrase)"
   ],
-  "durationMs": { "min": 1800, "default": 3000, "max": 5000 },
+  "durationMs": {
+    "min": 1800,
+    "default": 3000,
+    "max": 5000
+  },
   "variables": {
     "type": "object",
     "properties": {
@@ -19,23 +24,107 @@
         "items": {
           "type": "object",
           "properties": {
-            "media": { "type": "string", "minLength": 1, "maxLength": 64 },
-            "x": { "type": "number", "minimum": 0, "maximum": 100 },
-            "y": { "type": "number", "minimum": 0, "maximum": 100 },
-            "scale": { "type": "number", "minimum": 0.2, "maximum": 2 },
-            "rotate": { "type": "number", "minimum": -30, "maximum": 30 }
+            "media": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "scale": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 2
+            },
+            "rotate": {
+              "type": "number",
+              "minimum": -30,
+              "maximum": 30
+            }
           },
           "required": ["media", "x", "y"],
           "additionalProperties": false
         }
       },
-      "label": { "type": "string", "maxLength": 28 },
-      "labelPos": { "enum": ["top", "center", "bottom"] },
-      "bg": { "enum": ["paper", "dark", "highlight"] }
+      "label": {
+        "type": "string",
+        "maxLength": 28
+      },
+      "labelPos": {
+        "enum": ["top", "center", "bottom"]
+      },
+      "bg": {
+        "enum": ["paper", "dark", "highlight"]
+      },
+      "clipping": {
+        "type": "object",
+        "properties": {
+          "kicker": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "headline": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 70
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 220
+          },
+          "highlight": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48
+          },
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "width": {
+            "type": "number",
+            "minimum": 40,
+            "maximum": 92
+          },
+          "rotate": {
+            "type": "number",
+            "minimum": -12,
+            "maximum": 12
+          }
+        },
+        "required": ["headline"],
+        "additionalProperties": false
+      },
+      "grade": {
+        "enum": ["none", "bw", "sepia", "faded", "vhs"]
+      }
     },
     "required": ["items"],
     "additionalProperties": false
   },
-  "slots": { "items/*/media": "cutout" },
-  "sfxCues": [{ "name": "first-pop", "atMs": "entrance", "sfx": "paper-pop", "type": "appear" }]
+  "slots": {
+    "items/*/media": "cutout"
+  },
+  "sfxCues": [
+    {
+      "name": "first-pop",
+      "atMs": "entrance",
+      "sfx": "paper-pop",
+      "type": "appear"
+    }
+  ]
 }

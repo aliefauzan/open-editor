@@ -71,6 +71,103 @@
           overflow-wrap: anywhere;
           box-shadow: 0 0.06em 0 var(--tok-color-ink);
         }
+        .c-clip {
+          position: absolute;
+          transform-origin: 50% 50%;
+          filter: drop-shadow(0 0.4em 0.5em rgb(0 0 0 / 30%));
+        }
+        .c-clip-paper {
+          position: relative;
+          padding: 1.1em 1.2em 1.6em;
+          background-color: #f3efe4;
+          color: var(--tok-color-ink);
+          overflow: hidden;
+        }
+        .c-clip-paper::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: var(--tok-texture-paper);
+          background-size: 60% auto;
+          mix-blend-mode: multiply;
+          opacity: 0.55;
+        }
+        .c-clip-kicker {
+          position: relative;
+          font-family: var(--tok-font-caption);
+          font-size: 0.5em;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          border-bottom: 0.08em solid var(--tok-color-ink);
+          padding-bottom: 0.3em;
+          margin-bottom: 0.45em;
+        }
+        .c-clip-head {
+          position: relative;
+          font-family: var(--tok-font-display);
+          font-weight: var(--tok-font-display-weight);
+          font-size: 1.25em;
+          line-height: 1.08;
+          overflow-wrap: anywhere;
+        }
+        .c-clip-body {
+          position: relative;
+          margin-top: 0.5em;
+          font-family: var(--tok-font-body);
+          font-size: 0.62em;
+          line-height: 1.35;
+          text-align: justify;
+          hyphens: auto;
+          overflow-wrap: anywhere;
+        }
+        .c-hl {
+          background-image: linear-gradient(
+            100deg,
+            rgb(245 197 24 / 0%) 0.4%,
+            var(--tok-color-highlight) 1.5%,
+            var(--tok-color-highlight) 98%,
+            rgb(245 197 24 / 0%) 99.6%
+          );
+          background-repeat: no-repeat;
+          background-position: 0 62%;
+          background-size: 0% 78%;
+          mix-blend-mode: multiply;
+          box-decoration-break: clone;
+          -webkit-box-decoration-break: clone;
+          padding: 0 0.12em;
+          margin: 0 -0.12em;
+        }
+        /* archive grades for the cutouts (GATE 3 round 2) */
+        .grade-bw .c-item img {
+          filter: grayscale(1) contrast(1.18) brightness(0.96);
+        }
+        .grade-sepia .c-item img {
+          filter: sepia(0.85) saturate(1.15) contrast(1.06) brightness(0.95);
+        }
+        .grade-faded .c-item img {
+          filter: saturate(0.55) contrast(0.82) brightness(1.08) sepia(0.18);
+        }
+        .grade-vhs .c-item img {
+          filter: saturate(1.45) contrast(1.12) hue-rotate(-8deg)
+            drop-shadow(0.35em 0 0 rgb(255 0 60 / 35%))
+            drop-shadow(-0.35em 0 0 rgb(0 160 255 / 35%));
+        }
+        .c-scan {
+          position: absolute;
+          inset: 0;
+          display: none;
+          background: repeating-linear-gradient(
+            0deg,
+            rgb(0 0 0 / 22%) 0,
+            rgb(0 0 0 / 22%) 2px,
+            rgb(0 0 0 / 0%) 2px,
+            rgb(0 0 0 / 0%) 5px
+          );
+          mix-blend-mode: multiply;
+        }
+        .grade-vhs .c-scan {
+          display: block;
+        }
       </style>
       <div
         id="root"
@@ -83,6 +180,13 @@
         <div class="v-page">
           <div class="c-stage">
             <div class="c-paper"></div>
+            <div class="c-clip">
+              <div class="c-clip-paper">
+                <div class="c-clip-kicker"></div>
+                <div class="c-clip-head"></div>
+                <div class="c-clip-body"></div>
+              </div>
+            </div>
             <!-- six static slots: images in the markup are loaded before the first frame -->
             <div class="c-item"><img alt="" /></div>
             <div class="c-item"><img alt="" /></div>
@@ -90,6 +194,7 @@
             <div class="c-item"><img alt="" /></div>
             <div class="c-item"><img alt="" /></div>
             <div class="c-item"><img alt="" /></div>
+            <div class="c-scan"></div>
           </div>
           <div class="c-label"><span></span></div>
         </div>
@@ -238,7 +343,8 @@
       </script>
       <script>
         // vox/paper-collage: cutouts with a red outline pop in one after another on paper while the
-        // stage pushes in; the label pops last.
+        // stage pushes in; the label pops last. Optional newspaper clipping (behind the cutouts) with a
+        // highlighter stroke drawn over one phrase, and an archive grade on the cutouts.
         (function () {
           var mount = vox.mount('__ID__');
           var root = mount.root;
@@ -249,6 +355,7 @@
           var M = voxMotion.create(root, '__ID__');
           var page = root.querySelector('.v-page');
           page.classList.add('bg-' + (v.bg || 'paper'));
+          if (v.grade && v.grade !== 'none') page.classList.add('grade-' + v.grade);
           var stage = root.querySelector('.c-stage');
           // red outline around the cutout's alpha: four hard drop-shadows, then a soft paper shadow
           var s = Math.max(2, Math.round((W / 1080) * 10));
@@ -303,12 +410,76 @@
           label.style.top = (pos === 'top' ? 10 : pos === 'bottom' ? 66 : 46) + '%';
           if (v.label) labelText.textContent = v.label;
           else label.style.display = 'none';
+          // the clipping: kicker, headline and body set as text (never markup); the first match of
+          // the highlight phrase (headline first, then body) is wrapped for the marker stroke
+          var clip = root.querySelector('.c-clip');
+          var hl = null;
+          var c = v.clipping;
+          if (c) {
+            clip.style.width = W * ((c.width || 78) / 100) + 'px';
+            clip.style.fontSize = Math.round(W * 0.058) + 'px';
+            clip.style.left = ((c.x === undefined ? 50 : c.x) / 100) * W + 'px';
+            clip.style.top = ((c.y === undefined ? 34 : c.y) / 100) * H + 'px';
+            clip.style.translate = '-50% -50%';
+            clip.style.rotate = (c.rotate === undefined ? -2 : c.rotate) + 'deg';
+            var kicker = clip.querySelector('.c-clip-kicker');
+            if (c.kicker) kicker.textContent = c.kicker;
+            else kicker.style.display = 'none';
+            var parts = [
+              [clip.querySelector('.c-clip-head'), c.headline || ''],
+              [clip.querySelector('.c-clip-body'), c.body || ''],
+            ];
+            for (var q = 0; q < parts.length; q++) {
+              var node = parts[q][0];
+              var txt = parts[q][1];
+              if (!txt) {
+                node.style.display = 'none';
+                continue;
+              }
+              var at =
+                !hl && c.highlight ? txt.toLowerCase().indexOf(c.highlight.toLowerCase()) : -1;
+              if (at < 0) {
+                node.textContent = txt;
+                continue;
+              }
+              node.appendChild(document.createTextNode(txt.slice(0, at)));
+              hl = document.createElement('span');
+              hl.className = 'c-hl';
+              hl.textContent = txt.slice(at, at + c.highlight.length);
+              node.appendChild(hl);
+              node.appendChild(document.createTextNode(txt.slice(at + c.highlight.length)));
+            }
+            // torn bottom edge: a seeded jagged line
+            var pts = ['0% 0%', '100% 0%'];
+            var n = 18;
+            for (var e = n; e >= 0; e--) {
+              pts.push((e / n) * 100 + '% ' + (100 - M.random() * 3.2).toFixed(2) + '%');
+            }
+            clip.querySelector('.c-clip-paper').style.clipPath = 'polygon(' + pts.join(', ') + ')';
+          } else {
+            clip.style.display = 'none';
+          }
           var tl = gsap.timeline({ paused: true });
+          var t0 = 0;
+          if (c) {
+            M.pop(tl, clip, 0, 0.35);
+            t0 = Math.max(M.step, Math.round(0.3 / M.step) * M.step);
+          }
           // pops share the first 45 % of the scene, at most 0.25 s apart, on held frames
           var gap = Math.min(0.25, (DUR * 0.45) / Math.max(1, els.length));
           gap = Math.max(M.step, Math.round(gap / M.step) * M.step);
-          for (var k = 0; k < els.length; k++) M.pop(tl, els[k], k * gap, 0.35);
-          if (v.label) M.pop(tl, labelText, els.length * gap, 0.3);
+          for (var k = 0; k < els.length; k++) M.pop(tl, els[k], t0 + k * gap, 0.35);
+          var tEnd = t0 + els.length * gap;
+          if (hl) {
+            // the marker stroke draws left to right on held frames
+            tl.to(
+              hl,
+              { backgroundSize: '100% 78%', duration: 0.5, ease: M.held('power2.inOut', 0.5) },
+              tEnd,
+            );
+            tEnd += 0.5;
+          }
+          if (v.label) M.pop(tl, labelText, tEnd, 0.3);
           M.pushIn(tl, stage, 0, DUR, 0.08);
           tl.set(root, {}, DUR);
           window.__timelines[mount.key] = mount.register(tl);
