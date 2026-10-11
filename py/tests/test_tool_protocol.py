@@ -7,7 +7,7 @@ import sys
 import pytest
 from conftest import run_tool, stderr_error, validate
 
-TOOLS = ["vad", "transcribe", "facetrack", "doctext", "audioqa"]
+TOOLS = ["vad", "transcribe", "facetrack", "doctext", "audioqa", "cutout", "timeline"]
 
 
 @pytest.mark.parametrize("tool", TOOLS)

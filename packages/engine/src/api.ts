@@ -43,6 +43,22 @@ import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
 import { registerMediaJobs, type MediaApi } from './media-api.ts';
+import { registerQuickClipJobs } from './quick-api.ts';
+import type { QuickClipScorer } from './stages/quickClips.ts';
+import {
+  applyClipFraming,
+  trackOptionsFromFrame,
+  type TrackPath,
+  type TrackPathOptions,
+} from './stages/facetrack.ts';
+import { createImageProviders, registerAssetJobs, type ImageProvider } from './assets-api.ts';
+import type { GetJson } from './stages/assets.ts';
+import {
+  registerExportJobs,
+  type CreditLine,
+  type ExportApi,
+  type HyperframesRun,
+} from './export-api.ts';
 import { doctor, doctorProject, type DoctorReport, type ProjectDoctorReport } from './doctor.ts';
 import { ProjectSchema } from './model/schema.ts';
 import type { Resolver } from './net/address.ts';
@@ -296,6 +312,51 @@ export {
   type TranscribeJobResult,
 } from './media-api.ts';
 export { classifyUrl, type UrlKind } from './stages/sources.ts';
+export {
+  RENDER_QUALITIES,
+  hyperframesEnv,
+  muxArgs,
+  pictureRenderArgs,
+  type AudioQaResult,
+  type CreditLine,
+  type HyperframesRun,
+  type RenderJobArgs,
+  type RenderJobResult,
+  type RenderQuality,
+  type RenderedFile,
+  type TimelineResult,
+} from './export-api.ts';
+export {
+  QuickClipsArgsSchema,
+  quickClipFps,
+  type QuickClip,
+  type QuickClipsArgs,
+  type QuickClipsResult,
+} from './quick-api.ts';
+export {
+  HEURISTIC,
+  heuristicScores,
+  pickClips,
+  quickCandidates,
+  sentenceUnits,
+  type Candidate as QuickCandidate,
+  type QuickClipScorer,
+  type ScorerInput,
+} from './stages/quickClips.ts';
+export {
+  CUTOUT_MODEL,
+  type AssetMediaResult,
+  type ImageProvider,
+  type ImageRequest,
+} from './assets-api.ts';
+export {
+  BY_SA_WARNING,
+  LICENSES,
+  classifyLicense,
+  type AssetCandidate,
+  type License,
+  type SearchResult as AssetSearchResult,
+} from './stages/assets.ts';
 export type { CheckLevel, DoctorCheck, DoctorReport, ProjectDoctorReport } from './doctor.ts';
 export { LOGIN_REQUIRED_HINT } from './stages/ytdlp.ts';
 export { WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
@@ -336,6 +397,15 @@ export interface EngineOptions {
   jobs?: { concurrency?: number };
   /** Test seams for downloads (no internet in tests). */
   net?: { resolver?: Resolver; dial?: Dial };
+  /** Test seams for archive search and fetch (recorded replies, local HTTPS, no back-off). */
+  assets?: {
+    getJson?: GetJson;
+    commonsThrottle?: (signal?: AbortSignal) => Promise<void>;
+    ca?: string;
+    sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  };
+  /** Test seam: runs the HyperFrames CLI (render, snapshot). */
+  hyperframes?: HyperframesRun;
 }
 
 export interface ProjectSummary {
@@ -375,9 +445,25 @@ export interface Engine {
   readonly tools: ToolPaths;
   /** Shared secret redactor (S19): errors, job payloads, logs and events go through it. */
   readonly redactor: Redactor;
-  /** Job runner with the kinds `ingest`, `transcribe` (GPU), `shots`, `facetrack`. */
+  /** Job runner: `ingest`, `transcribe` (GPU), `shots`, `facetrack`, `quickClips`, `assets.*`, `render`, `frames`, `exportCaptions`, `exportTimeline`, `audioQa`. */
   readonly jobs: JobRunner;
   facetrackPath: MediaApi['facetrackPath'];
+  /**
+   * Image generation providers (engine spec "Image generation provider"); none is built in. The
+   * most recently registered one is the default of `assets.generate`.
+   */
+  imageProviders: { register(p: ImageProvider): void; list(): { id: string }[] };
+  /**
+   * Quick clips scorers (engine spec "Quick clips"): the job `quickClips` uses the most recently
+   * registered one unless `scorer` names another (`heuristic` = the built-in one).
+   */
+  quickClips: { registerScorer(id: string, fn: QuickClipScorer): void; scorers(): string[] };
+  /** Compiled stills at canvas size (PNG paths, cached by build and time; first sequence by default). */
+  frames(projectId: string, sequenceId: string | undefined, atMs: number[]): Promise<string[]>;
+  /** Archive assets the sequences use, with author, licence and link (`vox credits`). */
+  credits(projectId: string): Promise<CreditLine[]>;
+  /** Compiles and writes the preview build; returns the `npx hyperframes play <buildDir>` call. */
+  preview: ExportApi['preview'];
   mediaFrames: MediaApi['mediaFrames'];
   /** Tool, model and config checks (`vox doctor`); `quick` skips the Python import check. */
   doctor(opts?: { quick?: boolean }): Promise<DoctorReport>;
@@ -601,14 +687,100 @@ export function openEngine(opts: EngineOptions): Engine {
     config: opts.config ?? readConfig,
     ...(opts.net ? { net: opts.net } : {}),
   });
+  const imageProviders = createImageProviders();
+  registerAssetJobs(jobs, {
+    tools: opts.tools ?? {},
+    redactor,
+    store,
+    dirOf,
+    config: opts.config ?? readConfig,
+    ...(opts.net ? { net: opts.net } : {}),
+    version,
+    providers: imageProviders,
+    ...(opts.assets?.getJson ? { getJson: opts.assets.getJson } : {}),
+    ...(opts.assets?.commonsThrottle ? { commonsThrottle: opts.assets.commonsThrottle } : {}),
+    ...(opts.assets?.ca ? { ca: opts.assets.ca } : {}),
+    ...(opts.assets?.sleep ? { sleep: opts.assets.sleep } : {}),
+  });
+  const quick = registerQuickClipJobs(jobs, { store, dirOf });
+  // The export jobs call the engine's own compile, mix and captions (bound once `engine` exists).
+  const bound: { engine?: Engine } = {};
+  const me = (): Engine => bound.engine!;
+  const exports = registerExportJobs(jobs, {
+    tools: opts.tools ?? {},
+    redactor,
+    store,
+    dirOf,
+    compile: (projectId, sequenceId, o) => me().compile(projectId, sequenceId, o),
+    mix: (projectId, sequenceId, o) => me().mix(projectId, sequenceId, o),
+    captions: (projectId, sequenceId) => me().captions(projectId, sequenceId),
+    style: (id) => registry().get(id),
+    ...(opts.hyperframes ? { hyperframes: opts.hyperframes } : {}),
+  });
 
-  return {
+  /**
+   * The facetrack path provider (phase 05, replacing 03's stub): for each `facetrack`/`auto` clip
+   * whose media has shots and a facetrack, the tracked path is built (cached) before compile; the
+   * synchronous provider then cuts it to the clip it is given (after any range) with the user's pins.
+   * A clip without them keeps its static crop.
+   */
+  async function trackedFraming(
+    projectId: string,
+    p: Project,
+    sequenceId: string,
+  ): Promise<FramingProvider> {
+    const s = p.sequences.find((x) => x.id === sequenceId);
+    const paths = new Map<string, TrackPath>();
+    const keyOf = (mediaId: string, o: TrackPathOptions) => `${mediaId}|${JSON.stringify(o)}`;
+    if (s) {
+      const aspect = { width: s.canvas.width, height: s.canvas.height };
+      for (const t of s.videoTracks) {
+        for (const it of t.items) {
+          if (it.type !== 'media' || (it.frame?.mode !== 'facetrack' && it.frame?.mode !== 'auto'))
+            continue;
+          const m = p.media.find((x) => x.id === it.mediaId);
+          if (!m?.facetrackPath || !m.shotsPath) continue;
+          const o = trackOptionsFromFrame(it.frame, aspect);
+          const k = keyOf(m.id, o);
+          if (!paths.has(k)) paths.set(k, await media.facetrackPath(projectId, m.id, o));
+        }
+      }
+    }
+    return (m, clip, seq) => {
+      if (!clip.frame || (clip.frame.mode !== 'facetrack' && clip.frame.mode !== 'auto'))
+        return undefined;
+      const o = trackOptionsFromFrame(clip.frame, {
+        width: seq.canvas.width,
+        height: seq.canvas.height,
+      });
+      const path = paths.get(keyOf(m.id, o));
+      if (!path) return undefined;
+      return applyClipFraming(path, {
+        inMs: clip.inMs,
+        durationMs: clip.durationMs,
+        ...(clip.frame.keyframes ? { keyframes: clip.frame.keyframes } : {}),
+      });
+    };
+  }
+
+  const engine: Engine = {
     projectsDir: opts.projectsDir,
     stylesDirs: opts.stylesDirs,
     tools: opts.tools ?? {},
     redactor,
     jobs,
     facetrackPath: (projectId, mediaId, o) => media.facetrackPath(projectId, mediaId, o),
+    frames: (projectId, sequenceId, atMs) => exports.frames(projectId, sequenceId, atMs),
+    credits: (projectId) => exports.credits(projectId),
+    preview: (projectId, sequenceId) => exports.preview(projectId, sequenceId),
+    imageProviders: {
+      register: (p) => imageProviders.register(p),
+      list: () => imageProviders.list(),
+    },
+    quickClips: {
+      registerScorer: (id, fn) => quick.registerScorer(id, fn),
+      scorers: () => quick.scorers(),
+    },
     mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
     async doctor(o = {}) {
       return doctor({
@@ -723,7 +895,7 @@ export function openEngine(opts: EngineOptions): Engine {
           sequenceId,
           registry: registry(),
           transcriptOf: (m) => tr.get(m.id),
-          ...(opts.framing ? { framing: opts.framing } : {}),
+          framing: opts.framing ?? (await trackedFraming(projectId, p, sequenceId)),
         },
         o,
       );
@@ -743,7 +915,7 @@ export function openEngine(opts: EngineOptions): Engine {
           sequenceId,
           registry: registry(),
           transcriptOf: (m) => tr.get(m.id),
-          ...(opts.framing ? { framing: opts.framing } : {}),
+          framing: opts.framing ?? (await trackedFraming(projectId, p, sequenceId)),
         },
         { mode: 'render', layers, ...(o.range ? { range: o.range } : {}) },
       );
@@ -853,4 +1025,6 @@ export function openEngine(opts: EngineOptions): Engine {
       return () => emitter.off(event, handler);
     },
   };
+  bound.engine = engine;
+  return engine;
 }

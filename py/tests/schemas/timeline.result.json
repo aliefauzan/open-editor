@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/timeline.result",
+  "title": "vox_py.timeline result",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["output", "tracks", "clips"],
+      "properties": {
+        "output": { "type": "string" },
+        "tracks": { "type": "integer", "minimum": 0 },
+        "clips": { "type": "integer", "minimum": 0 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "tracks", "clips"],
+      "properties": {
+        "name": { "type": "string" },
+        "tracks": { "type": "integer", "minimum": 0 },
+        "clips": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["track", "name", "targetUrl", "exists"],
+            "properties": {
+              "track": { "type": "integer", "minimum": 0 },
+              "name": { "type": "string" },
+              "targetUrl": { "type": "string" },
+              "exists": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

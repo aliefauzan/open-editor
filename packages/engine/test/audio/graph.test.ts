@@ -89,10 +89,10 @@ describe('audio graph (steps 13, 13b)', () => {
     ).toMatchFileSnapshot('__snapshots__/graph.txt');
   });
 
-  test('loudness presets: youtube -14, tiktok -12, broadcast -23 LUFS, -1 dBTP', () => {
-    expect(loudnormPass1('youtube')).toBe('loudnorm=I=-14:TP=-1:LRA=11:print_format=json');
-    expect(loudnormPass1('tiktok')).toContain('I=-12:TP=-1');
-    expect(loudnormPass1('broadcast')).toContain('I=-23:TP=-1');
+  test('loudness presets: youtube -14, tiktok -12, broadcast -23 LUFS, aiming at -1.5 dBTP', () => {
+    expect(loudnormPass1('youtube')).toBe('loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json');
+    expect(loudnormPass1('tiktok')).toContain('I=-12:TP=-1.5');
+    expect(loudnormPass1('broadcast')).toContain('I=-23:TP=-1.5');
     expect(loudnormPass2('tiktok', MEASURED)).toContain(
       'measured_I=-19.52:measured_TP=-4.10:measured_LRA=3.20:measured_thresh=-29.71:offset=0.31:linear=true',
     );

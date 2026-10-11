@@ -62,8 +62,23 @@ afterEach(() => {
 });
 
 describe('engine.jobs', () => {
-  test('lists the media job kinds', () => {
-    expect(engine().jobs.kinds().sort()).toEqual(['facetrack', 'ingest', 'shots', 'transcribe']);
+  test('lists the job kinds of the engine spec (media, assets, quick clips, export)', () => {
+    expect(engine().jobs.kinds().sort()).toEqual([
+      'assets.cutout',
+      'assets.fetch',
+      'assets.generate',
+      'assets.search',
+      'audioQa',
+      'exportCaptions',
+      'exportTimeline',
+      'facetrack',
+      'frames',
+      'ingest',
+      'quickClips',
+      'render',
+      'shots',
+      'transcribe',
+    ]);
   });
 
   test('ingest: documents become media in one history entry with the jobId; a rerun adds nothing', async () => {

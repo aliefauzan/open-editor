@@ -67,6 +67,14 @@ clips!
       (function () {
         var byId = function (id) { return document.getElementById(id); };
         var tl = gsap.timeline({ paused: true });
+        var voxPath = function (id, steps) {
+          var el = byId(id);
+          steps.forEach(function (s) {
+            var v = { x: s[1], y: s[2], scale: s[3] };
+            if (s[4] > 0) { v.duration = s[4]; v.ease = 'none'; tl.to(el, v, s[0]); }
+            else tl.set(el, v, s[0]);
+          });
+        };
         tl.fromTo(byId('it_i1'), { scale: 1 }, { scale: 1.1, duration: 1, ease: 'none' }, 5);
         tl.fromTo(byId('it_m1'), { volume: 0.5 }, { volume: 0, duration: 1, ease: 'none' }, 5);
         window.__timelines['main'] = tl;

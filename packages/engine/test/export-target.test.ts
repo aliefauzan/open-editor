@@ -16,7 +16,7 @@ import {
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { VoxError } from '../../src/errors.ts';
+import { VoxError } from '../src/errors.ts';
 import {
   HOST_TAG,
   STEM_MAX_BYTES,
@@ -25,9 +25,9 @@ import {
   sweepStaleTemps,
   writeExport,
   type ExportTarget,
-} from '../../src/export/target.ts';
-import { runTool } from '../../src/stages/media/run.ts';
-import { codeOfAsync, removeDir, tempDir } from '../media/helpers.ts';
+} from '../src/export/target.ts';
+import { runTool } from '../src/stages/media/run.ts';
+import { codeOfAsync, removeDir, tempDir } from './media/helpers.ts';
 
 const dirs: string[] = [];
 let root = '';
@@ -231,7 +231,7 @@ describe('failed, cancelled or killed exports leave nothing (S32)', () => {
   });
 
   test('an engine process killed mid-write leaves only a hidden temp, which the next export sweeps', async () => {
-    const target = fileURLToPath(new URL('../../src/export/target.ts', import.meta.url));
+    const target = fileURLToPath(new URL('../src/export/target.ts', import.meta.url));
     const script =
       `import { prepareExport } from ${JSON.stringify(target)};\n` +
       `import { writeFileSync } from 'node:fs';\n` +

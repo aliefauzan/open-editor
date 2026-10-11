@@ -2,6 +2,7 @@
   "extends": "./tsconfig.base.json",
   "include": [
     "test",
+    "scripts",
     "vitest.config.ts",
     "eslint.config.js",
     "apps/desktop/src/engine-host/setup",
