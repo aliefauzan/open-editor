@@ -1,6 +1,32 @@
 # Phase 07 — `vox` style v1 + GATE 3
 
-Status: not started; early steps done under D-19
+| Field | Value |
+|---|---|
+| Status | in progress |
+| Started · Finished | 2026-10-11 19:20 · |
+| Model | Opus 5.5 · high (phase agent, parallel run with 10b; self-review (token budget)) |
+| Machine | M5, macOS 27 |
+| Branch | phase/07-vox-style |
+
+## Pre-check
+Prereqs 05 and 06 [x]. Step 0 done: the owner allowed the AI to download both style references (reference
+only, gitignored): `reference/reel.mp4` (Instagram DePNgrmToh9, 1080x1920, 38 s) and `reference/tiktok-2.mp4`
+(a second style reference the owner likes, 1280x720, 78 s). `docs/evidence/**/reference/` is gitignored as a
+whole, so the extracted frames go to `docs/evidence/phase-07/ref-frames/` (committed, 19 frames).
+
+## Plan summary
+1. Reference looks (step 1): `ref-frames/` with the look per frame (table below).
+2. `style.json` (spec Part B tokens), pick the display font by rendering both candidates.
+3. `assets/motion.js`: pop (`back.out(1.6)`), hold on twos, seeded 2 px jitter, push-in. Templates cannot
+   load a script by path in both preview and render builds (inlined vs `scenes/`), so each template inlines
+   a copy between markers; `scripts/sync-motion.mjs` writes it and a test checks the copies equal the file.
+4. Templates one by one, each ending with `vox style validate vox` green: kinetic-serif, stat,
+   paper-collage, map-route (hook + vendored d3-geo).
+5. Transitions paper-tear, slide-paper; overlay paper-grain; captions mono-box, serif-lower.
+6. SFX: wire `audio-qa --kit` into validate (sine beep test style fails first), then judge the kit.
+7. Checks: token scoping fixture, mixed vox + base sequence render, safe area, no network.
+8. GATE 3 material: side-by-side sheet, 20 s demo, audio QA, LISTEN.md; stop for the owner.
+Test order: motion sync test → validate per template → kit check failing test → token scoping + mixed render.
 
 ## Early steps (D-19) — a1-assets-geo
 
