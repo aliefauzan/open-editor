@@ -165,7 +165,7 @@ describe('provider errors (step 13, S19)', () => {
   test('429 and 5xx retry with backoff, then the run pauses with reason error', async () => {
     const f = await fixtureProject();
     const m = scriptedModel([{ error: apiError(429) }, { error: apiError(503) }, { error: apiError(502) }, { error: apiError(500) }, { text: 'recovered' }]);
-    const sleep = vi.fn(() => Promise.resolve());
+    const sleep = vi.fn((_ms: number) => Promise.resolve());
     const onPause = vi.fn(() => Promise.resolve({ action: 'continue' as const }));
     const { deps } = runDeps(f, roleModel(m.model), { sleep, onPause });
     const { done } = await runAgent(deps, req(f));
