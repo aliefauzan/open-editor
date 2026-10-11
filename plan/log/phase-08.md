@@ -1,6 +1,30 @@
 # Phase 08 — App shell + security + GATE 4
 
-Status: not started; early steps done under D-19
+| Field | Value |
+|---|---|
+| Status | in progress |
+| Started · Finished | 2026-10-11 08:17 · |
+| Model | Opus 5.5 · high (single agent; owner asked to cut token cost) |
+| Machine | M5, macOS 27 |
+| Branch | phase/08-app-shell-security |
+
+## Pre-check
+01 [x] (D-29), 03 [x] (D-30), 06 [x] (D-34). Early U1 (A1, A2) on main. Phase 05 is [~] GATE 2 on an
+unmerged branch: not used. Electron 44.7.0 (zip in the electron cache), Playwright 1.64.0, vite 8.3.4.
+
+## Plan summary
+1. A3: add `--browser electron` to the U1 bench, re-run GATE 4 inside Electron 44.7.0 under the bench
+   lock, record numbers + DECISIONS entry.
+2. Scaffold `apps/desktop/src/{main,preload,engine-host,shared,renderer}`. Build with vite 8 directly
+   (electron-vite 5.0.0 accepts vite ≤ 7 only; R5 keeps vite 8.3.4) — DECISIONS entry.
+3. Pure modules first, unit-tested (vitest): app/media protocol (CSP, headers, range, path rule from
+   `@vox/engine/paths`), IPC sender guard + zod validation, `window.vox` schema, external-link
+   allowlist, host RPC.
+4. Engine host: `utilityProcess` + `MessagePort`, `openEngine` with `trustFile`, restart on crash.
+5. Minimal React UI (project picker + `<hyperframes-player>` opaque) + Zustand.
+6. Slow tests against the built app (Playwright `_electron`): security S10–S15, S28; engine host;
+   `e2e/smoke.spec.ts`. 7. Skeleton `.dmg` (electron-builder, ad-hoc, arm64).
+Test order: protocol → ipc guard → api schema → links → rpc → (build) → security.slow → host.slow → smoke.
 
 ## Early steps (D-19) — u1-timeline-bench
 
