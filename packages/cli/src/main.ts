@@ -28,6 +28,7 @@ import {
 } from '@vox/engine';
 import { appleHelper, configCommand, ConfigUsageError, type AgentCliDeps } from './config.ts';
 import { agentCommand, AgentUsageError } from './agent.ts';
+import { styleExtractCommand, StyleExtractUsageError } from './style-extract.ts';
 
 export interface Io {
   stdout: (s: string) => void;
@@ -137,13 +138,15 @@ const USAGE = `usage:
   vox style new <id> [--extends <style>] [--name <name>]   scaffold a draft user style
   vox style trust <id> [--yes]            allow a user style's build.mjs hook to run
   vox style accept <id> | remove <id>     mark a draft active | delete a user style
+  vox style extract <link|file> --name <name> [--max-usd n] [--no-render]
+                                          draft style + report.html from a reference video
   vox config providers add <preset> [--key env:NAME] [--id id] [--base-url url]
        [--context <model>=<tokens>]... [--num-ctx n]   (no --key: the key is asked for, hidden)
   vox config providers list | remove <id>
   vox config roles set <role> <provider>:<model> [--mode tools|plan]   probes first; refuses a failed role
   vox config prices set <model> --in <usd> --out <usd> | --free        per million tokens
   vox config probe [<provider>:<model>...]   probe the role models (or the named ones)
-  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit] [--seq id]... [--style id]
+  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit|style-extract] [--seq id]... [--style id]
        [--layout full-collage|hybrid] [--mode tools|plan] [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan]
        [--count n] [--length 30-60]   (clipper: number of clips, length in seconds)
   vox agent undo <project> <runId>        undo every edit of an agent run
@@ -1075,7 +1078,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
   }
 }
 
-/** `vox style validate|new|trust|accept|remove` (phase 06). */
+/** `vox style validate|new|trust|accept|remove` (phase 06) and `extract` (phase 15). */
 async function styleCommand(
   positionals: string[],
   values: Parsed['values'],
@@ -1083,11 +1086,19 @@ async function styleCommand(
   out: (v: unknown, text: string) => void,
 ): Promise<number> {
   const [sub, id] = positionals;
-  if (!sub || !['validate', 'new', 'trust', 'accept', 'remove'].includes(sub)) {
-    throw new UsageError(`style needs validate, new, trust, accept or remove`);
+  if (!sub || !['validate', 'new', 'trust', 'accept', 'remove', 'extract'].includes(sub)) {
+    throw new UsageError(`style needs validate, new, trust, accept, remove or extract`);
   }
-  need(positionals, 2, 'style id');
+  need(positionals, 2, sub === 'extract' ? '<link or file>' : 'style id');
   const e = await engineFor(values, io);
+  if (sub === 'extract') {
+    try {
+      return await styleExtractCommand(e, id!, values, io);
+    } catch (err) {
+      if (err instanceof StyleExtractUsageError) throw new UsageError(err.message);
+      throw err;
+    }
+  }
   const json = values['json'] === true;
   switch (sub) {
     case 'validate': {

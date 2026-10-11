@@ -43,6 +43,7 @@ import {
   type ProviderEntry,
   type Role,
   type RoleVerdict,
+  type StyleExtractSteps,
 } from '@vox/agent';
 import { createRedactor, VoxError, type Engine, type Redactor } from '@vox/engine';
 
@@ -58,6 +59,8 @@ export interface AgentCliDeps {
   /** `vox agent` tests: fake engine jobs (Python, render) and an engine wrapper. */
   runJob?: (kind: string, args: Record<string, unknown>) => Promise<unknown>;
   wrapEngine?: (e: Engine) => Engine;
+  /** `vox style extract` tests: a fixed reference instead of ingest and measure. */
+  styleExtractSteps?: StyleExtractSteps;
   /**
    * Calls `handler` on Ctrl-C until the returned function removes it (default: one SIGINT on the
    * process; a second Ctrl-C then ends the process as usual). Tests: a fake interrupt.
@@ -114,6 +117,7 @@ export function depsOf(io: ConfigIo): AgentCliDeps {
     ...(io.agent?.runJob && { runJob: io.agent.runJob }),
     ...(io.agent?.wrapEngine && { wrapEngine: io.agent.wrapEngine }),
     ...(io.agent?.onInterrupt && { onInterrupt: io.agent.onInterrupt }),
+    ...(io.agent?.styleExtractSteps && { styleExtractSteps: io.agent.styleExtractSteps }),
   };
 }
 
