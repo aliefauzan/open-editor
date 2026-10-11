@@ -1102,3 +1102,36 @@ store update per move) and multi-select, as the U1 prototype shows. No custom ca
 **Why**: The app spec "Timeline implementation" pass rule (fps ≥ 50 and both prototype checks) holds
 in the shell the app ships. Evidence: `docs/evidence/phase-08/A3-timeline-bench-electron.json`,
 `A1-timeline-bench.json`; log `plan/log/phase-08.md`.
+
+## D-36 · 2026-10-11 · phase 08 · App build: plain vite 8 build script, no electron-vite; shell pins
+
+**Decision**: `apps/desktop` builds with its own `scripts/build.ts` on vite 8.3.4 (already pinned for
+the GATE 4 bench, D-19) instead of electron-vite. Outputs: `out/renderer` (React app plus the
+vendored `@hyperframes/player` global script), `out/preload/index.cjs`, `out/main/index.cjs`
+(CommonJS, all dependencies bundled), and with `--package` the bundled engine host
+`out/engine-host/index.mjs`. In development the engine host runs from TypeScript source through
+`utilityProcess` (Node type stripping); packaged builds use the bundle. Packaging is
+electron-builder 26.15.3 with a skeleton config (ad-hoc signed arm64 `.dmg`, `out/**` only, no
+`node_modules`, built-in styles as `extraResources`); phase 09 extends it. Shell pins: Zustand
+5.0.15, Tailwind CSS 4.3.3 with `@tailwindcss/vite` 4.3.3, `@playwright/test` 1.64.0 (same as the
+bench `playwright`). shadcn/ui is not added in 08 (the minimal UI needs no components); phase 10a
+adds it when the editor UI starts.
+
+**Why**: electron-vite 5.0.0 declares peer vite ^5–7 and the repo is on vite 8 (R5 note: "electron-vite
+must accept it or the pin moves"); a 90-line build script avoids a second vite and a peer
+override. Main is CommonJS because Playwright's `_electron.launch` hangs on an ESM main (seen with
+the bench and the app); the bench's own main (`bench/timeline-electron-main.cjs`) is CommonJS for
+the same reason. Evidence: `plan/log/phase-08.md`.
+
+## D-37 · 2026-10-11 · phase 08 · `vox-media://` is CORS-enabled; only font responses allow any origin
+
+**Decision**: `vox-media://` is registered with `corsEnabled: true` (was `false` in the app spec
+"Untrusted HTML"). The handler adds `Access-Control-Allow-Origin: *` only to font responses
+(`.woff2`, `.woff`, `.ttf`, `.otf`); every other response has no CORS header, so cross-origin reads
+of builds, media and data stay refused. The media CSP (`connect-src 'none'`) is unchanged.
+
+**Why**: The player runs builds in an opaque-origin sandbox (origin `null`, S14). Browsers load
+`@font-face` fonts in CORS mode, so with CORS off every style font failed to load in the preview
+(console errors in the smoke test). Fonts are public style assets, so allowing them to any origin
+discloses nothing; only `vox-app://` and `vox-media://` pages can reach the scheme at all (all
+http/https/ws is blocked, S10). Test: `test/main/protocol.test.ts` (font CORS case).
