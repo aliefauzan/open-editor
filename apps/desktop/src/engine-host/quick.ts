@@ -1,6 +1,9 @@
 // "Make clips" on the quick-clips start screen (app spec "Quick clips (start screen)"; plan D-11, 10b
-// step 1): after the import job, one app job `makeClips` runs shots → transcribe → facetrack →
-// `quickClips` on the engine and reports one progress (0..1 over the four stages). It runs in the
+// step 1): after the import job, one app job `makeClips` runs shots → transcribe and, beside them,
+// facetrack, then `quickClips` on the engine, and reports one progress (0..1, each stage weighted
+// by its cost; decision "Quick clips speed"). Two stages on one media item can race for the project
+// version: the one that loses ends JOB_CONFLICT and is run again (its tool output is cached, so only
+// the media update is redone). It runs in the
 // engine host beside the engine's job runner, not inside it: a job that waits on other jobs in the
 // same runner could take every slot. Its events and `jobs.get` / `jobs.cancel` look like engine jobs.
 //
@@ -45,6 +48,21 @@ export interface SeedSource {
 }
 
 const STAGES = ['shots', 'transcribe', 'facetrack'] as const;
+type Stage = (typeof STAGES)[number] | 'quickClips';
+
+/**
+ * Share of the progress bar per stage, from a 15-min 1080p talk: facetrack (~2 min on 4 threads)
+ * and transcribe (~1 min) dominate; shots and the pick take seconds.
+ */
+export const STAGE_WEIGHT: Readonly<Record<Stage, number>> = {
+  shots: 0.05,
+  transcribe: 0.3,
+  facetrack: 0.6,
+  quickClips: 0.05,
+};
+/** Re-runs of a stage that lost the version race to its sibling (JOB_CONFLICT). */
+const CONFLICT_RETRIES = 3;
+const ORDER: readonly Stage[] = ['shots', 'transcribe', 'facetrack', 'quickClips'];
 const FIELD = { shots: 'shotsPath', transcribe: 'transcriptPath', facetrack: 'facetrackPath' };
 const FOLDER = { shots: 'shots', transcribe: 'transcripts', facetrack: 'facetracks' };
 
@@ -136,30 +154,45 @@ export class AppJobs {
     return id;
   }
 
-  /** Runs one engine job, mapping its progress into [from, to) of the app job. */
+  /** Runs one engine job; its progress (0..1) goes to `onProgress`. Abort cancels the job. */
   private async child(
-    job: AppJob,
     kind: string,
     args: Record<string, unknown>,
-    span: [number, number],
-    progress: (p: number, m: string) => void,
+    signal: AbortSignal,
+    onProgress: (p: number) => void,
   ): Promise<unknown> {
-    if (job.abort.signal.aborted) throw cancelled();
+    if (signal.aborted) throw cancelled();
     const id = this.engine.jobs.start(kind, args);
     const off = this.engine.jobs.on('job.progress', (e) => {
-      if (e.jobId === id) progress(span[0] + e.progress * (span[1] - span[0]), label(kind));
+      if (e.jobId === id) onProgress(e.progress);
     });
     const onAbort = () => this.engine.jobs.cancel(id);
-    job.abort.signal.addEventListener('abort', onAbort);
+    signal.addEventListener('abort', onAbort);
     try {
-      progress(span[0], label(kind));
       const info = await this.engine.jobs.wait(id);
       if (info.status === 'done') return info.result;
       if (info.status === 'cancelled') throw cancelled();
       throw info.error ?? { code: 'JOB_FAILED', message: `${kind} failed`, hint: '' };
     } finally {
       off();
-      job.abort.signal.removeEventListener('abort', onAbort);
+      signal.removeEventListener('abort', onAbort);
+    }
+  }
+
+  /** `child`, run again when it loses the project-version race to a sibling stage. */
+  private async stage(
+    kind: Stage,
+    args: Record<string, unknown>,
+    signal: AbortSignal,
+    onProgress: (p: number) => void,
+  ): Promise<unknown> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.child(kind, args, signal, onProgress);
+      } catch (e) {
+        const code = (e as { code?: unknown } | null)?.code;
+        if (code !== 'JOB_CONFLICT' || attempt >= CONFLICT_RETRIES || signal.aborted) throw e;
+      }
     }
   }
 
@@ -169,14 +202,52 @@ export class AppJobs {
     progress: (p: number, m: string) => void,
   ): Promise<unknown> {
     const base = { projectId: a.projectId, mediaId: a.mediaId, actor: 'user' };
+    const done = new Map<Stage, number>();
+    const running = new Set<Stage>();
+    const report = (): void => {
+      let p = 0;
+      for (const k of ORDER) p += STAGE_WEIGHT[k] * (done.get(k) ?? 0);
+      progress(p, runningLabel(ORDER.filter((k) => running.has(k))));
+    };
+    const tracked = async (kind: Stage, args: Record<string, unknown>, signal: AbortSignal) => {
+      running.add(kind);
+      report();
+      try {
+        return await this.stage(kind, args, signal, (p) => {
+          done.set(kind, Math.max(done.get(kind) ?? 0, Math.min(1, p)));
+          report();
+        });
+      } finally {
+        running.delete(kind);
+        done.set(kind, 1);
+      }
+    };
+
     const seeded = this.seeds ? await this.seed(a, this.seeds) : false;
     if (!seeded) {
-      for (const [i, kind] of STAGES.entries()) {
-        await this.child(job, kind, base, [i * 0.3, (i + 1) * 0.3], progress);
+      // One failure stops the other branch; the first error is the one reported.
+      const inner = new AbortController();
+      const stop = () => inner.abort();
+      job.abort.signal.addEventListener('abort', stop);
+      let first: { error: unknown } | undefined;
+      const branch = async (kinds: readonly Stage[]): Promise<void> => {
+        try {
+          for (const k of kinds) await tracked(k, base, inner.signal);
+        } catch (e) {
+          first ??= { error: e };
+          inner.abort();
+        }
+      };
+      try {
+        await Promise.all([branch(['shots', 'transcribe']), branch(['facetrack'])]);
+      } finally {
+        job.abort.signal.removeEventListener('abort', stop);
       }
+      if (first) throw first.error;
+    } else {
+      for (const k of STAGES) done.set(k, 1);
     }
-    return this.child(
-      job,
+    return tracked(
       'quickClips',
       {
         ...base,
@@ -184,8 +255,7 @@ export class AppJobs {
         ...(a.minMs === undefined ? {} : { minMs: a.minMs }),
         ...(a.maxMs === undefined ? {} : { maxMs: a.maxMs }),
       },
-      [0.9, 1],
-      progress,
+      job.abort.signal,
     );
   }
 
@@ -232,13 +302,17 @@ export class AppJobs {
   }
 }
 
-function label(kind: string): string {
-  return (
-    {
-      shots: 'Finding shots',
-      transcribe: 'Transcribing',
-      facetrack: 'Tracking faces',
-      quickClips: 'Picking clips',
-    }[kind] ?? kind
-  );
+const LABEL: Readonly<Record<Stage, string>> = {
+  shots: 'Finding shots',
+  transcribe: 'Transcribing',
+  facetrack: 'Tracking faces',
+  quickClips: 'Picking clips',
+};
+
+/** "Transcribing and tracking faces" for the stages running now (in chain order). */
+function runningLabel(kinds: readonly Stage[]): string {
+  if (kinds.length === 0) return 'Making clips';
+  return kinds
+    .map((k, i) => (i === 0 ? LABEL[k] : LABEL[k].charAt(0).toLowerCase() + LABEL[k].slice(1)))
+    .join(' and ');
 }

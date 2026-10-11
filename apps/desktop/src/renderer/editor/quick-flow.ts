@@ -1,6 +1,6 @@
 // The quick-clips path (app spec "Quick clips (start screen)"; plan D-11, D-13): create a project,
 // import the link or file, then the host's `makeClips` job (shots → transcribe → facetrack → quick
-// clips). One progress view: import takes the first 20 %, make clips the rest.
+// clips). One progress view: import takes its share by cost (`importShare`), make clips the rest.
 import type { ErrorData, VoxApi } from '../../shared/api.ts';
 import type { JobRow, JobsStore } from './jobs.ts';
 import { asError } from './store.ts';
@@ -28,6 +28,24 @@ export type QuickOutcome =
       note?: string;
     }
   | { ok: false; projectId?: string; error: ErrorData; cancelled?: boolean };
+
+/**
+ * Share of the progress bar for the import (decision "Quick clips speed"). Measured on a 15-min 1080p
+ * YouTube talk after the ingest and facetrack speed-ups: download + ingest ≈ 2.3 min against ≈ 2 min
+ * for make clips; a local file has no download.
+ */
+export function importShare(input: QuickInput): number {
+  return input.kind === 'url' ? 0.55 : 0.35;
+}
+
+/** Wraps a progress callback so the value never goes back (messages still pass). */
+export function steadyProgress(onProgress: (p: QuickProgress) => void): (p: QuickProgress) => void {
+  let last = 0;
+  return (p) => {
+    last = Math.max(last, p.progress);
+    onProgress({ ...p, progress: last });
+  };
+}
 
 /** A pasted text must be an http(s) link before any job starts. */
 export function isLink(text: string): boolean {
@@ -100,13 +118,18 @@ export async function makeQuickClips(
   projectId?: string,
 ): Promise<QuickOutcome> {
   let id = projectId;
+  const report = steadyProgress(onProgress);
+  const share = importShare(input);
   try {
     if (!id) id = ((await vox.projects.create(projectName(input))) as { id: string }).id;
-    onProgress({ progress: 0.02, message: 'Importing' });
+    report({ progress: 0.02, message: 'Importing' });
     const unsub = jobs.subscribe((s) => {
       const row = s.rows.find((r) => r.kind === 'ingest' && r.status === 'running');
       if (row)
-        onProgress({ progress: 0.02 + row.progress * 0.18, message: row.message ?? 'Importing' });
+        report({
+          progress: 0.02 + row.progress * (share - 0.02),
+          message: row.message ?? 'Importing',
+        });
     });
     let ing: JobRow | null;
     try {
@@ -153,7 +176,10 @@ export async function makeQuickClips(
     const unsub2 = jobs.subscribe((s) => {
       const row = s.rows.find((r) => r.id === jobId);
       if (row && row.status === 'running') {
-        onProgress({ progress: 0.2 + row.progress * 0.8, message: row.message ?? 'Making clips' });
+        report({
+          progress: share + row.progress * (1 - share),
+          message: row.message ?? 'Making clips',
+        });
       }
     });
     let made: JobRow;
@@ -177,7 +203,7 @@ export async function makeQuickClips(
         jobs.getState().dismiss(row.id);
       }
     }
-    onProgress({ progress: 1, message: 'Done' });
+    report({ progress: 1, message: 'Done' });
     return {
       ok: true,
       projectId: id,
