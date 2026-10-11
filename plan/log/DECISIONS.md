@@ -1546,3 +1546,16 @@ media too (the entries undo newest first); a user edit to any of them after the 
   CLI tests (R1 allows package-name imports only).
 **Why**: The smallest rules that keep the phase-12 done-when testable offline and every run undoable as one
 run (D-50).
+
+## D-52 — Python tools run with library telemetry off (phase 10b, GATE 5 finding, 2026-10-11)
+**Context**: GATE 5, TikTok quick clip: "Python tool transcribe failed (exit code 134)". Both crash reports
+(`python3.12-…ips`) abort in onnxruntime 1.30 `Microsoft::Applications::Events::HttpResponseDecoder` →
+`recursive_mutex::lock()` at process exit: the onnxruntime wheel uploads usage events to
+`mobile.events.data.microsoft.com` from a background thread, and that thread can lock a destroyed mutex when
+the tool exits. Pressing Make clips again worked. A local, private app must not send usage data anywhere.
+**Decision**: The engine's Python env (`pyEnv`) always sets `ORT_DISABLE_TELEMETRY=1`,
+`HF_HUB_DISABLE_TELEMETRY=1` and `DO_NOT_TRACK=1` (not taken from the caller). `vox_py` sets the same on
+import (direct `python -m vox_py.<tool>` runs), and the VAD calls `onnxruntime.disable_telemetry_events()`.
+A successful quick-clips retry clears the failed import / make-clips rows of earlier attempts.
+**Why**: Removes the crash at its cause and closes an outbound channel the security rows did not cover
+(R4 S12 covers renderers only). Commits 8cc6917, 8f4aa2a on `phase/10b-*`.
