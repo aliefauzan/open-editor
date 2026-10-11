@@ -1559,3 +1559,43 @@ import (direct `python -m vox_py.<tool>` runs), and the VAD calls `onnxruntime.d
 A successful quick-clips retry clears the failed import / make-clips rows of earlier attempts.
 **Why**: Removes the crash at its cause and closes an outbound channel the security rows did not cover
 (R4 S12 covers renderers only). Commits 8cc6917, 8f4aa2a on `phase/10b-*`.
+
+## D-53 — Quick clips speed: VFR tolerance, faster CFR copy, parallel facetrack, real progress (phase 10b, GATE 5 finding, 2026-10-12)
+**Context**: GATE 5, YouTube quick clip (15.5-min 1080p source): 15:28 from Make clips to result. File
+times: download 1:25, CFR copy 7:15, proxy 0:51, audio 0:20, shots 0:04, transcribe 1:00, facetrack
+4:22. The source was CFR: YouTube reports `r_frame_rate` 24/1 and `avg_frame_rate` a hair off, so D-15's
+r ≠ avg rule sent it through a libx264 `medium` re-encode. The bar sat still for minutes (fixed stage
+spans, no ffmpeg progress).
+**Decision** (refines D-15 and the ingest/makeClips stage order; no contract change):
+1. `detectVfr`: rates within 0.1 % count as equal; such files are VFR only when the pts deltas spread
+   over more than one frame.
+2. The CFR copy uses `h264_videotoolbox -q:v 65` when `ffmpeg -encoders` lists it (cached per binary),
+   else libx264 `-preset veryfast -crf 18`. A failed hardware encode is redone with libx264. The proxy
+   stays libx264 (0.5 s keyframes).
+3. Audio and peaks run beside the CFR copy → proxy → thumbs chain.
+4. Facetrack detects samples on 4 threads, in frame order, with byte-identical output (still 12 fps on
+   the 360p proxy, whole media, D-21). makeClips runs facetrack beside shots → transcribe; a stage that
+   ends `JOB_CONFLICT` reruns (up to 3 times, cached tool output).
+5. Progress: ffmpeg `-progress pipe:1` for CFR copy, proxy and audio; steps weighted by measured cost;
+   the bar never goes back; labels name the costliest running step ("Converting frame rate",
+   "Transcribing and tracking faces"). makeClips weights: shots 0.05, transcribe 0.3, facetrack 0.6,
+   quickClips 0.05. The start-screen bar gives import 55 % (link) / 35 % (file).
+**Not done (backlog)**: letterboxed sources still show black bands in 9:16 (an `activeArea` on
+`MediaItem` would change the frozen data model; to be done inside the frozen schema, see TODO); yt-dlp
+`-S vcodec:h264`; thumbnails from the proxy pass; the CLI `vox quick` chain is still serial.
+**Why**: The owner's report "take soo long". Measured on a 3-min 1080p file: YouTube-style VP9 ingest
+41.4 s → 6.9 s; real VFR 35.3 s → 23.3 s; facetrack 62.8 s → 28.0 s. Commits 166c6d4, e86db7b, 2f84880,
+bc5ac96, 7d41a9e on `phase/10b-editor-core-b`.
+
+## D-54 — GATE 5 fixes: Finder drop, caption style in scenes, Python telemetry (phase 10b, 2026-10-12)
+**Context**: GATE 5 owner run (done by the AI, owner delegation 2026-10-11). (a) A video dropped on the
+start screen made an empty project and showed nothing. (b) Burned-in captions (and the editor preview)
+rendered in the default serif with no stroke. (c) See D-52.
+**Decision**: (a) The renderer passes `Array.from(files)` to `vox.dropFiles` (a FileList does not cross
+contextBridge); the preload resolves each path in a try/catch and throws `MEDIA_UNSUPPORTED` "The dropped
+item could not be read" when none resolve; the quick flow keeps the project for the next attempt.
+(b) `vox.mount(id).root` in the scene runtime returns the scene's own root (`data-hf-inner-root`) that
+HyperFrames moves inside the host, so caption words land inside the element that carries the `--tok-*`
+tokens; title scripts read tokens from the same root. New test `caption-style.slow.test.ts` mounts
+through HyperFrames itself.
+**Why**: Both were silent failures a user hits on the main path. Commits 02fb821, 75e1494 (merged fde7e9e).
