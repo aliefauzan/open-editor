@@ -94,7 +94,14 @@ export async function fixtureProject(
           { op: 'addSequence', args: { name: 'Main', id: sequenceId } },
           {
             op: 'placeClip',
-            args: { sequenceId, trackId: 'V1', mediaId, startMs: 0, durationMs: 20000, withAudio: true },
+            args: {
+              sequenceId,
+              trackId: 'V1',
+              mediaId,
+              startMs: 0,
+              durationMs: 20000,
+              withAudio: true,
+            },
           },
         ],
       },
@@ -140,6 +147,13 @@ export function longTranscriptFile(words: number): string {
     kind: 'word',
   }));
   const path = join(dir, 'long.json');
-  writeFileSync(path, JSON.stringify({ language: 'en', speechRegions: [{ startMs: 0, endMs: words * 300 }], words: list }));
+  writeFileSync(
+    path,
+    JSON.stringify({
+      language: 'en',
+      speechRegions: [{ startMs: 0, endMs: words * 300 }],
+      words: list,
+    }),
+  );
   return path;
 }

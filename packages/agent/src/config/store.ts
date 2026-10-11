@@ -3,21 +3,14 @@
 // file, its 0600 mode and the fields other writers own (`contact`, `projectsDir`). Keys never go
 // into the file: `apiKey` holds `keychain:<providerId>` or `env:NAME`, and a key typed by the
 // user is written to the Keychain through `security -i` (stdin), never through argv.
-import {
-  readConfig,
-  writeConfig,
-  type Config,
-  type ConfigPatch,
-  type Redactor,
-} from '@vox/engine';
+import { readConfig, writeConfig, type Config, type ConfigPatch, type Redactor } from '@vox/engine';
 import { z } from 'zod';
 import { VoxError } from '../errors.ts';
 import { PriceEntry, type PriceTable } from '../providers/prices.ts';
+import type { PresetId, ProviderOptions } from '../providers/presets.ts';
 import {
   PRESETS,
-  PresetId,
   ProviderEntry,
-  ProviderOptions,
   providerEntryFromPreset,
   requiresKey,
 } from '../providers/presets.ts';
@@ -71,7 +64,9 @@ export interface ConfigIO {
   write(patch: ConfigPatch): Promise<Config>;
 }
 
-export function engineConfigIO(env: Readonly<Record<string, string | undefined>> = process.env): ConfigIO {
+export function engineConfigIO(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ConfigIO {
   return { read: () => readConfig(env), write: (patch) => writeConfig(patch, env) };
 }
 
@@ -175,9 +170,13 @@ export async function loadAgentConfig(deps: Pick<AgentConfigDeps, 'io'>): Promis
 export function findProvider(cfg: Pick<AgentConfig, 'providers'>, id: string): ProviderEntry {
   const p = cfg.providers.find((e) => e.id === id);
   if (!p) {
-    throw invalid(`no provider ${JSON.stringify(id)} is configured`, 'Add it with `vox config providers add <preset>`.', {
-      providerId: id,
-    });
+    throw invalid(
+      `no provider ${JSON.stringify(id)} is configured`,
+      'Add it with `vox config providers add <preset>`.',
+      {
+        providerId: id,
+      },
+    );
   }
   return p;
 }
@@ -197,14 +196,22 @@ export interface ProviderInput {
  * entry stores `keychain:<id>`; a reference is stored as it is; a masked or absent key keeps the
  * stored reference. Keyless presets never store an `apiKey`.
  */
-export async function saveProvider(deps: AgentConfigDeps, input: ProviderInput): Promise<ProviderEntry> {
+export async function saveProvider(
+  deps: AgentConfigDeps,
+  input: ProviderInput,
+): Promise<ProviderEntry> {
   const cfg = await loadAgentConfig(deps);
   const id = input.id ?? input.preset;
-  if (id === undefined) throw invalid('a provider needs an id or a preset', 'Pass a preset, e.g. openrouter.');
+  if (id === undefined)
+    throw invalid('a provider needs an id or a preset', 'Pass a preset, e.g. openrouter.');
   const existing = cfg.providers.find((p) => p.id === id);
   let entry: ProviderEntry;
   if (existing) {
-    if (input.preset !== undefined && existing.preset !== undefined && input.preset !== existing.preset) {
+    if (
+      input.preset !== undefined &&
+      existing.preset !== undefined &&
+      input.preset !== existing.preset
+    ) {
       throw invalid(
         `provider ${id} was created from preset ${existing.preset}`,
         'Remove it first or pick another id with --id.',
@@ -214,7 +221,10 @@ export async function saveProvider(deps: AgentConfigDeps, input: ProviderInput):
     if (input.baseUrl !== undefined) entry.baseUrl = input.baseUrl;
   } else {
     if (input.preset === undefined) {
-      throw invalid(`no provider ${JSON.stringify(id)} is configured`, 'Add it from a preset first.');
+      throw invalid(
+        `no provider ${JSON.stringify(id)} is configured`,
+        'Add it from a preset first.',
+      );
     }
     entry = providerEntryFromPreset(input.preset, {
       id,
@@ -258,7 +268,8 @@ export async function removeProvider(deps: AgentConfigDeps, id: string): Promise
   const cfg = await loadAgentConfig(deps);
   const entry = findProvider(cfg, id);
   const roles: Record<string, null> = {};
-  for (const [role, ref] of Object.entries(cfg.roles)) if (ref.providerId === id) roles[role] = null;
+  for (const [role, ref] of Object.entries(cfg.roles))
+    if (ref.providerId === id) roles[role] = null;
   await deps.io.write({
     providers: cfg.providers.filter((p) => p.id !== id),
     ...(Object.keys(roles).length > 0 && { roles }),
@@ -269,17 +280,26 @@ export async function removeProvider(deps: AgentConfigDeps, id: string): Promise
 }
 
 /** Resolves an entry's key (engine host only) and registers it with the redactor at once. */
-export async function providerKey(deps: AgentConfigDeps, entry: ProviderEntry): Promise<string | null> {
+export async function providerKey(
+  deps: AgentConfigDeps,
+  entry: ProviderEntry,
+): Promise<string | null> {
   if (entry.apiKey === undefined) {
     if (requiresKey(entry)) {
-      throw invalid(`no API key is stored for provider ${entry.id}`, 'Add the key in Settings or with `vox config providers add`.');
+      throw invalid(
+        `no API key is stored for provider ${entry.id}`,
+        'Add the key in Settings or with `vox config providers add`.',
+      );
     }
     return null;
   }
   const key = await resolveApiKey(entry.apiKey, deps, entry.id);
   if (key === null || key === '') {
     if (requiresKey(entry)) {
-      throw invalid(`no API key is stored for provider ${entry.id}`, 'Add the key in Settings or with `vox config providers add`.');
+      throw invalid(
+        `no API key is stored for provider ${entry.id}`,
+        'Add the key in Settings or with `vox config providers add`.',
+      );
     }
     return null;
   }
@@ -334,21 +354,31 @@ export async function setRole(
       { details: { role, failures: verdict.failures } },
     );
   }
-  await deps.io.write({ roles: { [role]: { providerId: ref.providerId, model: ref.model } } } as ConfigPatch);
+  await deps.io.write({
+    roles: { [role]: { providerId: ref.providerId, model: ref.model } },
+  } as ConfigPatch);
 }
 
 export async function setLimits(deps: AgentConfigDeps, limits: Partial<Limits>): Promise<Limits> {
   const r = LimitsSchema.safeParse(limits);
-  if (!r.success) throw invalid('limits must be positive numbers', 'e.g. --max-usd 2 --max-steps 60');
+  if (!r.success)
+    throw invalid('limits must be positive numbers', 'e.g. --max-usd 2 --max-steps 60');
   await deps.io.write({ limits: r.data } as ConfigPatch);
   return (await loadAgentConfig(deps)).limits;
 }
 
 /** The user's price for a model (per million tokens), or `{ free: true }`. */
-export async function setPrice(deps: AgentConfigDeps, model: string, price: PriceEntry): Promise<void> {
+export async function setPrice(
+  deps: AgentConfigDeps,
+  model: string,
+  price: PriceEntry,
+): Promise<void> {
   const r = PriceEntry.safeParse(price);
   if (!r.success || model.trim() === '') {
-    throw invalid('the price is not valid', 'Give inPerMTok and outPerMTok in USD, or mark it free.');
+    throw invalid(
+      'the price is not valid',
+      'Give inPerMTok and outPerMTok in USD, or mark it free.',
+    );
   }
   // A merge patch merges objects: clear the old fields the new entry does not have.
   const old = (await loadAgentConfig(deps)).prices[model];

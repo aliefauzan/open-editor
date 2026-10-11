@@ -50,7 +50,11 @@ async function project(ctx: ToolContext) {
 function sequenceOf(p: Awaited<ReturnType<typeof project>>, sequenceId: string) {
   const s = p.sequences.find((x) => x.id === sequenceId);
   if (!s) {
-    throw new VoxError('NOT_FOUND', `no sequence ${sequenceId}`, 'Use a sequence id from get_project_summary.');
+    throw new VoxError(
+      'NOT_FOUND',
+      `no sequence ${sequenceId}`,
+      'Use a sequence id from get_project_summary.',
+    );
   }
   return s;
 }
@@ -59,7 +63,9 @@ function sequenceOf(p: Awaited<ReturnType<typeof project>>, sequenceId: string) 
 export async function compactView(ctx: ToolContext, sequenceId: string) {
   const v = await ctx.engine.view(ctx.projectId, sequenceId);
   if (v.version > ctx.seenVersion) ctx.seenVersion = v.version;
-  const captions = v.captions.map((c) => `${String(c.startMs)}–${String(c.endMs)} ${c.text}`).join('\n');
+  const captions = v.captions
+    .map((c) => `${String(c.startMs)}–${String(c.endMs)} ${c.text}`)
+    .join('\n');
   return {
     view: ctx.aliases.toModel({ sequenceId, version: v.version, items: v.items }),
     captions: v.captions.length === 0 ? '' : wrapData('captions', captions),
@@ -105,7 +111,10 @@ export function readTools(): AgentTool[] {
               id: s.id,
               name: s.name,
               styleId: s.styleId,
-              tracks: [...s.videoTracks, ...s.audioTracks].map((t) => ({ id: t.id, items: t.items.length })),
+              tracks: [...s.videoTracks, ...s.audioTracks].map((t) => ({
+                id: t.id,
+                items: t.items.length,
+              })),
               captions: s.captions?.enabled ?? false,
             })),
           }),
@@ -126,8 +135,15 @@ export function readTools(): AgentTool[] {
           );
           const missing = a.itemIds.filter((x) => !items.some((it) => it.id === x));
           return {
-            read: { version: p.version, label: `get_sequence ${ctx.aliases.aliasOf(a.sequenceId)} items` },
-            result: ctx.aliases.toModel({ version: p.version, items, ...(missing.length > 0 && { missing }) }),
+            read: {
+              version: p.version,
+              label: `get_sequence ${ctx.aliases.aliasOf(a.sequenceId)} items`,
+            },
+            result: ctx.aliases.toModel({
+              version: p.version,
+              items,
+              ...(missing.length > 0 && { missing }),
+            }),
           };
         }
         const v = await compactView(ctx, a.sequenceId);
@@ -194,7 +210,11 @@ export function readTools(): AgentTool[] {
             id: s.id,
             chain: s.chain,
             guide: s.guide,
-            templates: Object.values(s.templates).map((t) => ({ id: t.id, kind: t.kind, description: t.description })),
+            templates: Object.values(s.templates).map((t) => ({
+              id: t.id,
+              kind: t.kind,
+              description: t.description,
+            })),
             captionPresets: Object.keys(s.captionPresets),
           },
         });
@@ -208,7 +228,11 @@ export function readTools(): AgentTool[] {
         const styleId = a.templateId.split('/')[0] ?? '';
         const t = ctx.engine.styles.get(styleId).templates[a.templateId];
         if (!t) {
-          throw new VoxError('TEMPLATE_UNKNOWN', `no template ${a.templateId}`, 'Use an id from get_style.');
+          throw new VoxError(
+            'TEMPLATE_UNKNOWN',
+            `no template ${a.templateId}`,
+            'Use an id from get_style.',
+          );
         }
         return Promise.resolve({
           result: {
@@ -227,7 +251,8 @@ export function readTools(): AgentTool[] {
       'search_places',
       'Places for geo slots (name, country, lat, lon).',
       z.strictObject({ query: z.string().min(1).max(200) }),
-      (ctx, a) => Promise.resolve({ result: { places: ctx.engine.geo.search(a.query, { limit: 10 }) } }),
+      (ctx, a) =>
+        Promise.resolve({ result: { places: ctx.engine.geo.search(a.query, { limit: 10 }) } }),
     ),
     tool(
       'view_frames',
@@ -253,7 +278,10 @@ export function readTools(): AgentTool[] {
           'Describe each frame for a video editor: layout, text overflow, empty slots, anything broken.',
         );
         return {
-          read: { version: p.version, label: `view_frames ${ctx.aliases.aliasOf(a.sequenceId)} ${String(frames.length)} frames` },
+          read: {
+            version: p.version,
+            label: `view_frames ${ctx.aliases.aliasOf(a.sequenceId)} ${String(frames.length)} frames`,
+          },
           result: {
             frames,
             ...(shown?.description !== undefined && { description: shown.description }),

@@ -17,11 +17,36 @@ describe('frame health', () => {
   });
 
   test.each([
-    ['black', rgbPng(W, H, (x, y) => { const v = Math.floor(noise(x, y) * 15); return [v, v, v]; }), ['mostlyBlack']],
-    ['white', rgbPng(W, H, (x, y) => { const v = 240 + Math.floor(noise(x, y) * 15); return [v, v, v]; }), ['mostlyWhite']],
+    [
+      'black',
+      rgbPng(W, H, (x, y) => {
+        const v = Math.floor(noise(x, y) * 15);
+        return [v, v, v];
+      }),
+      ['mostlyBlack'],
+    ],
+    [
+      'white',
+      rgbPng(W, H, (x, y) => {
+        const v = 240 + Math.floor(noise(x, y) * 15);
+        return [v, v, v];
+      }),
+      ['mostlyWhite'],
+    ],
     ['blank (one flat grey)', solidColourPng([128, 128, 128], 32), ['blank']],
-    ['dark', rgbPng(W, H, (x, y) => { const v = 18 + Math.floor(noise(x, y) * 30); return [v, v + 2, v]; }), ['lowLuma']],
-    ['normal', rgbPng(W, H, (x, y) => [Math.floor(noise(x, y) * 255), 120, Math.floor(noise(y, x) * 255)]), []],
+    [
+      'dark',
+      rgbPng(W, H, (x, y) => {
+        const v = 18 + Math.floor(noise(x, y) * 30);
+        return [v, v + 2, v];
+      }),
+      ['lowLuma'],
+    ],
+    [
+      'normal',
+      rgbPng(W, H, (x, y) => [Math.floor(noise(x, y) * 255), 120, Math.floor(noise(y, x) * 255)]),
+      [],
+    ],
   ])('%s frame', (_, png, flags) => {
     expect(frameHealth(png)).toEqual(flags);
   });

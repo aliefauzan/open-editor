@@ -42,7 +42,10 @@ const PLAN_TEMPLATES: TemplateInfo[] = [
 const lookup = mapTemplateLookup(PLAN_TEMPLATES);
 
 /** The engine with a fake job runner: archive search finds nothing. */
-function withJobs(f: Fixture, results: Record<string, unknown> = { 'assets.search': { candidates: [] } }) {
+function withJobs(
+  f: Fixture,
+  results: Record<string, unknown> = { 'assets.search': { candidates: [] } },
+) {
   const started: { kind: string; args: unknown }[] = [];
   const jobs = {
     start: (kind: string, args: unknown) => {
@@ -72,7 +75,13 @@ const req = (f: Fixture, over: Record<string, unknown> = {}) => ({
 describe('plan mode (step 9)', () => {
   test('a valid op-list plan runs as one batch by the agent', async () => {
     const f = await fixtureProject();
-    const m = scriptedModel([{ json: { ops: [{ op: 'updateClip', args: { sequenceId: 's1', itemId: 'c1', volume: 0.5 } }] } }]);
+    const m = scriptedModel([
+      {
+        json: {
+          ops: [{ op: 'updateClip', args: { sequenceId: 's1', itemId: 'c1', volume: 0.5 } }],
+        },
+      },
+    ]);
     const { deps } = runDeps(f, roleModel(m.model));
     const { done, run } = await runAgent(deps, req(f));
     expect(done.status).toBe('completed');
@@ -84,8 +93,16 @@ describe('plan mode (step 9)', () => {
   test('an invalid plan goes back with the zod error; the second answer runs', async () => {
     const f = await fixtureProject();
     const m = scriptedModel([
-      { json: { ops: [{ op: 'updateClip', args: { sequenceId: 's1', itemId: 'c1', volume: 'loud' } }] } },
-      { json: { ops: [{ op: 'updateClip', args: { sequenceId: 's1', itemId: 'c1', volume: 0.4 } }] } },
+      {
+        json: {
+          ops: [{ op: 'updateClip', args: { sequenceId: 's1', itemId: 'c1', volume: 'loud' } }],
+        },
+      },
+      {
+        json: {
+          ops: [{ op: 'updateClip', args: { sequenceId: 's1', itemId: 'c1', volume: 0.4 } }],
+        },
+      },
     ]);
     const { deps } = runDeps(f, roleModel(m.model));
     const { done } = await runAgent(deps, req(f));
@@ -116,9 +133,27 @@ describe('plan mode (step 9)', () => {
               sequenceId: 's1',
               beats: [
                 { startMs: 0, endMs: 2000, kind: 'speaker' },
-                { startMs: 2000, endMs: 30000, kind: 'scene', template: 'base/title', variables: { title: 'Hi' } },
-                { startMs: 13000, endMs: 15000, kind: 'scene', template: 'base/nope', variables: {} },
-                { startMs: 15000, endMs: 17000, kind: 'scene', template: 'base/photo', imageQueries: ['lighthouse at dusk'] },
+                {
+                  startMs: 2000,
+                  endMs: 30000,
+                  kind: 'scene',
+                  template: 'base/title',
+                  variables: { title: 'Hi' },
+                },
+                {
+                  startMs: 13000,
+                  endMs: 15000,
+                  kind: 'scene',
+                  template: 'base/nope',
+                  variables: {},
+                },
+                {
+                  startMs: 15000,
+                  endMs: 17000,
+                  kind: 'scene',
+                  template: 'base/photo',
+                  imageQueries: ['lighthouse at dusk'],
+                },
               ],
             },
           ],
@@ -131,23 +166,35 @@ describe('plan mode (step 9)', () => {
     expect(started.map((s) => s.kind)).toEqual(['assets.search']);
     const seq = (await f.engine.getProject(f.projectId)).sequences[0]!;
     const scenes = seq.videoTracks.find((t) => t.id === 'V2')!.items;
-    expect(scenes.map((s) => [s.startMs, s.durationMs, (s as { template?: string }).template])).toEqual([
+    expect(
+      scenes.map((s) => [s.startMs, s.durationMs, (s as { template?: string }).template]),
+    ).toEqual([
       [2000, 10000, 'base/title'],
       [15000, 2000, 'base/placeholder'],
     ]);
     expect(JSON.stringify(scenes[1])).toContain('Picture: lighthouse at dusk');
     const rec = readRunRecord(run.record.path).find((l) => l.tool === 'batch');
-    expect(JSON.stringify(rec?.['repairs'])).toMatch(/duration clamped.*dropped: base\/nope.*placeholder/);
+    expect(JSON.stringify(rec?.['repairs'])).toMatch(
+      /duration clamped.*dropped: base\/nope.*placeholder/,
+    );
   });
 
   test('confirm plan: pauses (approval, kind plan); stop applies nothing', async () => {
     const f = await fixtureProject();
-    const m = scriptedModel([{ json: { ops: [{ op: 'updateClip', args: { sequenceId: 's1', itemId: 'c1', volume: 0.5 } }] } }]);
+    const m = scriptedModel([
+      {
+        json: {
+          ops: [{ op: 'updateClip', args: { sequenceId: 's1', itemId: 'c1', volume: 0.5 } }],
+        },
+      },
+    ]);
     const onPause = vi.fn(() => Promise.resolve({ action: 'stop' as const }));
     const before = (await f.engine.history(f.projectId)).length;
     const { deps, events } = runDeps(f, roleModel(m.model), { onPause });
     const { done } = await runAgent(deps, req(f, { confirmPlan: true }));
-    expect(onPause).toHaveBeenCalledWith(expect.objectContaining({ reason: 'approval', kind: 'plan' }));
+    expect(onPause).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'approval', kind: 'plan' }),
+    );
     expect(events.find((e) => e.type === 'agent.paused')?.payload).toMatchObject({ kind: 'plan' });
     expect(done.status).toBe('stopped');
     expect((await f.engine.history(f.projectId)).length).toBe(before);

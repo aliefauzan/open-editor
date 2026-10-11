@@ -94,7 +94,11 @@ describe('engine api', () => {
     const e = engine();
     const p = await e.createProject('demo');
     await e.applyOp(p.id, addSeq, { actor: 'cli' });
-    await e.applyOp(p.id, { op: 'addSequence', args: { name: 'B', id: 'seq_b' } }, { actor: 'cli' });
+    await e.applyOp(
+      p.id,
+      { op: 'addSequence', args: { name: 'B', id: 'seq_b' } },
+      { actor: 'cli' },
+    );
     const rename = (sequenceId: string, name: string) => ({
       op: 'updateSequence',
       args: { sequenceId, name },

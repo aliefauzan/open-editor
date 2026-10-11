@@ -54,14 +54,23 @@ export async function loadTranscript(
   const path = await resolveProjectPath(dir, media.transcriptPath);
   const parsed = TranscriptSchema.safeParse(JSON.parse(await readFile(path, 'utf8')));
   if (!parsed.success) {
-    throw new VoxError('VALIDATION', `the transcript of ${media.id} is not valid`, 'Transcribe the media again.');
+    throw new VoxError(
+      'VALIDATION',
+      `the transcript of ${media.id} is not valid`,
+      'Transcribe the media again.',
+    );
   }
   return parsed.data;
 }
 
 function findMedia(p: Project, mediaId: string): MediaItem {
   const m = p.media.find((x) => x.id === mediaId);
-  if (!m) throw new VoxError('NOT_FOUND', `no media ${mediaId}`, 'Use a media id from get_project_summary.');
+  if (!m)
+    throw new VoxError(
+      'NOT_FOUND',
+      `no media ${mediaId}`,
+      'Use a media id from get_project_summary.',
+    );
   return m;
 }
 
@@ -87,7 +96,12 @@ export async function transcriptPage(
   let seqOf: Map<string, { startMs: number; endMs: number }> | undefined;
   if (q.sequenceId !== undefined) {
     const s = p.sequences.find((x) => x.id === q.sequenceId);
-    if (!s) throw new VoxError('NOT_FOUND', `no sequence ${q.sequenceId}`, 'Use a sequence id from get_project_summary.');
+    if (!s)
+      throw new VoxError(
+        'NOT_FOUND',
+        `no sequence ${q.sequenceId}`,
+        'Use a sequence id from get_project_summary.',
+      );
     seqOf = new Map();
     const tracks = [...s.audioTracks, ...s.videoTracks].map((x) => x.id);
     for (const w of mapWordsToTimeline(p, s, (m) => (m.id === media.id ? t : undefined), tracks)) {
@@ -97,14 +111,21 @@ export async function transcriptPage(
   const from = q.fromSrcMs ?? 0;
   const to = q.toSrcMs ?? Number.POSITIVE_INFINITY;
   const words: TranscriptWordOut[] = [];
-  let used = estimateTokens('{"mediaId":"","language":"","words":[],"nextCursor":null,"totalWords":0}') + 20;
+  let used =
+    estimateTokens('{"mediaId":"","language":"","words":[],"nextCursor":null,"totalWords":0}') + 20;
   let next: number | null = null;
   for (let i = q.cursor ?? 0; i < t.words.length; i++) {
     const w = t.words[i]!;
     if (w.endMs <= from && w.startMs < from) continue;
     if (w.startMs >= to) break;
     const key = `${media.id}:${rev}:${String(i)}`;
-    const out: TranscriptWordOut = { key, text: w.text, kind: w.kind, srcMs: w.startMs, srcEndMs: w.endMs };
+    const out: TranscriptWordOut = {
+      key,
+      text: w.text,
+      kind: w.kind,
+      srcMs: w.startMs,
+      srcEndMs: w.endMs,
+    };
     if (seqOf) {
       const s = seqOf.get(key);
       out.seqMs = s?.startMs ?? null;
@@ -118,7 +139,13 @@ export async function transcriptPage(
     used += cost;
     words.push(out);
   }
-  return { mediaId: media.id, language: t.language, words, nextCursor: next, totalWords: t.words.length };
+  return {
+    mediaId: media.id,
+    language: t.language,
+    words,
+    nextCursor: next,
+    totalWords: t.words.length,
+  };
 }
 
 export interface TranscriptHit {
@@ -182,9 +209,20 @@ export async function searchTranscripts(
       let score = 0;
       for (const term of terms) {
         if (words.includes(term)) score += 2;
-        else if (term.length >= 4 && words.some((w) => w.length >= 4 && editDistanceAtMost1(w, term))) score += 1;
+        else if (
+          term.length >= 4 &&
+          words.some((w) => w.length >= 4 && editDistanceAtMost1(w, term))
+        )
+          score += 1;
       }
-      if (score > 0) hits.push({ mediaId: m.id, srcMs: seg.start, srcEndMs: seg.end, text: seg.text.join(' '), score });
+      if (score > 0)
+        hits.push({
+          mediaId: m.id,
+          srcMs: seg.start,
+          srcEndMs: seg.end,
+          text: seg.text.join(' '),
+          score,
+        });
     };
     for (const w of t.words) {
       if (w.kind === 'pause') {

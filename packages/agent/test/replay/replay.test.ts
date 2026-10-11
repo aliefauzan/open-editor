@@ -10,8 +10,17 @@ import { replay } from './harness.ts';
 async function recordedRun() {
   const f = await fixtureProject();
   const m = scriptedModel([
-    { calls: [{ name: 'get_transcript', input: { mediaId: 'm_talk0000000001', fromSrcMs: 0, toSrcMs: 3000 } }] },
-    { calls: [{ name: 'split_item', input: '{"sequenceId": "s1", "itemId": "c1", "atMs": 5000,}' }] },
+    {
+      calls: [
+        {
+          name: 'get_transcript',
+          input: { mediaId: 'm_talk0000000001', fromSrcMs: 0, toSrcMs: 3000 },
+        },
+      ],
+    },
+    {
+      calls: [{ name: 'split_item', input: '{"sequenceId": "s1", "itemId": "c1", "atMs": 5000,}' }],
+    },
     { calls: [{ name: 'update_clip', input: { sequenceId: 's1', itemId: 'c3', volume: 0.5 } }] },
     { text: 'Split and lowered the second half.' },
   ]);
@@ -40,7 +49,10 @@ describe('replay harness (step 20)', () => {
   test('a changed tool result fails the replay', async () => {
     const lines = await recordedRun();
     const i = lines.findIndex((l) => l.type === 'tool' && l['tool'] === 'update_clip');
-    lines[i] = { ...lines[i]!, result: { version: 3, results: [{ op: 'updateClip', status: 'failed' }] } };
+    lines[i] = {
+      ...lines[i]!,
+      result: { version: 3, results: [{ op: 'updateClip', status: 'failed' }] },
+    };
     const r = await replay(lines, await fixtureProject());
     expect(r.ok).toBe(false);
     expect(r.mismatches).toHaveLength(1);

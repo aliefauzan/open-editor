@@ -35,7 +35,8 @@ export function buildSystemPrompt(p: SystemPromptParts): string {
   if (p.styleGuide?.trim()) out.push(`# Style guide\n${p.styleGuide.trim()}`);
   if (p.workflowPrompt?.trim()) out.push(`# Task\n${p.workflowPrompt.trim()}`);
   // the summary holds names and titles from the project (user content): data, not instructions
-  if (p.projectSummary?.trim()) out.push(`# Project\n${wrapData('metadata', p.projectSummary.trim())}`);
+  if (p.projectSummary?.trim())
+    out.push(`# Project\n${wrapData('metadata', p.projectSummary.trim())}`);
   if (p.notes?.trim()) out.push(`# Notes from earlier steps\n${wrapData('notes', p.notes.trim())}`);
   return out.join('\n\n');
 }

@@ -35,7 +35,11 @@ export async function runEngineJob(
   }
 }
 
-async function job(ctx: ToolContext, kind: string, args: Record<string, unknown>): Promise<unknown> {
+async function job(
+  ctx: ToolContext,
+  kind: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
   const full = { projectId: ctx.projectId, ...args };
   const run = () =>
     ctx.runJob ? ctx.runJob(kind, full) : runEngineJob(ctx.engine, kind, full, ctx.signal);
@@ -53,7 +57,11 @@ async function versionNow(ctx: ToolContext): Promise<number> {
 }
 
 /** Runs a job that may write to the project; reports the version it created, if any. */
-async function writingJob(ctx: ToolContext, kind: string, args: Record<string, unknown>): Promise<ToolOutput> {
+async function writingJob(
+  ctx: ToolContext,
+  kind: string,
+  args: Record<string, unknown>,
+): Promise<ToolOutput> {
   const before = await versionNow(ctx);
   const result = await job(ctx, kind, { ...args, actor: 'agent' });
   const after = await versionNow(ctx);
@@ -70,7 +78,13 @@ const tool = <S extends z.ZodType>(
   description: string,
   input: S,
   run: (ctx: ToolContext, args: z.infer<S>) => Promise<ToolOutput>,
-): AgentTool => ({ name, kind, description, input, run: (ctx, args) => run(ctx, args as z.infer<S>) });
+): AgentTool => ({
+  name,
+  kind,
+  description,
+  input,
+  run: (ctx, args) => run(ctx, args as z.infer<S>),
+});
 
 interface QaCheck {
   id: string;
@@ -102,8 +116,12 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
         return writingJob(ctx, 'ingest', { inputs: [a.source] });
       },
     ),
-    tool('shots', 'job', 'Detect shot cuts of a video (writes shots/<mediaId>.json).', z.strictObject({ mediaId: id }), (ctx, a) =>
-      writingJob(ctx, 'shots', { mediaId: a.mediaId }),
+    tool(
+      'shots',
+      'job',
+      'Detect shot cuts of a video (writes shots/<mediaId>.json).',
+      z.strictObject({ mediaId: id }),
+      (ctx, a) => writingJob(ctx, 'shots', { mediaId: a.mediaId }),
     ),
     tool(
       'transcribe',
@@ -121,8 +139,12 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
         return { result: { results: outs }, ...(versions.length > 0 && { versions }) };
       },
     ),
-    tool('facetrack', 'job', 'Track faces of a video for auto framing.', z.strictObject({ mediaId: id }), (ctx, a) =>
-      writingJob(ctx, 'facetrack', { mediaId: a.mediaId }),
+    tool(
+      'facetrack',
+      'job',
+      'Track faces of a video for auto framing.',
+      z.strictObject({ mediaId: id }),
+      (ctx, a) => writingJob(ctx, 'facetrack', { mediaId: a.mediaId }),
     ),
     tool(
       'search_images',
@@ -130,12 +152,18 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
       'Search the open archives (Wikimedia Commons, Openverse) for images; returns candidate ids with title, author and licence.',
       z.strictObject({
         query: z.string().trim().min(1).max(200),
-        sources: z.array(z.enum(['commons', 'openverse'])).min(1).optional(),
+        sources: z
+          .array(z.enum(['commons', 'openverse']))
+          .min(1)
+          .optional(),
       }),
       async (ctx, a) => ({
         untrusted: 'archive',
         result: ctx.aliases.toModel(
-          await job(ctx, 'assets.search', { query: a.query, ...(a.sources && { sources: a.sources }) }),
+          await job(ctx, 'assets.search', {
+            query: a.query,
+            ...(a.sources && { sources: a.sources }),
+          }),
         ),
       }),
     ),
@@ -146,8 +174,12 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
       z.strictObject({ candidateId: z.string().min(1).max(80) }),
       (ctx, a) => writingJob(ctx, 'assets.fetch', { candidateId: a.candidateId }),
     ),
-    tool('cutout', 'job', 'Cut the subject of an image out (transparent PNG media item).', z.strictObject({ mediaId: id }), (ctx, a) =>
-      writingJob(ctx, 'assets.cutout', { mediaId: a.mediaId }),
+    tool(
+      'cutout',
+      'job',
+      'Cut the subject of an image out (transparent PNG media item).',
+      z.strictObject({ mediaId: id }),
+      (ctx, a) => writingJob(ctx, 'assets.cutout', { mediaId: a.mediaId }),
     ),
     tool(
       'check_audio',
@@ -178,10 +210,22 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
             durationMs: qa.durationMs,
             checks: qa.checks ?? [],
             cues: qa.cues ?? [],
-            dropped: build.cues.dropped.map((d) => ({ atMs: d.cue.atMs, sfx: d.cue.sfx, itemId: d.cue.itemId, reason: d.reason })),
-            listen: (qa.listen ?? []).map((l) => ({ atMs: l.atMs, timecode: l.timecode, kind: l.kind, listenFor: l.listenFor })),
+            dropped: build.cues.dropped.map((d) => ({
+              atMs: d.cue.atMs,
+              sfx: d.cue.sfx,
+              itemId: d.cue.itemId,
+              reason: d.reason,
+            })),
+            listen: (qa.listen ?? []).map((l) => ({
+              atMs: l.atMs,
+              timecode: l.timecode,
+              kind: l.kind,
+              listenFor: l.listenFor,
+            })),
             ...(shown?.description !== undefined && { picture: shown.description }),
-            ...(shown === null && { picture: 'no vision model: qa.png not described; use the numbers above' }),
+            ...(shown === null && {
+              picture: 'no vision model: qa.png not described; use the numbers above',
+            }),
           }),
           ...(shown?.images && { images: shown.images }),
         };
@@ -195,7 +239,11 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
         'job',
         'Generate an image (only when archive search found nothing).',
         z.strictObject({ prompt: z.string().trim().min(1).max(2000), styleId: id.optional() }),
-        (ctx, a) => writingJob(ctx, 'assets.generate', { prompt: a.prompt, ...(a.styleId && { styleId: a.styleId }) }),
+        (ctx, a) =>
+          writingJob(ctx, 'assets.generate', {
+            prompt: a.prompt,
+            ...(a.styleId && { styleId: a.styleId }),
+          }),
       ),
     );
   }

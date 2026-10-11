@@ -32,14 +32,17 @@ function leakyError(status: number) {
 const leaks = (text: string) => SECRETS.filter((s) => text.includes(s));
 
 describe('redaction (step 2, S19)', () => {
-  test.each([401, 400, 429, 503])('a forced APICallError (HTTP %i) maps to a VoxError with no key', (status) => {
-    const r = createRedactor();
-    r.addSecrets(SECRETS);
-    const m = mapProviderError(leakyError(status), 'OpenRouter', r);
-    expect(leaks(JSON.stringify(toVoxErrorJson(m.error)))).toEqual([]);
-    expect(leaks(String(m.error.stack))).toEqual([]);
-    expect(leaks(JSON.stringify(m.error.details ?? {}))).toEqual([]);
-  });
+  test.each([401, 400, 429, 503])(
+    'a forced APICallError (HTTP %i) maps to a VoxError with no key',
+    (status) => {
+      const r = createRedactor();
+      r.addSecrets(SECRETS);
+      const m = mapProviderError(leakyError(status), 'OpenRouter', r);
+      expect(leaks(JSON.stringify(toVoxErrorJson(m.error)))).toEqual([]);
+      expect(leaks(String(m.error.stack))).toEqual([]);
+      expect(leaks(JSON.stringify(m.error.details ?? {}))).toEqual([]);
+    },
+  );
 
   test('a run that sees the key in model text, tool args and a provider error leaks it nowhere', async () => {
     const f = await fixtureProject();

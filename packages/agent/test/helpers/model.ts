@@ -27,8 +27,17 @@ export interface Scripted {
 }
 
 const usageOf = (u: ScriptStep['usage'] = {}) => ({
-  inputTokens: { total: u.input ?? 100, noCache: (u.input ?? 100) - (u.cacheRead ?? 0), cacheRead: u.cacheRead ?? 0, cacheWrite: 0 },
-  outputTokens: { total: u.output ?? 20, text: (u.output ?? 20) - (u.reasoning ?? 0), reasoning: u.reasoning ?? 0 },
+  inputTokens: {
+    total: u.input ?? 100,
+    noCache: (u.input ?? 100) - (u.cacheRead ?? 0),
+    cacheRead: u.cacheRead ?? 0,
+    cacheWrite: 0,
+  },
+  outputTokens: {
+    total: u.output ?? 20,
+    text: (u.output ?? 20) - (u.reasoning ?? 0),
+    reasoning: u.reasoning ?? 0,
+  },
 });
 
 export function scriptedModel(steps: ScriptStep[], opts: { repeatLast?: boolean } = {}): Scripted {
@@ -47,7 +56,12 @@ export function scriptedModel(steps: ScriptStep[], opts: { repeatLast?: boolean 
       if (s.error !== undefined) throw s.error;
       const chunks: unknown[] = [];
       const text = s.json !== undefined ? JSON.stringify(s.json) : s.text;
-      if (text) chunks.push({ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: text }, { type: 'text-end', id: 't' });
+      if (text)
+        chunks.push(
+          { type: 'text-start', id: 't' },
+          { type: 'text-delta', id: 't', delta: text },
+          { type: 'text-end', id: 't' },
+        );
       for (const [k, c] of (s.calls ?? []).entries()) {
         chunks.push({
           type: 'tool-call',
@@ -60,7 +74,9 @@ export function scriptedModel(steps: ScriptStep[], opts: { repeatLast?: boolean 
         type: 'finish',
         finishReason: { unified: s.calls?.length ? 'tool-calls' : 'stop', raw: 'x' },
         usage: usageOf(s.usage),
-        ...(s.costUsd !== undefined && { providerMetadata: { openrouter: { usage: { cost: s.costUsd } } } }),
+        ...(s.costUsd !== undefined && {
+          providerMetadata: { openrouter: { usage: { cost: s.costUsd } } },
+        }),
       });
       return { stream: simulateReadableStream({ chunks: chunks as never[] }) };
     },
@@ -73,7 +89,9 @@ export function scriptedModel(steps: ScriptStep[], opts: { repeatLast?: boolean 
         finishReason: { unified: 'stop', raw: 'stop' },
         usage: usageOf(s.usage),
         warnings: [],
-        ...(s.costUsd !== undefined && { providerMetadata: { openrouter: { usage: { cost: s.costUsd } } } }),
+        ...(s.costUsd !== undefined && {
+          providerMetadata: { openrouter: { usage: { cost: s.costUsd } } },
+        }),
       } as never;
     },
   });

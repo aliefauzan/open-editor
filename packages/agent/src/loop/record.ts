@@ -26,7 +26,12 @@ export function runsDir(projectsDir: string, projectId: string): string {
 }
 
 export function runRecordPath(projectsDir: string, projectId: string, runId: string): string {
-  if (!RUN_ID.test(runId)) throw new VoxError('VALIDATION', `invalid run id ${runId}`, 'Use the runId from agent.started.');
+  if (!RUN_ID.test(runId))
+    throw new VoxError(
+      'VALIDATION',
+      `invalid run id ${runId}`,
+      'Use the runId from agent.started.',
+    );
   return join(runsDir(projectsDir, projectId), `${runId}.jsonl`);
 }
 
@@ -90,12 +95,18 @@ export function closeUnfinishedRuns(opts: {
     if (!RUN_ID.test(runId)) continue;
     const lines = readRunRecord(join(dir, f));
     if (lines.length === 0 || lines.some((l) => l.type === 'done')) continue;
-    const versions = lines.flatMap((l) => (Array.isArray(l['versions']) ? (l['versions'] as number[]) : []));
-    const costUsd = lines.reduce((m, l) => (typeof l['spentUsd'] === 'number' ? Math.max(m, l['spentUsd']) : m), 0);
+    const versions = lines.flatMap((l) =>
+      Array.isArray(l['versions']) ? (l['versions'] as number[]) : [],
+    );
+    const costUsd = lines.reduce(
+      (m, l) => (typeof l['spentUsd'] === 'number' ? Math.max(m, l['spentUsd']) : m),
+      0,
+    );
     const payload = {
       runId,
       status: 'stopped',
-      summary: 'Stopped: the run was not finished when Vox Studio quit. Its edits stay; "Undo this run" still works.',
+      summary:
+        'Stopped: the run was not finished when Vox Studio quit. Its edits stay; "Undo this run" still works.',
       costUsd,
       versions: [...new Set(versions)].sort((a, b) => a - b),
     };

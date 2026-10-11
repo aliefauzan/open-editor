@@ -27,10 +27,14 @@ export function scriptFromRecord(lines: readonly RecordLine[]): ScriptStep[] {
     .filter((l) => l.type === 'step')
     .map((l) => {
       if (l['plan'] !== undefined) return { json: l['plan'] };
-      const calls = (l['calls'] as { toolName: string; input: unknown; rawInput?: string }[] | undefined) ?? [];
+      const calls =
+        (l['calls'] as { toolName: string; input: unknown; rawInput?: string }[] | undefined) ?? [];
       return {
         text: (l['text'] as string | undefined) ?? '',
-        calls: calls.map((c) => ({ name: c.toolName, input: c.rawInput ?? (c.input as Record<string, unknown>) })),
+        calls: calls.map((c) => ({
+          name: c.toolName,
+          input: c.rawInput ?? (c.input as Record<string, unknown>),
+        })),
         ...(l['usage'] !== undefined && {
           usage: {
             input: (l['usage'] as { inputTokens: number }).inputTokens,
@@ -101,7 +105,10 @@ export async function replay(
   for (let i = 0; i < n; i++) {
     const a = JSON.stringify(recorded[i] ?? null);
     const b = JSON.stringify(replayed[i] ?? null);
-    if (a !== b) mismatches.push(`tool call ${String(i)}: recorded ${a.slice(0, 300)} ≠ replayed ${b.slice(0, 300)}`);
+    if (a !== b)
+      mismatches.push(
+        `tool call ${String(i)}: recorded ${a.slice(0, 300)} ≠ replayed ${b.slice(0, 300)}`,
+      );
   }
   return { ok: mismatches.length === 0, mismatches, recorded, replayed };
 }

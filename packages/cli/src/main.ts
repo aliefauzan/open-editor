@@ -25,6 +25,7 @@ import {
   type JobInfo,
   writeConfig,
 } from '@vox/engine';
+import { configCommand, ConfigUsageError, type AgentCliDeps } from './config.ts';
 
 export interface Io {
   stdout: (s: string) => void;
@@ -34,10 +35,41 @@ export interface Io {
   /** Interactive terminal (stdin and stdout); `vox doctor` asks for the contact only then. */
   isTTY?: boolean;
   prompt?: (question: string) => Promise<string>;
+  /** Reads one line without echo (`vox config providers add`: API keys). */
+  promptSecret?: (question: string) => Promise<string>;
   /** Runs a child with the terminal attached and resolves its exit code (`vox preview`). */
   spawn?: (command: string, args: readonly string[], opts: { cwd: string }) => Promise<number>;
   /** Extra engine options (tests: a HyperFrames stand-in). */
   engine?: Partial<EngineOptions>;
+  /** `vox config` seams (tests: a memory Keychain, probe checks, no Apple helper). */
+  agent?: Partial<AgentCliDeps>;
+}
+
+/** One line from a terminal without echo; Ctrl-C or Ctrl-D ends with an empty answer. */
+function readHidden(question: string): Promise<string> {
+  const input = process.stdin;
+  process.stdout.write(question);
+  return new Promise((done) => {
+    let text = '';
+    const finish = (value: string) => {
+      input.off('data', onData);
+      input.setRawMode(false);
+      input.pause();
+      process.stdout.write('\n');
+      done(value);
+    };
+    const onData = (chunk: Buffer) => {
+      for (const ch of chunk.toString('utf8')) {
+        if (ch === '\r' || ch === '\n') return finish(text);
+        if (ch === '\u0003' || ch === '\u0004') return finish('');
+        if (ch === '\u007f' || ch === '\b') text = text.slice(0, -1);
+        else text += ch;
+      }
+    };
+    input.setRawMode(true);
+    input.resume();
+    input.on('data', onData);
+  });
 }
 
 const defaultIo: Io = {
@@ -54,6 +86,7 @@ const defaultIo: Io = {
       rl.close();
     }
   },
+  promptSecret: readHidden,
   spawn: (command, args, opts) =>
     new Promise((done, fail) => {
       const child = spawnChild(command, [...args], { cwd: opts.cwd, stdio: 'inherit' });
@@ -96,6 +129,12 @@ const USAGE = `usage:
   vox style new <id> [--extends <style>] [--name <name>]   scaffold a draft user style
   vox style trust <id> [--yes]            allow a user style's build.mjs hook to run
   vox style accept <id> | remove <id>     mark a draft active | delete a user style
+  vox config providers add <preset> [--key env:NAME] [--id id] [--base-url url]
+       [--context <model>=<tokens>]... [--num-ctx n]   (no --key: the key is asked for, hidden)
+  vox config providers list | remove <id>
+  vox config roles set <role> <provider>:<model> [--mode tools|plan]   probes first; refuses a failed role
+  vox config prices set <model> --in <usd> --out <usd> | --free        per million tokens
+  vox config probe [<provider>:<model>...]   probe the role models (or the named ones)
 common options: --json, --projects-dir <dir>; <project> is an id or a unique name
 `;
 
@@ -185,6 +224,18 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     overwrite: { type: 'boolean' },
   },
   credits: COMMON,
+  config: {
+    json: { type: 'boolean' },
+    key: { type: 'string' },
+    id: { type: 'string' },
+    'base-url': { type: 'string' },
+    context: { type: 'string', multiple: true },
+    'num-ctx': { type: 'string' },
+    mode: { type: 'string' },
+    in: { type: 'string' },
+    out: { type: 'string' },
+    free: { type: 'boolean' },
+  },
   style: {
     ...COMMON,
     extends: { type: 'string' },
@@ -934,6 +985,13 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     }
     case 'style':
       return styleCommand(positionals, values, io, out);
+    case 'config':
+      try {
+        return await configCommand(positionals, values, io);
+      } catch (e) {
+        if (e instanceof ConfigUsageError) throw new UsageError(e.message);
+        throw e;
+      }
     default:
       throw new UsageError(`unknown command ${JSON.stringify(cmd)}`);
   }

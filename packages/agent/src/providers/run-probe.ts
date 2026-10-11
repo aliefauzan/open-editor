@@ -4,11 +4,25 @@
 // fails the role, D-15). Apple entries run only the status and plan checks.
 import type { LanguageModelV4 } from '@ai-sdk/provider';
 import { ClipPlanSchema } from '../loop/plan.ts';
-import { ALWAYS_PRESENT, CLIPPER_CORE_TOOLS, buildRegistry, surfaceNames, toolDefinitionsFor } from '../tools/registry.ts';
+import {
+  ALWAYS_PRESENT,
+  CLIPPER_CORE_TOOLS,
+  buildRegistry,
+  surfaceNames,
+  toolDefinitionsFor,
+} from '../tools/registry.ts';
 import { appleStatus, type AppleModelOptions } from './apple.ts';
 import { detectContext, type ContextDeps, type ContextInfo } from './context.ts';
 import type { ProviderEntry } from './presets.ts';
-import { probeLoop, probePlan, probeTools, probeVision, type CheckResult, type PlanTask, type ProbeOptions } from './probe.ts';
+import {
+  probeLoop,
+  probePlan,
+  probeTools,
+  probeVision,
+  type CheckResult,
+  type PlanTask,
+  type ProbeOptions,
+} from './probe.ts';
 import type { ProbeReport } from './roles.ts';
 import { measureToolListCost } from './tool-cost.ts';
 
@@ -68,8 +82,15 @@ export async function probeModel(
   model: LanguageModelV4,
   deps: ProbeRunDeps = {},
 ): Promise<ProbeReport> {
-  const checks: ProbeChecks = { tools: probeTools, loop: probeLoop, vision: probeVision, plan: probePlan, ...deps.checks };
-  const want = (c: 'tools' | 'loop' | 'vision' | 'plan') => deps.only === undefined || deps.only.includes(c);
+  const checks: ProbeChecks = {
+    tools: probeTools,
+    loop: probeLoop,
+    vision: probeVision,
+    plan: probePlan,
+    ...deps.checks,
+  };
+  const want = (c: 'tools' | 'loop' | 'vision' | 'plan') =>
+    deps.only === undefined || deps.only.includes(c);
   const opts = deps.options ?? {};
   const report: ProbeReport = {};
   if (entry.type === 'apple') {
@@ -98,7 +119,9 @@ export async function probeModel(
       embeddings: or.outputModalities.includes('embeddings'),
     };
   }
-  const run = async (name: 'tools' | 'loop' | 'vision' | 'plan'): Promise<CheckResult | undefined> => {
+  const run = async (
+    name: 'tools' | 'loop' | 'vision' | 'plan',
+  ): Promise<CheckResult | undefined> => {
     if (!want(name)) return undefined;
     if (name === 'plan') return checks.plan(model, CLIP_PLAN_TASK, opts);
     return checks[name](model, opts);

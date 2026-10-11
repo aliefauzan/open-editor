@@ -17,7 +17,11 @@ export function sourceNamedByUser(source: string, userTexts: Iterable<string>): 
       const afterIndex = at + s.length;
       const after = afterIndex >= text.length ? '' : (text[afterIndex] as string);
       // a trailing sentence mark after a link is not part of it ("see https://x/y.")
-      const afterOk = after === '' || BOUNDARY.test(after) || (/[.,;:!?]/.test(after) && (afterIndex + 1 >= text.length || BOUNDARY.test(text[afterIndex + 1] as string)));
+      const afterOk =
+        after === '' ||
+        BOUNDARY.test(after) ||
+        (/[.,;:!?]/.test(after) &&
+          (afterIndex + 1 >= text.length || BOUNDARY.test(text[afterIndex + 1] as string)));
       if ((before === '' || BOUNDARY.test(before)) && afterOk) return true;
       at = text.indexOf(s, at + 1);
     }

@@ -119,10 +119,15 @@ describe('agent config store', () => {
   test('providerKey registers the key with the redactor as soon as it is read', async () => {
     const d = configDeps();
     d.keychain.items.set('claude', CANARY_KEY);
-    await d.io.write({ providers: [{ id: 'claude', type: 'anthropic', preset: 'claude', apiKey: 'keychain:claude' }] });
+    await d.io.write({
+      providers: [{ id: 'claude', type: 'anthropic', preset: 'claude', apiKey: 'keychain:claude' }],
+    });
     const e = (await loadAgentConfig(d)).providers[0]!;
     const seen: string[] = [];
-    const fresh = { ...d, redactor: { addSecrets: (v: readonly string[]) => void seen.push(...v) } };
+    const fresh = {
+      ...d,
+      redactor: { addSecrets: (v: readonly string[]) => void seen.push(...v) },
+    };
     expect(await providerKey(fresh, e)).toBe(CANARY_KEY);
     expect(seen).toEqual([CANARY_KEY]);
   });
@@ -151,7 +156,12 @@ describe('agent config store', () => {
   test('removeProvider drops the entry, its Keychain item and its roles', async () => {
     const d = configDeps();
     await saveProvider(d, { preset: 'openrouter', apiKey: CANARY_KEY });
-    await setRole(d, 'fast', { providerId: 'openrouter', model: 'm' }, { role: 'fast', assignable: true, failures: [] });
+    await setRole(
+      d,
+      'fast',
+      { providerId: 'openrouter', model: 'm' },
+      { role: 'fast', assignable: true, failures: [] },
+    );
     await removeProvider(d, 'openrouter');
     const cfg = await loadAgentConfig(d);
     expect(cfg.providers).toEqual([]);

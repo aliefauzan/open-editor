@@ -31,9 +31,11 @@ export function tempConfigIO(env: Record<string, string>): ConfigIO {
   return { read: () => readConfig(env), write: (patch) => writeConfig(patch, env) };
 }
 
-export function configDeps(
-  over: Partial<AgentConfigDeps> = {},
-): AgentConfigDeps & { keychain: ReturnType<typeof memoryKeychain>; redactor: Redactor; home: string } {
+export function configDeps(over: Partial<AgentConfigDeps> = {}): AgentConfigDeps & {
+  keychain: ReturnType<typeof memoryKeychain>;
+  redactor: Redactor;
+  home: string;
+} {
   const { env, home } = tempVoxHome();
   return {
     io: tempConfigIO(env),
@@ -42,5 +44,9 @@ export function configDeps(
     redactor: createRedactor(),
     home,
     ...(over as object),
-  } as AgentConfigDeps & { keychain: ReturnType<typeof memoryKeychain>; redactor: Redactor; home: string };
+  } as AgentConfigDeps & {
+    keychain: ReturnType<typeof memoryKeychain>;
+    redactor: Redactor;
+    home: string;
+  };
 }

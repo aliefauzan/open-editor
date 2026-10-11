@@ -36,7 +36,9 @@ describe('S20 injection transcript', () => {
     const system = m.prompts[0]!.prompt.find((x) => x.role === 'system') as { content: string };
     expect(system.content).toContain(DATA_RULE);
     // the transcript result: one envelope, the payload's tags escaped
-    const tool = m.prompts[1]!.prompt.find((x) => x.role === 'tool') as { content: { output: { value: string } }[] };
+    const tool = m.prompts[1]!.prompt.find((x) => x.role === 'tool') as {
+      content: { output: { value: string } }[];
+    };
     const value = tool.content[0]!.output.value;
     expect(value.startsWith('<data source="transcript">\n')).toBe(true);
     expect(value.match(/<\/data>/g)).toHaveLength(1);

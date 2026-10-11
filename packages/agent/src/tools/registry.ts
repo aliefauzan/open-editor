@@ -62,13 +62,17 @@ function relaxIds(node: unknown, idContext = false): void {
   }
   for (const [k, v] of Object.entries(o)) {
     if (k === 'properties' && v !== null && typeof v === 'object') {
-      for (const [pk, pv] of Object.entries(v as Record<string, unknown>)) relaxIds(pv, ID_KEY.test(pk));
+      for (const [pk, pv] of Object.entries(v as Record<string, unknown>))
+        relaxIds(pv, ID_KEY.test(pk));
     } else relaxIds(v, PASS_ID_CONTEXT.has(k) && idContext);
   }
 }
 
 export function toModelSchema(schema: z.ZodType): JSONSchema7 {
-  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>;
+  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as Record<
+    string,
+    unknown
+  >;
   delete json['$schema'];
   relaxIds(json);
   return json as JSONSchema7;
@@ -90,17 +94,29 @@ const TodoSchema = z
   });
 
 function unknownTool(name: string, names: readonly string[]): VoxError {
-  return new VoxError('TOOL_UNKNOWN', `${JSON.stringify(name)} is not a tool`, `Use one of: ${names.join(', ')}`, {
-    details: { name },
-  });
+  return new VoxError(
+    'TOOL_UNKNOWN',
+    `${JSON.stringify(name)} is not a tool`,
+    `Use one of: ${names.join(', ')}`,
+    {
+      details: { name },
+    },
+  );
 }
 
 /** Validation error the model can act on (zod issues, no values). */
 export function validationError(name: string, err: z.ZodError): VoxError {
-  const issues = err.issues.slice(0, 10).map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
-  return new VoxError('VALIDATION', `${name}: ${issues.join('; ')}`, `Fix the ${name} arguments and call it again.`, {
-    details: { tool: name, issues },
-  });
+  const issues = err.issues
+    .slice(0, 10)
+    .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
+  return new VoxError(
+    'VALIDATION',
+    `${name}: ${issues.join('; ')}`,
+    `Fix the ${name} arguments and call it again.`,
+    {
+      details: { tool: name, issues },
+    },
+  );
 }
 
 export interface InvokeOptions {
@@ -119,17 +135,21 @@ export async function invokeTool(
   const t = registry.get(name);
   if (!t) throw unknownTool(name, registry.names());
   if (opts.viaCallTool && (name === 'call_tool' || name === 'describe_tool')) {
-    throw new VoxError('TOOL_REFUSED', `${name} cannot be reached through call_tool`, `Call ${name} directly.`);
+    throw new VoxError(
+      'TOOL_REFUSED',
+      `${name} cannot be reached through call_tool`,
+      `Call ${name} directly.`,
+    );
   }
   const questionOk =
     t.kind === 'read' || name === 'describe_tool' || (name === 'call_tool' && !opts.viaCallTool);
   if (ctx.question && !questionOk) {
-      throw new VoxError(
-        'TOOL_REFUSED',
-        `${name} changes the project; this turn is a question, so only read tools run`,
-        'Answer the question; the user can ask for the edit in a new message.',
-        { details: { tool: name } },
-      );
+    throw new VoxError(
+      'TOOL_REFUSED',
+      `${name} changes the project; this turn is a question, so only read tools run`,
+      'Answer the question; the user can ask for the edit in a new message.',
+      { details: { tool: name } },
+    );
   }
   const args = ctx.aliases.fromModel(rawArgs ?? {});
   const parsed = t.input.safeParse(args);
@@ -170,7 +190,12 @@ export function buildRegistry(engine: Pick<AgentEngine, 'imageProviders'>): Tool
       const t = tools.get(name);
       if (!t) return Promise.reject(unknownTool(name, registry.names()));
       return Promise.resolve({
-        result: { name, kind: t.kind, description: t.description, inputSchema: registry.modelSchema(name) },
+        result: {
+          name,
+          kind: t.kind,
+          description: t.description,
+          inputSchema: registry.modelSchema(name),
+        },
       });
     },
   });
@@ -179,7 +204,10 @@ export function buildRegistry(engine: Pick<AgentEngine, 'imageProviders'>): Tool
     kind: 'meta',
     description:
       'Run any tool by name with its arguments (see describe_tool for its schema). Same validation and rules as a direct call.',
-    input: z.strictObject({ name: z.string().min(1), args: z.record(z.string(), z.unknown()).default({}) }),
+    input: z.strictObject({
+      name: z.string().min(1),
+      args: z.record(z.string(), z.unknown()).default({}),
+    }),
     run: (ctx, a) => {
       const { name, args } = a as { name: string; args: Record<string, unknown> };
       return invokeTool(ctx, registry, name, args, { viaCallTool: true });
@@ -244,7 +272,10 @@ export function surfaceNames(
   return out;
 }
 
-export function toolDefinitionsFor(registry: ToolRegistry, names: readonly string[]): ToolDefinition[] {
+export function toolDefinitionsFor(
+  registry: ToolRegistry,
+  names: readonly string[],
+): ToolDefinition[] {
   return names.map((n) => ({
     name: n,
     description: registry.get(n)!.description,

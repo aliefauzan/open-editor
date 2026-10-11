@@ -61,7 +61,9 @@ export function mapProviderError(
         retryable: false,
       };
     }
-    const overflow = [err.message, err.responseBody].some((t) => typeof t === 'string' && OVERFLOW.test(t));
+    const overflow = [err.message, err.responseBody].some(
+      (t) => typeof t === 'string' && OVERFLOW.test(t),
+    );
     if (overflow && (status === undefined || status === 400 || status === 413 || status === 422)) {
       return {
         error: new VoxError(
@@ -108,16 +110,24 @@ export function mapProviderError(
     };
   }
   const e = err as { name?: unknown; message?: unknown };
-  const network = e.name === 'TypeError' || e.name === 'AbortError' || /fetch failed|ECONN|ETIMEDOUT|socket/i.test(String(e.message));
+  const network =
+    e.name === 'TypeError' ||
+    e.name === 'AbortError' ||
+    /fetch failed|ECONN|ETIMEDOUT|socket/i.test(String(e.message));
   if (e.name === 'AbortError') {
-    return { error: new VoxError('CANCELLED', 'the request was cancelled', 'Start the run again.'), retryable: false };
+    return {
+      error: new VoxError('CANCELLED', 'the request was cancelled', 'Start the run again.'),
+      retryable: false,
+    };
   }
   const said = excerpt(redactor, e.message);
   return {
     error: new VoxError(
       network ? 'PROVIDER_UNAVAILABLE' : 'PROVIDER_FAILED',
       network ? `${provider} could not be reached` : `the ${provider} request failed`,
-      network ? 'Check the network and the provider base URL; retrying with backoff.' : 'Try again or switch the model.',
+      network
+        ? 'Check the network and the provider base URL; retrying with backoff.'
+        : 'Try again or switch the model.',
       { details: { provider, ...(said && { said }) } },
     ),
     retryable: network,

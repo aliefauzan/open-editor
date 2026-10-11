@@ -31,15 +31,23 @@ describe('ingest source rule (step 6, S20)', () => {
   test('an attachment name counts; an approved source passes', () => {
     expect(unapprovedSources(['/Users/x/clip.mp4'], ['/Users/x/clip.mp4'], new Set())).toEqual([]);
     expect(unapprovedSources(['https://a/b'], [], new Set(['https://a/b']))).toEqual([]);
-    expect(unapprovedSources(['https://a/b', 'https://c/d'], ['see https://c/d'], new Set())).toEqual(['https://a/b']);
+    expect(
+      unapprovedSources(['https://a/b', 'https://c/d'], ['see https://c/d'], new Set()),
+    ).toEqual(['https://a/b']);
   });
 
   test('a source from tool output pauses the run; nothing is ingested', async () => {
     const f = await fixtureProject();
     const runJob = vi.fn();
     const ctx = toolContext(f, { userSources: new Set(user), runJob });
-    const out = await invokeTool(ctx, r, 'ingest', { source: 'https://transcript.example/inject.mp4' });
-    expect(out.pause).toMatchObject({ reason: 'approval', kind: 'source', sources: ['https://transcript.example/inject.mp4'] });
+    const out = await invokeTool(ctx, r, 'ingest', {
+      source: 'https://transcript.example/inject.mp4',
+    });
+    expect(out.pause).toMatchObject({
+      reason: 'approval',
+      kind: 'source',
+      sources: ['https://transcript.example/inject.mp4'],
+    });
     expect(runJob).not.toHaveBeenCalled();
   });
 
@@ -66,7 +74,9 @@ describe('job conflicts', () => {
     await invokeTool(toolContext(f, { runJob }), r, 'shots', { mediaId: f.mediaId });
     expect(runJob).toHaveBeenCalledTimes(2);
     const always = vi.fn().mockRejectedValue(conflict);
-    await expect(invokeTool(toolContext(f, { runJob: always }), r, 'shots', { mediaId: f.mediaId })).rejects.toMatchObject({
+    await expect(
+      invokeTool(toolContext(f, { runJob: always }), r, 'shots', { mediaId: f.mediaId }),
+    ).rejects.toMatchObject({
       code: 'JOB_CONFLICT',
     });
     expect(always).toHaveBeenCalledTimes(2);
@@ -89,7 +99,13 @@ function qaResult(pass: boolean, png: string) {
     targetLufs: -14,
     durationMs: 20000,
     checks: [
-      { id: 'cueTiming', status: pass ? 'pass' : 'fail', limitMs: 33, maxAbsDeltaMs: pass ? 12 : 140, failures: pass ? [] : [{ cue: 2 }] },
+      {
+        id: 'cueTiming',
+        status: pass ? 'pass' : 'fail',
+        limitMs: 33,
+        maxAbsDeltaMs: pass ? 12 : 140,
+        failures: pass ? [] : [{ cue: 2 }],
+      },
       { id: 'oneEventPerCue', status: 'pass', failures: [] },
       { id: 'spacing', status: 'pass', failures: [] },
       { id: 'underSpeech', status: 'pass', failures: [] },
@@ -109,7 +125,10 @@ function qaResult(pass: boolean, png: string) {
 function qaPng(): string {
   const dir = mkdtempSync(join(tmpdir(), 'vox-agent-qa-'));
   const path = join(dir, 'qa.png');
-  writeFileSync(path, rgbPng(40, 30, (x, y) => [Math.floor(noise(x, y) * 200), 60, 60]));
+  writeFileSync(
+    path,
+    rgbPng(40, 30, (x, y) => [Math.floor(noise(x, y) * 200), 60, 60]),
+  );
   return path;
 }
 
@@ -121,7 +140,10 @@ describe('check_audio (step 12b, D-14)', () => {
     const describe = vi.fn(() => Promise.resolve('Marker 1: a tick in sfx and mix rows.'));
     const ctx = toolContext(f, { runJob, vision: { describe } });
     const out = await invokeTool(ctx, r, 'check_audio', { sequenceId: f.sequenceId });
-    expect(runJob).toHaveBeenCalledWith('audioQa', { projectId: f.projectId, sequenceId: f.sequenceId });
+    expect(runJob).toHaveBeenCalledWith('audioQa', {
+      projectId: f.projectId,
+      sequenceId: f.sequenceId,
+    });
     const res = out.result as {
       pass: boolean;
       targetLufs: number;
@@ -131,18 +153,37 @@ describe('check_audio (step 12b, D-14)', () => {
       picture: string;
     };
     expect(res).toMatchObject({ pass: true, targetLufs: -14 });
-    expect(res.checks.map((c) => c.id)).toEqual(['cueTiming', 'oneEventPerCue', 'spacing', 'underSpeech', 'loudness']);
-    expect(res.listen.map((l) => l.timecode)).toEqual(['00:01.200', '00:04.300', '00:07.100', '00:09.800', '00:15.020']);
+    expect(res.checks.map((c) => c.id)).toEqual([
+      'cueTiming',
+      'oneEventPerCue',
+      'spacing',
+      'underSpeech',
+      'loudness',
+    ]);
+    expect(res.listen.map((l) => l.timecode)).toEqual([
+      '00:01.200',
+      '00:04.300',
+      '00:07.100',
+      '00:09.800',
+      '00:15.020',
+    ]);
     expect(res.dropped).toEqual([]);
     expect(res.picture).toMatch(/^<data source="vision">\nMarker 1/);
-    expect(describe).toHaveBeenCalledWith([expect.objectContaining({ label: 'qa.png' })], expect.stringContaining('do not judge how it sounds'), undefined);
+    expect(describe).toHaveBeenCalledWith(
+      [expect.objectContaining({ label: 'qa.png' })],
+      expect.stringContaining('do not judge how it sounds'),
+      undefined,
+    );
     expect(out.images).toBeUndefined();
   });
 
   test('an editor with vision gets qa.png as an image', async () => {
     const f = await fixtureProject();
     const png = qaPng();
-    const ctx = toolContext(f, { runJob: () => Promise.resolve(qaResult(true, png)), editorVision: true });
+    const ctx = toolContext(f, {
+      runJob: () => Promise.resolve(qaResult(true, png)),
+      editorVision: true,
+    });
     const out = await invokeTool(ctx, r, 'check_audio', { sequenceId: f.sequenceId });
     expect(out.images?.[0]?.label).toBe('qa.png');
   });
@@ -152,7 +193,11 @@ describe('check_audio (step 12b, D-14)', () => {
     const png = qaPng();
     const ctx = toolContext(f, { runJob: () => Promise.resolve(qaResult(false, png)) });
     const out = await invokeTool(ctx, r, 'check_audio', { sequenceId: f.sequenceId });
-    const res = out.result as { pass: boolean; checks: { status: string; maxAbsDeltaMs?: number }[]; picture: string };
+    const res = out.result as {
+      pass: boolean;
+      checks: { status: string; maxAbsDeltaMs?: number }[];
+      picture: string;
+    };
     expect(res.pass).toBe(false);
     expect(res.checks[0]).toMatchObject({ status: 'fail', maxAbsDeltaMs: 140 });
     expect(res.picture).toContain('no vision model');
@@ -161,7 +206,12 @@ describe('check_audio (step 12b, D-14)', () => {
   test('a question turn may run it (read kind)', async () => {
     const f = await fixtureProject();
     const png = qaPng();
-    const ctx = toolContext(f, { question: true, runJob: () => Promise.resolve(qaResult(true, png)) });
-    await expect(invokeTool(ctx, r, 'check_audio', { sequenceId: f.sequenceId })).resolves.toBeDefined();
+    const ctx = toolContext(f, {
+      question: true,
+      runJob: () => Promise.resolve(qaResult(true, png)),
+    });
+    await expect(
+      invokeTool(ctx, r, 'check_audio', { sequenceId: f.sequenceId }),
+    ).resolves.toBeDefined();
   });
 });

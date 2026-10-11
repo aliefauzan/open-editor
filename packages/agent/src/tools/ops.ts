@@ -42,10 +42,12 @@ const OP_DESCRIPTIONS: Readonly<Record<OpName, string>> = {
   setCaptions: 'Turn captions on or off and change caption settings or word overrides.',
   removePauses:
     'Cut pauses (and optionally fillers and repeats) as one undo entry. dryRun: true returns the ranges (the review list) and changes nothing; wordKeys limits the cut to listed ranges.',
-  removeWords: 'Cut the listed words (text-based cutting) as one undo entry; dryRun: true only lists the ranges.',
+  removeWords:
+    'Cut the listed words (text-based cutting) as one undo entry; dryRun: true only lists the ranges.',
   pasteItems: 'Paste copied items at a sequence time.',
   restoreSnapshot: 'Restore a named project snapshot (one undo entry).',
-  batch: 'Apply several ops (engine op names such as moveItem, args as for their tools) as one undo entry.',
+  batch:
+    'Apply several ops (engine op names such as moveItem, args as for their tools) as one undo entry.',
 };
 
 function writeResult(ctx: ToolContext, r: ApplyResult, note?: string): ToolOutput {
@@ -57,7 +59,9 @@ function writeResult(ctx: ToolContext, r: ApplyResult, note?: string): ToolOutpu
       results: r.results.map((x) => ({
         op: x.op,
         status: x.status,
-        ...(x.error && { error: { code: x.error.code, message: x.error.message, hint: x.error.hint } }),
+        ...(x.error && {
+          error: { code: x.error.code, message: x.error.message, hint: x.error.hint },
+        }),
         ...(x.items && { items: x.items }),
         ...(x.report !== undefined && { report: x.report }),
       })),
@@ -71,7 +75,11 @@ const isStale = (r: ApplyResult) =>
   r.results.some((x) => x.status === 'conflicted' && x.error?.code === 'STALE');
 
 /** Applies one op as the agent; on STALE re-reads (updates the seen version) and retries once. */
-export async function applyAsAgent(ctx: ToolContext, op: string, args: unknown): Promise<ToolOutput> {
+export async function applyAsAgent(
+  ctx: ToolContext,
+  op: string,
+  args: unknown,
+): Promise<ToolOutput> {
   const call = { op, args };
   const opts = (baseVersion: number) => ({
     actor: 'agent' as const,
@@ -95,7 +103,11 @@ export async function applyAsAgent(ctx: ToolContext, op: string, args: unknown):
 export function opTools(): AgentTool[] {
   return OP_NAMES.map((op) => {
     if (!Object.hasOwn(OP_DESCRIPTIONS, op)) {
-      throw new VoxError('VALIDATION', `op ${op} has no tool description`, 'Add one to tools/ops.ts');
+      throw new VoxError(
+        'VALIDATION',
+        `op ${op} has no tool description`,
+        'Add one to tools/ops.ts',
+      );
     }
     return {
       name: toolNameOf(op),

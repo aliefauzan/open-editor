@@ -87,19 +87,26 @@ export function pngLumaStats(png: Uint8Array): LumaStats {
       const b = prev[i] ?? 0;
       const c = i >= bpp ? (prev[i - bpp] ?? 0) : 0;
       const v =
-        filter === 0 ? x
-        : filter === 1 ? x + a
-        : filter === 2 ? x + b
-        : filter === 3 ? x + ((a + b) >> 1)
-        : filter === 4 ? x + paeth(a, b, c)
-        : -1;
+        filter === 0
+          ? x
+          : filter === 1
+            ? x + a
+            : filter === 2
+              ? x + b
+              : filter === 3
+                ? x + ((a + b) >> 1)
+                : filter === 4
+                  ? x + paeth(a, b, c)
+                  : -1;
       if (v < 0) throw new Error('bad PNG filter');
       cur[i] = v & 0xff;
     }
     for (let px = 0; px < width; px++) {
       let luma: number;
       if (channels <= 2) luma = sample(cur, px, 0);
-      else luma = 0.2126 * sample(cur, px, 0) + 0.7152 * sample(cur, px, 1) + 0.0722 * sample(cur, px, 2);
+      else
+        luma =
+          0.2126 * sample(cur, px, 0) + 0.7152 * sample(cur, px, 1) + 0.0722 * sample(cur, px, 2);
       sum += luma;
       sumSq += luma * luma;
       if (luma < HEALTH.blackLuma) black++;

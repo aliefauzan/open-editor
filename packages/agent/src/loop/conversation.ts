@@ -47,7 +47,11 @@ export class Conversation {
   }
 
   /** One tool message with its results; `meta` gives each result's stub label and read version. */
-  toolResults(step: number, parts: ToolResultPart[], meta: Map<string, { label: string; version: number }>): void {
+  toolResults(
+    step: number,
+    parts: ToolResultPart[],
+    meta: Map<string, { label: string; version: number }>,
+  ): void {
     const tools = new Map<string, ToolMeta>();
     for (const [id, m] of meta) tools.set(id, { ...m, stubbed: false });
     this.#entries.push({ step, message: { role: 'tool', content: parts }, tools });
@@ -68,7 +72,9 @@ export class Conversation {
   }
 
   tokens(currentVersion: number): number {
-    return estimateTokens(JSON.stringify(this.messages(currentVersion))) + estimateTokens(this.#notes);
+    return (
+      estimateTokens(JSON.stringify(this.messages(currentVersion))) + estimateTokens(this.#notes)
+    );
   }
 
   /** Stubs tool results of steps up to `step` (inclusive). Returns how many were stubbed. */
@@ -107,7 +113,9 @@ export class Conversation {
     const first = this.#entries.findIndex((e) => e.message.role === 'user');
     const old = this.#entries.filter((e, i) => i !== first && e.step <= cutoff);
     if (old.length === 0) return { stubbed, summarised: 0 };
-    const text = JSON.stringify(old.map((e) => this.messages(opts.currentVersion)[this.#entries.indexOf(e)]));
+    const text = JSON.stringify(
+      old.map((e) => this.messages(opts.currentVersion)[this.#entries.indexOf(e)]),
+    );
     const notes = opts.summarise
       ? await opts.summarise(text, this.#notes)
       : `${this.#notes}${this.#notes ? '\n' : ''}[steps up to ${String(cutoff)} elided]`;

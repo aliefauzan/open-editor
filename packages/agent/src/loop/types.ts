@@ -53,7 +53,13 @@ export interface Usage {
 export type AgentEvent =
   | {
       type: 'agent.started';
-      payload: { runId: string; projectId: string; workflow: string; mode: AgentMode; models: Record<string, string> };
+      payload: {
+        runId: string;
+        projectId: string;
+        workflow: string;
+        mode: AgentMode;
+        models: Record<string, string>;
+      };
     }
   | {
       type: 'agent.step';

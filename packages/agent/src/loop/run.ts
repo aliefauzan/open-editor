@@ -26,7 +26,13 @@ import {
   toolDefinitionsFor,
   type ToolRegistry,
 } from '../tools/registry.ts';
-import type { TodoItem, ToolContext, ToolImage, ToolOutput, VisionDescriber } from '../tools/types.ts';
+import type {
+  TodoItem,
+  ToolContext,
+  ToolImage,
+  ToolOutput,
+  VisionDescriber,
+} from '../tools/types.ts';
 import { COMPACT_AT, Conversation } from './conversation.ts';
 import { wrapData } from './envelope.ts';
 import { backoffMs, mapProviderError, PROVIDER_RETRIES } from './provider-errors.ts';
@@ -67,10 +73,14 @@ function stable(v: unknown): string {
 function toUsage(u: {
   inputTokens?: number | undefined;
   outputTokens?: number | undefined;
-  inputTokenDetails?: { cacheReadTokens?: number | undefined; cacheWriteTokens?: number | undefined };
+  inputTokenDetails?: {
+    cacheReadTokens?: number | undefined;
+    cacheWriteTokens?: number | undefined;
+  };
   outputTokenDetails?: { reasoningTokens?: number | undefined };
 }): Usage {
-  const n = (x: number | undefined) => (typeof x === 'number' && Number.isSafeInteger(x) && x >= 0 ? x : 0);
+  const n = (x: number | undefined) =>
+    typeof x === 'number' && Number.isSafeInteger(x) && x >= 0 ? x : 0;
   return {
     inputTokens: n(u.inputTokens),
     outputTokens: n(u.outputTokens),
@@ -81,7 +91,8 @@ function toUsage(u: {
 }
 
 function reportedCost(pm: unknown): number | undefined {
-  const c = (pm as { openrouter?: { usage?: { cost?: unknown } } } | undefined)?.openrouter?.usage?.cost;
+  const c = (pm as { openrouter?: { usage?: { cost?: unknown } } } | undefined)?.openrouter?.usage
+    ?.cost;
   return typeof c === 'number' ? c : undefined;
 }
 
@@ -217,10 +228,14 @@ export class AgentRun {
   /** Records the pause, emits `agent.paused` and waits for the decision (default: stop). */
   async pause(p: Omit<PauseInfo, 'runId'>): Promise<PauseDecision> {
     const info: PauseInfo = { runId: this.runId, ...p };
-    const { plan: _plan, ...event } = info;
+    // The plan itself stays in the run record; the event carries only the pause.
+    const event: Omit<PauseInfo, 'plan'> & { plan?: unknown } = { ...info };
+    delete event.plan;
     this.record.write({ type: 'paused', ...info, spentUsd: this.spentUsd });
     this.emit({ type: 'agent.paused', payload: event });
-    const decision = this.#deps.onPause ? await this.#deps.onPause(info) : { action: 'stop' as const };
+    const decision = this.#deps.onPause
+      ? await this.#deps.onPause(info)
+      : { action: 'stop' as const };
     this.record.write({ type: 'resumed', decision });
     if (decision.action === 'continue' && decision.maxUsdPerRun !== undefined) {
       this.#cap = decision.maxUsdPerRun;
@@ -268,8 +283,15 @@ export class AgentRun {
               {
                 role: 'user',
                 content: [
-                  { type: 'text', text: `${task}\nImages in order: ${images.map((i) => i.label).join(', ')}.` },
-                  ...images.map((i) => ({ type: 'image' as const, image: i.data, mediaType: i.mediaType })),
+                  {
+                    type: 'text',
+                    text: `${task}\nImages in order: ${images.map((i) => i.label).join(', ')}.`,
+                  },
+                  ...images.map((i) => ({
+                    type: 'image' as const,
+                    image: i.data,
+                    mediaType: i.mediaType,
+                  })),
                 ],
               },
             ],
@@ -284,7 +306,11 @@ export class AgentRun {
   }
 
   /** Runs a model request with error mapping, backoff on 429/5xx and a pause after 3 tries. */
-  async #withRetries<T>(role: RoleModel, call: () => Promise<T>, onOverflow?: () => Promise<boolean>): Promise<T> {
+  async #withRetries<T>(
+    role: RoleModel,
+    call: () => Promise<T>,
+    onOverflow?: () => Promise<boolean>,
+  ): Promise<T> {
     let attempt = 0;
     let compacted = false;
     for (;;) {
@@ -306,7 +332,10 @@ export class AgentRun {
           attempt++;
           continue;
         }
-        const d = await this.pause({ reason: 'error', detail: `${m.error.message}. ${m.error.hint}` });
+        const d = await this.pause({
+          reason: 'error',
+          detail: `${m.error.message}. ${m.error.hint}`,
+        });
         if (d.action === 'stop') throw new RunStopped();
         attempt = 0;
       }
@@ -314,12 +343,19 @@ export class AgentRun {
   }
 
   /** One structured answer from the editor (plan mode), under the same budget and retries. */
-  async structured<T>(opts: { system: string; messages: ModelMessage[]; schema: z.ZodType<T> }): Promise<{
+  async structured<T>(opts: {
+    system: string;
+    messages: ModelMessage[];
+    schema: z.ZodType<T>;
+  }): Promise<{
     value: unknown;
     usage: Usage;
   }> {
     const editor = this.#deps.models.editor;
-    await this.ensureBudget(editor, estimateTokens(opts.system) + estimateTokens(JSON.stringify(opts.messages)));
+    await this.ensureBudget(
+      editor,
+      estimateTokens(opts.system) + estimateTokens(JSON.stringify(opts.messages)),
+    );
     const r = await this.#withRetries(editor, async () => {
       try {
         return await generateText({
@@ -334,7 +370,8 @@ export class AgentRun {
       } catch (err) {
         // an answer that does not validate goes back to the model as data, not as a provider error
         const e = err as { name?: string; text?: string; usage?: unknown };
-        if (e.name === 'AI_NoObjectGeneratedError') return { invalidText: e.text ?? '', usage: e.usage } as const;
+        if (e.name === 'AI_NoObjectGeneratedError')
+          return { invalidText: e.text ?? '', usage: e.usage } as const;
         throw err;
       }
     });
@@ -367,7 +404,9 @@ export class AgentRun {
 
   /** History after the last noted version, by the user or another run (not this run's writes). */
   async changeNote(): Promise<string> {
-    const entries = await this.#deps.engine.history(this.#req.projectId, { sinceVersion: this.#noteFrom });
+    const entries = await this.#deps.engine.history(this.#req.projectId, {
+      sinceVersion: this.#noteFrom,
+    });
     const mine = new Set(this.versions);
     const lines: string[] = [];
     for (const e of entries) {
@@ -377,7 +416,9 @@ export class AgentRun {
       const what = e.kind === 'op' ? (e.op ?? 'edit') : e.kind;
       lines.push(`- v${String(e.version)} by ${e.actor}: ${what} → ${touched.join(', ')}`);
     }
-    return lines.length === 0 ? '' : `Changes since your last step (not yours; re-read before editing these):\n${lines.join('\n')}`;
+    return lines.length === 0
+      ? ''
+      : `Changes since your last step (not yours; re-read before editing these):\n${lines.join('\n')}`;
   }
 
   #describeKey(c: Change): string {
@@ -417,7 +458,12 @@ export class AgentRun {
       const prompt = `Summarise these earlier agent steps into short notes for the agent itself: what was read (with versions), what was changed (aliases, versions), what is still open. Previous notes:\n${prev || '(none)'}\n\nSteps:\n${wrapData('steps', text)}`;
       await this.ensureBudget(fast, estimateTokens(prompt));
       const r = await this.#withRetries(fast, () =>
-        generateText({ model: fast.model, prompt, maxRetries: 0, maxOutputTokens: fast.maxOutputTokens }),
+        generateText({
+          model: fast.model,
+          prompt,
+          maxRetries: 0,
+          maxOutputTokens: fast.maxOutputTokens,
+        }),
       );
       this.addCost(fast, toUsage(r.usage), r.providerMetadata);
       return r.text;
@@ -468,7 +514,13 @@ export class AgentRun {
     for (const part of r.content) {
       if (part.type === 'text') text += part.text;
       if (part.type !== 'tool-call') continue;
-      const p = part as { toolCallId: string; toolName: string; input: unknown; invalid?: boolean; error?: { name?: string } };
+      const p = part as {
+        toolCallId: string;
+        toolName: string;
+        input: unknown;
+        invalid?: boolean;
+        error?: { name?: string };
+      };
       const call: ModelCall = { toolCallId: p.toolCallId, toolName: p.toolName, input: p.input };
       if (p.invalid && p.error?.name === 'AI_NoSuchToolError') call.unknownTool = true;
       if (p.invalid && typeof p.input === 'string') call.rawInput = p.input;
@@ -508,7 +560,8 @@ export class AgentRun {
         this.#step++;
         const inj = await this.injection(opts.scope);
         const budget = Math.floor(editor.contextTokens * COMPACT_AT);
-        const fixed = () => estimateTokens(this.systemPrompt(conv)) + toolTokens + estimateTokens(inj.text);
+        const fixed = () =>
+          estimateTokens(this.systemPrompt(conv)) + toolTokens + estimateTokens(inj.text);
         const compactOnce = async (force: boolean) => {
           const r = await conv.compact({
             budgetTokens: budget - fixed(),
@@ -517,14 +570,21 @@ export class AgentRun {
             ...(force && { force: true }),
             ...(this.#summariser() && { summarise: this.#summariser()! }),
           });
-          if (r.stubbed + r.summarised > 0) this.record.write({ type: 'compacted', step, ...r, force });
+          if (r.stubbed + r.summarised > 0)
+            this.record.write({ type: 'compacted', step, ...r, force });
           return r.stubbed + r.summarised > 0;
         };
         await compactOnce(false);
         const build = () => withInjection(conv.messages(inj.version), inj.text);
         const messages = build();
         await this.ensureBudget(editor, fixed() + conv.tokens(inj.version));
-        const out = await this.#modelStep(this.systemPrompt(conv), messages, tools, () => compactOnce(true), build);
+        const out = await this.#modelStep(
+          this.systemPrompt(conv),
+          messages,
+          tools,
+          () => compactOnce(true),
+          build,
+        );
         summary = out.text.trim() || summary;
         this.record.write({
           type: 'step',
@@ -567,7 +627,11 @@ export class AgentRun {
             this.record.write({ type: 'correction', step });
             continue;
           }
-          return this.#endTurn(opts, { status: 'completed', summary: summary || 'Done.', steps: step });
+          return this.#endTurn(opts, {
+            status: 'completed',
+            summary: summary || 'Done.',
+            steps: step,
+          });
         }
         const parts: ToolResultPart[] = [];
         const meta = new Map<string, { label: string; version: number }>();
@@ -577,7 +641,11 @@ export class AgentRun {
           meta.set(call.toolCallId, res.meta);
           if (res.stop) {
             conv.toolResults(step, parts, meta);
-            return this.#endTurn(opts, { status: 'stopped', summary: 'Stopped by the user.', steps: step });
+            return this.#endTurn(opts, {
+              status: 'stopped',
+              summary: 'Stopped by the user.',
+              steps: step,
+            });
           }
         }
         conv.toolResults(step, parts, meta);
@@ -590,18 +658,35 @@ export class AgentRun {
       });
     } catch (err) {
       if (err instanceof RunStopped) {
-        return this.#endTurn(opts, { status: 'stopped', summary: 'Stopped by the user.', steps: this.#step });
+        return this.#endTurn(opts, {
+          status: 'stopped',
+          summary: 'Stopped by the user.',
+          steps: this.#step,
+        });
       }
       const e = isVoxError(err)
         ? this.#deps.redactor.redact(toVoxErrorJson(err))
-        : this.#deps.redactor.redact(toVoxErrorJson(new VoxError('TOOL_FAILED', 'the agent loop failed', 'See the run record.', { cause: err })));
-      return this.#endTurn(opts, { status: 'failed', summary: `${e.message}. ${e.hint}`, steps: this.#step, error: e });
+        : this.#deps.redactor.redact(
+            toVoxErrorJson(
+              new VoxError('TOOL_FAILED', 'the agent loop failed', 'See the run record.', {
+                cause: err,
+              }),
+            ),
+          );
+      return this.#endTurn(opts, {
+        status: 'failed',
+        summary: `${e.message}. ${e.hint}`,
+        steps: this.#step,
+        error: e,
+      });
     }
   }
 
   #endTurn(opts: TurnOptions, r: TurnResult): TurnResult {
     if (opts.subRun !== undefined) {
-      this.#summaries.push(`Sub-run ${String(opts.subRun)} (${opts.scope.map((s) => this.aliases.aliasOf(s)).join(', ')}): ${r.status}. ${r.summary}`);
+      this.#summaries.push(
+        `Sub-run ${String(opts.subRun)} (${opts.scope.map((s) => this.aliases.aliasOf(s)).join(', ')}): ${r.status}. ${r.summary}`,
+      );
       this.record.write({ type: 'subRun', subRun: opts.subRun, scope: opts.scope, ...r });
     }
     this.record.write({ type: 'aliases', table: this.aliases.snapshot() });
@@ -616,17 +701,35 @@ export class AgentRun {
   ): Promise<{ part: ToolResultPart; meta: { label: string; version: number }; stop?: boolean }> {
     const meta = { label: `${call.toolName} result`, version: this.ctx.seenVersion };
     const done = (output: ToolResultPart['output'], extra: Partial<{ stop: boolean }> = {}) => ({
-      part: { type: 'tool-result' as const, toolCallId: call.toolCallId, toolName: call.toolName, output },
+      part: {
+        type: 'tool-result' as const,
+        toolCallId: call.toolCallId,
+        toolName: call.toolName,
+        output,
+      },
       meta,
       ...extra,
     });
     const fail = (e: VoxError | VoxErrorJson, args: unknown) => {
       const j = isVoxError(e) ? toVoxErrorJson(e) : e;
       const err = this.#deps.redactor.redact({ code: j.code, message: j.message, hint: j.hint });
-      this.record.write({ type: 'tool', callId: call.toolCallId, tool: call.toolName, args: truncateJson(args), error: err });
+      this.record.write({
+        type: 'tool',
+        callId: call.toolCallId,
+        tool: call.toolName,
+        args: truncateJson(args),
+        error: err,
+      });
       this.emit({
         type: 'agent.tool',
-        payload: { runId: this.runId, callId: call.toolCallId, tool: call.toolName, args: truncateJson(args, 512), status: 'failed', resultSummary: `${err.code}: ${short(err.message, 120)}` },
+        payload: {
+          runId: this.runId,
+          callId: call.toolCallId,
+          tool: call.toolName,
+          args: truncateJson(args, 512),
+          status: 'failed',
+          resultSummary: `${err.code}: ${short(err.message, 120)}`,
+        },
       });
       return done({ type: 'error-text', value: JSON.stringify({ error: err }) });
     };
@@ -634,15 +737,25 @@ export class AgentRun {
     let args: unknown = call.input;
     this.emit({
       type: 'agent.tool',
-      payload: { runId: this.runId, callId: call.toolCallId, tool: call.toolName, args: truncateJson(call.rawInput ?? args, 512), status: 'started' },
+      payload: {
+        runId: this.runId,
+        callId: call.toolCallId,
+        tool: call.toolName,
+        args: truncateJson(call.rawInput ?? args, 512),
+        status: 'started',
+      },
     });
     if (call.unknownTool) {
       const known = this.registry.get(call.toolName) !== undefined;
       return fail(
         new VoxError(
           known ? 'TOOL_REFUSED' : 'TOOL_UNKNOWN',
-          known ? `${call.toolName} is not in your tool list` : `${JSON.stringify(call.toolName)} is not a tool`,
-          known ? `Run it through call_tool { name: "${call.toolName}", args }.` : 'Use describe_tool or one of your tools.',
+          known
+            ? `${call.toolName} is not in your tool list`
+            : `${JSON.stringify(call.toolName)} is not a tool`,
+          known
+            ? `Run it through call_tool { name: "${call.toolName}", args }.`
+            : 'Use describe_tool or one of your tools.',
         ),
         call.input,
       );
@@ -650,10 +763,22 @@ export class AgentRun {
     if (call.rawInput !== undefined) {
       const r = repairToolJson(call.rawInput);
       if (!r.ok) {
-        return this.#argFailure(call, state, fail(new VoxError('VALIDATION', `${call.toolName}: arguments are not valid JSON (${r.error})`, 'Send one complete JSON object.'), call.rawInput));
+        return this.#argFailure(
+          call,
+          state,
+          fail(
+            new VoxError(
+              'VALIDATION',
+              `${call.toolName}: arguments are not valid JSON (${r.error})`,
+              'Send one complete JSON object.',
+            ),
+            call.rawInput,
+          ),
+        );
       }
       args = r.value;
-      if (r.repaired) this.record.write({ type: 'repaired', callId: call.toolCallId, tool: call.toolName });
+      if (r.repaired)
+        this.record.write({ type: 'repaired', callId: call.toolCallId, tool: call.toolName });
     }
 
     // identical call in a row (same tool, same arguments after alias resolution)
@@ -673,7 +798,11 @@ export class AgentRun {
       });
       state.repeats = 0;
       state.lastKey = undefined;
-      const err = new VoxError('TOOL_REFUSED', `${call.toolName} was not run: identical call 3 times in a row`, 'Do something different or finish.');
+      const err = new VoxError(
+        'TOOL_REFUSED',
+        `${call.toolName} was not run: identical call 3 times in a row`,
+        'Do something different or finish.',
+      );
       const r = fail(err, args);
       return d.action === 'stop' ? { ...r, stop: true } : r;
     }
@@ -689,7 +818,14 @@ export class AgentRun {
           sources: output.pause.sources,
         });
         if (d.action === 'stop') {
-          const r = fail(new VoxError('TOOL_REFUSED', `${call.toolName}: the user stopped the run`, 'Nothing was ingested.'), args);
+          const r = fail(
+            new VoxError(
+              'TOOL_REFUSED',
+              `${call.toolName}: the user stopped the run`,
+              'Nothing was ingested.',
+            ),
+            args,
+          );
           return { ...r, stop: true };
         }
         for (const s of output.pause.sources) this.ctx.approvedSources.add(s);
@@ -701,7 +837,15 @@ export class AgentRun {
         const r = fail(err, args);
         return err.code === 'VALIDATION' ? this.#argFailure(call, state, r) : r;
       }
-      return fail(new VoxError('TOOL_FAILED', `${call.toolName} failed`, 'Try another way; the error is in the run record.', { cause: err }), args);
+      return fail(
+        new VoxError(
+          'TOOL_FAILED',
+          `${call.toolName} failed`,
+          'Try another way; the error is in the run record.',
+          { cause: err },
+        ),
+        args,
+      );
     }
     state.argFailures.delete(call.toolName);
     if (output.read) {
@@ -739,14 +883,22 @@ export class AgentRun {
         type: 'content',
         value: [
           { type: 'text', text },
-          ...output.images.map((i) => ({ type: 'file' as const, data: { type: 'data' as const, data: i.data }, mediaType: i.mediaType })),
+          ...output.images.map((i) => ({
+            type: 'file' as const,
+            data: { type: 'data' as const, data: i.data },
+            mediaType: i.mediaType,
+          })),
         ],
       });
     }
     return done({ type: 'text', value: text });
   }
 
-  async #argFailure<R extends { part: ToolResultPart }>(call: ModelCall, state: TurnState, r: R): Promise<R & { stop?: boolean }> {
+  async #argFailure<R extends { part: ToolResultPart }>(
+    call: ModelCall,
+    state: TurnState,
+    r: R,
+  ): Promise<R & { stop?: boolean }> {
     const n = (state.argFailures.get(call.toolName) ?? 0) + 1;
     state.argFailures.set(call.toolName, n);
     if (n <= MAX_ARG_RETRIES) return r;
@@ -760,7 +912,8 @@ export class AgentRun {
 
   /** Ends the run: the `done` line (with sub-run summaries) and `agent.done`. */
   finish(status: 'completed' | 'stopped' | 'failed', summary: string, error?: VoxErrorJson) {
-    if (this.#finished) throw new VoxError('VALIDATION', 'the run has already ended', 'Start a new run.');
+    if (this.#finished)
+      throw new VoxError('VALIDATION', 'the run has already ended', 'Start a new run.');
     this.#finished = true;
     const full = [summary, ...this.#summaries].filter((s) => s.trim() !== '').join('\n');
     const payload = {
@@ -771,7 +924,12 @@ export class AgentRun {
       versions: [...new Set(this.versions)].sort((a, b) => a - b),
       ...(error && { error }),
     };
-    this.record.write({ type: 'done', ...payload, todos: this.#todos, aliases: this.aliases.snapshot() });
+    this.record.write({
+      type: 'done',
+      ...payload,
+      todos: this.#todos,
+      aliases: this.aliases.snapshot(),
+    });
     this.emit({ type: 'agent.done', payload });
     return payload;
   }
@@ -786,8 +944,14 @@ function repairedOrEmpty(raw: string): unknown {
 export function withInjection(messages: ModelMessage[], text: string): ModelMessage[] {
   const last = messages.at(-1);
   if (last?.role === 'user') {
-    const content = typeof last.content === 'string' ? [{ type: 'text' as const, text: last.content }] : last.content;
-    return [...messages.slice(0, -1), { role: 'user', content: [...content, { type: 'text', text }] }];
+    const content =
+      typeof last.content === 'string'
+        ? [{ type: 'text' as const, text: last.content }]
+        : last.content;
+    return [
+      ...messages.slice(0, -1),
+      { role: 'user', content: [...content, { type: 'text', text }] },
+    ];
   }
   return [...messages, { role: 'user', content: text }];
 }
@@ -796,6 +960,7 @@ export function withInjection(messages: ModelMessage[], text: string): ModelMess
 export async function runAgent(deps: RunDeps, req: RunRequest & { scope: string[] }) {
   const run = await AgentRun.start(deps, req);
   const r = await run.turn({ scope: req.scope });
-  const status = r.status === 'completed' ? 'completed' : r.status === 'failed' ? 'failed' : 'stopped';
+  const status =
+    r.status === 'completed' ? 'completed' : r.status === 'failed' ? 'failed' : 'stopped';
   return { run, turn: r, done: run.finish(status, r.summary, r.error) };
 }

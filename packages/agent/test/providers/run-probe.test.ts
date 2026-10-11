@@ -34,7 +34,9 @@ describe('probe runner (step 10)', () => {
       toolList: { result: { status: 'pass' } },
     });
     expect(report.toolList!.tokens).toBeGreaterThan(500);
-    expect(roleCheck('editor', { provider: e, model: 'gw/model', probe: report, priceTables: prices })).toMatchObject({
+    expect(
+      roleCheck('editor', { provider: e, model: 'gw/model', probe: report, priceTables: prices }),
+    ).toMatchObject({
       assignable: true,
       mode: 'tools',
     });
@@ -45,36 +47,87 @@ describe('probe runner (step 10)', () => {
     const report = await probeModel(e, 'gw/model', model, {
       checks: { tools: pass, loop: pass, vision: failWith('named the wrong colour'), plan: pass },
     });
-    expect(() => assertRoleAssignable('vision', { provider: e, model: 'gw/model', probe: report, priceTables: prices })).toThrow(
+    expect(() =>
+      assertRoleAssignable('vision', {
+        provider: e,
+        model: 'gw/model',
+        probe: report,
+        priceTables: prices,
+      }),
+    ).toThrow(
       expect.objectContaining({ code: 'PROBE_FAILED', message: expect.stringContaining('vision') }),
     );
   });
 
   test('a tool list over 25 % of the context fails the editor (D-15)', async () => {
-    const tokens = (await probeModel(entry(128_000), 'gw/model', model, { only: [] })).toolList!.tokens;
+    const tokens = (await probeModel(entry(128_000), 'gw/model', model, { only: [] })).toolList!
+      .tokens;
     const e = entry(Math.max(4_000, Math.floor(tokens * 3)));
-    const report = await probeModel(e, 'gw/model', model, { checks: { tools: pass, loop: pass, vision: pass, plan: pass } });
+    const report = await probeModel(e, 'gw/model', model, {
+      checks: { tools: pass, loop: pass, vision: pass, plan: pass },
+    });
     expect(report.toolList?.result.status).toBe('fail');
-    const v = roleCheck('editor', { provider: e, model: 'gw/model', probe: report, priceTables: prices });
+    const v = roleCheck('editor', {
+      provider: e,
+      model: 'gw/model',
+      probe: report,
+      priceTables: prices,
+    });
     expect(v.assignable).toBe(false);
     expect(v.failures.map((f) => f.check)).toContain('toolList');
   });
 
   test('the largest list is a workflow’s allowedTools plus the always-present tools', () => {
-    const names = largestToolList([['get_transcript'], ['get_transcript', 'view_frames', 'check_audio']]).map((d) => d.name);
+    const names = largestToolList([
+      ['get_transcript'],
+      ['get_transcript', 'view_frames', 'check_audio'],
+    ]).map((d) => d.name);
     expect(names.sort()).toEqual(
-      ['get_transcript', 'view_frames', 'check_audio', 'describe_tool', 'call_tool', 'get_sequence', 'update_todos', 'undo_my_last_edit'].sort(),
+      [
+        'get_transcript',
+        'view_frames',
+        'check_audio',
+        'describe_tool',
+        'call_tool',
+        'get_sequence',
+        'update_todos',
+        'undo_my_last_edit',
+      ].sort(),
     );
   });
 
   test('the plan check: a valid ClipPlan passes, an invalid one fails', async () => {
     const good = scriptedModel([
-      { json: { sequences: [{ sequenceId: 's1', beats: [{ startMs: 0, endMs: 3000, kind: 'scene', template: 'base/title', variables: { title: 'Lighthouse' } }, { startMs: 3000, endMs: 20000, kind: 'speaker' }] }] } },
+      {
+        json: {
+          sequences: [
+            {
+              sequenceId: 's1',
+              beats: [
+                {
+                  startMs: 0,
+                  endMs: 3000,
+                  kind: 'scene',
+                  template: 'base/title',
+                  variables: { title: 'Lighthouse' },
+                },
+                { startMs: 3000, endMs: 20000, kind: 'speaker' },
+              ],
+            },
+          ],
+        },
+      },
     ]);
     const r1 = await probeModel(entry(128_000), 'gw/model', good.model, { only: ['plan'] });
     expect(r1.plan).toEqual({ status: 'pass' });
     expect(JSON.stringify(good.prompts[0]!.prompt)).toContain('lighthouse');
-    const bad = scriptedModel([{ json: { sequences: [{ sequenceId: 's1', beats: [{ startMs: 5000, endMs: 1000, kind: 'scene' }] }] } }]);
+    const bad = scriptedModel([
+      {
+        json: {
+          sequences: [{ sequenceId: 's1', beats: [{ startMs: 5000, endMs: 1000, kind: 'scene' }] }],
+        },
+      },
+    ]);
     const r2 = await probeModel(entry(128_000), 'gw/model', bad.model, { only: ['plan'] });
     expect(r2.plan?.status).toBe('fail');
     expect(CLIP_PLAN_TASK.prompt).toContain('Sequence s1');
@@ -87,15 +140,24 @@ describe('probe runner (step 10)', () => {
       apple: { command: process.execPath, args: [FAKE], env: { VOX_FAKE_APPLE_CONTEXT: '4096' } },
       checks: { plan, tools: pass },
     });
-    expect(ready).toEqual({ appleStatus: 'ready', context: { contextTokens: 4096, source: 'apple' }, plan: { status: 'pass' } });
+    expect(ready).toEqual({
+      appleStatus: 'ready',
+      context: { contextTokens: 4096, source: 'apple' },
+      plan: { status: 'pass' },
+    });
     const off = await probeModel(e, 'apple/on-device', model, {
-      apple: { command: process.execPath, args: [FAKE], env: { VOX_FAKE_APPLE_STATUS: 'notEnabled' } },
+      apple: {
+        command: process.execPath,
+        args: [FAKE],
+        env: { VOX_FAKE_APPLE_STATUS: 'notEnabled' },
+      },
       checks: { plan },
     });
     expect(off.appleStatus).toBe('notEnabled');
     expect(plan).toHaveBeenCalledTimes(1);
-    expect(roleCheck('fast', { provider: e, model: 'apple/on-device', probe: off, priceTables: [] }).failures[0]?.reason).toMatch(
-      /^notEnabled: Turn on Apple Intelligence/,
-    );
+    expect(
+      roleCheck('fast', { provider: e, model: 'apple/on-device', probe: off, priceTables: [] })
+        .failures[0]?.reason,
+    ).toMatch(/^notEnabled: Turn on Apple Intelligence/);
   });
 });
