@@ -121,8 +121,14 @@ export async function clipperSteps(
 ): Promise<ClipperSteps> {
   const notes: string[] = [];
   let mediaId = opts.mediaId;
+  const source = opts.source ?? sourceIn(run.request.message, run.request.attachments);
+  if (!mediaId && !source) {
+    // no link or file named: clip the project's own video (the first one), if it has one
+    const p = await run.ctx.engine.getProject(run.ctx.projectId);
+    mediaId = p.media.find((m) => m.kind === 'video')?.id;
+    if (mediaId) notes.push(`No link or file named: clipped ${run.aliases.aliasOf(mediaId)}, the project's video.`);
+  }
   if (!mediaId) {
-    const source = opts.source ?? sourceIn(run.request.message, run.request.attachments);
     if (!source)
       throw new VoxError(
         'VALIDATION',
@@ -137,9 +143,13 @@ export async function clipperSteps(
     if (!mediaId)
       throw new VoxError('MEDIA_UNSUPPORTED', `${source} gave no video`, 'Pass a video link or file.');
   }
-  await run.workflowCall('shots', { mediaId });
-  await run.workflowCall('transcribe', { mediaIds: [mediaId] });
-  await run.workflowCall('facetrack', { mediaId });
+  // the job chain; a step whose output the media item already has is not run again
+  const have = (await run.ctx.engine.getProject(run.ctx.projectId)).media.find(
+    (m) => m.id === mediaId,
+  );
+  if (!have?.shotsPath) await run.workflowCall('shots', { mediaId });
+  if (!have?.transcriptPath) await run.workflowCall('transcribe', { mediaIds: [mediaId] });
+  if (!have?.facetrackPath) await run.workflowCall('facetrack', { mediaId });
 
   const fast = run.deps.models.fast;
   const slot = llmScorerSlot(run.ctx.engine);

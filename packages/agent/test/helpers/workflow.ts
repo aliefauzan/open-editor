@@ -76,63 +76,69 @@ export interface Kit {
 
 const pngDir = () => mkdtempSync(join(tmpdir(), 'vox-agent-wf-png-'));
 
-/** A fresh empty project on the repo styles, with fake Python/render jobs. */
-export async function workflowKit(over: Partial<WorkflowDeps> = {}): Promise<Kit> {
-  const projectsDir = join(mkdtempSync(join(tmpdir(), 'vox-agent-wf-')), 'Projects');
-  const real = openEngine({
-    projectsDir,
-    stylesDirs: [join(REPO, 'styles')],
-    config: async () => ({}),
-  });
+/** The engine with stand-ins for rendering: frames are small PNGs, compile reports no dropped cues. */
+export function fakeRender(real: Engine): Engine {
   const dir = pngDir();
   let frameNo = 0;
-  const engine: Engine = {
+  return {
     ...real,
     frames: (_p, _s, atMs) =>
       Promise.resolve(
         atMs.map((ms) => {
           const path = join(dir, `f${String(frameNo++)}-${String(ms)}.png`);
-          writeFileSync(path, rgbPng(32, 24, (x, y) => [80 + ((x * 7 + y * 3) % 120), 90, 70]));
+          writeFileSync(
+            path,
+            rgbPng(32, 24, (x, y) => [80 + ((x * 7 + y * 3) % 120), 90, 70]),
+          );
           return path;
         }),
       ),
     compile: () => Promise.resolve({ cues: { dropped: [] } } as never),
   };
-  const p = await engine.createProject('workflow-fixture');
+}
+
+export interface FakeJobs {
+  runJob: (kind: string, args: Record<string, unknown>) => Promise<unknown>;
+  qa: QaScript;
+  search: { candidates: { id: string; title: string }[] };
+  jobs: { kind: string; args: Record<string, unknown> }[];
+}
+
+/**
+ * Job stand-ins: shots, transcribe and facetrack seed the checked-in fixture files (as the job's
+ * actor and run id); audioQa returns scripted results; assets.search returns `search`; every other
+ * job runs on the engine (`engine()` is read at call time).
+ */
+export function fakeJobs(engine: () => Engine): FakeJobs {
   const qa: QaScript = { results: ['pass'], calls: 0 };
-  const kit = {
-    engine,
-    projectId: p.id,
-    qa,
-    search: { candidates: [] as { id: string; title: string }[] },
-    jobs: [] as Kit['jobs'],
-  } as Kit;
-  const qaPng = join(dir, 'qa.png');
-  writeFileSync(qaPng, rgbPng(40, 30, (x) => [x * 5, 60, 60]));
+  const f: FakeJobs = { runJob: undefined as never, qa, search: { candidates: [] }, jobs: [] };
+  const qaPng = join(pngDir(), 'qa.png');
+  writeFileSync(
+    qaPng,
+    rgbPng(40, 30, (x) => [x * 5, 60, 60]),
+  );
   const seed = async (args: Record<string, unknown>, folder: string, field: string) => {
+    const e = engine();
+    const projectId = args['projectId'] as string;
     const mediaId = (args['mediaId'] as string | undefined) ?? '';
     const src = join(ENGINE_FIXTURES, folder, 'talking-head-20s.json');
     const rel = `${folder}/${mediaId}.json`;
-    mkdirSync(join(projectsDir, p.id, folder), { recursive: true });
-    copyFileSync(src, join(projectsDir, p.id, rel));
+    mkdirSync(join(e.projectsDir, projectId, folder), { recursive: true });
+    copyFileSync(src, join(e.projectsDir, projectId, rel));
     const patch: Record<string, string> = { [field]: rel };
     if (folder === 'transcripts')
       patch['transcriptRev'] = createHash('sha256')
         .update(readFileSync(src))
         .digest('hex')
         .slice(0, 16);
-    await engine.applyOp(
-      p.id,
-      { op: 'updateMedia', args: { mediaId, patch } } as never,
-      {
-        actor: args['actor'] as 'agent',
-        ...(typeof args['runId'] === 'string' && { runId: args['runId'] }),
-      },
-    );
+    await e.applyOp(projectId, { op: 'updateMedia', args: { mediaId, patch } } as never, {
+      actor: args['actor'] as 'agent',
+      ...(typeof args['runId'] === 'string' && { runId: args['runId'] }),
+    });
     return { mediaId };
   };
-  const runJob = async (kind: string, args: Record<string, unknown>): Promise<unknown> => {
-    kit.jobs.push({ kind, args });
+  f.runJob = async (kind, args) => {
+    f.jobs.push({ kind, args });
     switch (kind) {
       case 'shots':
         return seed(args, 'shots', 'shotsPath');
@@ -146,11 +152,30 @@ export async function workflowKit(over: Partial<WorkflowDeps> = {}): Promise<Kit
         return qaResult(k, qaPng);
       }
       case 'assets.search':
-        return kit.search;
+        return f.search;
       default:
-        return runEngineJob(engine, kind, args);
+        return runEngineJob(engine(), kind, args);
     }
   };
+  return f;
+}
+
+/** A fresh empty project on the repo styles, with fake Python/render jobs. */
+export async function workflowKit(over: Partial<WorkflowDeps> = {}): Promise<Kit> {
+  const projectsDir = join(mkdtempSync(join(tmpdir(), 'vox-agent-wf-')), 'Projects');
+  const engine = fakeRender(
+    openEngine({ projectsDir, stylesDirs: [join(REPO, 'styles')], config: async () => ({}) }),
+  );
+  const p = await engine.createProject('workflow-fixture');
+  const fj = fakeJobs(() => engine);
+  const kit = {
+    engine,
+    projectId: p.id,
+    qa: fj.qa,
+    search: fj.search,
+    jobs: fj.jobs,
+  } as Kit;
+  const runJob = fj.runJob;
   const events: Kit['events'] = [];
   kit.events = events;
   kit.deps = {

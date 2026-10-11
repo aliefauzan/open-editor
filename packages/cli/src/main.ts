@@ -27,6 +27,7 @@ import {
   writeConfig,
 } from '@vox/engine';
 import { configCommand, ConfigUsageError, type AgentCliDeps } from './config.ts';
+import { agentCommand, AgentUsageError } from './agent.ts';
 
 export interface Io {
   stdout: (s: string) => void;
@@ -142,6 +143,10 @@ const USAGE = `usage:
   vox config roles set <role> <provider>:<model> [--mode tools|plan]   probes first; refuses a failed role
   vox config prices set <model> --in <usd> --out <usd> | --free        per million tokens
   vox config probe [<provider>:<model>...]   probe the role models (or the named ones)
+  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit] [--seq id]... [--style id]
+       [--layout full-collage|hybrid] [--mode tools|plan] [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan]
+       [--count n] [--length 30-60]   (clipper: number of clips, length in seconds)
+  vox agent undo <project> <runId>        undo every edit of an agent run
 common options: --json, --projects-dir <dir>; <project> is an id or a unique name
 `;
 
@@ -232,6 +237,20 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     overwrite: { type: 'boolean' },
   },
   credits: COMMON,
+  agent: {
+    ...COMMON,
+    workflow: { type: 'string' },
+    seq: { type: 'string', multiple: true },
+    style: { type: 'string' },
+    layout: { type: 'string' },
+    mode: { type: 'string' },
+    'max-usd': { type: 'string' },
+    'yes-sources': { type: 'boolean' },
+    yes: { type: 'boolean' },
+    'confirm-plan': { type: 'boolean' },
+    count: { type: 'string' },
+    length: { type: 'string' },
+  },
   config: {
     json: { type: 'boolean' },
     key: { type: 'string' },
@@ -1016,6 +1035,27 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       ];
       out({ projectId: p.id, mediaId: media.mediaId, ...q, files }, lines.join(''));
       return 0;
+    }
+    case 'agent': {
+      if (positionals[0] === 'undo') {
+        need(positionals, 3, '<project> <runId>');
+        const e = await engineFor(values, io);
+        const id = await resolveProject(e, positionals[1]!);
+        const r = await e.undoRun(id, positionals[2]!, { actor: 'user' });
+        out(r, `undid run ${positionals[2]!} (version ${r.version})\n`);
+        return 0;
+      }
+      need(positionals, 1, '<project>');
+      if (positionals.length > 2)
+        throw new UsageError('agent takes <project> and one quoted instruction');
+      const e = await engineFor(values, io);
+      const id = await resolveProject(e, positionals[0]!);
+      try {
+        return await agentCommand(e, id, positionals[1] ?? '', values, io);
+      } catch (err) {
+        if (err instanceof AgentUsageError) throw new UsageError(err.message);
+        throw err;
+      }
     }
     case 'style':
       return styleCommand(positionals, values, io, out);
