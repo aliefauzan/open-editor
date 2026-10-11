@@ -38,7 +38,7 @@ commit, and every consumer updated in that commit.
 | Workflow frontmatter (`allowedTools`, `roles`, `checkpoints`; D-15) | agent "Workflows" | `agent/workflows/*.md`, read by `agent/src/loop/` | 11 (loop reads it), 12 (workflow files) | 12 |
 | Agent events `agent.*`, run record | agent "Agent loop" | `agent/src/loop/` | 11 | 12 |
 | `ClipPlan` (plan mode) | agent "Plan mode" | `agent/src/loop/plan.ts` | 11 | 12 |
-| `window.vox` API (one zod schema; 10b adds `exports.chooseTarget`, `exports.lastFolder`, `media.classifyUrl`, D-13) | app "Engine-host API" | `apps/desktop/src/shared/api.ts` | 08 | when 08 and 05 are both done (it wraps the engine API); grows 09–13 additively |
+| `window.vox` API (one zod schema; 10b adds `exports.chooseTarget`, `exports.lastFolder`, `media.classifyUrl`, D-13) | app "Engine-host API" | `apps/desktop/src/shared/api.ts` | 08 | 08 and 05, frozen 2026-10-11 (it wraps the engine API); grows 09–13 additively |
 | Apple helper protocol (JSON lines: request `{system, messages, schema?, maxTokens, temperature}`, response `{text\|json, usage}`, `--status`) | agent "Apple on-device model" | `native/apple-llm/`, `agent/src/providers/apple.ts` | 11 | 11 |
 | `vox-media://` URL shapes, CSPs | app "Window security", "Untrusted HTML" | `apps/desktop/src/main/protocols/` | 08 | 08 |
 | `preview.updated { kind: 'patch' \| 'reload' }` | app "Preview pipeline" | engine-host | 08/10a | 10a |
