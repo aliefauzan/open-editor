@@ -61,6 +61,55 @@ describe('Stylize (step 5)', () => {
     expect(await normalisedProject(kit)).toEqual(before);
   }, 120_000);
 
+  // D-15: during a run the marked tab takes the user's edits; a user trim of the clip is theirs, so
+  // the storyboard checkpoint still holds, while the run's own trim of the pair misses it
+  for (const who of ['user', 'agent'] as const) {
+    test(`a trim of the V1 clip by the ${who} during the run ${who === 'user' ? 'keeps' : 'misses'} the storyboard checkpoint`, async () => {
+      const kit = await workflowKit();
+      const { sequenceIds } = await quickClipsProject(kit, 1);
+      const sequenceId = sequenceIds[0]!;
+      const p = await kit.engine.getProject(kit.projectId);
+      const v1 = p.sequences.find((s) => s.id === sequenceId)!.videoTracks[0]!.items[0]!;
+      const toMs = v1.startMs + v1.durationMs - 300;
+      const stylist = toolsStylist();
+      const m = dynamicModel(async (o, n) => {
+        if (n === 1 && who === 'user')
+          await kit.engine.applyOp(
+            kit.projectId,
+            { op: 'trimItem', args: { sequenceId, itemId: v1.id, edge: 'end', toMs } },
+            { actor: 'user' },
+          );
+        if (n === 1 && who === 'agent') {
+          const { seq, items } = viewIn(o);
+          const clip = items.find((i) => i.kind !== 'scene')!;
+          return {
+            calls: [
+              {
+                name: 'trim_item',
+                input: { sequenceId: seq, itemId: clip.id, edge: 'end', toMs },
+              },
+            ],
+          };
+        }
+        return stylist(o);
+      });
+      kit.deps.models = { editor: role(m.model) };
+      const r = await runWorkflow(kit.deps, {
+        projectId: kit.projectId,
+        workflow: 'stylize',
+        message: '',
+        mode: 'tools',
+        sequenceIds: [sequenceId],
+      });
+      if (who === 'user') {
+        expect(r.done.status, r.done.summary).toBe('completed');
+      } else {
+        expect(r.done.error?.code).toBe('CHECKPOINT_MISSED');
+        expect(r.done.error?.message).toMatch(/storyboard \(s\d: the V1\/A1 pair/);
+      }
+    }, 120_000);
+  }
+
   test('a missing or unknown sequence fails at start with a hint', async () => {
     const kit = await workflowKit();
     kit.deps.models = { editor: role(dynamicModel(() => ({ text: 'x' })).model) };

@@ -19,6 +19,14 @@ describe('addScene', () => {
     const s = scene(out.project, idOf(out));
     expect([s.durationMs, s.templateVersion, s.template]).toEqual([3000, '1.2.0', 'test/title']);
   });
+  test('two scenes that meet at an off-frame ms still meet after snapping (no overlap)', () => {
+    // 750 ms and 2500 ms are not frame starts at 30 fps; each end snaps on its own
+    const first = add({ startMs: 750, durationMs: 1750 });
+    const second = add({ startMs: 2500, durationMs: 1750 }, first.project);
+    const a = scene(second.project, idOf(first));
+    const b = scene(second.project, idOf(second));
+    expect(a.startMs + a.durationMs).toBe(b.startMs);
+  });
   test('variables are validated against the template schema', () => {
     expectCode(() => add({ variables: {} }), 'VARIABLES_INVALID');
     expectCode(() => add({ variables: { title: 'x'.repeat(61) } }), 'VARIABLES_INVALID');

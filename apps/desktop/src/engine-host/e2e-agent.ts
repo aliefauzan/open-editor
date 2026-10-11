@@ -1,9 +1,9 @@
 // The mock agent model of test builds (`VOX_E2E=1`, unpackaged, `VOX_E2E_AGENT=mock`; plan phase 13
 // steps 3 and 3b). Never used in a release build: index.ts only creates it when the app is not
 // packaged. It answers from the request alone, like the scripted stylists of the agent tests:
-// - tools mode: (an `ingest` of `VOX_E2E_AGENT_SOURCE` first when the message asks for "b-roll", so
-//   the run pauses for the user's approval), then `update_todos` + two `vox/kinetic-serif` beats on
-//   the injected view, then the todos done, then a short summary;
+// - tools mode: (first an `ingest` of `VOX_E2E_AGENT_SOURCE` through `call_tool` when the message
+//   asks for "b-roll", so the run pauses for the user's approval), then `update_todos` + two
+//   `vox/kinetic-serif` beats on the injected view, then the todos done, then a short summary;
 // - structured requests: `{ intent: 'edit' }` for the intent gate, else a ClipPlan for the view.
 // `VOX_E2E_AGENT_DELAY_MS` delays each answer, so a test can act while the run is going.
 import type { createLanguageModel } from '@vox/agent';
@@ -58,7 +58,9 @@ function marks(items: readonly ViewItem[]) {
 function toolsStep(o: CallOptions, source: string | undefined): Step {
   const wantsIngest = source !== undefined && /\bb-roll\b/i.test(userText(o));
   const t = toolTurns(o);
-  if (wantsIngest && t === 0) return { calls: [{ name: 'ingest', input: { source } }] };
+  // the edit workflow reaches ingest through call_tool (not in its tool list)
+  if (wantsIngest && t === 0)
+    return { calls: [{ name: 'call_tool', input: { name: 'ingest', args: { source } } }] };
   const stage = t - (wantsIngest ? 1 : 0);
   const view = viewIn(o);
   if (stage === 0 && view) {

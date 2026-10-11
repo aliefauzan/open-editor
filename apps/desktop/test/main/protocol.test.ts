@@ -11,6 +11,7 @@ import {
   parseRange,
   resolveAppPath,
   resolveMediaPath,
+  resolveMediaPathSettled,
 } from '../../src/main/protocol.ts';
 
 let root: string;
@@ -55,6 +56,25 @@ describe('vox-media:// path rule (S1 through the protocol)', () => {
     ['missing file', 'vox-media://p/p_test/nope.html'],
   ])('rejects %s', async (_l, url) => {
     expect(await resolveMediaPath(url, ctx)).toBeNull();
+  });
+
+  it('a build file missing during a build swap is found again; other misses answer at once', async () => {
+    const dir = join(root, 'Projects', 'p_test', 'build', 'seq_swap');
+    const url = 'vox-media://p/p_test/build/seq_swap/audio/a.m4a';
+    expect(await resolveMediaPath(url, ctx)).toBeNull();
+    // the folder comes back while the first wait runs (as after the second rename of writeBuildTo)
+    setTimeout(() => {
+      mkdirSync(join(dir, 'audio'), { recursive: true });
+      writeFileSync(join(dir, 'audio', 'a.m4a'), 'x');
+    }, 5);
+    expect(await resolveMediaPathSettled(url, ctx, [40, 40])).toBe(join(dir, 'audio', 'a.m4a'));
+    const t0 = Date.now();
+    expect(await resolveMediaPathSettled('vox-media://p/p_test/nope.txt', ctx, [500])).toBeNull();
+    expect(await resolveMediaPathSettled('vox-media://p/p_test/../x', ctx, [500])).toBeNull();
+    expect(Date.now() - t0).toBeLessThan(400);
+    expect(
+      await resolveMediaPathSettled('vox-media://p/p_test/build/seq_main/gone.mp4', ctx, [1, 1]),
+    ).toBeNull();
   });
 
   it('rejects a raw ".." that skipped URL normalisation', async () => {

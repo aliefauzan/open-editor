@@ -130,6 +130,7 @@ export function SequenceTabs() {
             key={q.id}
             type="button"
             role="tab"
+            data-sequence-id={q.id}
             aria-selected={q.id === current}
             onClick={() => editor.getState().setSequence(q.id)}
             className={`rounded-t px-3 py-1 text-xs whitespace-nowrap ${

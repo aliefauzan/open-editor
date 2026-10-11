@@ -321,7 +321,11 @@ describe('robust tool calls (step 16)', () => {
       },
     });
     const { deps } = runDeps(f, roleModel(m.model), { engine });
-    await runAgent(deps, req(f));
+    const { run } = await runAgent(deps, req(f));
+    const notes = readRunRecord(run.record.path).filter((l) => l.type === 'changeNote');
+    expect(notes).toEqual([
+      expect.objectContaining({ step: 2, lines: [expect.stringMatching(/by user: moveItem/)] }),
+    ]);
     const first = promptText(m.prompts[0]!);
     expect(first).not.toContain('Changes since your last step');
     const second = promptText(m.prompts[1]!);

@@ -123,6 +123,22 @@ describe('settings host (phase 13 step 1, S18)', () => {
     expect(cfg.keychain.items.get('openrouter')).toBe(CANARY_KEY);
   });
 
+  it('S17: a base URL with credentials is refused and never stored', async () => {
+    const { cfg, h } = setup();
+    await expect(
+      h['settings.save']!({
+        provider: {
+          id: 'my-server',
+          preset: 'lmstudio',
+          baseUrl: 'http://user:secret@127.0.0.1:1234/v1',
+        },
+      }),
+    ).rejects.toMatchObject({ code: expect.stringMatching(/VALIDATION|CONFIG/) });
+    const got = (await h['settings.get']!()) as SettingsData;
+    expect(got.providers.some((p) => p.id === 'my-server')).toBe(false);
+    expect(allText(cfg.home)).not.toContain('secret@');
+  });
+
   it('a probe result carries no key; a log of the result through the redactor has no canary', async () => {
     const { cfg, h } = setup();
     await h['settings.save']!({ provider: { preset: 'openrouter', apiKey: CANARY_KEY } });

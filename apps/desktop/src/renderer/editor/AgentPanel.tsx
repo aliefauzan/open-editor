@@ -89,7 +89,12 @@ function PlanCard(props: { pause: AgentPauseData }) {
   const seek = useSeek();
   const runId = props.pause.runId;
   const plan = props.pause.plan as
-    { sequences?: { sequenceId: string; beats: PlanBeat[] }[]; ops?: { op: string }[] } | undefined;
+    | {
+        sequences?: { sequenceId: string; beats: PlanBeat[] }[];
+        ops?: { op: string; args?: Record<string, unknown> }[];
+        repairs?: unknown[];
+      }
+    | undefined;
   return (
     <div className="space-y-2" data-testid="pause-plan">
       <p>The agent plans these edits. Nothing is changed yet.</p>
@@ -111,10 +116,36 @@ function PlanCard(props: { pause: AgentPauseData }) {
         </ol>
       ))}
       {plan?.ops && (
-        <ol className="list-decimal pl-4">
-          {plan.ops.map((o, i) => (
-            <li key={i}>{o.op}</li>
-          ))}
+        <ol className="space-y-0.5" aria-label="Planned edits">
+          {plan.ops.map((o, i) => {
+            const a = o.args ?? {};
+            const at = typeof a['startMs'] === 'number' ? a['startMs'] : undefined;
+            const dur = typeof a['durationMs'] === 'number' ? a['durationMs'] : undefined;
+            const what = typeof a['template'] === 'string' ? a['template'] : '';
+            const text = beatText({
+              startMs: 0,
+              endMs: 0,
+              kind: '',
+              variables: a['variables'] as never,
+            });
+            return (
+              <li key={i} className="flex gap-1.5">
+                {at !== undefined && (
+                  <button
+                    type="button"
+                    className="font-mono text-neutral-400 hover:text-white"
+                    onClick={() => seek(at)}
+                  >
+                    {fmtMs(at)}
+                    {dur !== undefined && `–${fmtMs(at + dur)}`}
+                  </button>
+                )}
+                <span>{o.op}</span>
+                {what && <span>{what}</span>}
+                {text && <span className="truncate text-neutral-400">“{text}”</span>}
+              </li>
+            );
+          })}
         </ol>
       )}
       <div className="flex gap-2">
@@ -140,11 +171,15 @@ function TightenCard(props: { pause: AgentPauseData }) {
   const ranges = props.pause.ranges ?? [];
   const [ticked, setTicked] = useState(() => new Set(ranges.map((r) => r.wordKey)));
   return (
-    <div className="space-y-2" data-testid="pause-tighten">
+    <div
+      className="space-y-2"
+      data-testid="pause-tighten"
+      data-sequence-id={props.pause.sequenceId}
+    >
       <p>{props.pause.detail}</p>
       <ul className="max-h-48 space-y-0.5 overflow-y-auto" aria-label="Pauses & fillers">
         {ranges.map((r) => (
-          <li key={r.wordKey} className="flex items-center gap-1.5">
+          <li key={r.wordKey} className="flex items-center gap-1.5" data-word-key={r.wordKey}>
             <input
               type="checkbox"
               aria-label={`Cut ${r.kind} at ${fmtMs(r.seqStartMs)}`}
@@ -393,6 +428,11 @@ function RunCard(props: { run: AgentRunData; live?: LiveRun }) {
                   <li key={i} className="text-neutral-300">
                     {s.subRun !== undefined && `[${s.subRun}] `}
                     {s.text || '(tools)'}
+                    {s.notes?.map((n) => (
+                      <span key={n} className="block text-amber-300" data-testid="change-note">
+                        Saw your edit: {n.replace(/^- /, '')}
+                      </span>
+                    ))}
                   </li>
                 ))}
               </ol>

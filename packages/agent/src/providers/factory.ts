@@ -54,7 +54,26 @@ function ollamaApiUrl(base: string | undefined): string {
   return `${root}/api`;
 }
 
-/** Sends `num_ctx` on every Ollama request, keeping the caller's other Ollama options. */
+/**
+ * Inline file bytes as base64 text. `ollama-ai-provider-v2` 4.0.1 turns inline image bytes into a
+ * data URI with a helper that expects the AI SDK 7 wrapper object, so a `Uint8Array` throws
+ * `TypeError` (found by the phase 13 live probe: vision `error` on every Ollama model); a base64
+ * string takes its string path and works.
+ */
+export function inlineFilesAsBase64(prompt: LanguageModelV4CallOptions['prompt']): typeof prompt {
+  return prompt.map((m) => {
+    if (m.role !== 'user' && m.role !== 'assistant') return m;
+    const content = (m.content as unknown[]).map((part) => {
+      const p = part as { type?: string; data?: { type?: string; data?: unknown } };
+      const bytes = p.type === 'file' && p.data?.type === 'data' ? p.data.data : undefined;
+      if (!(bytes instanceof Uint8Array)) return part;
+      return { ...p, data: { ...p.data, data: Buffer.from(bytes).toString('base64') } };
+    });
+    return { ...m, content } as typeof m;
+  });
+}
+
+/** Sends `num_ctx` on every Ollama request (keeping the caller's other Ollama options) and inline file bytes as base64. */
 function withNumCtx(model: LanguageModelV4, numCtx: number): LanguageModelV4 {
   return wrapLanguageModel({
     model,
@@ -71,6 +90,7 @@ function withNumCtx(model: LanguageModelV4, numCtx: number): LanguageModelV4 {
         };
         return Promise.resolve({
           ...params,
+          prompt: inlineFilesAsBase64(params.prompt),
           providerOptions: { ...params.providerOptions, ollama: { ...ollama, options: merged } },
         });
       },

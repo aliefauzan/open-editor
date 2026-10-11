@@ -100,6 +100,31 @@ export async function resolveMediaPath(
   return null;
 }
 
+/** Waits before the second and third look for a build file (ms). */
+export const BUILD_SWAP_WAITS_MS = [15, 60] as const;
+
+/**
+ * `resolveMediaPath`, but a missing file under a project's `build/` is looked up again after short
+ * waits. A rebuild swaps the build folder in with two renames (engine `writeBuildTo`); a request from
+ * the open player that lands between them finds no folder for a moment, so it would 404 a file that
+ * is there again a millisecond later. Anything else answers at once.
+ */
+export async function resolveMediaPathSettled(
+  url: string | UrlParts,
+  roots: MediaRoots,
+  waits: readonly number[] = BUILD_SWAP_WAITS_MS,
+): Promise<string | null> {
+  const found = await resolveMediaPath(url, roots);
+  const p = partsOf(url);
+  if (found || p?.host !== 'p' || !/^\/[^/]+\/build\//.test(p.pathname)) return found;
+  for (const ms of waits) {
+    await new Promise((r) => setTimeout(r, ms));
+    const again = await resolveMediaPath(p, roots);
+    if (again) return again;
+  }
+  return null;
+}
+
 /** `vox-app://app/<rel>` → a bundled renderer file (`/` is index.html). */
 export async function resolveAppPath(url: string, rendererDir: string): Promise<string | null> {
   const p = partsOf(url);

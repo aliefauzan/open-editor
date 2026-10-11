@@ -480,7 +480,8 @@ export interface AgentRunData {
   status: 'running' | 'paused' | 'completed' | 'stopped' | 'failed';
   summary: string;
   costUsd: number;
-  steps: { step: number; subRun?: number; scope: string[]; text: string }[];
+  /** `notes`: the change note the step was given (edits by the user or another run since the last step). */
+  steps: { step: number; subRun?: number; scope: string[]; text: string; notes?: string[] }[];
   tools: { tool: string; status: 'done' | 'failed'; byWorkflow?: boolean; error?: string }[];
   todos: { text: string; status: 'pending' | 'in_progress' | 'done' }[];
   /** Sequences in the latest step's scope (the "agent editing" marker while it runs). */

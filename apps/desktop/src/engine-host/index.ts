@@ -287,6 +287,18 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
     appleHelper: appleHelper && apple !== undefined,
     ...(apple && { apple }),
   });
+  if (mock) {
+    // the renderer sees the mock as the editor model (mode indicator, "Add style beats")
+    const real = settings.get.bind(settings);
+    settings.get = async () => {
+      const d = await real();
+      return {
+        ...d,
+        roles: { ...d.roles, editor: { providerId: 'e2e', model: 'e2e-mock' } },
+        mode: env['VOX_E2E_AGENT_MODE'] === 'plan' ? 'plan' : 'tools',
+      };
+    };
+  }
   const emit = serve(
     port,
     createHandlers(engine, setup, { preview, appJobs, agent, settings }),

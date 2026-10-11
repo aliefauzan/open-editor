@@ -34,7 +34,7 @@ import {
   fileResponse,
   notFound,
   resolveAppPath,
-  resolveMediaPath,
+  resolveMediaPathSettled,
 } from './protocol.ts';
 
 protocol.registerSchemesAsPrivileged([
@@ -237,7 +237,7 @@ function hardenSession(): void {
   });
   ses.protocol.handle('vox-media', async (req) => {
     const roots = host.roots;
-    const file = roots ? await resolveMediaPath(req.url, roots) : null;
+    const file = roots ? await resolveMediaPathSettled(req.url, roots) : null;
     return file ? fileResponse(file, req, CSP_MEDIA) : notFound();
   });
   // S12: renderers have no http(s)/ws(s); the engine host does all network work.

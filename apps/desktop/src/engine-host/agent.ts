@@ -391,7 +391,10 @@ export function runData(
   let scope: string[] = [];
   const steps: AgentRunData['steps'] = [];
   const tools: AgentRunData['tools'] = [];
+  let notes: string[] = [];
   for (const l of lines) {
+    if (l.type === 'changeNote' && Array.isArray(l['lines']))
+      notes = [...notes, ...(l['lines'] as unknown[]).map((x) => str(x))].slice(0, 20);
     if (typeof l['spentUsd'] === 'number') spent = Math.max(spent, l['spentUsd']);
     if (l.type === 'todos' && Array.isArray(l['items']))
       todos = l['items'] as AgentRunData['todos'];
@@ -402,7 +405,9 @@ export function runData(
         ...(typeof l['subRun'] === 'number' && { subRun: l['subRun'] }),
         scope,
         text: str(l['text']).slice(0, 2_000),
+        ...(notes.length > 0 && { notes }),
       });
+      notes = [];
     }
     if (l.type === 'tool') {
       tools.push({
