@@ -13,6 +13,10 @@
           overflow: hidden;
           pointer-events: none;
         }
+        .c-layer {
+          position: absolute;
+          inset: 0;
+        }
         .c-chunk {
           position: absolute;
           opacity: 0;
@@ -41,6 +45,7 @@
         data-duration="__DUR__"
       >
         <!--vox:vars-->
+        <div class="c-layer"></div>
       </div>
       <script>
         // base/plain (styles spec "Caption presets"): the active word is bold, emphasis words are
@@ -52,6 +57,8 @@
           var mount = vox.mount('__ID__');
           var root = mount.root;
           var v = mount.vars;
+          // chunks go inside the composition's own markup, where its styles apply in a render
+          var layer = root.querySelector('.c-layer');
           var W = __W__;
           var H = __H__;
           var side = (v.safeArea.rightPct / 100) * W;
@@ -94,7 +101,7 @@
               }
               el.appendChild(line);
             }
-            root.appendChild(el);
+            layer.appendChild(el);
             tl.set(el, { opacity: 1 }, c.startMs / 1000);
             tl.set(el, { opacity: 0 }, c.endMs / 1000);
           }

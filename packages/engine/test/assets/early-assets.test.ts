@@ -18,7 +18,6 @@ describe('fonts (OFL)', () => {
       'IBMPlexMono-Bold.ttf',
     ],
     'styles/vox/assets/fonts': [
-      'LibreCaslonDisplay-Regular.ttf',
       'DMSerifDisplay-Regular.ttf',
       'LibreCaslonText-Variable.ttf',
       'IBMPlexMono-Regular.ttf',
@@ -46,10 +45,17 @@ describe('fonts (OFL)', () => {
     });
   }
 
-  test('the vox style carries both display candidates (styles spec Part B)', () => {
+  test('phase 07 kept DM Serif Display as fonts.display and removed the other candidate', () => {
     const names = readdirSync(file('styles/vox/assets/fonts/'));
-    expect(names).toContain('LibreCaslonDisplay-Regular.ttf');
+    expect(names).not.toContain('LibreCaslonDisplay-Regular.ttf');
     expect(names).toContain('DMSerifDisplay-Regular.ttf');
+    const style = JSON.parse(text('styles/vox/style.json')) as {
+      tokens: { fonts: { display: { family: string; file: string } } };
+    };
+    expect(style.tokens.fonts.display).toMatchObject({
+      family: 'DM Serif Display',
+      file: 'assets/fonts/DMSerifDisplay-Regular.ttf',
+    });
   });
 });
 
@@ -149,18 +155,21 @@ describe('paper texture (CC0)', () => {
   });
 });
 
-describe('SFX candidates (real recordings, D-14)', () => {
-  const names = ['paper-pop', 'paper-slide', 'whoosh', 'stamp', 'typewriter', 'thump-tap'];
+describe('SFX kit (real recordings, D-14; accepted in phase 07)', () => {
+  const names = ['paper-pop', 'paper-slide', 'whoosh', 'stamp', 'thump-tap'];
+  // phase 07 re-processing: sample peak -1.2 dBFS; the hero thump 11 dB lower (audio QA
+  // sfxUnderSpeech)
+  const peakDbfs: Record<string, number> = { 'thump-tap': -12.0 };
   const dir = 'styles/vox/assets/sfx';
 
-  test('the folder holds exactly the six candidates and CREDITS.md', () => {
+  test('the folder holds exactly the five kit files and CREDITS.md (typewriter removed)', () => {
     expect(readdirSync(file(`${dir}/`)).sort()).toEqual(
       [...names.map((n) => `${n}.wav`), 'CREDITS.md'].sort(),
     );
   });
 
   test.each(names)(
-    '%s.wav is mono 48 kHz 16-bit, at most 3 s, peak -1 dBFS, listed with a source',
+    '%s.wav is mono 48 kHz 16-bit, at most 3 s, at its recorded peak, listed with a source',
     (name) => {
       const b = read(`${dir}/${name}.wav`);
       expect(b.toString('ascii', 0, 4)).toBe('RIFF');
@@ -190,9 +199,10 @@ describe('SFX candidates (real recordings, D-14)', () => {
       let peak = 0;
       for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(b.readInt16LE(dataOff + i * 2)));
       const dbfs = 20 * Math.log10(peak / 32768);
-      expect(dbfs).toBeLessThanOrEqual(-0.95);
-      expect(dbfs).toBeGreaterThanOrEqual(-1.1);
-      // 5 ms fades: the first and last 5 ms start/end near zero
+      const want = peakDbfs[name] ?? -1.2;
+      expect(dbfs).toBeLessThanOrEqual(want + 0.1);
+      expect(dbfs).toBeGreaterThanOrEqual(want - 0.1);
+      // fades: the first and last samples are near zero
       expect(Math.abs(b.readInt16LE(dataOff))).toBeLessThan(64);
       expect(Math.abs(b.readInt16LE(dataOff + (n - 1) * 2))).toBeLessThan(64);
 
@@ -200,13 +210,13 @@ describe('SFX candidates (real recordings, D-14)', () => {
       expect(credits).toContain(`\`${name}.wav\``);
       const row = credits.split('\n').find((l) => l.startsWith(`| \`${name}.wav\``))!;
       expect(row).toMatch(/commons\.wikimedia\.org\/wiki\/File:/);
-      expect(row).toMatch(/\| (CC0|Public domain)\s+\|/);
+      expect(row).toMatch(/\| (CC0|Public domain \(`CC0` in style\.json\))\s+\|/);
     },
   );
 
-  test('CREDITS.md says these are candidates and names no licence outside CC0 / public domain', () => {
+  test('CREDITS.md records the acceptance and names no licence outside CC0 / public domain', () => {
     const credits = text(`${dir}/CREDITS.md`);
-    expect(credits).toMatch(/CANDIDATES/);
+    expect(credits).toMatch(/accepted in phase 07/);
     const rows = credits.split('\n').filter((l) => /^\| `[a-z-]+\.wav`/.test(l));
     expect(rows).toHaveLength(6);
     for (const r of rows) expect(r).not.toMatch(/CC BY|CC-BY|NonCommercial/i);
@@ -214,14 +224,30 @@ describe('SFX candidates (real recordings, D-14)', () => {
 });
 
 describe('total size of the new assets stays reasonable', () => {
-  test('styles/ under 6 MB', () => {
-    const walk = (rel: string): number =>
-      readdirSync(file(rel), { withFileTypes: true }).reduce(
-        (sum, e) =>
-          sum +
-          (e.isDirectory() ? walk(`${rel}${e.name}/`) : statSync(file(`${rel}${e.name}`)).size),
-        0,
-      );
-    expect(walk('styles/')).toBeLessThan(6_000_000);
+  const walk = (rel: string, skip: (name: string) => boolean = () => false): number =>
+    readdirSync(file(rel), { withFileTypes: true }).reduce(
+      (sum, e) =>
+        skip(e.name)
+          ? sum
+          : sum +
+            (e.isDirectory()
+              ? walk(`${rel}${e.name}/`, skip)
+              : statSync(file(`${rel}${e.name}`)).size),
+      0,
+    );
+
+  // previews/ are generated by `vox style validate` (D-34) and bounded on their own below
+  test('styles/ under 6 MB without the generated previews', () => {
+    expect(walk('styles/', (n) => n === 'previews')).toBeLessThan(6_000_000);
+  });
+
+  test('each style previews/ folder under 8 MB', () => {
+    for (const id of readdirSync(file('styles/'))) {
+      if (!statSync(file(`styles/${id}`)).isDirectory()) continue;
+      const rel = `styles/${id}/previews/`;
+      if (readdirSync(file(`styles/${id}/`)).includes('previews')) {
+        expect(walk(rel), rel).toBeLessThan(8_000_000);
+      }
+    }
   });
 });

@@ -17,8 +17,10 @@ import { REPO_STYLES } from '../compile/fixture.ts';
 const VALIDATE_STYLES = join(import.meta.dirname, '..', 'fixtures', 'styles', 'validate');
 
 const registry = () => loadStyleRegistry({ stylesDirs: [REPO_STYLES, VALIDATE_STYLES] });
+// The test styles' SFX are generated tones (not real recordings), so the kit check (phase 07, tested
+// in styles/vox/kit.test.ts) stays off here; these tests cover the static checks.
 const staticOnly = (styleId: string) =>
-  validateStyle({ registry: registry(), styleId, render: false, dom: false });
+  validateStyle({ registry: registry(), styleId, render: false, dom: false, kit: false });
 const rules = (r: { problems: { rule: string }[] }) => [...new Set(r.problems.map((p) => p.rule))];
 
 describe('validate: static checks', () => {
