@@ -1,7 +1,7 @@
 // Fixture project on a temp projects folder for tool and loop tests: one 20 s talking-head media
 // item with the engine's checked-in transcript, one sequence with the linked V1/A1 pair, captions on.
 import { mapTemplateLookup, openEngine, type Engine, type TemplateInfo } from '@vox/engine';
-import { copyFileSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -128,4 +128,18 @@ export function toolContext(
     todos,
     ...over,
   };
+}
+
+/** A synthetic transcript of `words` words (`word0`…), 300 ms apart, written to a temp file. */
+export function longTranscriptFile(words: number): string {
+  const dir = mkdtempSync(join(tmpdir(), 'vox-agent-t-'));
+  const list = Array.from({ length: words }, (_, i) => ({
+    text: `word${String(i)}${i % 17 === 16 ? '.' : ''}`,
+    startMs: i * 300,
+    endMs: i * 300 + 250,
+    kind: 'word',
+  }));
+  const path = join(dir, 'long.json');
+  writeFileSync(path, JSON.stringify({ language: 'en', speechRegions: [{ startMs: 0, endMs: words * 300 }], words: list }));
+  return path;
 }
