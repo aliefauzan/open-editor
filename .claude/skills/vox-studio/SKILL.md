@@ -69,8 +69,8 @@ vox op <project> setCaptions '{"sequenceId":"<seq>","enabled":true,"preset":"vox
 
 Read the clip's speech in sequence time (after tightening, the sequence ms are not the source ms). The project
 folder is `vox paths --json` → `projectsDir`, then `<projectId>/`; the transcript is
-`transcripts/<mediaId>.json` (`words[]` with `text`, `startMs`, `endMs`, `kind` in source ms). This `jq` prints
-each word with its sequence ms (words that straddle a cut are dropped):
+`transcripts/<mediaId>.json` (`words[]` with `text`, `startMs`, `endMs`, `kind` in source ms). Run this `jq` inside that
+folder; it prints each word with its sequence ms (words that straddle a cut are dropped):
 
 ```bash
 jq -r --slurpfile t transcripts/<mediaId>.json --arg seq <seq> '
