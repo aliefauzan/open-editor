@@ -4,8 +4,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Engine } from '@vox/engine';
-import { describe, expect, it } from 'vitest';
-import { PreviewPipeline } from '../../src/engine-host/preview.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { COALESCE_MS, PreviewPipeline } from '../../src/engine-host/preview.ts';
 import type { PreviewUpdated } from '../../src/shared/project.ts';
 import { editorProject, op, tempEngine } from '../renderer/engine-fixture.ts';
 
@@ -123,31 +123,56 @@ describe('preview pipeline', () => {
 
   it('keyed changes (slider, typing) coalesce for 150 ms; single ops do not wait', async () => {
     const { engine, p, pipe, events, scene, compiles } = await setup();
-    const n = compiles();
-    for (let i = 0; i < 6; i++) {
-      pipe.noteOp(p.id, `variables:${scene.id}`);
+    expect(COALESCE_MS).toBe(150);
+    // Only the pipeline's coalesce timer is faked, so the window opens and closes when the test
+    // says, however slow the ops run on a loaded machine. The op path uses no global timers, and
+    // `settled` polls with setImmediate, which stays real.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const settled = async (cond: () => boolean, ms = 10_000) => {
+        const t0 = Date.now();
+        while (!cond()) {
+          if (Date.now() - t0 > ms) throw new Error('timed out');
+          await new Promise((r) => setImmediate(r));
+        }
+      };
+      const n = compiles();
+      for (let i = 0; i < 6; i++) {
+        pipe.noteOp(p.id, `variables:${scene.id}`);
+        await op(engine, p.id, 'updateScene', {
+          sequenceId: 'seq_main',
+          itemId: scene.id,
+          variables: { title: `Typing ${i}` },
+        });
+      }
+      // the burst waits for the window: one timer, nothing built until it closes
+      expect(vi.getTimerCount()).toBe(1);
+      expect(compiles() - n).toBe(0);
+      vi.advanceTimersByTime(COALESCE_MS - 1);
+      expect(compiles() - n).toBe(0);
+      vi.advanceTimersByTime(1);
+      await settled(() => events.length >= 1);
+      // six keyed ops, one build, with the last value
+      expect(compiles() - n).toBe(1);
+      expect(events).toHaveLength(1);
+      const last = events.at(-1)!;
+      expect(last.kind === 'patch' && last.patches[0]!.html).toContain('Typing 5');
+      // a single op: no debounce (no timer is scheduled, and it lands without advancing time)
+      pipe.noteOp(p.id);
+      const count = events.length;
       await op(engine, p.id, 'updateScene', {
         sequenceId: 'seq_main',
         itemId: scene.id,
-        variables: { title: `Typing ${i}` },
+        variables: { title: 'Single' },
       });
+      expect(vi.getTimerCount()).toBe(0);
+      await settled(() => events.length > count);
+      const single = events.at(-1)!;
+      expect(single.kind === 'patch' && single.patches[0]!.html).toContain('Single');
+      expect(compiles() - n).toBe(2);
+    } finally {
+      vi.useRealTimers();
     }
-    await until(() => events.length >= 1);
-    await new Promise((r) => setTimeout(r, 400));
-    expect(compiles() - n).toBeLessThanOrEqual(2);
-    const last = events.at(-1)!;
-    expect(last.kind === 'patch' && last.patches[0]!.html).toContain('Typing 5');
-    // a single op: no debounce
-    pipe.noteOp(p.id);
-    const t0 = Date.now();
-    await op(engine, p.id, 'updateScene', {
-      sequenceId: 'seq_main',
-      itemId: scene.id,
-      variables: { title: 'Single' },
-    });
-    const count = events.length;
-    await until(() => events.length > count);
-    expect(Date.now() - t0).toBeLessThan(1000);
   });
 
   it('a VFR clip plays from its CFR copy in the preview build (D-15)', async () => {

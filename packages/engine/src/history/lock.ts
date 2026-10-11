@@ -112,8 +112,13 @@ export async function acquireLock(
   let holder: LockInfo | undefined;
   try {
     await writeSynced(tmp, mineRaw);
-    for (let first = true; ; first = false) {
-      if (!first && Date.now() >= deadline) {
+    // The wait bounds waiting only: the first attempt, and the one right after breaking a stale
+    // lock, always run, so a slow disk never turns a lock this taker just freed into LOCKED.
+    let attemptNow = true;
+    for (;;) {
+      const timedOut = !attemptNow && Date.now() >= deadline;
+      attemptNow = false;
+      if (timedOut) {
         throw new VoxError(
           'LOCKED',
           `The project is locked by ${holder ? `pid ${holder.pid} on ${holder.host}` : 'another writer'}`,
@@ -146,6 +151,7 @@ export async function acquireLock(
       const sameHost = cur.info ? cur.info.host === host : true;
       const dead = cur.info !== undefined && sameHost && !alive(cur.info.pid);
       if (sameHost && (dead || ageMs > staleMs) && (await breakStale(path, marker, tmp, cur.raw))) {
+        attemptNow = true;
         continue;
       }
       await delay(Math.min(50, Math.max(1, deadline - Date.now())));
