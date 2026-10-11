@@ -6,7 +6,7 @@
 //   out-resources/   packaged builds only: the app's Resources (scripts/stage-resources.ts) and
 //                    the bundled `vox` CLI (out-resources/cli/vox.mjs)
 // Usage: node scripts/build.ts [--package [--no-apple]]  (--no-apple: no Apple helper; D-16)
-import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
@@ -96,6 +96,10 @@ if (pkg) {
     'vox.mjs',
     false,
   );
+  // Electron 44 has no postinstall: its binary downloads on first use. electron-builder packs
+  // node_modules/electron/dist (electronDist), so a fresh clone fetches it here (D-16 fresh clone).
+  const electronExe = createRequire(import.meta.url)('electron') as string;
+  if (!existsSync(electronExe)) throw new Error(`no Electron binary at ${electronExe}`);
 }
 process.stdout.write(
   `built ${path.relative(process.cwd(), OUT) || OUT}${pkg ? ' (package)' : ''}\n`,
