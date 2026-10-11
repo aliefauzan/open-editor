@@ -437,11 +437,19 @@ export function SettingsDialog(props: { onClose(): void; focus?: 'cookies' | nul
   };
   const label = (id: string, preset?: string) =>
     data?.presets.find((p) => p.id === (preset ?? id))?.label ?? id;
+  // Escape closes the dialog like Close, wherever the focus is (as the export dialog)
+  const { onClose } = props;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-6"
-      onKeyDown={(e) => e.key === 'Escape' && props.onClose()}
-    >
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-6">
       <div
         role="dialog"
         aria-modal="true"

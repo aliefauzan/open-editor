@@ -442,7 +442,7 @@ describe('agent panel on the real engine host (phase 13)', () => {
 });
 
 describe('Settings dialog (phase 13)', () => {
-  function dialog(o: { focus?: 'cookies'; probe?: ProbedData } = {}) {
+  function dialog(o: { focus?: 'cookies'; probe?: ProbedData; onClose?: () => void } = {}) {
     const box = {
       settings: settingsData({
         providers: [
@@ -504,7 +504,7 @@ describe('Settings dialog (phase 13)', () => {
       });
       const view = render(
         <EditorProvider value={t.ctx}>
-          <SettingsDialog onClose={() => undefined} focus={o.focus ?? null} />
+          <SettingsDialog onClose={o.onClose ?? (() => undefined)} focus={o.focus ?? null} />
         </EditorProvider>,
       );
       await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull());
@@ -570,6 +570,13 @@ describe('Settings dialog (phase 13)', () => {
           .textContent,
       ).toContain('qwen3.5:latest'),
     );
+  });
+
+  it('Escape closes the dialog wherever the focus is', async () => {
+    let closed = 0;
+    await dialog({ onClose: () => closed++ });
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(closed).toBe(1);
   });
 
   it('opened for LOGIN_REQUIRED: the cookies toggle has focus and is off; turning it on saves', async () => {
