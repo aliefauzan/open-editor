@@ -35,10 +35,15 @@ export function toErrorData(e: unknown): ErrorData {
 type Handler = (...args: any[]) => Promise<unknown>;
 export type Handlers = Partial<Record<Method, Handler>>;
 
-/** Engine-host side: answers requests with `handlers`; returns `emit` for events. */
+/**
+ * Engine-host side: answers requests with `handlers`; returns `emit` for events. Error replies go
+ * through `redact` (the engine's secret redactor, S19): a plain `Error` from a provider or tool can
+ * carry a key in its message.
+ */
 export function serve(
   port: PortLike,
   handlers: Handlers,
+  redact: <T>(value: T) => T = (v) => v,
 ): (name: EventName, payload: unknown) => void {
   port.on('message', (raw) => {
     const m = unwrap(raw) as Partial<Request>;
@@ -58,7 +63,7 @@ export function serve(
       .then(() => fn(...(m.args ?? [])))
       .then(
         (value) => reply({ id, ok: true, value }),
-        (e: unknown) => reply({ id, ok: false, error: toErrorData(e) }),
+        (e: unknown) => reply({ id, ok: false, error: redact(toErrorData(e)) }),
       );
   });
   port.start?.();

@@ -127,6 +127,27 @@ describe('MessagePort RPC', () => {
     port1.close();
   });
 
+  it('redacts secrets in error replies (S19, R4 canary)', async () => {
+    const CANARY = 'sk-or-v1-CANARY0000000000000000000000000000000000000000000000000000';
+    const { engine } = setup();
+    const { port1, port2 } = new MessageChannel();
+    serve(
+      port2,
+      {
+        'projects.list': async () => {
+          throw new Error(`provider said: Authorization: Bearer ${CANARY}`);
+        },
+      },
+      (v) => engine.redactor.redact(v),
+    );
+    const c = createClient(port1, () => {});
+    const err = await c.call('projects.list', []).catch((e: unknown) => e);
+    expect(JSON.stringify(err)).not.toContain(CANARY);
+    expect((err as { message: string }).message).toContain('[REDACTED]');
+    c.close(new Error('done'));
+    port1.close();
+  });
+
   it('rejects pending calls when the host goes away', async () => {
     const { port1 } = new MessageChannel();
     const c = createClient(port1, () => {});

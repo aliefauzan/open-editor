@@ -46,7 +46,7 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
     trustFile: join(home, 'trust.json'),
     config,
   });
-  const emit = serve(port, createHandlers(engine));
+  const emit = serve(port, createHandlers(engine), (v) => engine.redactor.redact(v));
   forwardEvents(engine, emit);
   port.postMessage({ ready: { projectsDir, stylesDirs, pid: process.pid } } satisfies HostReady);
 }
