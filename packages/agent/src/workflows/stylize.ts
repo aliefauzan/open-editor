@@ -172,18 +172,31 @@ async function edgeTransitions(
   }
   const notes: string[] = [];
   for (const [itemId, what] of targets) {
-    const out = await run.workflowCall(
-      'set_transition',
-      {
-        sequenceId,
-        itemId,
-        transition: { template: cover, durationMs: def.durationMs.default },
-      },
-      subRun,
+    // one edge that cannot take the transition is a note on the clip, never a failed workflow
+    let ok: boolean;
+    let why = '';
+    try {
+      const out = await run.workflowCall(
+        'set_transition',
+        {
+          sequenceId,
+          itemId,
+          transition: { template: cover, durationMs: def.durationMs.default },
+        },
+        subRun,
+      );
+      const r = out.result as { results?: { status: string }[] };
+      ok = r.results?.every((x) => x.status === 'succeeded') ?? false;
+    } catch (err) {
+      if (err instanceof RunStopped) throw err;
+      ok = false;
+      const e = run.deps.redactor.redact(err instanceof Error ? err.message : String(err));
+      why = ` (${e.slice(0, 200)})`;
+      run.record.write({ type: 'edgeError', sequenceId, itemId, error: e });
+    }
+    notes.push(
+      `${cover} ${ok ? what : `could not be set${why}`} on ${run.aliases.aliasOf(itemId)}`,
     );
-    const r = out.result as { results?: { status: string }[] };
-    const ok = r.results?.every((x) => x.status === 'succeeded') ?? false;
-    notes.push(`${cover} ${ok ? what : 'could not be set'} on ${run.aliases.aliasOf(itemId)}`);
   }
   return notes;
 }

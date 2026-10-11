@@ -4,6 +4,8 @@
 // summary never says the sound is good.
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 import { describe, expect, test } from 'vitest';
+import { VoxError } from '../../src/errors.ts';
+import { buildRegistry } from '../../src/tools/registry.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { pairOf, sceneItems } from '../../src/workflows/stylize.ts';
 import type { ScriptStep } from '../helpers/model.ts';
@@ -145,5 +147,35 @@ describe('sound review (step 4b, D-14)', () => {
     expect(r.done.summary).toContain('Audio QA FAIL; still failing: spacing');
     expect(r.done.summary).not.toMatch(GOOD);
     expect(r.clips[0]!.audio).toMatchObject({ pass: false, failing: ['spacing'] });
+  }, 120_000);
+});
+
+describe('clip edges', () => {
+  test('a set_transition error is a note on the clip, not a failed workflow', async () => {
+    const kit = await workflowKit();
+    const { sequenceIds } = await quickClipsProject(kit, 1);
+    const base = buildRegistry(kit.engine);
+    kit.deps.registry = {
+      ...base,
+      get: (name) => {
+        const t = base.get(name);
+        if (name !== 'set_transition' || !t) return t;
+        return {
+          ...t,
+          run: () => Promise.reject(new VoxError('VALIDATION', 'no room for the transition', 'x')),
+        };
+      },
+    };
+    const m = dynamicModel(toolsStylist());
+    kit.deps.models = { editor: role(m.model) };
+    const r = await runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'stylize',
+      message: 'style it',
+      mode: 'tools',
+      sequenceIds,
+    });
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(r.clips[0]!.edges.join('; ')).toMatch(/could not be set \(no room for the transition\)/);
   }, 120_000);
 });
