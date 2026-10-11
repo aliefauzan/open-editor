@@ -20,6 +20,7 @@ describe('fonts (OFL)', () => {
     'styles/vox/assets/fonts': [
       'DMSerifDisplay-Regular.ttf',
       'LibreCaslonText-Variable.ttf',
+      'LibreCaslonText-Italic.ttf',
       'IBMPlexMono-Regular.ttf',
       'IBMPlexMono-Bold.ttf',
     ],
@@ -44,6 +45,14 @@ describe('fonts (OFL)', () => {
       expect(listed.sort()).toEqual([...files].sort());
     });
   }
+
+  test('the word-reveal emphasis font is a WOFF2 subset of Inter whose SHA-256 is in SOURCES.md', () => {
+    const dir = 'styles/vox/assets/fonts';
+    const name = 'Inter-ExtraBold-subset.woff2';
+    expect(read(`${dir}/${name}`).subarray(0, 4).toString('latin1')).toBe('wOF2');
+    expect(statSync(file(`${dir}/${name}`)).size).toBeLessThan(40_000);
+    expect(text(`${dir}/SOURCES.md`)).toContain(sha256(`${dir}/${name}`));
+  });
 
   test('phase 07 kept DM Serif Display as fonts.display and removed the other candidate', () => {
     const names = readdirSync(file('styles/vox/assets/fonts/'));

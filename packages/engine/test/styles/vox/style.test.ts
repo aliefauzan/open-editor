@@ -12,7 +12,7 @@ const reg = loadStyleRegistry({ stylesDirs: [REPO_STYLES] });
 const VOX = join(REPO_STYLES, 'vox');
 
 describe('styles/vox', () => {
-  test('loads: 4 scene templates, 2 transitions, 3 caption presets, the paper-grain overlay', () => {
+  test('loads: 4 scene templates, 2 transitions, 3 caption presets, the paper-grain overlay (default) and film-look', () => {
     expect(reg.problems()).toEqual([]);
     const vox = reg.get('vox');
     const own = Object.values(vox.templates).filter((t) => t.styleId === 'vox');
@@ -30,7 +30,10 @@ describe('styles/vox', () => {
       'vox/word-reveal',
     ]);
     expect(vox.style.captions.default).toBe('vox/mono-box');
-    expect(vox.overlays.map((o) => [o.name, o.default])).toEqual([['paper-grain', true]]);
+    expect(vox.overlays.map((o) => [o.name, o.default])).toEqual([
+      ['paper-grain', true],
+      ['film-look', false],
+    ]);
   });
 
   test.each(

@@ -59,6 +59,10 @@
     {
       "name": "paper-grain",
       "default": true
+    },
+    {
+      "name": "film-look",
+      "default": false
     }
   ],
   "pacing": {
