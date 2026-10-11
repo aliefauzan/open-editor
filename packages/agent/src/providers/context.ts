@@ -1,6 +1,6 @@
 // Context-size detection for the capability probe (agent spec "Capability probe" → context):
 // OpenRouter's models endpoint (`context_length`), Ollama `/api/show` plus the `num_ctx` the agent
-// sends, Apple `--status`; every other provider uses the entry's `options.contextTokens` (D-XX).
+// sends, Apple `--status`; every other provider uses the entry's `options.contextTokens` (D-38).
 import { z } from 'zod';
 import { assertSafeBaseUrl } from '../config/mask.ts';
 import { UtilError } from '../errors.pending.ts';

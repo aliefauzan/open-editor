@@ -15,7 +15,7 @@ export type Role = (typeof ROLES)[number];
 
 export type AgentMode = 'tools' | 'plan';
 
-/** "≥ 32k effective context" for `editor`, read as 32,000 tokens so a 32,768 model passes (D-XX). */
+/** "≥ 32k effective context" for `editor`, read as 32,000 tokens so a 32,768 model passes (D-38). */
 export const EDITOR_MIN_CONTEXT = 32_000;
 
 /** One model's probe results. A check that did not run is absent. */

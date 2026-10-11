@@ -32,7 +32,7 @@ export async function toolDefinitions(tools: ToolSet): Promise<ToolDefinition[]>
 
 /**
  * About 3 UTF-16 units per token: no tokenizer ships for every provider, and JSON schemas
- * tokenize denser than prose, so this over-counts rather than under-counts (D-XX).
+ * tokenize denser than prose, so this over-counts rather than under-counts (D-38).
  */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3);

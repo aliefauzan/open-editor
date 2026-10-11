@@ -95,7 +95,7 @@ const positiveInt = z.int().positive();
 export const ProviderOptions = z.looseObject({
   /** Ollama `num_ctx`, sent on every request (default 32768). */
   numCtx: positiveInt.optional(),
-  /** Context size per model id, for providers with no context endpoint (D-XX). */
+  /** Context size per model id, for providers with no context endpoint (D-38). */
   contextTokens: z.record(z.string().min(1), positiveInt).optional(),
 });
 export type ProviderOptions = z.infer<typeof ProviderOptions>;
@@ -107,7 +107,7 @@ export type ProviderOptions = z.infer<typeof ProviderOptions>;
 export const ProviderEntry = z.looseObject({
   id: z.string().regex(PROVIDER_ID),
   type: ProviderType,
-  /** The preset the entry was created from (D-XX); drives Zen routing and local pricing. */
+  /** The preset the entry was created from (D-38); drives Zen routing and local pricing. */
   preset: PresetId.optional(),
   baseUrl: z.string().optional(),
   apiKey: z.string().optional(),
