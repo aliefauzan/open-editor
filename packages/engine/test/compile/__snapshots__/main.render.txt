@@ -112,6 +112,10 @@ clips!
           overflow: hidden;
           pointer-events: none;
         }
+        .c-layer {
+          position: absolute;
+          inset: 0;
+        }
         .c-chunk {
           position: absolute;
           opacity: 0;
@@ -140,6 +144,7 @@ clips!
         data-duration="6"
       >
         <script type="application/json" data-vox-vars data-vox-instance="captions">{"chunks":[{"startMs":200,"endMs":1300,"lines":[{"words":[{"key":"m_a:r1:2","text":"this","startMs":200,"endMs":500,"emphasis":false},{"key":"m_a:r1:3","text":"is","startMs":500,"endMs":700,"emphasis":false},{"key":"m_a:r1:4","text":"Vox.","startMs":700,"endMs":1300,"emphasis":false}]}]},{"startMs":2000,"endMs":2900,"lines":[{"words":[{"key":"m_a:r1:5","text":"It","startMs":2000,"endMs":2200,"emphasis":false},{"key":"m_a:r1:6","text":"has","startMs":2200,"endMs":2500,"emphasis":false},{"key":"m_a:r1:7","text":"42","startMs":2500,"endMs":2900,"emphasis":false}]}]},{"startMs":2900,"endMs":3500,"lines":[{"words":[{"key":"m_a:r1:8","text":"clips!","startMs":2900,"endMs":3500,"emphasis":false}]}]}],"position":{"yPct":75},"safeArea":{"bottomPct":20,"rightPct":12},"maxCharsPerLine":18}</script>
+        <div class="c-layer"></div>
       </div>
       <script>
         // base/plain (styles spec "Caption presets"): the active word is bold, emphasis words are
@@ -151,6 +156,8 @@ clips!
           var mount = vox.mount('captions');
           var root = mount.root;
           var v = mount.vars;
+          // chunks go inside the composition's own markup, where its styles apply in a render
+          var layer = root.querySelector('.c-layer');
           var W = 1080;
           var H = 1920;
           var side = (v.safeArea.rightPct / 100) * W;
@@ -193,7 +200,7 @@ clips!
               }
               el.appendChild(line);
             }
-            root.appendChild(el);
+            layer.appendChild(el);
             tl.set(el, { opacity: 1 }, c.startMs / 1000);
             tl.set(el, { opacity: 0 }, c.endMs / 1000);
           }
