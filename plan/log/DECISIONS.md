@@ -1386,3 +1386,47 @@ the style gallery, the error states and the E2E suites. Decisions:
 **Why**: The specs fix the behaviour, not these shapes; each is the simplest choice that keeps the 10b
 done-when (S32 raw paths never reach the engine, one undo entry per edit, quick clips with no model,
 E2E on the offline fixture). Evidence: `plan/log/phase-10b.md`, `docs/evidence/phase-10b/`.
+
+## D-46 — `vox` style v1 build choices (phase 07, 2026-10-11)
+
+**Context**: Phase 07 builds the first real style. The spec and plan leave these points open or
+conflict slightly with the frozen Part A checks.
+**Decision**:
+- **Display font**: DM Serif Display. Both candidates were rendered on `kinetic-serif` and `stat`
+  (`docs/evidence/phase-07/font-*.jpg`); Libre Caslon Display was too light next to the reference and was
+  deleted with its OFL text.
+- **Motion helpers**: `styles/vox/assets/motion.js` is the source; each composition inlines a copy between
+  `// vox:motion:begin` / `end` markers (`scripts/sync-vox-motion.mjs` writes them, a test checks every copy).
+  A template cannot load a style script by one relative path in both builds (preview inlines templates into
+  `index.html`, render loads `scenes/<id>.html`), and validate rejects other file references. No compile or
+  template contract change.
+- **Backgrounds and caption chunks live inside the composition's own markup** (`.v-page`, `.c-layer`):
+  HyperFrames scopes a composition's styles to its own root, so classes on `mount.root` (the host) and
+  elements appended to it lose them in a real render, while validate's DOM harness still shows them. The
+  same bug in `base/plain` (Times, black, no outline in renders) is fixed the same way.
+- **`vox/serif-lower` active word**: full white and underlined in red. Part A (frozen, D-34 checks) needs the
+  active look to differ from read; the Part B text "active and read words full white" stays true.
+- **Push-in vs `minEntranceMs`**: `stat` runs its photo push-in inside the entrance (0–1.5 s) so the resting
+  state check holds; `paper-collage` and `map-route` push in for the whole scene and set no `minEntranceMs`.
+- **Scene text in the upper half** (`kinetic-serif`, `stat`), so it never sits under the mid-height
+  `vox/mono-box` captions.
+- **SFX**: Commons "Public domain" (PDSounds) files are written as `licence: "CC0"` in `style.json`; the true
+  licence stays in `CREDITS.md`. Files were re-processed (10/15 ms fades, 6 ms silence pads, -1.2 dBFS
+  peak; `paper-slide` cut before its click cluster; `whoosh` shaped into one swell); `thump-tap` is 11 dB
+  lower so the hero cue stays 6 LU under speech (`sfxUnderSpeech`). `typewriter` (a margin bell with tone
+  lines on the sheet) is removed from the kit until a key strike is recorded for the project (optional
+  manual step). No threshold was changed.
+- **`vox style validate`**: runs the kit check (rule `sfx-kit`, sheet `previews/sfx-sheet.png`; option
+  `kit: false` for test styles with generated tones); measures transition cues from the cut; compares a cue
+  window that starts at render frame 0 with the black canvas; the sample cutout is now opaque inside
+  (`drawbox` had left it fully transparent).
+- **Verify `vox audio-qa --kit vox`** runs with a project positional (the CLI is frozen and needs one); the
+  kit result does not depend on the project.
+- **Reference frames** go to `docs/evidence/phase-07/ref-frames/` (the `reference/` folder is gitignored
+  whole); `tiktok-2.mp4` is a second style reference the owner chose.
+- `vox` is now the default style of new projects (engine `defaultId`, built in); the cli and wiring tests
+  follow.
+
+**Why**: Smallest choices that keep the frozen contracts unchanged, make every template pass
+`vox style validate vox` and the demo pass audio QA, and look right in a real render, not only in the
+validate harness.
