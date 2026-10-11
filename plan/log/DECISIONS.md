@@ -1209,3 +1209,32 @@ only, symlinks resolved, GET only), aborts every other request, sets a CSP with
 `--block-new-web-contents` and without file access. Test:
 `packages/engine/test/styles/validate-dom-sandbox.slow.test.ts`. Fixed on branch
 `fix/validate-dom-sandbox`.
+
+## D-41 — Packaged app layout and setup "Ready" rules (phase 09, 2026-10-11)
+
+Phase 09 packaged the engine, the CLI and HyperFrames into the `.app` and wired first-run setup.
+Decisions:
+- **Resource dirs:** engine code finds bundled files through `packages/engine/src/resources.ts`
+  (`setResourceDirs`, `dataDir`, `runtimeDir`, `moduleRequire`, `pyProjectDir`). In the `.app`:
+  `Resources/engine-data/` (places, NOTICE, `runtime/` vox-runtime + vox-preview),
+  `Resources/hyperframes/node_modules/`, `Resources/py/`, `Resources/bin/uv`, `Resources/cli/`.
+  The engine host and the bundled CLI both call `packagedResourceDirs(resources)`.
+- **HyperFrames modules:** pnpm's isolated layout (and `pnpm deploy`) cannot be copied into a bundle,
+  so `scripts/stage-resources.ts` lays out a hoisted `node_modules` from the real dependency tree.
+- **Setup manifest:** bundled as a JSON import (no file lookup inside `app.asar`).
+- **Ready** = every component ready and `vox doctor` without errors. The doctor runs in the
+  background after a component change (`setup.progress` `{component:'doctor'}`), so
+  `setup.status` answers at once. `vox doctor` gains a python-env lock-hash check.
+- **Python env:** a packaged app always uses `<tools>/py-env`; `uv sync` adds `--compile-bytecode`
+  (first import on a fresh env drops from minutes to ~1 min).
+- **Tools on PATH:** `<tools>/bin` holds links to the managed tools and is first on the engine host
+  PATH (yt-dlp finds deno). Chrome counts as ready only as the managed headless shell
+  (HyperFrames `browser ensure`).
+- **CLI:** `vox self-test --json` checks the packaged modules (later ones report `notBuilt`);
+  the menu "Install vox Command…" links `~/.local/bin/vox` or `/usr/local/bin/vox` (admin prompt)
+  to `Resources/cli/vox`, which runs the CLI with Electron as Node (RunAsNode fuse on).
+- **Updates:** the launch check reads `aliefauzan/open-editor` releases; `VOX_UPDATE_REPO=''`
+  turns it off (tests).
+- **Tests of the built app:** the Node inspect fuse is off (S27), so tests start the app with
+  `--remote-debugging-port=0` and connect over CDP (`test/helpers/packaged.ts`).
+- **Size:** `.dmg` 189,359,198 bytes (180.6 MB; bar 300 MB); `.app` ~496 MB unpacked.
