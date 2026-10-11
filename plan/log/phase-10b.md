@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | waiting for GATE 5 (owner run; not merged) |
-| Started · Finished | 2026-10-11 19:10 · |
+| Status | done: GATE 5 pass by owner delegation (D-58) |
+| Started · Finished | 2026-10-11 19:10 · 2026-10-12 02:00 |
 | Model | Opus 5.5 · high (phase agent, parallel run; self-review (token budget), no subagents) |
 | Machine | M5, macOS 27 |
 | Branch | phase/10b-editor-core-b (worktree `.worktrees/phase-10b`, kept until GATE 5) |
@@ -50,7 +50,7 @@ seeding, S36) → subtitle helpers → components → E2E specs → bench + CI �
 - [x] B12 `pnpm dist` + clean-install rerun with the full editor (render part); MANUAL STEP for the owner written
 - [x] Review (step 7, self-review), UI gate screenshots (`docs/evidence/phase-10b/10b-*.jpg`)
 - [x] Verify
-- [ ] B13 GATE 5 (owner) — see MANUAL STEPS
+- [x] B13 GATE 5 — pass by owner delegation (D-58); run table under "GATE 5 run"
 
 ## Files created / changed
 
@@ -101,7 +101,7 @@ Run in the worktree (branch head 8c7fe0f; `git merge main` happens after GATE 5)
 | 5 | App done-when 7: Pauses & fillers one entry, slider one entry, Pin frame holds the crop, loudness targets pass | `e2e/tools.spec.ts` 4/4 (loudness PASS at −14, −12, −23 LUFS targets) |
 | 6 | Latency on the M5; CI warns above 1 s | patch max 87 ms, reload max 435 ms; ci.yml slow job step |
 | 7 | UI gate screenshots reviewed, HIGH fixed | `docs/evidence/phase-10b/10b-*.jpg` (14) reviewed against the app spec layout (no invideo screenshot in the repo; same delegation as 10a): HIGH next-steps bar leaking into another project → fixed |
-| 8 | GATE 5 recorded | **open** |
+| 8 | GATE 5 recorded | D-58 (pass by owner delegation); `docs/evidence/phase-10b/gate5/` 00–13 |
 
 ## Review findings
 
@@ -179,12 +179,14 @@ Installed `.dmg` in `/Applications`, fresh `VOX_HOME`/`VOX_PROJECTS_DIR` under `
 | g. TikTok quick clip | failed once (transcribe exit 134, onnxruntime telemetry thread) → D-52; retry pass | — |
 | g. dropped file | failed (empty project, no message) → fixed D-54; pass on the rebuilt app | 10 |
 | g. fix a subtitle, export burned-in MP4 + SRT | pass; burned captions were unstyled → fixed D-54 | 09, 11 |
+| h. owner test video after D-56/D-57 | pass: 1:54, facetrack about 1:00 beside transcribe | 13 |
 
 Findings fixed on the branch: D-52 (telemetry crash), D-53 (quick-clip speed: false VFR, CFR encoder,
 parallel facetrack, real progress), D-54 (Finder drop, caption style root), D-56 (letterbox bands),
 86eb075 (Escape closes Export, plain "no sound" message, a retry reuses only an empty project).
-Open at the time of writing: facetrack speed (agent running); final rebuild check of D-56 on the
-YouTube clip.
+Closed 2026-10-12: facetrack speed → D-57 (the installed tools env had kept phase-04 `vox_py`; setup now
+rebuilds it when the bundled Python tools change). Final rebuild check on the owner's test video
+(rtcMRI3ARck, 11:08): 1 clip in 1:54, no black bands (D-56), styled captions (evidence 13).
 
 ## Handoff notes
 
@@ -198,3 +200,8 @@ YouTube clip.
 - Coalesced edits show in `history.list` as entries with `replaces`; count undo entries by dropping
   replaced versions (E2E helper does).
 - Uploads have no original file name in the model; a later phase may add a `name` to media.
+- Tools env: `py-env/.vox-src-hash` (hash of `pyproject.toml` + `vox_py/`) beside `.vox-lock-hash`; a
+  change re-syncs with `--reinstall-package vox_py` (D-57). Packaged tests write both stamps
+  (`test/helpers/packaged.ts`).
+- App check after every rebuild: the owner's test video (TODO "Inputs"), count 1, 30–60 s; record the
+  times from the project file stamps (`docs/evidence/phase-10b/gate5/13-test-video-timing.txt`).

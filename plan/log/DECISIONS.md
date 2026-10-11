@@ -1638,3 +1638,36 @@ full frame; scale 1 is still the full-frame cover crop, so a pin at scale 1 on l
 to fit the picture. A missing or damaged area means the full frame (old projects unchanged).
 **Why**: Removes the bands without a contract change. Commit c67489b on `phase/10b-editor-core-b`
 (self-reviewed by the fixing agent).
+
+## D-57 — Facetrack threads, and the tools env follows the bundled Python tools (phase 10b, GATE 5 finding, 2026-10-12)
+**Context**: After D-53 the GATE 5 YouTube quick clip still spent 4:53 in facetrack, while the module alone
+took about a minute on the same proxy. The installed app's tools env (`<tools>/py-env`) still held the
+`vox_py` package from phase 04: setup re-synced only when the bundled `uv.lock` changed, and `uv sync` kept
+its first build of `vox_py` (version 0.0.0; uv keys the cached build on `pyproject.toml`). No Python change
+made after the first install had reached the app.
+**Decision**: (1) Facetrack runs MediaPipe faces (CPU, `WORKERS` threads) and Apple Vision (Neural Engine,
+3 threads) on separate pools at the same time, in frame order, with output identical to one thread
+(8d012ee). Further speed-ups need fewer BlazeFace runs per frame, not more threads. (2) Setup stores a
+hash of `pyproject.toml` and `vox_py/` (no bytecode) in `py-env/.vox-src-hash` beside the lock hash; a
+different or missing hash is `stale` (detail "built from older Python tools than this app ships") and
+re-syncs once; the sync passes `--reinstall-package vox_py`, so uv rebuilds the project and keeps the
+pinned packages (35cbf1b, setup tests 96/96).
+**Why**: An app update must run the tools it ships. Measured on the owner's test video (11:08, 1080p):
+make clips 1:54 from press to clip, facetrack about 1:00 beside transcribe
+(`docs/evidence/phase-10b/gate5/13-test-video-timing.txt`).
+
+## D-58 — GATE 5: pass by owner delegation (phase 10b, 2026-10-12)
+**Context**: GATE 5 needs the owner's run of the installed `.dmg` with a fresh `VOX_HOME` (D-16). The owner
+delegated gates and manual steps to the AI (2026-10-11 21:47, "jsut do all by ur self, u got all my
+permission to do everything"; same delegation as D-49).
+**Decision**: GATE 5: pass. The AI did every MANUAL STEP 1 item for real in the installed app under
+`~/vox-gate5` (evidence `docs/evidence/phase-10b/gate5/` 00–13): setup to Ready; by-hand editing of the
+fixture and MP4 + SRT + OTIO into a chosen folder with Show in Finder; quick clips from the YouTube,
+Instagram and TikTok links and one dropped file; one subtitle fixed and exported burned in with SRT. Each
+failure found was fixed on the branch and re-run on a rebuilt app (D-52 telemetry crash, D-53 speed,
+D-54 drop and caption style, D-56 letterbox bands, D-57 facetrack and the stale tools env, 86eb075 small
+UX fixes). Final check on the owner's test video: 1 clip in 1:54, no black bands, styled captions (13).
+**Consequence**: phase 10b merges. Not checked by a person: how the clips look and sound to a viewer
+(the AI reviewed screenshots). Open owner items stay in TODO (optional 08 step 10, 09 steps 7/9b,
+07 step 8b; Freesound originals before release).
+
