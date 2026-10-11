@@ -20,7 +20,7 @@ import {
   type WorkflowRequest,
 } from '@vox/agent';
 
-import { createRedactor, type Engine, type Redactor } from '@vox/engine';
+import type { Engine, Redactor } from '@vox/engine';
 import { depsOf, type ConfigIo } from './config.ts';
 
 export interface AgentIo extends ConfigIo {
@@ -204,7 +204,8 @@ export async function agentCommand(
   if (workflow === 'stylize' && seqs.length === 0)
     throw new AgentUsageError('--workflow stylize needs --seq <id> (repeatable)');
 
-  const redactor = createRedactor();
+  // one redactor: keys read for this run are removed from the engine's job errors and logs too
+  const redactor = engine.redactor;
   const deps = depsOf(io);
   const cfg: AgentConfigDeps = {
     io: engineConfigIO(io.env),

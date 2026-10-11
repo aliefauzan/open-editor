@@ -34,10 +34,10 @@ const MODELS = new Map<string, OpenRouterModelInfo>([
   ],
 ]);
 
-async function setup(next: Parameters<typeof dynamicModel>[0]) {
+async function setup(next: Parameters<typeof dynamicModel>[0], apiKey = CANARY_KEY) {
   const home = mkdtempSync(join(tmpdir(), 'vox-agent-cli-'));
   const projectsDir = join(home, 'Projects');
-  const env = { HOME: home, VOX_HOME: home, OPENROUTER_API_KEY: CANARY_KEY };
+  const env = { HOME: home, VOX_HOME: home, OPENROUTER_API_KEY: apiKey };
   await writeConfig(
     {
       providers: [
@@ -266,5 +266,16 @@ describe('vox agent: Ctrl-C', () => {
     expect(r.stdout).toContain(`run ${runId}: stopped`);
     expect(r.code).toBe(1);
     expect(removed).toBe(1);
+  }, 60_000);
+});
+
+describe('vox agent: one redactor (S19)', () => {
+  test('the configured key is registered on the engine’s redactor too', async () => {
+    // a key with no known shape: only its registration can redact it
+    const key = 'plaincanary7f3a9c2e5b1d4068';
+    const t = await setup(() => ({ text: 'Done.' }), key);
+    const r = await t.vox(['agent', t.off.projectId, 'add a title', '--seq', t.off.sequenceId]);
+    expect(r.code, r.stderr).toBe(0);
+    expect(t.engine().redactor.redact(`key ${key}`)).not.toContain(key);
   }, 60_000);
 });
