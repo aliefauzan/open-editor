@@ -1,6 +1,7 @@
 // Phase 12 steps 1–3 (agent spec "Testing" → mock-model tests): the clipper on the offline fixture
 // (20 s talking head, clips of 4–8 s) in tools mode and in plan mode, and checkpoint enforcement.
 import { describe, expect, test } from 'vitest';
+import { VoxError } from '../../src/errors.ts';
 import { readRunRecord } from '../../src/loop/record.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { workflowJob } from '../../src/workflows/clipper.ts';
@@ -132,4 +133,51 @@ describe('workflow jobs (job tools’ rules)', () => {
     expect(run.ctx.seenVersion).toBe(7);
     expect(run.versions).toEqual([7]);
   });
+});
+
+describe('run end status', () => {
+  test('an unrelated error after a Stop is a failure, not a stop', async () => {
+    const kit = await workflowKit();
+    const ac = new AbortController();
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'shots') return runJob(kind, args, signal);
+      ac.abort();
+      throw new VoxError('JOB_FAILED', 'the shots step crashed', 'x');
+    };
+    kit.deps.models = { editor: role(dynamicModel(toolsStylist()).model) };
+    const r = await runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'clipper',
+      message: `make 1 vox clip from ${FIXTURE_VIDEO}`,
+      mode: 'tools',
+      ...CLIP,
+      tighten: 'all',
+      signal: ac.signal,
+    });
+    expect(r.done.status).toBe('failed');
+    expect(r.done.summary).toContain('the shots step crashed');
+  }, 120_000);
+
+  test('a job cancelled by the Stop ends the run as stopped', async () => {
+    const kit = await workflowKit();
+    const ac = new AbortController();
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'shots') return runJob(kind, args, signal);
+      ac.abort();
+      throw new VoxError('CANCELLED', 'job shots cancelled', 'Run it again when ready.');
+    };
+    kit.deps.models = { editor: role(dynamicModel(toolsStylist()).model) };
+    const r = await runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'clipper',
+      message: `make 1 vox clip from ${FIXTURE_VIDEO}`,
+      mode: 'tools',
+      ...CLIP,
+      tighten: 'all',
+      signal: ac.signal,
+    });
+    expect(r.done.status).toBe('stopped');
+  }, 120_000);
 });

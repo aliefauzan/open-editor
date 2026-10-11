@@ -75,6 +75,12 @@ function selectionText(run: AgentRun, sel: Selection | undefined): string {
   return parts.join(', ');
 }
 
+/** An error the abort itself caused: the DOM AbortError (model calls) or a cancelled job. */
+function isAbortError(err: unknown): boolean {
+  if (isVoxError(err)) return err.code === 'CANCELLED';
+  return err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
+}
+
 export async function runWorkflow(
   deps: WorkflowDeps,
   req: WorkflowRequest,
@@ -191,7 +197,8 @@ export async function runWorkflow(
       run.finish('completed', `${w.name === 'clipper' ? 'Made' : 'Styled'} ${String(n)} clip(s).`),
     );
   } catch (err) {
-    if (err instanceof RunStopped || req.signal?.aborted)
+    // a stop is RunStopped, or an abort the Stop caused; any other error is a failure
+    if (err instanceof RunStopped || (req.signal?.aborted && isAbortError(err)))
       return result(
         run.finish(
           'stopped',

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { VoxError } from '../../src/errors.ts';
+import { runEngineJob } from '../../src/tools/jobs.ts';
 import { buildRegistry, invokeTool } from '../../src/tools/registry.ts';
 import { sourceNamedByUser, unapprovedSources } from '../../src/tools/sources.ts';
 import { fixtureProject, toolContext } from '../helpers/project.ts';
@@ -214,5 +215,42 @@ describe('check_audio (step 12b, D-14)', () => {
     await expect(
       invokeTool(ctx, r, 'check_audio', { sequenceId: f.sequenceId }),
     ).resolves.toBeDefined();
+  });
+});
+
+describe('runEngineJob: cancel', () => {
+  /** A job runner whose job ends `cancelled` once cancel is called. */
+  function fakeJobs() {
+    let end!: (v: { status: string }) => void;
+    const ended = new Promise<{ status: string }>((r) => (end = r));
+    const jobs = {
+      started: 0,
+      cancelled: 0,
+      start: () => (jobs.started++, 'job_1'),
+      cancel: () => {
+        jobs.cancelled++;
+        end({ status: 'cancelled' });
+      },
+      wait: () => ended,
+    };
+    return jobs;
+  }
+
+  test('a job cancelled by the signal throws CANCELLED', async () => {
+    const jobs = fakeJobs();
+    const ac = new AbortController();
+    const p = runEngineJob({ jobs } as never, 'quickClips', {}, ac.signal);
+    ac.abort();
+    await expect(p).rejects.toMatchObject({ code: 'CANCELLED' });
+  });
+
+  test('a signal aborted before the start cancels the job at once', async () => {
+    const jobs = fakeJobs();
+    const ac = new AbortController();
+    ac.abort();
+    await expect(
+      runEngineJob({ jobs } as never, 'quickClips', {}, ac.signal),
+    ).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(jobs.cancelled).toBe(1);
   });
 });

@@ -20,9 +20,14 @@ export async function runEngineJob(
   const jobId = engine.jobs.start(kind, args);
   const onAbort = () => engine.jobs.cancel(jobId);
   signal?.addEventListener('abort', onAbort, { once: true });
+  if (signal?.aborted) onAbort(); // aborted before the start: the event has fired already
   try {
     const info = await engine.jobs.wait(jobId);
     if (info.status === 'done') return info.result;
+    if (info.status === 'cancelled' && !info.error)
+      throw new VoxError('CANCELLED', `job ${kind} cancelled`, 'Run it again when ready.', {
+        details: { jobId, kind },
+      });
     const e = info.error;
     throw new VoxError(
       e?.code ?? 'JOB_FAILED',
@@ -46,8 +51,13 @@ export async function job(
   signal: AbortSignal | undefined = ctx.signal,
 ): Promise<unknown> {
   const full = { projectId: ctx.projectId, ...args };
+  // the seam gets the signal only when there is one (its two-argument form stays as it was)
   const run = () =>
-    ctx.runJob ? ctx.runJob(kind, full, signal) : runEngineJob(ctx.engine, kind, full, signal);
+    ctx.runJob
+      ? signal
+        ? ctx.runJob(kind, full, signal)
+        : ctx.runJob(kind, full)
+      : runEngineJob(ctx.engine, kind, full, signal);
   try {
     return await run();
   } catch (e) {
