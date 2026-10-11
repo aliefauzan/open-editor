@@ -41,7 +41,10 @@ describe('make-offline-project (step 10)', () => {
     const html = String(
       (await again.compile(r.projectId, r.sequenceId, { mode: 'render' })).files.get('index.html'),
     );
-    expect(html.split(`tl.to(byId('${clip.id}')`).length - 1).toBeGreaterThan(1);
+    // voxPath steps are [position, x, y, scale, duration]; duration > 0 is a tween
+    const path = new RegExp(`voxPath\\('${clip.id}', \\[(.*)\\]\\);`).exec(html)?.[1] ?? '';
+    const tweens = path.split('], [').filter((s) => !/, 0\]?$/.test(s));
+    expect(tweens.length).toBeGreaterThan(1);
     expect(again.jobs.list(r.projectId)).toEqual([]);
   }, 60_000);
 });
