@@ -167,7 +167,7 @@ function Thumbs(props: {
 }
 
 function FadeHandle(props: { side: 'in' | 'out'; item: Item; pxPerSec: number }) {
-  const { editor, editor: store } = useCtx();
+  const { editor } = useCtx();
   const [drag, setDrag] = useState<number | null>(null);
   const it = props.item;
   if (it.type !== 'media') return null;
@@ -190,7 +190,7 @@ function FadeHandle(props: { side: 'in' | 'out'; item: Item; pxPerSec: number })
       setDrag(null);
       const s = editor.getState();
       if (last !== cur && s.sequenceId)
-        void store.getState().apply({
+        void editor.getState().apply({
           op: 'updateClip',
           args: {
             sequenceId: s.sequenceId,

@@ -35,30 +35,30 @@ export function CropHandle() {
     target.pinAt === undefined ? undefined : frame.keyframes!.find((k) => k.atMs === target.pinAt);
   const x = pin?.x ?? frame.x ?? 0.5;
   const y = pin?.y ?? frame.y ?? 0.5;
+  const clamp = (v: number) => Math.min(1, Math.max(0, Math.round(v * 1000) / 1000));
+  const send = (nx: number, ny: number) => {
+    const next: Frame =
+      pin === undefined
+        ? { ...frame, x: nx, y: ny }
+        : {
+            ...frame,
+            keyframes: frame.keyframes!.map((k) =>
+              k.atMs === pin.atMs ? { ...k, x: nx, y: ny } : k,
+            ),
+          };
+    void editor.getState().setField('frame', clip.id, {
+      op: 'updateClip',
+      args: { sequenceId: target.seqId, itemId: clip.id, frame: next },
+    });
+  };
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const box = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
     const x0 = e.clientX;
     const y0 = e.clientY;
-    const move = (ev: PointerEvent) => {
-      const clamp = (v: number) => Math.min(1, Math.max(0, Math.round(v * 1000) / 1000));
-      // dragging the picture right moves the crop centre left
-      const nx = clamp(x - (ev.clientX - x0) / box.width);
-      const ny = clamp(y - (ev.clientY - y0) / box.height);
-      const next: Frame =
-        pin === undefined
-          ? { ...frame, x: nx, y: ny }
-          : {
-              ...frame,
-              keyframes: frame.keyframes!.map((k) =>
-                k.atMs === pin.atMs ? { ...k, x: nx, y: ny } : k,
-              ),
-            };
-      void editor.getState().setField('frame', clip.id, {
-        op: 'updateClip',
-        args: { sequenceId: target.seqId, itemId: clip.id, frame: next },
-      });
-    };
+    // dragging the picture right moves the crop centre left
+    const move = (ev: PointerEvent) =>
+      send(clamp(x - (ev.clientX - x0) / box.width), clamp(y - (ev.clientY - y0) / box.height));
     const up = () => {
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
@@ -74,6 +74,18 @@ export function CropHandle() {
       tabIndex={0}
       data-testid="crop-handle"
       onPointerDown={onDown}
+      onKeyDown={(e) => {
+        // arrow keys pan the picture by 1 % (and do not step frames)
+        const d = {
+          ArrowLeft: [0.01, 0],
+          ArrowRight: [-0.01, 0],
+          ArrowUp: [0, 0.01],
+          ArrowDown: [0, -0.01],
+        }[e.key as 'ArrowLeft'];
+        if (!d) return;
+        e.preventDefault();
+        send(clamp(x + d[0]!), clamp(y + d[1]!));
+      }}
       className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-move rounded-full border-2 border-white bg-indigo-500/70 shadow"
       // the crop centre is always the middle of the frame: the handle pans the picture under it
       style={{ left: '50%', top: '50%' }}

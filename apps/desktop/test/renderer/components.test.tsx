@@ -503,3 +503,38 @@ describe('agent panel placeholder', () => {
     void vi;
   });
 });
+
+describe('crop handle on the preview', () => {
+  it('a manual clip pans with the keyboard; drags of one gesture are one undo entry', async () => {
+    const { CropHandle } = await import('../../src/renderer/editor/CropHandle.tsx');
+    const t = await testEditor();
+    const clip = seq(t).videoTracks[0]!.items[0]!;
+    await act(async () => {
+      await t.ctx.editor.getState().apply({
+        op: 'updateClip',
+        args: { sequenceId: 'seq_main', itemId: clip.id, frame: { mode: 'manual' } },
+      });
+      await idle(t);
+    });
+    t.ctx.editor.getState().select(clip.id, { alt: true });
+    t.ctx.editor.getState().setPlayhead(1000);
+    mount(
+      t,
+      <div style={{ position: 'relative' }}>
+        <CropHandle />
+      </div>,
+    );
+    const handle = await screen.findByTestId('crop-handle');
+    const n = await history(t);
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' });
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' });
+    fireEvent.keyDown(handle, { key: 'ArrowUp' });
+    await act(() => idle(t));
+    expect((seq(t).videoTracks[0]!.items[0] as MediaClip).frame).toMatchObject({
+      mode: 'manual',
+      x: 0.52,
+      y: 0.51,
+    });
+    expect(await history(t)).toBe(n + 1);
+  });
+});
