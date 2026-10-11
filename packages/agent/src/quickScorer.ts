@@ -17,6 +17,8 @@ export const SCORE_BATCH = 30;
 
 interface Slot {
   current?: QuickClipScorer;
+  /** The run holding the slot finishes before the next one sets it. */
+  queue: Promise<unknown>;
 }
 const slots = new WeakMap<object, Slot>();
 
@@ -24,7 +26,7 @@ const slots = new WeakMap<object, Slot>();
 export function llmScorerSlot(engine: Pick<AgentEngine, 'quickClips'>): Slot {
   let slot = slots.get(engine.quickClips);
   if (!slot) {
-    const s: Slot = {};
+    const s: Slot = { queue: Promise.resolve() };
     engine.quickClips.registerScorer(LLM_SCORER_ID, (input, ctx) => {
       if (!s.current) throw new Error('no fast model in this run');
       return s.current(input, ctx);
@@ -33,6 +35,28 @@ export function llmScorerSlot(engine: Pick<AgentEngine, 'quickClips'>): Slot {
     slot = s;
   }
   return slot;
+}
+
+/**
+ * Runs `body` (the quick-clips job) with `fn` as the engine's `llm` scorer. Runs on one engine
+ * take turns, so a run never scores with another run's model.
+ */
+export async function withLlmScorer<T>(
+  engine: Pick<AgentEngine, 'quickClips'>,
+  fn: QuickClipScorer,
+  body: () => Promise<T>,
+): Promise<T> {
+  const slot = llmScorerSlot(engine);
+  const turn = slot.queue.then(async () => {
+    slot.current = fn;
+    try {
+      return await body();
+    } finally {
+      delete slot.current;
+    }
+  });
+  slot.queue = turn.catch(() => undefined);
+  return turn;
 }
 
 const ScoresSchema = z.strictObject({

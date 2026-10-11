@@ -2,7 +2,7 @@
 // scorer error falls back to the heuristic and the run summary says so.
 import { describe, expect, test } from 'vitest';
 import { readRunRecord } from '../../src/loop/record.ts';
-import { createLlmScorer, scoreOf } from '../../src/quickScorer.ts';
+import { createLlmScorer, scoreOf, withLlmScorer } from '../../src/quickScorer.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { toolsStylist } from '../helpers/stylists.ts';
 import { dynamicModel, FIXTURE_VIDEO, role, workflowKit, type Kit } from '../helpers/workflow.ts';
@@ -128,5 +128,26 @@ describe('LLM scorer: renumbered answers', () => {
     const fn = createLlmScorer(host, role(fast.model));
     const s = await fn({ mediaId: 'm_x', candidates }, { signal: new AbortController().signal });
     expect(s).toEqual([4, 3.5]);
+  });
+});
+
+describe('LLM scorer slot', () => {
+  test('two runs on one engine never use each other’s scorer', async () => {
+    const regs: ((i: never, c: never) => unknown)[] = [];
+    const engine = { quickClips: { registerScorer: (_id: string, fn: never) => void regs.push(fn), scorers: () => [] } };
+    const seen: string[] = [];
+    const job = (who: string) => async () => {
+      await new Promise((r) => setTimeout(r, who === 'a' ? 20 : 0));
+      seen.push(`${who}:${String(await regs[0]!({} as never, {} as never))}`);
+      return who;
+    };
+    const fn = (v: number) => () => [v];
+    const [a, b] = await Promise.all([
+      withLlmScorer(engine as never, fn(1) as never, job('a')),
+      withLlmScorer(engine as never, fn(2) as never, job('b')),
+    ]);
+    expect([a, b]).toEqual(['a', 'b']);
+    expect(seen).toEqual(['a:1', 'b:2']);
+    expect(regs).toHaveLength(1);
   });
 });

@@ -5,7 +5,7 @@ import type { QuickClipsResult } from '@vox/engine';
 import { VoxError } from '../errors.ts';
 import { RunStopped, type AgentRun } from '../loop/run.ts';
 import type { TightenRange } from '../loop/types.ts';
-import { createLlmScorer, LLM_SCORER_ID, llmScorerSlot } from '../quickScorer.ts';
+import { createLlmScorer, LLM_SCORER_ID, withLlmScorer } from '../quickScorer.ts';
 import { runEngineJob } from '../tools/jobs.ts';
 import type { Checkpoints } from './checkpoints.ts';
 
@@ -168,11 +168,8 @@ export async function clipperSteps(
   if (!have?.facetrackPath) await run.workflowCall('facetrack', { mediaId });
 
   const fast = run.deps.models.fast;
-  const slot = llmScorerSlot(run.ctx.engine);
-  if (fast) slot.current = createLlmScorer(run, fast);
-  let q: QuickClipsResult;
-  try {
-    q = await workflowJob<QuickClipsResult>(run, 'quickClips', {
+  const quick = () =>
+    workflowJob<QuickClipsResult>(run, 'quickClips', {
       mediaId,
       count: opts.count,
       minMs: opts.minMs,
@@ -180,9 +177,9 @@ export async function clipperSteps(
       scorer: fast ? LLM_SCORER_ID : 'heuristic',
       prompt: run.request.message.slice(0, 2000),
     });
-  } finally {
-    delete slot.current;
-  }
+  const q = fast
+    ? await withLlmScorer(run.ctx.engine, createLlmScorer(run, fast), quick)
+    : await quick();
   if (!fast) notes.push('No fast model: the heuristic scorer picked the moments.');
   if (q.scorerError)
     notes.push(
