@@ -2,10 +2,11 @@
 // scene file) is mounted in a harness page in the Chrome that HyperFrames renders with, its timeline
 // is seeked like the renderer seeks it, and text boxes, element states and pixels are read.
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { createReadStream, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { dirname, extname, join, sep } from 'node:path';
 import { templateInner } from '../compile/compile.ts';
 import { hyperframesBin } from '../render/layers.ts';
 import { moduleRequire } from '../resources.ts';
@@ -49,7 +50,14 @@ interface PptrPage {
   evaluate<T>(fn: string): Promise<T>;
   screenshot(o?: Record<string, unknown>): Promise<Uint8Array>;
   on(event: 'pageerror', fn: (e: Error) => void): void;
+  on(event: 'request', fn: (r: PptrRequest) => void): void;
+  setRequestInterception(on: boolean): Promise<void>;
   close(): Promise<void>;
+}
+interface PptrRequest {
+  url(): string;
+  continue(): Promise<void>;
+  abort(): Promise<void>;
 }
 interface PptrBrowser {
   newPage(): Promise<PptrPage>;
@@ -105,7 +113,8 @@ export async function launchChrome(): Promise<PptrBrowser> {
   return pptr.launch({
     executablePath: chromePath(),
     headless: true,
-    args: ['--allow-file-access-from-files', '--font-render-hinting=none'],
+    // No popups: a new window would skip the request filter of `openHarness` (R4 S8).
+    args: ['--block-new-web-contents', '--font-render-hinting=none'],
   });
 }
 
@@ -161,6 +170,7 @@ export async function openHarness(
     file,
     `<!doctype html>
 <html><head><meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="connect-src 'none'; frame-src 'none'; form-action 'none'" />
 <script>window.__timelines = window.__timelines || {};</script>
 <script src="../vendor/gsap.min.js"></script>
 <script src="../vendor/vox-runtime.js"></script>
@@ -174,8 +184,18 @@ html, body { margin: 0; background: ${o.bg ?? '#000000'}; }
   const page = await browser.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e?.message ?? e).slice(0, 300)));
+  // The style may be untrusted (R4 S8): like the app's player (S13, S14) the page gets no network
+  // and no file outside the build folder. The folder is served on loopback (a file:// page with file
+  // access on can read any file) and every other request is aborted.
+  const srv = await serveDir(buildDir);
+  const allowed = (url: string) =>
+    url.startsWith(`${srv.origin}/`) || /^(data|blob|about):/.test(url);
+  await page.setRequestInterception(true);
+  page.on('request', (r) => void (allowed(r.url()) ? r.continue() : r.abort()));
   await page.setViewport(size);
-  await page.goto(pathToFileURL(file).href, { waitUntil: 'load' });
+  await page.goto(`${srv.origin}/scenes/${encodeURIComponent(`${id}.check.html`)}`, {
+    waitUntil: 'load',
+  });
   await page.evaluate(
     `Promise.all([...document.fonts].map((f) => f.load().catch(() => null))).then(() => document.fonts.ready).then(() => true)`,
   );
@@ -253,7 +273,10 @@ html, body { margin: 0; background: ${o.bg ?? '#000000'}; }
         : undefined;
       return Buffer.from(await page.screenshot({ type: 'png', ...(c ? { clip: c } : {}) }));
     },
-    close: () => page.close(),
+    async close() {
+      await page.close();
+      await srv.close();
+    },
   };
 }
 
@@ -276,4 +299,58 @@ export function sameState(a: ElementState, b: ElementState, px: number): boolean
   const mb = matrixOf(b.transform);
   for (let i = 0; i < 4; i++) if (Math.abs(ma[i]! - mb[i]!) > 0.01) return false;
   return Math.abs(ma[4] - mb[4]) <= px && Math.abs(ma[5] - mb[5]) <= px;
+}
+
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+};
+
+/** Serves the files inside `dir` (symlinks resolved) on 127.0.0.1, GET only. */
+async function serveDir(dir: string): Promise<{ origin: string; close(): Promise<void> }> {
+  const root = realpathSync(dir);
+  const server = createServer((req, res) => {
+    let p = '';
+    try {
+      const path = decodeURIComponent(new URL(req.url ?? '/', 'http://h').pathname);
+      p = realpathSync(join(root, path));
+    } catch {
+      // missing or malformed: 404 below
+    }
+    if (req.method !== 'GET' || !p.startsWith(root + sep) || !statSync(p).isFile()) {
+      res.writeHead(404).end();
+      return;
+    }
+    res.writeHead(200, {
+      'content-type': MIME[extname(p).toLowerCase()] ?? 'application/octet-stream',
+    });
+    createReadStream(p).pipe(res);
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  const { port } = server.address() as AddressInfo;
+  return {
+    origin: `http://127.0.0.1:${port}`,
+    close: () =>
+      new Promise<void>((ok) => {
+        server.closeAllConnections();
+        server.close(() => ok());
+      }),
+  };
 }

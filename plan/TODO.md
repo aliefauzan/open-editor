@@ -25,6 +25,9 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
       program compiles and reports the system model `available`.
 - [ ] **Reference reel** `.mp4` at `docs/evidence/phase-07/reference/reel.mp4` (gitignored; phase 07
       step 0). The AI never downloads it.
+- [ ] **Second style reference** (given 2026-10-11): <https://www.tiktok.com/@metro.media.house3/video/7695169259369925908>.
+      Phase 07 uses it beside the reel for the style target. Save it as
+      `docs/evidence/phase-07/reference/tiktok-2.mp4` (gitignored). The AI never downloads it.
 - [ ] **Reference layout screenshot** of the invideo editor at `docs/reference/invideo-layout.png`
       (gitignored; used by the UI review in PROMPT step 7 from phase 08 on).
 - [x] **One public YouTube URL** — given 2026-10-11: <https://youtu.be/BveD4v3YwEQ>. you are allowed to use, for GATE 2 (phase 05) and the agent runs
