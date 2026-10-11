@@ -272,3 +272,18 @@ phase 13 step 7b. After `git merge main` (10a, D-44): typecheck and lint clean; 
 passed, 1 skipped, and one timing test failed per full run while phase 10b ran in parallel (load
 average ~14): `lock.test.ts` (break marker 10 s) once, `preview.test.ts` (150 ms coalesce) once.
 Each passed 3/3 alone. Flaky under load, not a regression.
+
+## Phase 13 step 7b — live probe with the keyless providers (2026-10-12)
+Run by the phase 13 agent (owner delegation, D-49/D-58) with a temp `VOX_HOME`, through `vox config probe --json`
+(the same probe runner the Settings "Test" button calls). No OpenRouter key exists, so MANUAL STEP 1 stays open
+for OpenRouter (TODO "Manual steps"); MANUAL STEP 2 (optional presets) stays open.
+
+| Model | Context | tools | loop | vision | plan | Tool-list share | Roles assignable |
+|---|---|---|---|---|---|---|---|
+| `ollama:qwen3.5:latest` | 32768 (`num_ctx`; advertised 262144) | pass | pass | pass | pass | 9.6 % | editor (plan), vision, fast |
+| `ollama:nimble:latest` | 32768 | pass | pass | error (`AI_RetryError`; text-only model) | pass | 9.6 % | editor (plan), fast |
+| `apple:apple-on-device` | 8192 | — | — | — | pass | — | fast |
+
+Found and fixed on the way (phase 13 branch): the Ollama vision probe crashed inside `ollama-ai-provider-v2`
+(`Cannot read properties of undefined (reading 'replace')`) on inline image bytes; the provider now gets them
+as base64 (`inlineFilesAsBase64`, test in `factory.test.ts`).

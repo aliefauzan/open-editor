@@ -1671,3 +1671,66 @@ UX fixes). Final check on the owner's test video: 1 clip in 1:54, no black bands
 (the AI reviewed screenshots). Open owner items stay in TODO (optional 08 step 10, 09 steps 7/9b,
 07 step 8b; Freesound originals before release).
 
+
+## D-59 · 2026-10-12 · phase 13 · Agent panel, Settings and the v1.0 package
+
+**Decision**: Phase 13 wires the agent into the app and ships v1.0.0 with these choices:
+- **Workflow prompts in Resources**: `pnpm dist` stages `packages/agent/workflows/*.md` into
+  `Resources/agent/workflows`; the engine host and the bundled CLI call `setWorkflowsDir` at start
+  (a bundle has no repo folder next to its code). `vox self-test` checks `agent-workflows` (every
+  workflow loads) and `agent-tools` (the registry builds), replacing the old `agent-prices` check
+  (D-43: no bundled prices).
+- **Apple helper packaging (D-16)**: `pnpm dist` builds `vox-apple-llm` with `swift build` and fails
+  when no macOS 26+ SDK is found; `pnpm dist:no-apple` skips it. `build-info.json` records
+  `appleHelper`. afterPack signs the helper ad hoc with its own identifier before the app seal;
+  afterSign verifies the helper and the app seal (`codesign --verify --strict`). Self-test: the helper
+  passes when it answers `--status` (any status), `notBuilt` for a no-apple build; `skipped` fails.
+- **Settings over IPC**: `settings.get/save/probe` with one strict patch schema. Keys are write-only:
+  a typed key goes to the Keychain in the engine host and only the masked form comes back; an empty
+  or masked key in a save keeps the stored key. A role can be assigned only to a model whose probe
+  (this session) passed that role; "OpenAI-compatible (base URL)" is an LM Studio-type provider with
+  its own id. The cookies toggle is the only app path that writes `ingest.cookiesFromBrowser` (S33).
+- **Agent in the engine host**: `agent.run/runs/stop/decide/undoRun`. Pauses wait in the host and the
+  host sends `agent.paused` with the full pause data (kind, ranges with `sequenceId`, plan,
+  `continueUsd`). A budget pause offers one more default budget (`continueUsd` = cap + default cap).
+  The activity log is built from the run record plus history (changes still in effect, change notes
+  per step). The first `agent.runs` of a project marks runs left open by a quit as stopped.
+- **Change notes in the run record**: when a step is given a change note (edits by the user or another
+  run since the last step), the record gets a `changeNote` line for that step; the activity log shows
+  it under the step ("Saw your edit").
+- **Quick clips score with the fast role**: when a `fast` model is set, the makeClips job uses the
+  LLM scorer under the run budget rules; without one it keeps the heuristic scorer.
+- **"Add style beats"**: applies the style to the clip as a user op (when it differs), then starts a
+  `stylize` run on that sequence; "Undo this run" takes back only the run's scenes.
+- **E2E mock model**: test builds (unpackaged, `VOX_E2E=1`, `VOX_E2E_AGENT=mock`) use a scripted
+  model inside the engine host and a memory keychain; a packaged build never creates it.
+- **A run that fails before it starts** (no record yet) shows its error in the panel instead of
+  vanishing.
+- **Fixes found by the E2E and the live checks**: `addScene`/`addItem` snap the end time on its own
+  (not start + snapped length), so two scenes that meet at an off-frame ms still meet (a plan batch
+  failed with `OVERLAP`); Stylize's storyboard checkpoint counts only the run's own changes to the
+  V1/A1 pair, sourceRange and caption edits, so a user trim on the marked tab during the run is not
+  a miss (D-15); the Ollama provider gets inline image bytes as base64 (`ollama-ai-provider-v2`
+  crashed on `Uint8Array` file data, so the vision probe failed); `vox-media://` looks a missing
+  `build/` file up again after 15 and 60 ms, because a rebuild swaps the folder with two renames and
+  a player request between them got a 404.
+- **Release build from a fresh clone**: Electron 44 has no postinstall (its binary downloads on first
+  use), so `pnpm dist` fetches it before electron-builder packs `node_modules/electron/dist`;
+  `scripts/fresh-clone-check.sh` (clone → `pnpm install --frozen-lockfile` → `pnpm dist` → packaged
+  `vox self-test --json` with a temp HOME and no Homebrew on PATH) found it.
+- **Live evals with Apple**: `pnpm run eval` finds the Apple helper as the CLI does, and an Apple-only
+  run gets no `vision` role (the on-device model has none).
+- **Plan mode, found on the real URL with Ollama**: the executor fills pictures inside arrays
+  (`paper-collage` `items[].media`) like top-level slots (next image query, else the description the
+  model wrote in the slot; else a placeholder scene), since the prompt tells the model to leave image
+  slots empty; a ClipPlan beat that does not end after its start is dropped as a repair instead of
+  rejecting the whole plan; a scene whose variables still do not fit its template (engine
+  `validateVariables`) becomes a placeholder scene instead of failing the batch; a plan with nothing to
+  apply gets the drop reasons in its retry hint (a caption preset used as a scene template), and the
+  Scenes track is added only when a scene applies.
+
+**Why**: keys must never reach the renderer (S18); pauses must survive a renderer reload; the release
+must not ship an unsigned or missing helper; E2E must run without a provider or key.
+
+**Alternatives**: decisions in the renderer (lost on reload); bundled prices (D-43 rejected them);
+signing the helper after the app seal (breaks the seal).
