@@ -39,12 +39,14 @@ export const ClipPlanSchema = z.strictObject({
                 startMs: ms,
                 endMs: ms,
                 kind: z.enum(['speaker', 'scene']),
-                template: z.string().min(1).optional(),
+                // Guided-generation models (Apple on-device) fill every field: a speaker beat may
+                // come back with an empty template, which means none.
+                template: z.string().optional(),
                 variables: z.record(z.string(), z.unknown()).optional(),
                 imageQueries: z.array(z.string().trim().min(1).max(200)).max(4).optional(),
               })
               .refine((b) => b.endMs > b.startMs, { message: 'endMs must be after startMs' })
-              .refine((b) => b.kind === 'speaker' || b.template !== undefined, {
+              .refine((b) => b.kind === 'speaker' || (b.template ?? '') !== '', {
                 message: 'a scene beat needs a template',
               }),
           )

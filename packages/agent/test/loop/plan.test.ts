@@ -3,6 +3,7 @@
 // search with no image provider gives a placeholder scene; confirm-plan pauses before anything runs.
 import { mapTemplateLookup, type TemplateInfo } from '@vox/engine';
 import { describe, expect, test, vi } from 'vitest';
+import { ClipPlanSchema } from '../../src/loop/plan.ts';
 import { runAgent } from '../../src/loop/run.ts';
 import { readRunRecord } from '../../src/loop/record.ts';
 import type { AgentEngine } from '../../src/tools/types.ts';
@@ -73,6 +74,26 @@ const req = (f: Fixture, over: Record<string, unknown> = {}) => ({
 });
 
 describe('plan mode (step 9)', () => {
+  test('ClipPlan: an empty template on a speaker beat is accepted (guided generation fills every field)', () => {
+    // The Apple on-device model's answer to the probe's plan task (recorded on the M5, phase 11).
+    const beat = (kind: 'speaker' | 'scene', template: string) => ({
+      startMs: 0,
+      endMs: 500,
+      kind,
+      template,
+      variables: {},
+      imageQueries: [],
+    });
+    const plan = (b: ReturnType<typeof beat>) => ({
+      sequences: [{ sequenceId: 's1', beats: [b] }],
+    });
+    expect(ClipPlanSchema.safeParse(plan(beat('speaker', ''))).success).toBe(true);
+    expect(ClipPlanSchema.safeParse(plan(beat('scene', 'base/title'))).success).toBe(true);
+    const scene = ClipPlanSchema.safeParse(plan(beat('scene', '')));
+    expect(scene.success).toBe(false);
+    expect(scene.error?.issues[0]?.message).toBe('a scene beat needs a template');
+  });
+
   test('a valid op-list plan runs as one batch by the agent', async () => {
     const f = await fixtureProject();
     const m = scriptedModel([
