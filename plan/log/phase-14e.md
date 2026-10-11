@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | in progress |
-| Started · Finished | 2026-10-12 05:52 · — |
+| Status | done (merged f67a91a) |
+| Started · Finished | 2026-10-12 05:52 · 2026-10-12 07:38 |
 | Model | Opus 5.5 · high (phase agent, no subagents) |
 | Machine | M5, macOS 27.0.1 |
 | Branch | phase/14e-clip-speed (worktree `.worktrees/phase-14e`) |
@@ -38,7 +38,7 @@ Test order: model/migrate → ops/speed → captions/words → audio/atempo → 
 - [x] 6 Captions / word ranges
 - [x] 7 Compile + audio `atempo`
 - [x] 8 Exports, view, agent, app inspector
-- [ ] 9 Review, Verify, log, merge
+- [x] 9 Review, Verify, log, merge
 
 ## Spike and GATE 7 (by owner delegation)
 Spike `spike/bench/speed.ts` (analysis `spike/bench/speed-analyze.ts`), run under the bench lock with the
