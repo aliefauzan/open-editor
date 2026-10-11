@@ -22,13 +22,13 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 13 | App: agent panel + settings + v1.0 | 10b, 12 | [~] | 2026-10-12 | | Waiting for the orchestrator: publish the draft Release v1.0.0, owner install (step 10), merge. Agent panel, Settings, packaging with the Apple helper, fresh-clone check PASS, E2E 10/10, tests 2482 pass; live checks with Ollama + Apple pass, OpenRouter open (no key); D-59 | log/phase-13.md |
 | 14 | v1.1 (done when 14a–14g are all [x]) | 14a–14g | [ ] | | | | log/phase-14.md |
 | 14a | `vox` v1.1 templates + GATE 6 | 13 | [ ] | | | | log/phase-14a.md |
-| 14b | Screenplay match workflow | 13 | [ ] | | | | log/phase-14b.md |
+| 14b | Screenplay match workflow | 13 | [~] | 2026-10-12 | | In progress (worktree .worktrees/phase-14b) | log/phase-14b.md |
 | 14c | Claude Code skill | 13 | [ ] | | | | log/phase-14c.md |
-| 14d | Local image generation (mflux) | 13 | [ ] | | | | log/phase-14d.md |
-| 14e | Clip speed + GATE 7 | 13 | [ ] | | | | log/phase-14e.md |
-| 14f | Audio ducking | 13 | [ ] | | | | log/phase-14f.md |
+| 14d | Local image generation (mflux) | 13 | [~] | 2026-10-12 | | | log/phase-14d.md |
+| 14e | Clip speed + GATE 7 | 13 | [~] | 2026-10-12 05:52 | | | log/phase-14e.md |
+| 14f | Audio ducking | 13 | [x] | 2026-10-12 | 2026-10-12 | `duck` flag on audio tracks, `sidechaincompress` per ducked track keyed by the speech bus (-11.5 dB on real speech), inspector toggle, audio QA passes; D-61 | log/phase-14f.md |
 | 14g | FCPXML export option | 13 | [ ] | | | | log/phase-14g.md |
-| 15 | Styles Part C: style from reference | 13 | [ ] | | | | log/phase-15.md |
+| 15 | Styles Part C: style from reference | 13 | [~] | 2026-10-12 | | In progress | log/phase-15.md |
 
 ## Gates and milestones
 
@@ -48,5 +48,5 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | GATE 5 — 4-core done (`.dmg` clean-install test + owner's run with a fresh `VOX_HOME`, manual editing, quick clips, latency; D-16) | 10b | [x] | 2026-10-12, D-58 | pass by owner delegation; evidence `docs/evidence/phase-10b/gate5/` 00–13 |
 | v1.0 — fresh-clone check + owner installs the Release `.dmg` from the README and exports a clip (friend optional, D-16) | 13 | [ ] | | |
 | GATE 6 — sheet for the 4 new `vox` templates | 14a | [ ] | | |
-| GATE 7 — clip-speed design | 14e | [ ] | | |
+| GATE 7 — clip-speed design | 14e | [x] | 2026-10-12, D-62 | pass by owner delegation after round 2: playbackRate frame exact, atempo preroll, A/V max 9.35 ms |
 | GATE 8 — blind A/B of an extracted style | 15 | [ ] | | |

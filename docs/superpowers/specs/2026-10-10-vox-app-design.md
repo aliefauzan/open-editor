@@ -46,7 +46,7 @@ It is built in two phases (overview build order):
 - Windows and Linux builds; Intel Macs (mlx-whisper needs Apple Silicon).
 - Multiplayer, accounts, cloud hosting, mobile.
 - Colour grading and advanced audio mixing (the "Color" / "Audio" tabs in the
-  reference). Clip volume, fades and track mute exist; ducking is v1.1.
+  reference). Clip volume, fades and track mute exist; ducking is a track toggle in the audio clip inspector (v1.1, plan D-61).
 - Keyframe editing of arbitrary properties (scene animation is the template's job).
   Framing keyframes are the one exception: "Pin frame here" in the inspector (plan D-15).
 - v1: Developer ID signing, notarization and auto-update (see "Packaging").
