@@ -18,7 +18,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 10a | App: editor core A (store, preview, timeline, inspector) | 06, 09 | [x] | 2026-10-11 17:29 | 2026-10-11 19:05 | Store + change records, preview pipeline (patch/reload), editor layout, timeline, inspector, keyboard + menus; latency patch max 194 ms / reload max 421 ms; UI gate: spec-layout check (owner delegated) (D-42) | log/phase-10a.md |
 | 10b | App: editor core B (quick clips, subtitles, media bin, export, gallery) + GATE 5 | 10a | [~] waiting: GATE 5 | 2026-10-11 19:10 | | Quick clips, Subtitles panel, media bin, export dialog (Save to, loudness, audio check), gallery, error states; E2E 7/7, clean-install renders from the installed app, latency patch max 87 / reload max 435 ms; engine fixes (HyperFrames env, mix ffmpeg path, build swap); D-45; owner run open | log/phase-10b.md |
 | 11 | Agent core | 05 | [x] | 2026-10-11 17:03 | 2026-10-11 19:22 | Agent loop, tools, plan mode, replay, probe runner, `vox config`; mocks green; real Apple probe ready + plan pass; live probe deferred to 13 (D-43, D-44) | log/phase-11.md |
-| 12 | Agent workflows: clipper + free-form | 07, 11 | [ ] | | | | log/phase-12.md |
+| 12 | Agent workflows: clipper + free-form | 07, 11 | [~] | 2026-10-11 21:57 | | | log/phase-12.md |
 | 13 | App: agent panel + settings + v1.0 | 10b, 12 | [ ] | | | | log/phase-13.md |
 | 14 | v1.1 (done when 14a–14g are all [x]) | 14a–14g | [ ] | | | | log/phase-14.md |
 | 14a | `vox` v1.1 templates + GATE 6 | 13 | [ ] | | | | log/phase-14a.md |
