@@ -18,11 +18,14 @@ export const KIT_STYLES = join(
   'kit',
 );
 
-export function tempEngine(): Engine {
+const TEST_STYLES = join(STYLES, '..', 'packages', 'engine', 'test', 'fixtures', 'styles');
+
+/** The repo styles, or the engine test styles (`base`, `paper` with a geo slot, `kit` with `stack`). */
+export function tempEngine(o: { testStyles?: boolean } = {}): Engine {
   const home = mkdtempSync(join(tmpdir(), 'vox-r-'));
   return openEngine({
     projectsDir: join(home, 'Projects'),
-    stylesDirs: [STYLES],
+    stylesDirs: o.testStyles ? [join(TEST_STYLES, 'builtin'), join(TEST_STYLES, 'kit')] : [STYLES],
     trustFile: join(home, 'trust.json'),
   });
 }
@@ -38,7 +41,10 @@ export async function op(e: Engine, id: string, name: string, args: object, vers
 }
 
 /** seq_main: V1 video m_v (linked A1 audio) 0–4000 and 4000–8000, V2 base/title 0–2000. */
-export async function editorProject(e: Engine): Promise<Project> {
+export async function editorProject(
+  e: Engine,
+  o: { titleVariables?: Record<string, unknown> } = {},
+): Promise<Project> {
   const p = await e.createProject('Editor');
   await op(e, p.id, 'addSequence', { name: 'Main', id: 'seq_main' });
   await op(e, p.id, 'addMedia', {
@@ -79,7 +85,7 @@ export async function editorProject(e: Engine): Promise<Project> {
     startMs: 0,
     durationMs: 2000,
     template: 'base/title',
-    variables: { title: 'Hello' },
+    variables: o.titleVariables ?? { title: 'Hello' },
   });
   return (await e.getProject(p.id)) as unknown as Project;
 }

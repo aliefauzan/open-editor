@@ -46,6 +46,29 @@ export function emptyValue(s: JsonSchema): unknown {
   }
 }
 
+/**
+ * Variables a new scene starts with: defaults, else a placeholder for required text (its field name),
+ * so a template dropped from the style panel is valid at once.
+ */
+export function starterValue(s: JsonSchema, name = ''): unknown {
+  if (s.default !== undefined || s.enum) return emptyValue(s);
+  switch (typeOf(s)) {
+    case 'string': {
+      const text = name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Text';
+      return text.slice(0, s.maxLength ?? text.length);
+    }
+    case 'array':
+      return Array.from({ length: s.minItems ?? 0 }, () => starterValue(s.items ?? {}, name));
+    case 'object': {
+      const o: Record<string, unknown> = {};
+      for (const k of s.required ?? []) o[k] = starterValue(s.properties?.[k] ?? {}, k);
+      return o;
+    }
+    default:
+      return emptyValue(s);
+  }
+}
+
 const label = (name: string, s: JsonSchema) => s.title ?? name.replace(/([a-z])([A-Z])/g, '$1 $2');
 const input = 'w-full rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-100';
 
@@ -356,7 +379,13 @@ function Field(props: {
             type="button"
             disabled={!canAdd}
             className="rounded bg-neutral-800 px-2 py-0.5 text-[11px] disabled:opacity-40"
-            onClick={() => props.onChange([...list, emptyValue(item)])}
+            onClick={() =>
+              // a copy of the last entry (valid as it is), else a starter value
+              props.onChange([
+                ...list,
+                list.length > 0 ? structuredClone(list.at(-1)) : starterValue(item, props.name),
+              ])
+            }
           >
             Add {lab.replace(/s$/, '')}
           </button>

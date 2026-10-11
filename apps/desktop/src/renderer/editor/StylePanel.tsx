@@ -6,6 +6,7 @@ import type { DragEvent } from 'react';
 import type { ResolvedStyleData, TemplateData } from '../../shared/project.ts';
 import { useCtx, useEditor } from './context.tsx';
 import { seqOf } from './editing.ts';
+import { starterValue } from './SchemaForm.tsx';
 import { dropOp, DRAG_TEMPLATE } from './Timeline.tsx';
 import { previewUrl, templateColor, useResolvedStyle } from './use-styles.ts';
 
@@ -16,6 +17,8 @@ interface Entry {
   styleId: string;
   durationMs?: number;
   preview?: string;
+  /** Starter variables of a scene template. */
+  variables?: Record<string, unknown>;
 }
 
 /** The entries of the sequence style and of `base`, without duplicates. */
@@ -31,6 +34,9 @@ export function styleEntries(...styles: (ResolvedStyleData | null)[]): Entry[] {
         styleId: t.styleId,
         durationMs: t.durationMs.default,
         preview: previewUrl(t.id),
+        ...(t.kind === 'scene'
+          ? { variables: starterValue(t.variables) as Record<string, unknown> }
+          : {}),
       });
     }
     for (const o of st.overlays)

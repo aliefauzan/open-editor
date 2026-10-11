@@ -586,7 +586,13 @@ function Toolbar(props: { s: Sequence }) {
 /** Drop of a template, transition, overlay, caption preset or media from a panel onto the timeline. */
 export function dropOp(
   s: Sequence,
-  payload: { kind: string; id: string; durationMs?: number; hasAudio?: boolean },
+  payload: {
+    kind: string;
+    id: string;
+    durationMs?: number;
+    hasAudio?: boolean;
+    variables?: Record<string, unknown>;
+  },
   atMs: number,
   rowId: string | null,
 ): { op: string; args: Record<string, unknown> } | null {
@@ -601,7 +607,7 @@ export function dropOp(
           startMs: atMs,
           ...(payload.durationMs ? { durationMs: payload.durationMs } : {}),
           template: payload.id,
-          variables: {},
+          variables: payload.variables ?? {},
         },
       };
     case 'transition': {
@@ -798,12 +804,10 @@ export function Timeline() {
                 if (!found) return;
                 const at = snapTime(time * 1000, [], 0, s.canvas.fps);
                 if (at > found.item.startMs && at < endOf(found.item))
-                  void editor
-                    .getState()
-                    .apply({
-                      op: 'splitItem',
-                      args: { sequenceId: s.id, itemId: action.id, atMs: at },
-                    });
+                  void editor.getState().apply({
+                    op: 'splitItem',
+                    args: { sequenceId: s.id, itemId: action.id, atMs: at },
+                  });
                 return;
               }
               editor.getState().select(action.id, { alt: e.altKey, add: e.shiftKey || e.metaKey });
