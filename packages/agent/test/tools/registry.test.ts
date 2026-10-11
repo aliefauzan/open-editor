@@ -41,6 +41,7 @@ describe('tool generation (step 3, S22, S32)', () => {
         "cutout",
         "describe_tool",
         "duplicate_sequence",
+        "extract_style",
         "facetrack",
         "fetch_image",
         "get_project_summary",

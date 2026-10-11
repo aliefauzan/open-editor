@@ -132,6 +132,36 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
       },
     ),
     tool(
+      'extract_style',
+      'job',
+      'Make a draft style from a reference video the user named in this conversation (a link or a file): it is measured, described with the vision model and written as an untrusted draft style with a report for the user to accept or discard. It never changes this project. Any other source pauses the run for the user’s approval.',
+      z.strictObject({
+        source: z.string().min(1).max(2000),
+        name: z.string().trim().min(1).max(100),
+      }),
+      async (ctx, a) => {
+        const pending = unapprovedSources([a.source], ctx.userSources, ctx.approvedSources);
+        if (pending.length > 0) {
+          return {
+            result: { status: 'paused', reason: 'source not named by the user' },
+            pause: {
+              reason: 'approval',
+              kind: 'source',
+              detail: 'style extraction from a source the user did not name',
+              sources: pending,
+            },
+          };
+        }
+        const result = await job(ctx, 'style.extract', {
+          source: a.source,
+          name: a.name,
+          actor: 'agent',
+          runId: ctx.runId,
+        });
+        return { result };
+      },
+    ),
+    tool(
       'shots',
       'job',
       'Detect shot cuts of a video (writes shots/<mediaId>.json).',

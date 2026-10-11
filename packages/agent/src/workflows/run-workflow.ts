@@ -86,6 +86,13 @@ export async function runWorkflow(
   req: WorkflowRequest,
 ): Promise<WorkflowResult> {
   const w = loadWorkflow(req.workflow);
+  if (w.name === 'style-extract') {
+    throw new VoxError(
+      'VALIDATION',
+      'the style-extract workflow is code-driven and runs through runStyleExtractWorkflow',
+      'Use vox agent --workflow style-extract <link or file> --name <name>.',
+    );
+  }
   if (!deps.models.editor) {
     throw new VoxError(
       'ROLE_MISSING',
@@ -110,6 +117,7 @@ export async function runWorkflow(
       mode: req.mode,
       workflowPrompt,
       styleGuide: style.guide,
+      styleGuideTrusted: style.style.trusted && style.style.source.type !== 'extracted',
       planKind: w.name === 'edit' ? 'ops' : 'clip',
       ...(req.confirmPlan && { confirmPlan: true }),
       ...(req.signal && { signal: req.signal }),

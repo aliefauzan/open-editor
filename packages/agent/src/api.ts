@@ -59,3 +59,4 @@ export { createLlmScorer, llmScorerSlot, LLM_SCORER_ID, withLlmScorer } from './
 export { scrubSoundClaims } from './loop/summary.ts';
 export { sourceNamedByUser } from './tools/sources.ts';
 export * from './config/run-models.ts';
+export * from './styleExtract.ts';

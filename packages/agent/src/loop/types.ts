@@ -149,6 +149,8 @@ export interface RunRequest {
   question?: boolean;
   workflowPrompt?: string;
   styleGuide?: string;
+  /** False for a user or extracted style: its guide goes into the prompt as data (S21). */
+  styleGuideTrusted?: boolean;
   projectSummary?: string;
   /** Plan mode: `clip` (ClipPlan, clipper and Stylize) or `ops` (free-form op list). Default `ops`. */
   planKind?: 'clip' | 'ops';

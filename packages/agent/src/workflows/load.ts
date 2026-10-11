@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { VoxError } from '../errors.ts';
 import { ROLES } from '../providers/roles.ts';
 
-export const WORKFLOW_NAMES = ['clipper', 'stylize', 'edit'] as const;
+export const WORKFLOW_NAMES = ['clipper', 'stylize', 'edit', 'style-extract'] as const;
 export type WorkflowName = (typeof WORKFLOW_NAMES)[number];
 
 export const CHECKPOINTS = ['ranges', 'tighten', 'storyboard', 'fill', 'review', 'sound'] as const;
