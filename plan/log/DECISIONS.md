@@ -1083,3 +1083,55 @@ pass on the tiktok preset; the rest are the simplest options that meet phase 05'
 **Why**: These are the simplest choices that make every phase 06 check measurable and deterministic,
 keep trust outside the style folder (a copied folder cannot trust itself), and freeze the style and
 caption preset formats (R2) with the one field validate needs.
+
+## D-35 · 2026-10-11 · phase 08 · GATE 4: pass, the timeline keeps `@xzdarcy/react-timeline-editor`
+
+**Decision**: GATE 4 is decided by its numbers (README §5, D-10). Re-run inside the app's pinned
+Electron 44.7.0 (Chromium 152.0.7977.130) as D-19 asked, under the bench lock, with
+`node bench/timeline.ts --browser electron --attempts 3 --gesture-ms 3000`: 1,000 items on 8 tracks,
+a real 1920x1080 window at DPR 2 on the M5 display (ANGLE Metal), production React build.
+Medians: drag 119.7 fps, trim 119.7 fps, linked V1/A1 drag 119.4 fps (p95 frame ≤ 9.6 ms, at most
+1 frame over 20 ms per gesture); linked check 3/3 (equal `startMs` after the drop), marquee exactly
+50 of 50 3/3, every gesture moved the clip (library updates = mouse moves, 344–360). Bar 50 fps:
+the result is 139 % above it, not within 10 %, so no owner stop. The early U1 run in the Playwright
+headless shell (fixed 60 Hz) gave 60.0 fps on all three gestures (D-19 evidence, `A1-`).
+Outcome: phase 10a builds the timeline on `@xzdarcy/react-timeline-editor` 1.0.0 through its public
+props and events only, with the app's own marquee, linked follow (`getActionRender` offsets, one
+store update per move) and multi-select, as the U1 prototype shows. No custom canvas.
+
+**Why**: The app spec "Timeline implementation" pass rule (fps ≥ 50 and both prototype checks) holds
+in the shell the app ships. Evidence: `docs/evidence/phase-08/A3-timeline-bench-electron.json`,
+`A1-timeline-bench.json`; log `plan/log/phase-08.md`.
+
+## D-36 · 2026-10-11 · phase 08 · App build: plain vite 8 build script, no electron-vite; shell pins
+
+**Decision**: `apps/desktop` builds with its own `scripts/build.ts` on vite 8.3.4 (already pinned for
+the GATE 4 bench, D-19) instead of electron-vite. Outputs: `out/renderer` (React app plus the
+vendored `@hyperframes/player` global script), `out/preload/index.cjs`, `out/main/index.cjs`
+(CommonJS, all dependencies bundled), and with `--package` the bundled engine host
+`out/engine-host/index.mjs`. In development the engine host runs from TypeScript source through
+`utilityProcess` (Node type stripping); packaged builds use the bundle. Packaging is
+electron-builder 26.15.3 with a skeleton config (ad-hoc signed arm64 `.dmg`, `out/**` only, no
+`node_modules`, built-in styles as `extraResources`); phase 09 extends it. Shell pins: Zustand
+5.0.15, Tailwind CSS 4.3.3 with `@tailwindcss/vite` 4.3.3, `@playwright/test` 1.64.0 (same as the
+bench `playwright`). shadcn/ui is not added in 08 (the minimal UI needs no components); phase 10a
+adds it when the editor UI starts.
+
+**Why**: electron-vite 5.0.0 declares peer vite ^5–7 and the repo is on vite 8 (R5 note: "electron-vite
+must accept it or the pin moves"); a 90-line build script avoids a second vite and a peer
+override. Main is CommonJS because Playwright's `_electron.launch` hangs on an ESM main (seen with
+the bench and the app); the bench's own main (`bench/timeline-electron-main.cjs`) is CommonJS for
+the same reason. Evidence: `plan/log/phase-08.md`.
+
+## D-37 · 2026-10-11 · phase 08 · `vox-media://` is CORS-enabled; only font responses allow any origin
+
+**Decision**: `vox-media://` is registered with `corsEnabled: true` (was `false` in the app spec
+"Untrusted HTML"). The handler adds `Access-Control-Allow-Origin: *` only to font responses
+(`.woff2`, `.woff`, `.ttf`, `.otf`); every other response has no CORS header, so cross-origin reads
+of builds, media and data stay refused. The media CSP (`connect-src 'none'`) is unchanged.
+
+**Why**: The player runs builds in an opaque-origin sandbox (origin `null`, S14). Browsers load
+`@font-face` fonts in CORS mode, so with CORS off every style font failed to load in the preview
+(console errors in the smoke test). Fonts are public style assets, so allowing them to any origin
+discloses nothing; only `vox-app://` and `vox-media://` pages can reach the scheme at all (all
+http/https/ws is blocked, S10). Test: `test/main/protocol.test.ts` (font CORS case).

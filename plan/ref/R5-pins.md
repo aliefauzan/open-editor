@@ -17,9 +17,13 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | `hyperframes` CLI + `@hyperframes/player` | 0.8.145 (exact; confirmed by GATE 1, D-29) | Apache-2.0 | 01 | player needs `sandbox-origin="opaque"`; `--strict-all` is a `render` flag, lint has `--json` only |
 | GSAP | 3.15.0 (exact; vendored into builds) | GSAP standard licence (free, incl. commercial) | 01 | licence: `gsap/package.json` `license` field → https://gsap.com/standard-license (no licence file in the package) |
 | Electron | 44.7.0 (exact; Chromium 152.0.7977.130) | MIT | 01 | same version in spike and app |
-| electron-vite, electron-builder | TBD (08, 09) | MIT | 08/09 | |
+| electron-vite | not used (D-36) | MIT | 08 | peer vite ^5–7; the app builds with `scripts/build.ts` on vite 8.3.4 |
+| electron-builder | 26.15.3 (exact, `apps/desktop`) | MIT | 08 | skeleton ad-hoc signed arm64 `.dmg` (D-36); phase 09 extends |
 | React, react-dom | 19.3.0 (exact, `apps/desktop` devDependencies; `@types/react`, `@types/react-dom` 19.3.0) | MIT | 08 (early U1, D-19) | GATE 4 bench prototype; phase 08 keeps or bumps it for the app |
-| Zustand, Tailwind, shadcn/ui | TBD (08) | MIT | 08 | |
+| Zustand | 5.0.15 (exact) | MIT | 08 | renderer store (D-36) |
+| Tailwind CSS, `@tailwindcss/vite` | 4.3.3, 4.3.3 (exact) | MIT | 08 | |
+| `@playwright/test` | 1.64.0 (exact, same as `playwright`) | Apache-2.0 | 08 | Electron E2E runner (D-36) |
+| shadcn/ui | TBD (10a) | MIT | 10a | not needed by the 08 minimal UI (D-36) |
 | `@xzdarcy/react-timeline-editor` | 1.0.0 (exact, `apps/desktop`; candidate until GATE 4 is recorded) | MIT | 08 (early U1, D-19) | dropped if GATE 4 fails; bench `docs/evidence/phase-08/A1-timeline-bench.json` |
 | zod | 4.6.5 (exact, `packages/agent`, `packages/engine`) | MIT | 11 (early N1, D-22); 04 (early E4) | Apple helper protocol schemas; `z.int()` limits are safe integers; engine: detections and shot list schemas |
 | ajv | 8.20.0 (exact, `packages/engine`) | MIT | 04 (early E4) | `ajv/dist/2020.js`; test-only use: zod ↔ Python JSON Schema agreement (`py/tests/schemas/`) |
@@ -31,7 +35,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | `d3-geo`, `topojson-client` | `d3-geo@3.1.1` (with `d3-array@3.2.4`, `internmap@2.0.3` inlined), `topojson-client@3.1.0`; bundled with `esbuild@0.25.10` (one file each, not minified) | ISC (d3-geo also carries GeographicLib MIT text) | 07 (vendored early by A1, D-19) | `styles/vox/templates/map-route/vendor/{d3-geo,topojson-client}.mjs` + `LICENSES.md` (tarball and file SHA-256); hooks are self-contained |
 | OpenCode Zen, 9router, LM Studio presets | no package (`@ai-sdk/openai-compatible` with a base URL) | — | 11 | base URLs in the agent spec presets table |
 | Playwright | 1.64.0 (exact, `apps/desktop`; Chromium 156.0.8078.4, browser revision 1248) | Apache-2.0 | 08 (early U1, D-19) | GATE 4 bench driver (headless shell); Electron E2E (first used by the 08 smoke test, D-16) |
-| vite | 8.3.4 (exact, `apps/desktop`) | MIT | 08 (early U1, D-19) | builds the GATE 4 prototype; electron-vite (08) must accept it or the pin moves |
+| vite | 8.3.4 (exact, `apps/desktop`) | MIT | 08 (early U1, D-19) | builds the GATE 4 prototype and the app (`scripts/build.ts`, D-36) |
 
 ## External tools (first-run setup, phase 09; dev uses PATH)
 
