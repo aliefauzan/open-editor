@@ -99,7 +99,10 @@ describe('ingest video (slow)', () => {
       inputs: [HEAD],
     });
     const labels = new Set(seen.map((s) => s.m));
-    for (const l of ['Analysing', 'Making proxy', 'Extracting audio']) expect(labels).toContain(l);
+    for (const l of ['Analysing', 'Making proxy']) expect(labels).toContain(l);
+    // Audio runs beside the proxy; the label names the costlier step, so audio may not show.
+    const known = ['Analysing', 'Making proxy', 'Making thumbnails', 'Extracting audio'];
+    for (const l of labels) expect(known).toContain(l);
     for (let i = 1; i < seen.length; i++) expect(seen[i]!.p).toBeGreaterThanOrEqual(seen[i - 1]!.p);
     // ffmpeg -progress reports inside the proxy step, not only at its end.
     const proxy = seen.filter((s) => s.m === 'Making proxy').map((s) => s.p);

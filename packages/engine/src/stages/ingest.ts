@@ -118,7 +118,8 @@ interface FfProgress {
 
 /**
  * Weighted progress over the steps of one file (each step reports 0..1). Steps may run at the same
- * time; the total never goes backwards.
+ * time; the total never goes backwards, and the message names the costliest step still running (so
+ * a short audio step beside the CFR copy does not make the label flicker).
  */
 function stepProgress(
   weights: ReadonlyMap<string, number>,
@@ -127,16 +128,24 @@ function stepProgress(
   let total = 0;
   for (const w of weights.values()) total += w;
   const done = new Map<string, number>();
+  const labels = new Map<string, string>();
   let last = -1;
   return (step, label) => (p) => {
     if (!Number.isFinite(p)) return;
+    labels.set(step, label);
     done.set(step, Math.max(done.get(step) ?? 0, Math.min(1, Math.max(0, p))));
     let sum = 0;
-    for (const [k, w] of weights) sum += w * (done.get(k) ?? 0);
+    let busy: [number, string] | undefined;
+    for (const [k, w] of weights) {
+      const d = done.get(k) ?? 0;
+      sum += w * d;
+      const l = labels.get(k);
+      if (l !== undefined && d < 1 && (!busy || w > busy[0])) busy = [w, l];
+    }
     const v = total > 0 ? sum / total : 1;
     if (v < last) return;
     last = v;
-    report?.(v, label);
+    report?.(v, busy?.[1] ?? label);
   };
 }
 
