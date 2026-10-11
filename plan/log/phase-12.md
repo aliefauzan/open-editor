@@ -69,7 +69,8 @@ Run in the worktree after `git merge main`. Other phase agents ran at the same t
 
 | Command | Result | Numbers |
 |---|---|---|
-| `pnpm -C packages/agent test` | pass | 40 files, 666 passed, 1 skipped |
+| `pnpm -C packages/agent test` | pass | 40 files, 666 passed, 1 skipped (again after merging main: same) |
+| CLI + touched engine tests after merging main | pass with one flake | 76 tests: `cli/test/quick.local.test.ts` (3 renders) failed once at load 15, passed alone; phase 12 does not change it |
 | `pnpm typecheck` | pass | 0 errors |
 | `pnpm lint` (eslint + prettier) | pass | clean |
 | `pnpm test` | pass with one flake | 186 files, 2343 passed, 1 skipped, 1 failed: `engine/test/config/config.test.ts` "concurrent writes from separate processes" at load 17; 3/3 pass alone; `config.ts` not changed by this phase |
