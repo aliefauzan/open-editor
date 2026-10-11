@@ -3,7 +3,7 @@
 // Entries are read and written through the engine config module in phase 11; this file only
 // defines their shape and builds new ones.
 import { z } from 'zod';
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { assertSafeBaseUrl, formatKeyRef } from '../config/mask.ts';
 
 export const providerTypes = [
@@ -115,8 +115,8 @@ export const ProviderEntry = z.looseObject({
 });
 export type ProviderEntry = z.infer<typeof ProviderEntry>;
 
-const invalid = (message: string, hint: string): UtilError =>
-  new UtilError('CONFIG_INVALID', message, hint);
+const invalid = (message: string, hint: string): VoxError =>
+  new VoxError('CONFIG_INVALID', message, hint);
 
 /** True when the entry cannot run without a key. A bare OpenAI-compatible entry may be keyless. */
 export function requiresKey(entry: { type: ProviderType; preset?: PresetId | undefined }): boolean {

@@ -90,6 +90,33 @@ describe('engine api', () => {
     expect((await e.getProject(p.id)).sequences[0]!.name).toBe('Main');
   });
 
+  test('undoRun with last undoes only the run’s newest entry, past a later user edit', async () => {
+    const e = engine();
+    const p = await e.createProject('demo');
+    await e.applyOp(p.id, addSeq, { actor: 'cli' });
+    await e.applyOp(
+      p.id,
+      { op: 'addSequence', args: { name: 'B', id: 'seq_b' } },
+      { actor: 'cli' },
+    );
+    const rename = (sequenceId: string, name: string) => ({
+      op: 'updateSequence',
+      args: { sequenceId, name },
+    });
+    await e.applyOp(p.id, rename('seq_main', 'one'), { actor: 'agent', runId: 'run_1' });
+    await e.applyOp(p.id, rename('seq_main', 'two'), { actor: 'agent', runId: 'run_1' });
+    await e.applyOp(p.id, rename('seq_b', 'user'), { actor: 'user' });
+    const r = await e.undoRun(p.id, 'run_1', { actor: 'agent', runId: 'run_1', last: true });
+    expect(r.results[0]?.status).toBe('succeeded');
+    const names = (await e.getProject(p.id)).sequences.map((s) => s.name).sort();
+    expect(names).toEqual(['one', 'user']);
+    // its keys changed since: the user renames seq_main, then the agent's next "last" undo conflicts
+    await e.applyOp(p.id, rename('seq_main', 'mine'), { actor: 'user' });
+    await expect(
+      e.undoRun(p.id, 'run_1', { actor: 'agent', runId: 'run_1', last: true }),
+    ).rejects.toMatchObject({ code: 'UNDO_CONFLICT' });
+  });
+
   test('snapshot and listSnapshots', async () => {
     const e = engine();
     const p = await e.createProject('demo');

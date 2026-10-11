@@ -71,6 +71,8 @@ export interface StoreOptions {
 export interface UndoOptions {
   actor: Actor;
   runId?: string;
+  /** undoRun only: undo just the run's newest un-undone entry (the agent's `undo_my_last_edit`). */
+  last?: boolean;
 }
 
 export interface SnapshotInfo {
@@ -786,6 +788,7 @@ export class ProjectStore {
       const targets = this.cursor.undo
         .map((v) => this.byVersion.get(v))
         .filter((e): e is HistoryEntry => e?.runId === runId);
+      if (opts.last === true) targets.splice(0, Math.max(0, targets.length - 1));
       if (targets.length === 0) {
         throw new VoxError(
           'NOTHING_TO_UNDO',
