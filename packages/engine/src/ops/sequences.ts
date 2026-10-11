@@ -61,6 +61,8 @@ export const updateTrackArgs = z.strictObject({
   hidden: z.boolean().optional(),
   muted: z.boolean().optional(),
   syncLock: z.boolean().optional(),
+  /** Audio tracks only: duck the track under the speech tracks (false clears the flag). */
+  duck: z.boolean().optional(),
 });
 export const removeTrackArgs = z.strictObject({
   sequenceId: SequenceIdSchema,
@@ -202,6 +204,17 @@ export function updateTrack(p: Project, a: z.infer<typeof updateTrackArgs>): voi
   if (a.hidden !== undefined) t.hidden = a.hidden;
   if (a.muted !== undefined) t.muted = a.muted;
   if (a.syncLock !== undefined) t.syncLock = a.syncLock;
+  if (a.duck !== undefined) {
+    if (!t.id.startsWith('A')) {
+      fail(
+        'VALIDATION',
+        `Track ${t.id} is not an audio track, so it cannot duck`,
+        'Set duck on an audio track like A2',
+      );
+    }
+    if (a.duck) t.duck = true;
+    else delete t.duck;
+  }
 }
 
 export function removeTrack(p: Project, a: z.infer<typeof removeTrackArgs>): void {
