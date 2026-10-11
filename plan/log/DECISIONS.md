@@ -1336,3 +1336,53 @@ Decision: every step that needs a real provider key or a live model moves to pha
 Phases 11 and 12 merge on mock-model, replay and Apple on-device evidence; their logs mark these
 items "deferred to 13 (D-44)". Phase 13 step 7b runs them and records the results in the phase 11 and
 12 logs. Nothing else changes: keys still go only to the Keychain (S18), never through argv.
+
+## D-45 — Editor core B: export targets in main, window.vox additions, quick-clips job, subtitle rules (phase 10b, 2026-10-11)
+
+Phase 10b built the quick-clips start screen, the Subtitles panel, the media bin, the export dialog,
+the style gallery, the error states and the E2E suites. Decisions:
+- **Export targets live in main** (as the phase file says; the app spec said "engine host"): main opens
+  the dialog, keeps `targetId → path` for the session and turns a job's `targetId` into the engine's
+  `target` after the zod check (file mode gets `overwrite`, since the save dialog already asked; folder
+  mode keeps the engine's ` (2)` names). An unknown or previous-session `targetId` fails with
+  `EXPORT_TARGET`. R4 S32 "reused `targetId`" is read as "from a previous session": one dialog choice
+  serves every job of one export (MP4 + SRT). `exports.lastFolder(projectId)` returns a registered
+  folder target `{ targetId, displayPath }` (the default needs no dialog); the folder last used per
+  project is a plain path in `<VOX_HOME>/export-folders.json`, written by main. `exports.reveal` accepts
+  a file under `<projectsDir>/<projectId>/renders/`, the file of a file target, or a file directly in a
+  folder target of this session (real paths, so a symlink cannot widen it).
+- **`window.vox` grows additively:** `exports.chooseTarget` takes an optional `projectId` (the dialog
+  opens in that project's last folder); `media.search(projectId, q)` → media ids (names, tags,
+  descriptions, transcript text); `projects.open` adds `offline: mediaId[]` (files missing on disk);
+  `media.importUrl` is built (plain text that is not a link never starts a job); `jobs.start` kinds may
+  carry one dot (`assets.search`); raw-path keys rejected by the schema now also include `outDir`,
+  `input`, `inputs` and `target`. Finder drops: the preload exposes `vox.dropFiles(projectId, files)`,
+  which turns real dropped `File`s into paths (`webUtils.getPathForFile`; a `File` made in page JS has
+  none) and calls `vox:drop`; main checks the sender and that each path is absolute and exists.
+- **Test builds** (`VOX_E2E=1`, unpackaged only): main answers the next native dialog from a queue
+  (`__voxTest.answerDialog`), so the E2E can "choose" files and export folders.
+- **Quick clips** run as one app job `makeClips` in the engine host beside the engine's runner (a job
+  waiting on jobs in the same runner could take every slot): shots → transcribe → facetrack →
+  `quickClips`, one progress; the import before it is its own job, and the start screen shows both as
+  one progress view (import 0–20 %). Test builds seed transcript, shots and facetrack by the SHA-256 of
+  any of the three checked-in seed files (`VOX_E2E_NO_SEED=1` runs unseeded, the `local` E2E). A
+  cancelled "Choose file…" keeps the empty project, and the next attempt on the screen reuses it.
+- **Subtitles panel:** "Merge with next" only removes a break the user set (`breakAfter`); breaks from
+  the caption settings (words per chunk, pauses) cannot merge per chunk. A nudge without an override
+  starts from the derived word time (on the frame grid). Find and replace is a case-insensitive
+  substring match over word texts in one op; an empty result hides the word. "Pauses & fillers" starts
+  with pauses, fillers and repeats ticked; the slider runs 350–2000 ms in 50 ms steps.
+- **"Pin frame here"** uses the crop handle's coalesceKey (`frame:<itemId>`), so a pin and the drag that
+  follows within the engine's 1 s window are one undo entry (the step 9 E2E).
+- **Media bin:** archive results show title, licence, author and warning but no thumbnail (the
+  renderer CSP loads no http(s) image); the generated tab waits for an image provider (phase 13). Items
+  also go to the timeline by keyboard (Enter, or "Add at playhead" in the item menu).
+- **Engine fixes found by the E2E:** the HyperFrames child keeps `ELECTRON_RUN_AS_NODE` (the app starts
+  it with its own Electron binary, which ran as a Chromium helper and failed every app render and OTIO
+  export); `writeBuildTo` swaps the build folder in by rename (an open preview saw it missing and logged
+  404s) and a preview build skips a missing media file (offline media no longer breaks the preview;
+  render still fails with `MEDIA_MISSING`).
+
+**Why**: The specs fix the behaviour, not these shapes; each is the simplest choice that keeps the 10b
+done-when (S32 raw paths never reach the engine, one undo entry per edit, quick clips with no model,
+E2E on the offline fixture). Evidence: `plan/log/phase-10b.md`, `docs/evidence/phase-10b/`.
