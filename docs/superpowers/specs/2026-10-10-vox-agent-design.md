@@ -549,9 +549,17 @@ vox agent undo <project> <runId>
 vox config providers add openrouter --key env:OPENROUTER_API_KEY
 vox config providers add claude            # prompts for the key, stores it in the Keychain
 vox config providers add apple             # no key; fails with the --status reason if unavailable
-vox config roles set editor openrouter:<model-id>
-vox config probe
+vox config providers add 9router --base-url <url> --context <model>=<tokens>
+vox config providers list | remove <id>    # keys shown masked
+vox config roles set editor openrouter:<model-id> [--mode tools|plan]
+vox config prices set <model> --in <usd> --out <usd> | --free   # per million tokens
+vox config probe [<provider>:<model>...]   # default: the models assigned to roles
 ```
+
+`--key` takes only an `env:NAME` reference; a key is never accepted on the command line (it would
+end up in shell history), so without `--key` the CLI asks for it with a hidden prompt.
+`roles set` probes the model first and exits 1 naming the failed check (`PROBE_FAILED`) or the
+missing price (`PRICE_MISSING`) (plan D-43).
 
 In the CLI, an `approval` pause prompts on the terminal; `--yes-sources` pre-approves
 sources named in the instruction only. `--yes` applies the clipper's tighten list

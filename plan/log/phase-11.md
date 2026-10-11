@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | in progress |
+| Status | waiting: manual 1 (owner keys + live probe); not merged |
 | Started · Finished | 2026-10-11 17:03 · |
 | Model | Opus 5.5 · high |
 | Machine | M5, macOS 27.0.1, Node 24.14.0, pnpm 12.0.0, Swift 6.4 |
@@ -26,7 +26,89 @@ keys exist yet: live probes are a MANUAL STEP; tests use `MockLanguageModelV4` a
 Test order: 1, 2, 3, 15, 4, 18, 14, 12b, 5, 6, 19, 7, 8, 16, 13, 17, 9, 10, 11, 12, 20, CLI.
 
 ## Checklist
-- [ ] Steps 1–20 (+12b) tests first; CLI; Verify; review (self-review, token budget); merge.
+- [x] Steps 1–20 (+12b), tests first, all with `MockLanguageModelV4` and the R4 canary key.
+- [x] `vox config providers add|list|remove`, `roles set`, `prices set`, `probe` (`packages/cli`).
+- [x] Verify after `git merge main` (all green, below).
+- [x] Review: self-review (token budget).
+- [ ] MANUAL STEP 1 (owner keys, live probe) — open; the phase waits on it and is not merged.
+
+## Files created / changed
+55 files on `phase/11-agent-core` (+8,109 / −53 against main).
+- `packages/agent/src/config/store.ts` (provider entries, roles, limits, prices through the engine
+  config module), `errors.ts` (VoxError re-export; the `UtilError` shim is gone).
+- `packages/agent/src/tools/`: `registry.ts`, `read.ts`, `ops.ts`, `jobs.ts`, `aliases.ts`,
+  `transcript.ts`, `health.ts`, `sources.ts`, `types.ts`.
+- `packages/agent/src/loop/`: `run.ts`, `plan.ts`, `conversation.ts`, `prompt.ts`,
+  `provider-errors.ts`, `record.ts`, `types.ts`.
+- `packages/agent/src/providers/run-probe.ts`; `api.ts` exports config, providers, tools and loop.
+- `packages/cli/src/config.ts` + `main.ts` wiring (hidden key prompt, `config` options).
+- `packages/engine/src/history/store.ts` (`UndoOptions.last`), `errors.ts` (agent codes).
+- Tests: `packages/agent/test/{config,tools,loop,providers,replay}/…`, fixture
+  `test/fixtures/transcripts/injection.json` (S20), `packages/cli/test/config.test.ts`,
+  `packages/engine/test/{api,errors}.test.ts`.
+
+## Verify results
+Run in the worktree after `git merge main` (phase 09 and the 10a plan commit merged in; one conflict in
+`packages/cli/src/main.ts` `Io`, both sides kept).
+
+| Command | Result | Numbers |
+|---|---|---|
+| `pnpm typecheck` | pass | 0 errors |
+| `pnpm lint` (eslint + prettier) | pass | clean |
+| `pnpm test` | pass | 166 files, 2226 passed, 1 skipped. One earlier full run (before the last commit) exited 1 without a captured failure; the two runs after it passed. |
+| `pnpm -C packages/agent test` | pass | 30 files, 620 passed, 1 skipped |
+| `swift build -c release --package-path native/apple-llm` | pass | build complete (macOS 27 SDK) |
+| Apple tests (local tier: `apple.local`, `apple-helper.local`, `apple`, `apple-protocol`) | pass | 4 files, 107 passed, 1 skipped ("a request gets `unavailable` when the model is not ready": the model is ready) |
+| `pnpm -C packages/agent test:slow -- apple` | n/a | the agent has no `*.slow.test.ts`; the Apple tests are the `*.local` tier (D-16), run above |
+| `vox config probe` with the real Apple helper (temp `VOX_HOME`) | pass | `apple ready`, `context 8192 (apple)`, `plan pass` (3 of 3 runs after the `ClipPlan` fix); `roles set fast apple:apple-on-device` exit 0; `roles set vision` exit 1 (`apple failed`) |
+| `pnpm -C packages/cli exec vox config probe --json` with the owner's keys | not run | MANUAL STEP 1 |
+
+The first real Apple probe failed `plan`: the on-device model (guided generation) filled every field and
+sent `template: ""` on a speaker beat. A test now covers that answer and `ClipPlan` accepts an empty
+template on speaker beats (scene beats still need one); see D-43.
+
+## Done when
+| # | Item | Evidence |
+|---|---|---|
+| 1 | S17–S24, S30, agent part of S32, phase-11 parts of S34/S35 pass; review clean of CRITICAL/HIGH | S17 `config/store.test.ts`, `mask.test.ts`; S18 store masked = unchanged; S19 `loop/redaction.test.ts` + `cli/test/config.test.ts` (canary absent, provider answer redacted); S20 `loop/injection.test.ts`, `tools/jobs.test.ts`; S21 envelope tests; S22 `tools/registry.test.ts` snapshot (no shell/file/http tool, no output path); S23 `loop/run.test.ts` upper-bound pause, `maxOutputTokens` set; S24 `undo_my_last_edit` cannot undo a user edit; S30 `config/keychain.spawn.test.ts`; S34 vision wrapping + on-image text test; S35 `call_tool` rules, question turn. Self-review below. |
+| 2 | Apple provider passes against the fake helper; on the M5 the real helper reports `ready` and `vox config probe` shows its capabilities | fake helper: `apple.test.ts`, `run-probe.test.ts`; real: `--status` → `{"status":"ready","contextSize":8192}`, probe output in Verify |
+| 3 | MANUAL STEP (owner): OpenRouter key + Ollama model, `vox config probe` reports tools, loop, vision, context | open: MANUAL STEP 1 |
+| 4 | D-15 runtime tests (steps 14–20) pass, incl. the on-image text test (S34) | `loop/run.test.ts`, `replay/replay.test.ts`, `providers/run-probe.test.ts` |
+| 5 | R5 AI SDK and provider pins filled | R5 rows `ai` 7.0.137, providers (early G2) |
+
+## Review findings
+Self-review (token budget): no subagents; one pass over the branch diff with the R4 rows, plus code,
+TypeScript, Swift (no Swift change this run) and silent-failure checks. No CRITICAL or HIGH.
+- Fixed: `--key` accepted any string, so a literal key would land in shell history: now only
+  `env:NAME`; a key is typed at a hidden prompt (S17, S30).
+- Fixed: errors leaving `vox config` (a provider answer can quote the key) are redacted (S19).
+- Fixed: `ClipPlan` rejected the Apple model's empty speaker template (found by the real probe).
+- Note: the hidden prompt reads raw stdin only when stdin is a TTY; `--json` or a pipe needs `--key`.
+- Note: `vox config probe` exits 1 when any named model could not be probed (missing key, unknown
+  provider); failed checks alone exit 0 (they are the report).
+
+## Deviations
+- Engine API (frozen after 02): additive `UndoOptions.last` and agent error codes; spec edit + D-43.
+- The agent has no `test:slow` script: the Apple tests are the local tier (D-16), not VOX_SLOW.
+
+## MANUAL STEPS
+1. (required) Add an OpenRouter key and one Ollama model, then probe both:
+   `vox config providers add openrouter` (type the key at the hidden prompt, or
+   `--key env:OPENROUTER_API_KEY`); `vox config providers add ollama` (Ollama running with one model
+   pulled); `pnpm -C packages/cli exec vox config probe --json openrouter:<model-id> ollama:<model>`.
+   Expected: tools, loop, vision and context reported for both (agent done-when #1). Paste the
+   output (keys are masked) into this log, or tell the AI to run the probe.
+2. (optional — does not block merge) Add any of `claude`, `opencode-zen`, `9router` the same way and
+   probe them.
+
+## Handoff notes
+- Phase 12: agent job writes (ingest, transcribe, assets) carry `actor: agent` but no `runId`, so
+  `undoRun` does not undo them (D-43); decide whether jobs started by a run record its `runId`.
+- Phase 12: record workflow runs with `RunRecord` and replay them with `test/replay/harness.ts`.
+- Phase 13: import from `@vox/agent` only (`api.ts`); `runAgent`, `AgentRun`, events in
+  `loop/types.ts`; settings use `saveProvider`/`maskedProviders`/`setRole` + `roleCheck`.
+- Packaging: the `.app` should ship the helper at `Resources/bin/vox-apple-llm`; the CLI looks there
+  (or `VOX_APPLE_LLM`).
 
 ## Early steps (D-19) — n1-apple-llm
 

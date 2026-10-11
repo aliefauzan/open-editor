@@ -17,7 +17,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 09 | App: first-run setup + `.dmg` | 05, 08 | [x] | 2026-10-11 15:07 | 2026-10-11 17:25 | Setup screen + background doctor → Ready, packaged Resources (engine data, HyperFrames, py, pinned uv, `vox` CLI), fuses (S27), S31 unchanged, clean-install test pass, `.dmg` 180.6 MB; optional manual steps 7 and 9b open (D-41) | log/phase-09.md |
 | 10a | App: editor core A (store, preview, timeline, inspector) | 06, 09 | [~] waiting: manual 1 | 2026-10-11 17:29 | | Store + change records, preview pipeline (patch/reload), editor layout, timeline, inspector, keyboard + menus; latency patch max 194 ms / reload max 421 ms; waits for the reference layout screenshot (D-42) | log/phase-10a.md |
 | 10b | App: editor core B (quick clips, subtitles, media bin, export, gallery) + GATE 5 | 10a | [ ] | | | | log/phase-10b.md |
-| 11 | Agent core | 05 | [~] | 2026-10-11 17:03 | | | log/phase-11.md |
+| 11 | Agent core | 05 | [~] waiting: manual 1 | 2026-10-11 17:03 | | Agent loop, tools, plan mode, replay, probe runner, `vox config`; mocks green; real Apple probe ready + plan pass; waits for owner keys (live probe) | log/phase-11.md |
 | 12 | Agent workflows: clipper + free-form | 07, 11 | [ ] | | | | log/phase-12.md |
 | 13 | App: agent panel + settings + v1.0 | 10b, 12 | [ ] | | | | log/phase-13.md |
 | 14 | v1.1 (done when 14a–14g are all [x]) | 14a–14g | [ ] | | | | log/phase-14.md |

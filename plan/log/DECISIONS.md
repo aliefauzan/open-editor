@@ -1279,3 +1279,45 @@ Phase 10a built the store, the preview pipeline, the editor layout, timeline and
 **Why**: The specs fix the behaviour but not these shapes and limits; each is the simplest choice that
 keeps the 10a done-when (latency < 1 s, one undo entry per gesture, one op per drop). Evidence:
 `plan/log/phase-10a.md`, `docs/evidence/phase-10a/`.
+
+## D-43 — Agent core: loop, tools, plan mode, `vox config` (phase 11, 2026-10-11)
+
+Phase 11 built the agent core in `packages/agent` and the `vox config` commands. Decisions:
+- **Loop:** our own step loop, one `streamText` call per model step (no SDK multi-step); tools have
+  no `execute`, so invalid calls (bad JSON, unknown tool) come back as `invalid` tool calls that the
+  loop repairs or answers itself. Plan mode has no tool loop: the view, one transcript page (sequence
+  ms) and the scene templates are put into the prompt, then one structured answer is validated
+  (2 retries) and run as one `batch` by the agent.
+- **Engine API (additive, frozen contract):** `undoRun(projectId, runId, { last: true })` undoes only
+  the run's newest un-undone entry (`undo_my_last_edit`). New error codes in `ERROR_CODES`:
+  `KEYCHAIN_FAILED`, `PRICE_MISSING`, `APPLE_UNAVAILABLE`, `APPLE_FAILED`, `CONTEXT_OVERFLOW`,
+  `PROBE_FAILED`, `PROVIDER_AUTH|RATE_LIMITED|UNAVAILABLE|FAILED`, `UNKNOWN_ALIAS`, `TOOL_UNKNOWN`,
+  `TOOL_REFUSED`, `PLAN_INVALID`.
+- **Keys and config:** `env:NAME` references must match `^[A-Z][A-Z0-9_]*_API_KEY$`; a base URL that
+  is `http:` and not loopback is refused for a keyed entry. The user's price table is config
+  `prices` (model id to `{inPerMTok, outPerMTok}` or `{free: true}`); no bundled price list.
+- **Tools:** `get_transcript` pages by `cursor` (about 4k tokens a page, no gaps); a `STALE` write or
+  `JOB_CONFLICT` job is re-read and retried once; `ingest` takes a source only when it appears
+  verbatim (bounded) in the user's messages or attachments, else the run pauses for approval;
+  `update_todos` is not offered in plan mode or question turns; a question turn gets read tools only.
+- **Loop guards:** the second identical call gets a note, the third pauses; after 2 failed argument
+  repairs of one call the run pauses. Untrusted text goes in as the trailing user message inside
+  `<data>`. Compaction is budget-driven (stub old tool results at 70 % of the context, keep the last
+  8 steps; a stub older than the newest write is marked stale; on context overflow compact once and
+  retry). A capped turn ends the run `stopped`.
+- **Run record:** `runs/<runId>.jsonl` (mode 0600, redacted), lines `started|step|tool|paused|resumed|
+  done`; on restart, a record without `done` gets `done: stopped` (`closeUnfinishedRuns`). The replay
+  harness compares tool results with link and job ids (`ln_`, `job_`) numbered by first appearance.
+- **Probe:** the editor's largest tool list defaults to the clipper core set plus the always-present
+  tools. Apple entries run only `--status` and the plan check. A `ClipPlan` speaker beat may carry an
+  empty `template` (guided generation fills every field; the real Apple model did so on the M5); a
+  scene beat still needs one.
+- **`vox config`:** `providers add <preset> [--key env:NAME] [--id] [--base-url] [--context
+  <model>=<tokens>]... [--num-ctx n]`, `providers list|remove`, `roles set <role> <provider>:<model>
+  [--mode tools|plan]` (probes first; exit 1 with `PROBE_FAILED` naming the failed check, or
+  `PRICE_MISSING`), `prices set <model> --in --out | --free`, `probe [<provider>:<model>...]`
+  (default: the role models). A key is never accepted on the command line: without `--key env:NAME`
+  it is typed at a hidden prompt and stored in the Keychain. The Apple helper is `VOX_APPLE_LLM`, else
+  `<Resources>/bin/vox-apple-llm` in the app, else the dev build in `native/apple-llm`.
+- **Open for phase 12:** job writes by the agent carry `actor: agent` but no `runId`, so `undoRun`
+  does not undo them; the change note leaves them out by the run's own versions.
