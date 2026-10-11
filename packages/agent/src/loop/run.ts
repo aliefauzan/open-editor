@@ -179,6 +179,8 @@ export class AgentRun {
       models,
       message: req.message,
       attachments: req.attachments ?? [],
+      allowedTools: req.allowedTools,
+      ...(req.planKind && { planKind: req.planKind }),
       question: req.question === true,
       version: p.version,
     });
