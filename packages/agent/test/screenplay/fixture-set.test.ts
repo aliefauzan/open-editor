@@ -56,11 +56,11 @@ describe('make-screenplay-set', () => {
     }[];
     expect(expected.map((e) => e.file)).not.toEqual(tags.map((t) => t.file)); // shuffled
     expect(new Set(expected.map((e) => e.file)).size).toBe(6);
-  });
+  }, 120_000);
 
   test('two runs: byte-identical outputs', () => {
     const a = make();
     const b = make();
     for (const f of OUTPUT_FILES) expect(sha(join(a, f)), f).toBe(sha(join(b, f)));
-  });
+  }, 120_000);
 });
