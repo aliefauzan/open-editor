@@ -1135,3 +1135,38 @@ of builds, media and data stay refused. The media CSP (`connect-src 'none'`) is 
 (console errors in the smoke test). Fonts are public style assets, so allowing them to any origin
 discloses nothing; only `vox-app://` and `vox-media://` pages can reach the scheme at all (all
 http/https/ws is blocked, S10). Test: `test/main/protocol.test.ts` (font CORS case).
+
+## D-38 · 2026-10-11 · phase 11 (early G2) · Provider presets, context sources, tool-list measure and role rules
+
+**Decision**:
+- Presets add `openai` (`https://api.openai.com/v1`, responses API) and `gemini`
+  (`https://generativelanguage.googleapis.com/v1beta`) to the spec's seven. A provider entry keeps
+  the preset it was created from in a top-level `preset?` field; it drives OpenCode Zen routing by
+  model family (`claude-` Anthropic, `gpt-` OpenAI, `gemini-` Google, else OpenAI-compatible) and
+  local pricing (`lmstudio`).
+- The factory refuses a keyed provider without a key (`CONFIG_INVALID`), so the SDKs' environment
+  variable fallback is never reached. Ollama gets `num_ctx` on every request (default 32,768,
+  `options.numCtx`).
+- Context sources: OpenRouter `GET /models` `context_length`; Ollama `min(/api/show context_length,
+  num_ctx)`; Apple `--status` `contextSize`; every other provider `options.contextTokens[modelId]`,
+  else unknown. An unknown context fails the context-bound checks (editor context, tool-list cost);
+  the hint says to enter it.
+- Tool-list tokens are measured on the `tools` field of the request body the provider package
+  itself builds (first request captured, never sent), at 3 UTF-16 units per token (rounded up), or a
+  supplied counter. Over 25 % of the effective context fails the role.
+- "≥ 32k effective context" for `editor` means ≥ 32,000 tokens, so a 32,768 model passes.
+- Mode: `plan` for Ollama, LM Studio and Apple, and for any model whose `loop` probe did not pass;
+  else `tools`; `--mode` overrides, except `tools` on Apple is `CONFIG_INVALID`. In tools mode the
+  editor needs tools, loop and a measured tool list; in plan mode it needs plan, and the tool list
+  only if measured. `fast` needs plan/json; `vision` the vision probe; `image`/`embed` a declared
+  capability (OpenRouter modalities or the entry). Apple: a status other than `ready` fails every
+  role; it never fills vision, image or embed.
+- Apple model defaults: temperature 0, `maxTokens` 2,000, request timeout 120 s (kill and restart
+  the helper), helper environment limited to `HOME`, `TMPDIR`, `LANG`, `LC_ALL`, `PATH`.
+- New error codes for phase 11 to append: `APPLE_UNAVAILABLE`, `APPLE_FAILED`, `CONTEXT_OVERFLOW`,
+  `PROBE_FAILED` (G2 uses them through the G1 `UtilError` shim).
+
+**Why**: The specs give the roles' needs but not these numbers and sources; each is the simplest
+rule that keeps a role from getting a model it cannot use. Measuring the provider's own serialisation
+follows each wire format without a tokenizer per provider. Evidence: `plan/log/phase-11.md`
+"Early steps (D-19) — g2-providers".
