@@ -235,6 +235,7 @@ describe('hostile template (S14)', () => {
       topVox: 'blocked',
       topLocation: 'blocked',
       fetch: 'blocked',
+      readProjectFile: 'blocked',
     });
     await page.waitForTimeout(300);
     expect(page.url()).toBe('vox-app://app/index.html');
@@ -243,7 +244,11 @@ describe('hostile template (S14)', () => {
   });
 
   it('no console errors from the app page itself', () => {
-    const own = consoleErrors.filter((m) => !/example|evil|127\.0\.0\.1|ERR_BLOCKED|Refused|denied|Permission|geolocation|net::|Unsafe attempt to initiate navigation/i.test(m));
+    // every console error must be one of the expected denials above
+    const own = consoleErrors.filter(
+      (m) =>
+        !/Content Security Policy|Refused to connect|Unsafe attempt to initiate navigation|net::ERR_BLOCKED|denied|Permission/i.test(m),
+    );
     expect(own, consoleErrors.join(" | ")).toEqual([]);
   });
 });

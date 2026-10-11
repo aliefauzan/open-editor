@@ -33,8 +33,10 @@ try { r.topVox = typeof window.top.vox; } catch (e) { r.topVox = 'blocked'; }
 try { r.topLocation = String(window.top.location.href); } catch (e) { r.topLocation = 'blocked'; }
 try { window.top.location = 'https://example.com/'; r.topNavigate = 'no error'; } catch (e) { r.topNavigate = 'blocked'; }
 try { r.cookie = document.cookie; } catch (e) { r.cookie = 'blocked'; }
-fetch('https://example.com/').then(() => { r.fetch = 'ok'; }, (e) => { r.fetch = 'blocked'; })
-  .finally(() => parent.postMessage({ hostile: r }, '*'));
+Promise.all([
+  fetch('https://example.com/').then(() => { r.fetch = 'ok'; }, () => { r.fetch = 'blocked'; }),
+  fetch('data.json').then(() => { r.readProjectFile = 'ok'; }, () => { r.readProjectFile = 'blocked'; }),
+]).finally(() => parent.postMessage({ hostile: r }, '*'));
 </script></body></html>`,
   );
   writeFileSync(join(dir, 'build', 'seq_hostile', 'data.json'), '{"a":1}');

@@ -39,6 +39,13 @@ export const INLINE_TYPES: Readonly<Record<string, string>> = {
 
 const STYLE_ID = /^[a-z0-9][a-z0-9-]*$/;
 
+/**
+ * Fonts are fetched in CORS mode, and the opaque-sandbox player (origin `null`) is cross-origin to
+ * everything, so font responses (only) allow any origin (D-XX). Every other response has no CORS
+ * header, so cross-origin reads stay blocked; builds also have `connect-src 'none'`.
+ */
+const FONT_EXTS = new Set(['.woff2', '.woff', '.ttf', '.otf']);
+
 export interface MediaRoots {
   projectsDir: string;
   stylesDirs: readonly string[];
@@ -129,6 +136,7 @@ export function headersFor(file: string, csp: string | null): Headers {
     h.set('Content-Disposition', 'attachment');
   }
   if (csp && ext === '.html') h.set('Content-Security-Policy', csp);
+  if (FONT_EXTS.has(ext)) h.set('Access-Control-Allow-Origin', '*');
   return h;
 }
 

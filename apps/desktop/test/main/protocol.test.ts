@@ -7,6 +7,7 @@ import {
   CSP_APP,
   CSP_MEDIA,
   fileResponse,
+  headersFor,
   parseRange,
   resolveAppPath,
   resolveMediaPath,
@@ -77,6 +78,14 @@ describe('headers (S13, S28)', () => {
     expect(r.headers.get('Content-Disposition')).toBe('attachment');
     expect(r.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(r.headers.get('Content-Security-Policy')).toBeNull();
+  });
+
+  it('only fonts carry a CORS header (opaque-origin builds load fonts in CORS mode, D-XX)', () => {
+    expect(headersFor('a/Inter.ttf', CSP_MEDIA).get('Access-Control-Allow-Origin')).toBe('*');
+    expect(headersFor('a/x.woff2', CSP_MEDIA).get('Access-Control-Allow-Origin')).toBe('*');
+    for (const f of ['a/index.html', 'a/project.json', 'a/clip.mp4', 'a/app.js', 'a/x.png']) {
+      expect(headersFor(f, CSP_MEDIA).get('Access-Control-Allow-Origin')).toBeNull();
+    }
   });
 
   it('range requests return 206 with Content-Range', async () => {
