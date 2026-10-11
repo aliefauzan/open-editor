@@ -199,3 +199,13 @@ Ranked by visual gain per effort, mapped to what the style already has (template
 Owner manual steps (optional): a Freesound login to look for CC0 whoosh, riser and typewriter-key
 recordings (search with the CC0 licence filter, record the sound URL and author); or record a whoosh and
 typewriter keys at home (licence `project`).
+
+Addendum (2026-10-11, orchestrator): Freesound search pages and HQ preview MP3s are public, so no login
+was needed to collect candidates. 35 CC0 previews were fetched (14 searches: whoosh, swoosh, riser,
+typewriter key and typing, paper slide, stamp, shutter, thud, hit, page turn, projector, crumple,
+scissors). Each licence was checked on the sound's own page (`publicdomain/zero/1.0` link). 8 were set
+aside in `sfx/freesound/rejected/`: synthesised or produced (tags EDM, digital, bass, electronic, or a
+music hit) or off-target. 27 remain in `asset-candidates/sfx/freesound/` and are listed in
+`MANIFEST.json`. The previews are lossy 128 kbit/s MP3. Before a sound joins a style kit, its original
+file must come from the sound page with a Freesound login. The owner, or the AI in the owner's logged-in
+browser, does this. The `typewriter-key` candidates (380138, 194799) may make step 8b unnecessary.
