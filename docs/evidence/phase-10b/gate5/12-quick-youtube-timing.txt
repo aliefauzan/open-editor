@@ -1,0 +1,15 @@
+Quick clips, YouTube https://youtu.be/BveD4v3YwEQ (15.5 min 1080p), 1 clip, 30-60 s, installed app.
+Times from project file birth/modify stamps (Make clips pressed = project created).
+
+step                    before (2026-10-11)   after (2026-10-12, D-53)
+download                1:25                  1:17
+CFR copy                7:15                  none (CFR detected)
+proxy                   0:51                  1:05 (audio beside it)
+thumbs + audio + peaks  0:25                  0:22 (beside proxy)
+shots                   0:04                  0:07
+transcribe              1:00                  1:15
+facetrack               4:22 (after transcribe) 4:53 (beside shots/transcribe; 3:31 past transcribe)
+total                   15:28                 7:38
+
+Progress bar moved the whole time, with step labels (Downloading, Tracking faces).
+Open: facetrack is now the longest step; the source is letterboxed (black bands in 9:16).
