@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  buildEmbedder,
   buildRunModels,
   CLIPPER_DEFAULTS,
   closeUnfinishedRuns,
@@ -119,11 +120,17 @@ export class AgentHost {
       project.media.some((m) => m.id === id),
     );
     const source = sourceIn(a.message);
+    const mediaOf = (id: string) => project.media.find((m) => m.id === id);
+    // 14b: an attached screenplay document and the footage attached with it
+    const attachedDoc = attachments.find((id) => mediaOf(id)?.kind === 'document');
+    const attachedVideos = attachments.filter((id) => mediaOf(id)?.kind === 'video');
     const workflow: WorkflowName =
       (a.workflow as WorkflowName | undefined) ??
-      (source !== undefined || (attachments.length > 0 && /\bclips?\b/i.test(a.message))
-        ? 'clipper'
-        : 'edit');
+      (attachedDoc !== undefined && /\b(screenplay|script|scenes?)\b/i.test(a.message)
+        ? 'screenplay'
+        : source !== undefined || (attachments.length > 0 && /\bclips?\b/i.test(a.message))
+          ? 'clipper'
+          : 'edit');
     const built = await this.#models();
     if (!built.models.editor) {
       throw new VoxError(
@@ -137,6 +144,15 @@ export class AgentHost {
     const runId = this.#d.newRunId?.() ?? `run_${randomBytes(9).toString('base64url')}`;
     const abort = new AbortController();
     const conf = await loadAgentConfig(this.#d.cfg);
+    // screenplay match: the `embed` role, when one is set and usable (else the workflow ranks with the language model)
+    const embed =
+      workflow === 'screenplay' && !this.#d.models
+        ? await buildEmbedder(
+            conf,
+            this.#d.cfg,
+            this.#d.fetch !== undefined ? { fetch: this.#d.fetch } : {},
+          ).catch(() => undefined)
+        : undefined;
     const len = lengthIn(a.message);
     const attachedVideo = attachments.find((id) =>
       /\.(mp4|mov|m4v|webm|mkv)$/i.test(project.media.find((m) => m.id === id)?.path ?? ''),
@@ -155,6 +171,10 @@ export class AgentHost {
         tighten: 'ask' as const,
       }),
       ...(workflow === 'stylize' && { sequenceIds: seqIds }),
+      ...(workflow === 'screenplay' && {
+        ...(attachedDoc !== undefined && { screenplay: attachedDoc }),
+        ...(attachedVideos.length > 0 && { mediaIds: attachedVideos }),
+      }),
       ...(workflow === 'edit' &&
         seqIds[0] !== undefined && {
           selection: { sequenceId: seqIds[0], ...(itemIds.length > 0 && { itemIds }) },
@@ -179,6 +199,7 @@ export class AgentHost {
           },
           onPause: (info) => this.#pause(runId, info, conf.limits.maxUsdPerRun),
           ...(this.#d.runJob && { runJob: this.#d.runJob }),
+          ...(embed && { embed }),
         },
         req,
       )

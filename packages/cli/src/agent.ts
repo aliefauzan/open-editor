@@ -4,6 +4,7 @@
 // approves a source; `--yes-sources` approves only sources named in the instruction; without a
 // terminal any other pause stops the run (nothing is approved silently).
 import {
+  buildEmbedder,
   buildRunModels,
   CLIPPER_DEFAULTS,
   engineConfigIO,
@@ -201,6 +202,14 @@ export async function agentCommand(
       throw new AgentUsageError('--length takes <from>-<to> in seconds, e.g. 30-60');
     length = [a, b];
   }
+  const screenplay = values['screenplay'];
+  if (screenplay !== undefined && typeof screenplay !== 'string')
+    throw new AgentUsageError('--screenplay takes a file path, a link or a media id');
+  const footage = (values['footage'] as string[] | undefined) ?? [];
+  if (workflow === 'screenplay' && !screenplay)
+    throw new AgentUsageError(
+      '--workflow screenplay needs --screenplay <file|mediaId> (the document)',
+    );
   if (workflow === 'stylize' && seqs.length === 0)
     throw new AgentUsageError('--workflow stylize needs --seq <id> (repeatable)');
 
@@ -221,6 +230,22 @@ export async function agentCommand(
     ...(deps.probe.context !== undefined && { context: deps.probe.context }),
   });
   const models = built.models;
+  // screenplay match: the `embed` role ranks scenes and clips by similarity; a failure to build it
+  // is reported and the workflow ranks with the language model instead
+  let embed: Awaited<ReturnType<typeof buildEmbedder>>;
+  if (workflow === 'screenplay') {
+    try {
+      embed = await buildEmbedder(conf, cfg, deps.fetch !== undefined ? { fetch: deps.fetch } : {});
+    } catch (err) {
+      io.stderr(
+        clean(
+          redactor.redact(
+            `the embed model is not usable (${err instanceof Error ? err.message : String(err)}); ranking with the language model\n`,
+          ),
+        ),
+      );
+    }
+  }
   let mode = built.mode;
   if (modeFlag !== undefined) mode = modeFlag;
   const e = deps.wrapEngine ? deps.wrapEngine(engine) : engine;
@@ -250,11 +275,18 @@ export async function agentCommand(
         redactor,
       }),
       ...(deps.runJob && { runJob: deps.runJob }),
+      ...(embed && { embed }),
     },
     {
       projectId,
       workflow,
       message: instruction,
+      // a screenplay named by path or link counts as a source the user named (the ingest rule)
+      ...(workflow === 'screenplay' &&
+        screenplay &&
+        !/^m_/.test(screenplay) && { attachments: [screenplay] }),
+      ...(workflow === 'screenplay' && screenplay && { screenplay }),
+      ...(workflow === 'screenplay' && footage.length > 0 && { mediaIds: footage }),
       mode: mode ?? 'tools',
       ...(workflow === 'clipper' && {
         count: count ?? countIn(instruction) ?? CLIPPER_DEFAULTS.count,
@@ -280,6 +312,7 @@ export async function agentCommand(
     sequenceIds: r.sequenceIds,
     checkpoints: r.checkpoints,
     clips: r.clips,
+    ...(r.screenplay && { screenplay: r.screenplay }),
     ...(r.done.error && { error: r.done.error }),
   };
   io.stdout(
