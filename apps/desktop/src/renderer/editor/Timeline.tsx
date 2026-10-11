@@ -61,7 +61,7 @@ function ruler(pxPerSec: number): { scale: number; scaleWidth: number; split: nu
   return { scale, scaleWidth: scale * pxPerSec, split: scale >= 5 ? 5 : 10 };
 }
 
-function useCaptions(): CaptionChunk[] {
+export function useCaptions(): CaptionChunk[] {
   const { vox } = useCtx();
   const projectId = useEditor((s) => s.projectId);
   const sequenceId = useEditor((s) => s.sequenceId);

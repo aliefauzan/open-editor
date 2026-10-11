@@ -7,7 +7,9 @@ import { Inspector } from './Inspector.tsx';
 import { useKeyboard } from './keyboard.ts';
 import { NextSteps } from './NextSteps.tsx';
 import { PreviewPanel } from './PreviewPanel.tsx';
+import { MediaBin } from './MediaBin.tsx';
 import { StylePanel } from './StylePanel.tsx';
+import { SubtitlesPanel } from './SubtitlesPanel.tsx';
 import { Timeline } from './Timeline.tsx';
 import { TopBar } from './TopBar.tsx';
 
@@ -69,6 +71,15 @@ function LeftTabs() {
         <button
           type="button"
           role="tab"
+          aria-selected={tab === 'subtitles'}
+          className={b(tab === 'subtitles')}
+          onClick={() => ui.getState().set({ leftTab: 'subtitles' })}
+        >
+          Subtitles
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={tab === 'styles'}
           className={b(tab === 'styles')}
           onClick={() => ui.getState().set({ leftTab: 'styles' })}
@@ -77,11 +88,7 @@ function LeftTabs() {
         </button>
       </div>
       <div role="tabpanel" className="min-h-0 flex-1">
-        {tab === 'styles' ? (
-          <StylePanel />
-        ) : (
-          <p className="p-3 text-xs text-neutral-500">The media bin comes in the next build.</p>
-        )}
+        {tab === 'styles' ? <StylePanel /> : tab === 'subtitles' ? <SubtitlesPanel /> : <MediaBin />}
       </div>
     </section>
   );
