@@ -1196,3 +1196,16 @@ follows each wire format without a tokenizer per provider. Evidence: `plan/log/p
   (`vox doctor` hint).
 - Engine library API, events, cue list, audio QA output, URL classes, shot/facetrack files, job results,
   `BuildResult`, `ImageProvider`, quick-clips scorer and the engine CLI freeze now (R2).
+
+## D-40 — `vox style validate` harness runs sandboxed (2026-10-11)
+
+An automated security review found that the DOM-check harness of `vox style validate` (phase 06)
+opened the style's template as a `file://` page in Chrome launched with
+`--allow-file-access-from-files`. A hostile (untrusted, R4 S8) style could read any local file
+through XHR and send it over the network; a slow test confirmed both.
+Decision: the harness serves the build folder on a loopback HTTP server (files inside the folder
+only, symlinks resolved, GET only), aborts every other request, sets a CSP with
+`connect-src 'none'; frame-src 'none'; form-action 'none'`, and launches Chrome with
+`--block-new-web-contents` and without file access. Test:
+`packages/engine/test/styles/validate-dom-sandbox.slow.test.ts`. Fixed on branch
+`fix/validate-dom-sandbox`.
