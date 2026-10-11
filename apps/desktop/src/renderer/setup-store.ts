@@ -17,6 +17,8 @@ export interface SetupState {
   touched: boolean;
   checking: boolean;
   installing: string[];
+  /** Components that were not ready when "Install all" started (for its "n of m" count). */
+  batch: string[];
   progress: Record<string, ComponentProgress>;
   errors: Record<string, ErrorData>;
   refresh(): Promise<void>;
@@ -38,6 +40,7 @@ export const useSetup = create<SetupState>((set, get) => ({
   touched: false,
   checking: false,
   installing: [],
+  batch: [],
   progress: {},
   errors: {},
   async refresh() {
@@ -57,7 +60,17 @@ export const useSetup = create<SetupState>((set, get) => ({
   async install(component) {
     const errors = { ...get().errors };
     delete errors[component];
-    set((s) => ({ installing: [...s.installing, component], errors }));
+    set((s) => ({
+      installing: [...s.installing, component],
+      errors,
+      ...(component === 'all'
+        ? {
+            batch: (s.status?.components ?? [])
+              .filter((c) => c.kind !== 'external' && c.state !== 'ready')
+              .map((c) => c.id),
+          }
+        : {}),
+    }));
     try {
       const r = await window.vox.setup.install(component);
       const failed = Object.fromEntries(
@@ -87,6 +100,8 @@ export const useSetup = create<SetupState>((set, get) => ({
         },
       },
     }));
+    // one component finished inside "Install all": show it as Ready now, not after the last one
+    if (e.phase === 'done') void get().refresh();
   },
   focus: null,
   show(open, focus) {

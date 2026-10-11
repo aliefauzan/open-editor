@@ -43,11 +43,35 @@ function CopyButton({ text }: { text: string }) {
 }
 
 function progressText(p: ComponentProgress | undefined): string {
-  if (!p) return '';
+  if (!p) return 'Waiting…';
   if (p.totalBytes && p.receivedBytes !== undefined)
     return `${p.phase} ${Math.floor((100 * p.receivedBytes) / p.totalBytes)}%`;
   return p.message ? `${p.phase}: ${p.message.slice(0, 80)}` : p.phase;
 }
+
+/** A thin bar: the percentage when the size is known, otherwise an indeterminate pulse. */
+function ProgressBar({ label, pct }: { label: string; pct: number | undefined }) {
+  return (
+    <span
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      {...(pct === undefined ? {} : { 'aria-valuenow': pct })}
+      className="mt-1 block h-1.5 w-full overflow-hidden rounded bg-neutral-800"
+    >
+      <span
+        className={`block h-full rounded bg-blue-500 transition-[width] ${pct === undefined ? 'w-full animate-pulse opacity-60' : ''}`}
+        style={pct === undefined ? undefined : { width: `${pct}%` }}
+      />
+    </span>
+  );
+}
+
+const percent = (p: ComponentProgress): number | undefined =>
+  p.totalBytes && p.receivedBytes !== undefined
+    ? Math.min(100, Math.floor((100 * p.receivedBytes) / p.totalBytes))
+    : undefined;
 
 function Ffmpeg({ ff }: { ff: SetupStatusData['ffmpeg'] }) {
   const { refresh, checking } = useSetup();
@@ -110,6 +134,10 @@ export function SetupScreen() {
   // ffmpeg (kind `external`, Homebrew) has its own row above: the app never installs it (D-05)
   const installable = st.components.filter((c) => c.kind !== 'external');
   const notReady = installable.filter((c) => c.state !== 'ready');
+  const finished = s.batch.filter(
+    (id) =>
+      installable.find((c) => c.id === id)?.state === 'ready' || s.progress[id]?.phase === 'done',
+  ).length;
   return (
     <div data-testid="setup" className="mx-auto max-w-3xl space-y-6 p-8">
       <header className="flex items-center justify-between">
@@ -136,16 +164,23 @@ export function SetupScreen() {
         Vox Studio downloads its pinned tools into your user folder and checks each file’s hash. The
         editor works meanwhile; steps that need a missing tool say so.
       </p>
-      {notReady.length > 0 && (
-        <button
-          type="button"
-          data-testid="install-all"
-          disabled={busy('all')}
-          className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-500 disabled:opacity-50"
-          onClick={() => void s.install('all')}
-        >
-          {busy('all') ? 'Installing…' : `Install all (${notReady.length})`}
-        </button>
+      {(notReady.length > 0 || busy('all')) && (
+        <div className="max-w-xs">
+          <button
+            type="button"
+            data-testid="install-all"
+            disabled={busy('all')}
+            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-500 disabled:opacity-50"
+            onClick={() => void s.install('all')}
+          >
+            {busy('all')
+              ? `Installing… ${finished} of ${s.batch.length}`
+              : `Install all (${notReady.length})`}
+          </button>
+          {busy('all') && s.batch.length > 0 && (
+            <ProgressBar label="Install all" pct={Math.floor((100 * finished) / s.batch.length)} />
+          )}
+        </div>
       )}
       <ul className="divide-y divide-neutral-800">
         <Ffmpeg ff={st.ffmpeg} />
@@ -170,10 +205,15 @@ export function SetupScreen() {
                   {s.errors[c.id]!.message}
                 </span>
               )}
-              {busy(c.id) && (
-                <span className="block text-xs text-neutral-400">
-                  {progressText(s.progress[c.id])}
-                </span>
+              {busy(c.id) && c.state !== 'ready' && (
+                <>
+                  {s.progress[c.id] && s.progress[c.id]!.phase !== 'done' && (
+                    <ProgressBar label={`${c.label} progress`} pct={percent(s.progress[c.id]!)} />
+                  )}
+                  <span className="block text-xs text-neutral-400">
+                    {progressText(s.progress[c.id])}
+                  </span>
+                </>
               )}
             </span>
             <span className={c.state === 'ready' ? 'text-green-400' : 'text-amber-400'}>
