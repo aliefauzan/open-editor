@@ -164,6 +164,28 @@ Automated parts all pass: clean-install test with the render part (MP4 20 s, SRT
 installed app), packaging + S32/S31, manual-edit / quick / tools E2E, latency patch max 87 ms / reload
 max 435 ms. Recommendation: pass once the owner run (MANUAL STEP 1) works; the AI then merges.
 
+### GATE 5 run (2026-10-11/12, by the AI under the owner's delegation of 2026-10-11 21:47)
+
+Installed `.dmg` in `/Applications`, fresh `VOX_HOME`/`VOX_PROJECTS_DIR` under `~/vox-gate5`. Evidence in
+`docs/evidence/phase-10b/gate5/` (00–12). Every MANUAL STEP 1 item was done for real; nothing guessed.
+
+| Step | Result | Evidence |
+|---|---|---|
+| e. setup to Ready | pass after fix: progress bar per component + "n of 3" (owner request) | 01, 02 |
+| f. import, drag to V2, trim, split, crossfade, text, title scene edit, preview | pass | 03 |
+| f. export MP4 + SRT + OTIO to a chosen folder, Show in Finder | pass | 04, 05, 06 |
+| g. YouTube quick clip | pass; 15:28 → 7:38 after D-53 | 07, 12 |
+| g. Instagram quick clip | pass | 08 |
+| g. TikTok quick clip | failed once (transcribe exit 134, onnxruntime telemetry thread) → D-52; retry pass | — |
+| g. dropped file | failed (empty project, no message) → fixed D-54; pass on the rebuilt app | 10 |
+| g. fix a subtitle, export burned-in MP4 + SRT | pass; burned captions were unstyled → fixed D-54 | 09, 11 |
+
+Findings fixed on the branch: D-52 (telemetry crash), D-53 (quick-clip speed: false VFR, CFR encoder,
+parallel facetrack, real progress), D-54 (Finder drop, caption style root), D-56 (letterbox bands),
+86eb075 (Escape closes Export, plain "no sound" message, a retry reuses only an empty project).
+Open at the time of writing: facetrack speed (agent running); final rebuild check of D-56 on the
+YouTube clip.
+
 ## Handoff notes
 
 - Phase 13: Settings replaces the TopBar stub; add "Open Settings" to the `LOGIN_REQUIRED` hint on the
