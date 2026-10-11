@@ -63,7 +63,7 @@ async function writingJob(
   args: Record<string, unknown>,
 ): Promise<ToolOutput> {
   const before = await versionNow(ctx);
-  const result = await job(ctx, kind, { ...args, actor: 'agent' });
+  const result = await job(ctx, kind, { ...args, actor: 'agent', runId: ctx.runId });
   const after = await versionNow(ctx);
   if (after > ctx.seenVersion && before === ctx.seenVersion) ctx.seenVersion = after;
   return {

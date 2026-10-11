@@ -10,6 +10,7 @@ import { VoxError } from './errors.ts';
 import type { JobRunner } from './jobs.ts';
 import {
   ActorSchema,
+  RunIdSchema,
   applyJobOps,
   ensureModel,
   findMedia,
@@ -102,11 +103,13 @@ export const AssetsFetchJobArgsSchema = z.strictObject({
   projectId: z.string(),
   candidateId: z.string().min(1).max(80),
   actor: ActorSchema,
+  runId: RunIdSchema,
 });
 export const AssetsCutoutJobArgsSchema = z.strictObject({
   projectId: z.string(),
   mediaId: MediaIdSchema,
   actor: ActorSchema,
+  runId: RunIdSchema,
 });
 export const AssetsGenerateJobArgsSchema = z.strictObject({
   projectId: z.string(),
@@ -117,6 +120,7 @@ export const AssetsGenerateJobArgsSchema = z.strictObject({
   provider: z.string().min(1).optional(),
   styleId: z.string().min(1).optional(),
   actor: ActorSchema,
+  runId: RunIdSchema,
 });
 
 export interface AssetMediaResult {
@@ -174,7 +178,11 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
     );
   };
   const addOne = async (
-    args: { projectId: string; actor?: z.infer<typeof ActorSchema> },
+    args: {
+      projectId: string;
+      actor?: z.infer<typeof ActorSchema>;
+      runId?: string | undefined;
+    },
     ctx: { jobId: string; signal: AbortSignal },
     file: string,
     origin: MediaItem['origin'],
@@ -194,6 +202,7 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
       ? project.version
       : await applyJobOps(store, [{ op: 'addMedia', args: { media } }], {
           actor: args.actor ?? 'user',
+          runId: args.runId,
           jobId: ctx.jobId,
           baseVersion,
         });
