@@ -17,7 +17,7 @@ Phase 07 re-processing (the 5 ms fades left the first or last 5 ms above -40 dBF
 the limit): from the files above, a 10 ms fade in and a 15 ms fade out, 6 ms of silence added at both ends, and
 gain to a -1.2 dBFS sample peak. `paper-slide`: first 0.82 s only (drops the click cluster near the end),
 fade out 60 ms. `whoosh`: first 0.82 s, shaped into one swell (quarter-sine fade in 0.45 s, fade out 0.37 s),
-so it is no longer a flat noise bed. `thump-tap` is unchanged.
+so it is no longer a flat noise bed. `thump-tap`: 11 dB quieter (peak -12.2 dBFS), so the hero thump stays 6 LU under speech in a mix (audio QA `sfxUnderSpeech`).
 
 | File              | Type   | Source file on Commons (page URL)                                                    | Author                     | Licence on the file page            | Window used      | Source SHA-256                                                     | Known weaknesses for the kit check                                                                                                                                                                                                 |
 | ----------------- | ------ | ------------------------------------------------------------------------------------ | -------------------------- | ----------------------------------- | ---------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

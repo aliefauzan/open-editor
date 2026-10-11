@@ -13,6 +13,10 @@
           overflow: hidden;
           pointer-events: none;
         }
+        .c-layer {
+          position: absolute;
+          inset: 0;
+        }
         .c-chunk {
           position: absolute;
           opacity: 0;
@@ -48,6 +52,7 @@
         data-duration="__DUR__"
       >
         <!--vox:vars-->
+        <div class="c-layer"></div>
       </div>
       <script>
         // vox/mono-box (styles spec Part B): each line of a chunk is one black box; words cut on (no
@@ -59,6 +64,8 @@
           var mount = vox.mount('__ID__');
           var root = mount.root;
           var v = mount.vars;
+          // chunks go inside the composition's own markup, where its styles apply
+          var layer = root.querySelector('.c-layer');
           var W = __W__;
           var H = __H__;
           var css = getComputedStyle(root);
@@ -103,7 +110,7 @@
               }
               el.appendChild(line);
             }
-            root.appendChild(el);
+            layer.appendChild(el);
             tl.set(el, { opacity: 1 }, c.startMs / 1000);
             tl.set(el, { opacity: 0 }, c.endMs / 1000);
           }

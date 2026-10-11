@@ -13,6 +13,10 @@
           overflow: hidden;
           pointer-events: none;
         }
+        .c-layer {
+          position: absolute;
+          inset: 0;
+        }
         .c-chunk {
           position: absolute;
           opacity: 0;
@@ -30,8 +34,9 @@
           color: var(--tok-color-caption);
           opacity: 0.6;
           text-shadow:
-            0 0.04em 0.12em rgb(0 0 0 / 65%),
-            0 0 0.3em rgb(0 0 0 / 35%);
+            0 0.03em 0.06em rgb(0 0 0 / 90%),
+            0 0.04em 0.16em rgb(0 0 0 / 80%),
+            0 0 0.45em rgb(0 0 0 / 60%);
         }
         .c-word.c-emph {
           color: var(--tok-color-highlight);
@@ -49,6 +54,7 @@
         data-duration="__DUR__"
       >
         <!--vox:vars-->
+        <div class="c-layer"></div>
       </div>
       <script>
         // vox/serif-lower (styles spec Part B): white serif with a soft shadow, low in the frame. Unread
@@ -60,6 +66,8 @@
           var mount = vox.mount('__ID__');
           var root = mount.root;
           var v = mount.vars;
+          // chunks go inside the composition's own markup, where its styles apply
+          var layer = root.querySelector('.c-layer');
           var W = __W__;
           var H = __H__;
           var side = (v.safeArea.rightPct / 100) * W;
@@ -100,7 +108,7 @@
               }
               el.appendChild(line);
             }
-            root.appendChild(el);
+            layer.appendChild(el);
             tl.set(el, { opacity: 1 }, c.startMs / 1000);
             tl.set(el, { opacity: 0 }, c.endMs / 1000);
           }
