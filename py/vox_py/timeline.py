@@ -4,11 +4,13 @@ Run as `python -I -m vox_py.timeline`.
 
 Write request: `{ mode?: "write", format?: "otio" | "fcpxml", width?, height? (FCPXML format size), output, name, rate: { num, den }, tracks }`. Each track is
 `{ kind: "video" | "audio", name, clips }`; each clip is `{ name, path, startFrame, durationFrames,
-sourceFrame, sourceDurationFrames?, mediaRate?: { num, den }, mediaDurationFrames? }` in frames of `rate` (record side) and
+sourceFrame, sourceDurationFrames?, mediaRate?: { num, den }, mediaDurationFrames?, timeScalar? }` in frames of `rate` (record side) and
 of `mediaRate` (source side, default `rate`). Paths are absolute; clips on a track must not overlap;
 gaps are filled. The file is written as OTIO JSON (`format` otio, output `.otio`) or as FCPXML 1.8 through
 `otio-fcpx-xml-adapter` (`format` fcpxml, output `.fcpxml`; `mediaDurationFrames` is the whole source
-file length in `mediaRate` frames, default: the used part). Result: `{ output, tracks, clips }`.
+file length in `mediaRate` frames, default: the used part). `timeScalar` (clip speed, plan D-62) adds an
+OTIO `LinearTimeWarp` effect; the source range keeps the timeline length, as OTIO expects. Result:
+`{ output, tracks, clips }`.
 
 Check request: `{ mode: "check", path }` reads an `.otio` and returns
 `{ name, tracks, clips: [{ track, name, targetUrl, exists }] }` (a file URL that names an existing
@@ -52,6 +54,13 @@ def _int(clip: dict, key: str, lo: int = 0) -> int:
     if not isinstance(v, int) or isinstance(v, bool) or v < lo:
         raise _tool.ToolError("INVALID_REQUEST", f"clip field {key} must be an integer ≥ {lo}")
     return v
+
+
+def _scalar(clip: dict) -> float:
+    v = clip.get("timeScalar")
+    if not isinstance(v, (int, float)) or isinstance(v, bool) or not 0.25 <= v <= 4:
+        raise _tool.ToolError("INVALID_REQUEST", "clip field timeScalar must be a number in 0.25–4")
+    return float(v)
 
 
 def _file_url(path: str) -> str:
@@ -160,6 +169,8 @@ def write(raw: dict) -> dict:
                     otio.opentime.RationalTime(src_dur, m_rate),
                 ),
             )
+            if "timeScalar" in c:
+                clip.effects.append(otio.schema.LinearTimeWarp(time_scalar=_scalar(c)))
             track.append(clip)
             cursor = start + dur
         tl.tracks.append(track)

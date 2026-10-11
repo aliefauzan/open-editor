@@ -158,3 +158,40 @@ def test_fcpxml_output_must_match_format(tmp_path):
     req["format"] = "fcpxml"  # output still ends .otio
     code, _, stderr = run_tool("timeline", req)
     assert code != 0 and "INVALID_REQUEST" in stderr
+
+
+def test_time_scalar_adds_a_linear_time_warp(tmp_path):
+    """Clip speed (plan D-62): OTIO gets a LinearTimeWarp; FCPXML still writes (no speed there, D-64)."""
+    import opentimelineio as otio
+
+    media = tmp_path / "m.mp4"
+    media.write_bytes(b"x")
+    layer = tmp_path / "l.mov"
+    layer.write_bytes(b"y")
+    req = write_request(tmp_path, media, layer)
+    req["tracks"][0]["clips"][0]["timeScalar"] = 2
+    req["tracks"][2]["clips"][0]["timeScalar"] = 0.5
+    validate("timeline.request.json", req)
+    code, _, stderr = run_tool("timeline", req)
+    assert code == 0, stderr
+    tl = otio.adapters.read_from_file(req["output"])
+    a, b = [c for c in tl.tracks[0] if isinstance(c, otio.schema.Clip)]
+    assert [type(e).__name__ for e in a.effects] == ["LinearTimeWarp"]
+    assert a.effects[0].time_scalar == 2.0 and len(b.effects) == 0
+    # the source range keeps the timeline length (60 frames)
+    assert a.source_range.duration.value == 60
+    audio = next(c for c in tl.tracks[2] if isinstance(c, otio.schema.Clip))
+    assert audio.effects[0].time_scalar == 0.5
+
+    req["format"], req["output"] = "fcpxml", str(tmp_path / "cut.fcpxml")
+    req["rate"] = {"num": 30, "den": 1}
+    for t in req["tracks"]:
+        for c in t["clips"]:
+            c.pop("mediaRate", None)
+    code, _, stderr = run_tool("timeline", req)
+    assert code == 0, stderr
+
+    req = write_request(tmp_path, media, layer)
+    req["tracks"][0]["clips"][0]["timeScalar"] = 5
+    code, _, stderr = run_tool("timeline", req)
+    assert code == 1 and "timeScalar" in stderr_error(stderr)["message"]
