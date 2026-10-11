@@ -1,0 +1,1578 @@
+{
+ "name": "clipper-subruns",
+ "step": "8b",
+ "setup": "empty",
+ "request": {
+  "workflow": "clipper",
+  "message": "make 2 vox clips from <REPO>/packages/engine/test/fixtures/assets/media/talking-head-20s.mp4",
+  "mode": "tools",
+  "count": 2,
+  "minMs": 4000,
+  "maxMs": 8000,
+  "tighten": "all"
+ },
+ "lines": [
+  {
+   "ts": "2026-10-11T14:21:48.001Z",
+   "type": "started",
+   "runId": "run_wftest0001",
+   "projectId": "p_mv3ww4s2buyw",
+   "workflow": "clipper",
+   "mode": "tools",
+   "models": {
+    "editor": "OpenRouter:test/model"
+   },
+   "message": "make 2 vox clips from <REPO>/packages/engine/test/fixtures/assets/media/talking-head-20s.mp4",
+   "attachments": [],
+   "allowedTools": [
+    "get_transcript",
+    "get_template",
+    "add_scene",
+    "update_scene",
+    "move_item",
+    "trim_item",
+    "set_transition",
+    "search_images",
+    "fetch_image",
+    "cutout",
+    "view_frames",
+    "check_audio"
+   ],
+   "planKind": "clip",
+   "question": false,
+   "version": 0
+  },
+  {
+   "ts": "2026-10-11T14:21:49.363Z",
+   "type": "tool",
+   "tool": "ingest",
+   "by": "workflow",
+   "args": {
+    "source": "<REPO>/packages/engine/test/fixtures/assets/media/talking-head-20s.mp4"
+   },
+   "result": {
+    "version": 1,
+    "result": {
+     "media": [
+      {
+       "input": "<REPO>/packages/engine/test/fixtures/assets/media/talking-head-20s.mp4",
+       "source": "file",
+       "mediaId": "m1",
+       "kind": "video",
+       "reused": false
+      }
+     ],
+     "posts": [],
+     "skipped": [],
+     "version": 1
+    }
+   },
+   "versions": [
+    1
+   ]
+  },
+  {
+   "ts": "2026-10-11T14:21:49.380Z",
+   "type": "tool",
+   "tool": "shots",
+   "by": "workflow",
+   "args": {
+    "mediaId": "m_mv3ww4tffqci"
+   },
+   "result": {
+    "version": 2,
+    "result": {
+     "mediaId": "m1"
+    }
+   },
+   "versions": [
+    2
+   ]
+  },
+  {
+   "ts": "2026-10-11T14:21:49.397Z",
+   "type": "tool",
+   "tool": "transcribe",
+   "by": "workflow",
+   "args": {
+    "mediaIds": [
+     "m_mv3ww4tffqci"
+    ]
+   },
+   "result": {
+    "results": [
+     {
+      "version": 3,
+      "result": {
+       "mediaId": "m1"
+      }
+     }
+    ]
+   },
+   "versions": [
+    3
+   ]
+  },
+  {
+   "ts": "2026-10-11T14:21:49.414Z",
+   "type": "tool",
+   "tool": "facetrack",
+   "by": "workflow",
+   "args": {
+    "mediaId": "m_mv3ww4tffqci"
+   },
+   "result": {
+    "version": 4,
+    "result": {
+     "mediaId": "m1"
+    }
+   },
+   "versions": [
+    4
+   ]
+  },
+  {
+   "ts": "2026-10-11T14:21:49.435Z",
+   "type": "tool",
+   "tool": "quickClips",
+   "by": "workflow",
+   "args": {
+    "projectId": "p_mv3ww4s2buyw",
+    "mediaId": "m_mv3ww4tffqci",
+    "count": 2,
+    "minMs": 4000,
+    "maxMs": 8000,
+    "scorer": "heuristic",
+    "prompt": "make 2 vox clips from <REPO>/packages/engine/test/fixtures/assets/media/talking-head-20s.mp4",
+    "actor": "agent",
+    "runId": "run_wftest0001"
+   },
+   "result": {
+    "mediaId": "m_mv3ww4tffqci",
+    "scorer": "heuristic",
+    "requested": 2,
+    "candidates": 8,
+    "clips": [
+     {
+      "sequenceId": "seq_mv3ww5woajrx",
+      "name": "Clip 1",
+      "startMs": 8810,
+      "endMs": 13800,
+      "text": "Then we add captions and a few sound effects. Every change can be undone at any time.",
+      "score": 2.9046092184368737
+     },
+     {
+      "sequenceId": "seq_mv3ww5woajry",
+      "name": "Clip 2",
+      "startMs": 2922,
+      "endMs": 8420,
+      "text": "Today we turn a long video into a short clip. First, we find the best moments in the footage.",
+      "score": 2.5618407526257307
+     }
+    ],
+    "sequenceIds": [
+     "seq_mv3ww5woajrx",
+     "seq_mv3ww5woajry"
+    ],
+    "version": 5
+   }
+  },
+  {
+   "ts": "2026-10-11T14:21:49.439Z",
+   "type": "tool",
+   "tool": "remove_pauses",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajrx",
+    "dryRun": true
+   },
+   "result": {
+    "version": 5,
+    "results": [
+     {
+      "op": "removePauses",
+      "status": "succeeded",
+      "items": [],
+      "report": {
+       "ranges": [
+        {
+         "startMs": 2433,
+         "endMs": 2967,
+         "kind": "pause",
+         "wordKeys": [
+          "m1:771ec85e0640f157:40"
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "ts": "2026-10-11T14:21:49.439Z",
+   "type": "tighten",
+   "sequenceId": "seq_mv3ww5woajrx",
+   "ranges": [
+    {
+     "wordKey": "m_mv3ww4tffqci:771ec85e0640f157:40",
+     "kind": "pause",
+     "seqStartMs": 2433,
+     "seqEndMs": 2967,
+     "text": "(pause 534 ms)"
+    }
+   ]
+  },
+  {
+   "ts": "2026-10-11T14:21:49.457Z",
+   "type": "tool",
+   "tool": "remove_pauses",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajrx"
+   },
+   "result": {
+    "version": 6,
+    "results": [
+     {
+      "op": "removePauses",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c1",
+        "startMs": 0,
+        "durationMs": 2433,
+        "linkId": "ln_mv3ww5wt59mm",
+        "type": "media",
+        "mediaId": "m1",
+        "inMs": 8800,
+        "frame": {
+         "mode": "auto"
+        },
+        "trackId": "V1"
+       },
+       {
+        "id": "c2",
+        "startMs": 0,
+        "durationMs": 2433,
+        "linkId": "ln_mv3ww5wt59mm",
+        "type": "media",
+        "mediaId": "m1",
+        "inMs": 8800,
+        "trackId": "A1"
+       },
+       {
+        "id": "c3",
+        "startMs": 2433,
+        "durationMs": 2034,
+        "linkId": "ln_mv3ww5xhh1xj",
+        "type": "media",
+        "mediaId": "m1",
+        "inMs": 11767,
+        "trackId": "A1"
+       },
+       {
+        "id": "c4",
+        "startMs": 2433,
+        "durationMs": 2034,
+        "linkId": "ln_mv3ww5xhh1xj",
+        "type": "media",
+        "mediaId": "m1",
+        "inMs": 11767,
+        "frame": {
+         "mode": "auto"
+        },
+        "trackId": "V1"
+       }
+      ],
+      "report": {
+       "ranges": [
+        {
+         "startMs": 2433,
+         "endMs": 2967,
+         "kind": "pause",
+         "wordKeys": [
+          "m1:771ec85e0640f157:40"
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "versions": [
+    6
+   ]
+  },
+  {
+   "ts": "2026-10-11T14:21:49.462Z",
+   "type": "tool",
+   "tool": "remove_pauses",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajry",
+    "dryRun": true
+   },
+   "result": {
+    "version": 6,
+    "results": [
+     {
+      "op": "removePauses",
+      "status": "succeeded",
+      "items": [],
+      "report": {
+       "ranges": [
+        {
+         "startMs": 2533,
+         "endMs": 2967,
+         "kind": "pause",
+         "wordKeys": [
+          "m1:771ec85e0640f157:20"
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "ts": "2026-10-11T14:21:49.462Z",
+   "type": "tighten",
+   "sequenceId": "seq_mv3ww5woajry",
+   "ranges": [
+    {
+     "wordKey": "m_mv3ww4tffqci:771ec85e0640f157:20",
+     "kind": "pause",
+     "seqStartMs": 2533,
+     "seqEndMs": 2967,
+     "text": "(pause 434 ms)"
+    }
+   ]
+  },
+  {
+   "ts": "2026-10-11T14:21:49.480Z",
+   "type": "tool",
+   "tool": "remove_pauses",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajry"
+   },
+   "result": {
+    "version": 7,
+    "results": [
+     {
+      "op": "removePauses",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c5",
+        "startMs": 0,
+        "durationMs": 2533,
+        "linkId": "ln_mv3ww5wu5v2r",
+        "type": "media",
+        "mediaId": "m1",
+        "inMs": 2933,
+        "frame": {
+         "mode": "auto"
+        },
+        "trackId": "V1"
+       },
+       {
+        "id": "c6",
+        "startMs": 0,
+        "durationMs": 2533,
+        "linkId": "ln_mv3ww5wu5v2r",
+        "type": "media",
+        "mediaId": "m1",
+        "inMs": 2933,
+        "trackId": "A1"
+       },
+       {
+        "id": "c7",
+        "startMs": 2533,
+        "durationMs": 2534,
+        "linkId": "ln_mv3ww5y32oh9",
+        "type": "media",
+        "mediaId": "m1",
+        "inMs": 5900,
+        "trackId": "A1"
+       },
+       {
+        "id": "c8",
+        "startMs": 2533,
+        "durationMs": 2534,
+        "linkId": "ln_mv3ww5y32oh9",
+        "type": "media",
+        "mediaId": "m1",
+        "inMs": 5900,
+        "frame": {
+         "mode": "auto"
+        },
+        "trackId": "V1"
+       }
+      ],
+      "report": {
+       "ranges": [
+        {
+         "startMs": 2533,
+         "endMs": 2967,
+         "kind": "pause",
+         "wordKeys": [
+          "m1:771ec85e0640f157:20"
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "versions": [
+    7
+   ]
+  },
+  {
+   "ts": "2026-10-11T14:21:49.497Z",
+   "type": "tool",
+   "tool": "update_sequence",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajrx",
+    "styleId": "vox"
+   },
+   "result": {
+    "version": 8,
+    "results": [
+     {
+      "op": "updateSequence",
+      "status": "succeeded",
+      "items": []
+     }
+    ]
+   },
+   "versions": [
+    8
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T14:21:49.515Z",
+   "type": "tool",
+   "tool": "set_captions",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajrx",
+    "enabled": true,
+    "preset": "vox/mono-box"
+   },
+   "result": {
+    "version": 9,
+    "results": [
+     {
+      "op": "setCaptions",
+      "status": "succeeded",
+      "items": []
+     }
+    ]
+   },
+   "versions": [
+    9
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T14:21:49.520Z",
+   "type": "step",
+   "step": 1,
+   "subRun": 1,
+   "scope": [
+    "seq_mv3ww5woajrx"
+   ],
+   "text": "",
+   "calls": [
+    {
+     "toolCallId": "call_1_0",
+     "toolName": "add_scene",
+     "input": {
+      "sequenceId": "s1",
+      "trackId": "V2",
+      "startMs": 670,
+      "durationMs": 1564,
+      "template": "vox/kinetic-serif",
+      "variables": {
+       "text": "A long video"
+      }
+     }
+    },
+    {
+     "toolCallId": "call_1_1",
+     "toolName": "add_scene",
+     "input": {
+      "sequenceId": "s1",
+      "trackId": "V2",
+      "startMs": 2234,
+      "durationMs": 1786,
+      "template": "vox/kinetic-serif",
+      "variables": {
+       "text": "A short clip"
+      },
+      "sfxOff": [
+       "reveal"
+      ]
+     }
+    }
+   ],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.00014
+  },
+  {
+   "ts": "2026-10-11T14:21:49.539Z",
+   "type": "tool",
+   "callId": "call_1_0",
+   "tool": "add_scene",
+   "args": {
+    "sequenceId": "s1",
+    "trackId": "V2",
+    "startMs": 670,
+    "durationMs": 1564,
+    "template": "vox/kinetic-serif",
+    "variables": {
+     "text": "A long video"
+    }
+   },
+   "result": {
+    "version": 10,
+    "results": [
+     {
+      "op": "addScene",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c9",
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "startMs": 667,
+        "durationMs": 1566,
+        "variables": {
+         "text": "A long video"
+        },
+        "trackId": "V2"
+       }
+      ],
+      "report": {
+       "itemIds": [
+        "c9"
+       ]
+      }
+     }
+    ]
+   },
+   "versions": [
+    10
+   ],
+   "changes": [
+    {
+     "key": "item:seq_mv3ww5woajrx/it_mv3ww5zqfj7k",
+     "before": null,
+     "after": {
+      "id": "it_mv3ww5zqfj7k",
+      "startMs": 667,
+      "durationMs": 1566,
+      "type": "scene",
+      "template": "vox/kinetic-serif",
+      "templateVersion": "1.0.0",
+      "variables": {
+       "text": "A long video"
+      },
+      "trackId": "V2"
+     }
+    }
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T14:21:49.556Z",
+   "type": "tool",
+   "callId": "call_1_1",
+   "tool": "add_scene",
+   "args": {
+    "sequenceId": "s1",
+    "trackId": "V2",
+    "startMs": 2234,
+    "durationMs": 1786,
+    "template": "vox/kinetic-serif",
+    "variables": {
+     "text": "A short clip"
+    },
+    "sfxOff": [
+     "reveal"
+    ]
+   },
+   "result": {
+    "version": 11,
+    "results": [
+     {
+      "op": "addScene",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c10",
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "startMs": 2233,
+        "durationMs": 1800,
+        "variables": {
+         "text": "A short clip"
+        },
+        "sfxOff": [
+         "reveal"
+        ],
+        "trackId": "V2"
+       }
+      ],
+      "report": {
+       "itemIds": [
+        "c10"
+       ]
+      }
+     }
+    ]
+   },
+   "versions": [
+    11
+   ],
+   "changes": [
+    {
+     "key": "item:seq_mv3ww5woajrx/it_mv3ww607ckg1",
+     "before": null,
+     "after": {
+      "id": "it_mv3ww607ckg1",
+      "startMs": 2233,
+      "durationMs": 1800,
+      "type": "scene",
+      "template": "vox/kinetic-serif",
+      "templateVersion": "1.0.0",
+      "variables": {
+       "text": "A short clip"
+      },
+      "sfxOff": [
+       "reveal"
+      ],
+      "trackId": "V2"
+     }
+    }
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T14:21:49.561Z",
+   "type": "step",
+   "step": 2,
+   "subRun": 1,
+   "scope": [
+    "seq_mv3ww5woajrx"
+   ],
+   "text": "",
+   "calls": [
+    {
+     "toolCallId": "call_2_0",
+     "toolName": "view_frames",
+     "input": {
+      "sequenceId": "s1",
+      "atSeqMs": [
+       1450,
+       3133
+      ]
+     }
+    },
+    {
+     "toolCallId": "call_2_1",
+     "toolName": "check_audio",
+     "input": {
+      "sequenceId": "s1"
+     }
+    }
+   ],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.00028
+  },
+  {
+   "ts": "2026-10-11T14:21:49.562Z",
+   "type": "tool",
+   "callId": "call_2_0",
+   "tool": "view_frames",
+   "args": {
+    "sequenceId": "s1",
+    "atSeqMs": [
+     1450,
+     3133
+    ]
+   },
+   "result": {
+    "frames": [
+     {
+      "seqMs": 1450,
+      "srcMs": 10250,
+      "health": []
+     },
+     {
+      "seqMs": 3133,
+      "srcMs": 12467,
+      "health": []
+     }
+    ],
+    "note": "no vision model: frame-health flags only"
+   },
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T14:21:49.563Z",
+   "type": "tool",
+   "callId": "call_2_1",
+   "tool": "check_audio",
+   "args": {
+    "sequenceId": "s1"
+   },
+   "result": {
+    "pass": true,
+    "targetLufs": -14,
+    "durationMs": 6000,
+    "checks": [
+     {
+      "id": "cueTiming",
+      "status": "pass",
+      "limitMs": 33,
+      "maxAbsDeltaMs": 12,
+      "failures": []
+     },
+     {
+      "id": "oneEventPerCue",
+      "status": "pass",
+      "failures": []
+     },
+     {
+      "id": "spacing",
+      "status": "pass",
+      "minGapMs": 120,
+      "failures": []
+     },
+     {
+      "id": "underSpeech",
+      "status": "pass",
+      "failures": []
+     },
+     {
+      "id": "loudness",
+      "status": "pass",
+      "integratedLufs": -14.2,
+      "truePeakDbtp": -1.4
+     }
+    ],
+    "cues": [
+     {
+      "index": 1,
+      "atMs": 1200,
+      "type": "appear",
+      "hero": false
+     },
+     {
+      "index": 2,
+      "atMs": 1250,
+      "type": "appear",
+      "hero": false
+     }
+    ],
+    "dropped": [],
+    "listen": [
+     {
+      "atMs": 600,
+      "timecode": "00:00.600",
+      "kind": "hero cue",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 1500,
+      "timecode": "00:01.500",
+      "kind": "hero cue",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 2600,
+      "timecode": "00:02.600",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 3400,
+      "timecode": "00:03.400",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 4800,
+      "timecode": "00:04.800",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     }
+    ],
+    "picture": "no vision model: qa.png not described; use the numbers above"
+   },
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T14:21:49.570Z",
+   "type": "step",
+   "step": 3,
+   "subRun": 1,
+   "scope": [
+    "seq_mv3ww5woajrx"
+   ],
+   "text": "Placed the scenes.",
+   "calls": [],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.00041999999999999996
+  },
+  {
+   "ts": "2026-10-11T14:21:49.570Z",
+   "type": "subRun",
+   "subRun": 1,
+   "scope": [
+    "seq_mv3ww5woajrx"
+   ],
+   "status": "completed",
+   "summary": "Placed the scenes.",
+   "steps": 3
+  },
+  {
+   "ts": "2026-10-11T14:21:49.570Z",
+   "type": "aliases",
+   "table": {
+    "m1": "m_mv3ww4tffqci",
+    "s1": "seq_mv3ww5woajrx",
+    "c1": "it_mv3ww5wt59mk",
+    "c2": "it_mv3ww5wt59ml",
+    "c3": "it_mv3ww5xhh1xi",
+    "c4": "it_mv3ww5xhh1xk",
+    "s2": "seq_mv3ww5woajry",
+    "c5": "it_mv3ww5wu5v2p",
+    "c6": "it_mv3ww5wu5v2q",
+    "c7": "it_mv3ww5y32oh8",
+    "c8": "it_mv3ww5y32oha",
+    "c9": "it_mv3ww5zqfj7k",
+    "c10": "it_mv3ww607ckg1"
+   }
+  },
+  {
+   "ts": "2026-10-11T14:21:49.588Z",
+   "type": "tool",
+   "tool": "set_transition",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajrx",
+    "itemId": "it_mv3ww5zqfj7k",
+    "transition": {
+     "template": "vox/paper-tear",
+     "durationMs": 700
+    }
+   },
+   "result": {
+    "version": 12,
+    "results": [
+     {
+      "op": "setTransition",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c9",
+        "startMs": 667,
+        "durationMs": 1566,
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "variables": {
+         "text": "A long video"
+        },
+        "transitionIn": {
+         "template": "vox/paper-tear",
+         "durationMs": 700
+        },
+        "trackId": "V2"
+       }
+      ]
+     }
+    ]
+   },
+   "versions": [
+    12
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T14:21:49.605Z",
+   "type": "tool",
+   "tool": "set_transition",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajrx",
+    "itemId": "it_mv3ww607ckg1",
+    "transition": {
+     "template": "vox/paper-tear",
+     "durationMs": 700
+    }
+   },
+   "result": {
+    "version": 13,
+    "results": [
+     {
+      "op": "setTransition",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c10",
+        "startMs": 2233,
+        "durationMs": 1800,
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "variables": {
+         "text": "A short clip"
+        },
+        "sfxOff": [
+         "reveal"
+        ],
+        "transitionIn": {
+         "template": "vox/paper-tear",
+         "durationMs": 700
+        },
+        "trackId": "V2"
+       }
+      ]
+     }
+    ]
+   },
+   "versions": [
+    13
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T14:21:49.623Z",
+   "type": "tool",
+   "tool": "update_sequence",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajry",
+    "styleId": "vox"
+   },
+   "result": {
+    "version": 14,
+    "results": [
+     {
+      "op": "updateSequence",
+      "status": "succeeded",
+      "items": []
+     }
+    ]
+   },
+   "versions": [
+    14
+   ],
+   "subRun": 2
+  },
+  {
+   "ts": "2026-10-11T14:21:49.639Z",
+   "type": "tool",
+   "tool": "set_captions",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajry",
+    "enabled": true,
+    "preset": "vox/mono-box"
+   },
+   "result": {
+    "version": 15,
+    "results": [
+     {
+      "op": "setCaptions",
+      "status": "succeeded",
+      "items": []
+     }
+    ]
+   },
+   "versions": [
+    15
+   ],
+   "subRun": 2
+  },
+  {
+   "ts": "2026-10-11T14:21:49.643Z",
+   "type": "step",
+   "step": 1,
+   "subRun": 2,
+   "scope": [
+    "seq_mv3ww5woajry"
+   ],
+   "text": "",
+   "calls": [
+    {
+     "toolCallId": "call_4_0",
+     "toolName": "add_scene",
+     "input": {
+      "sequenceId": "s2",
+      "trackId": "V2",
+      "startMs": 760,
+      "durationMs": 1774,
+      "template": "vox/kinetic-serif",
+      "variables": {
+       "text": "A long video"
+      }
+     }
+    },
+    {
+     "toolCallId": "call_4_1",
+     "toolName": "add_scene",
+     "input": {
+      "sequenceId": "s2",
+      "trackId": "V2",
+      "startMs": 2534,
+      "durationMs": 2026,
+      "template": "vox/kinetic-serif",
+      "variables": {
+       "text": "A short clip"
+      },
+      "sfxOff": [
+       "reveal"
+      ]
+     }
+    }
+   ],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.00056
+  },
+  {
+   "ts": "2026-10-11T14:21:49.664Z",
+   "type": "tool",
+   "callId": "call_4_0",
+   "tool": "add_scene",
+   "args": {
+    "sequenceId": "s2",
+    "trackId": "V2",
+    "startMs": 760,
+    "durationMs": 1774,
+    "template": "vox/kinetic-serif",
+    "variables": {
+     "text": "A long video"
+    }
+   },
+   "result": {
+    "version": 16,
+    "results": [
+     {
+      "op": "addScene",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c11",
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "startMs": 767,
+        "durationMs": 1766,
+        "variables": {
+         "text": "A long video"
+        },
+        "trackId": "V2"
+       }
+      ],
+      "report": {
+       "itemIds": [
+        "c11"
+       ]
+      }
+     }
+    ]
+   },
+   "versions": [
+    16
+   ],
+   "changes": [
+    {
+     "key": "item:seq_mv3ww5woajry/it_mv3ww6341txx",
+     "before": null,
+     "after": {
+      "id": "it_mv3ww6341txx",
+      "startMs": 767,
+      "durationMs": 1766,
+      "type": "scene",
+      "template": "vox/kinetic-serif",
+      "templateVersion": "1.0.0",
+      "variables": {
+       "text": "A long video"
+      },
+      "trackId": "V2"
+     }
+    }
+   ],
+   "subRun": 2
+  },
+  {
+   "ts": "2026-10-11T14:21:49.681Z",
+   "type": "tool",
+   "callId": "call_4_1",
+   "tool": "add_scene",
+   "args": {
+    "sequenceId": "s2",
+    "trackId": "V2",
+    "startMs": 2534,
+    "durationMs": 2026,
+    "template": "vox/kinetic-serif",
+    "variables": {
+     "text": "A short clip"
+    },
+    "sfxOff": [
+     "reveal"
+    ]
+   },
+   "result": {
+    "version": 17,
+    "results": [
+     {
+      "op": "addScene",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c12",
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "startMs": 2533,
+        "durationMs": 2034,
+        "variables": {
+         "text": "A short clip"
+        },
+        "sfxOff": [
+         "reveal"
+        ],
+        "trackId": "V2"
+       }
+      ],
+      "report": {
+       "itemIds": [
+        "c12"
+       ]
+      }
+     }
+    ]
+   },
+   "versions": [
+    17
+   ],
+   "changes": [
+    {
+     "key": "item:seq_mv3ww5woajry/it_mv3ww63octga",
+     "before": null,
+     "after": {
+      "id": "it_mv3ww63octga",
+      "startMs": 2533,
+      "durationMs": 2034,
+      "type": "scene",
+      "template": "vox/kinetic-serif",
+      "templateVersion": "1.0.0",
+      "variables": {
+       "text": "A short clip"
+      },
+      "sfxOff": [
+       "reveal"
+      ],
+      "trackId": "V2"
+     }
+    }
+   ],
+   "subRun": 2
+  },
+  {
+   "ts": "2026-10-11T14:21:49.686Z",
+   "type": "step",
+   "step": 2,
+   "subRun": 2,
+   "scope": [
+    "seq_mv3ww5woajry"
+   ],
+   "text": "",
+   "calls": [
+    {
+     "toolCallId": "call_5_0",
+     "toolName": "view_frames",
+     "input": {
+      "sequenceId": "s2",
+      "atSeqMs": [
+       1650,
+       3550
+      ]
+     }
+    },
+    {
+     "toolCallId": "call_5_1",
+     "toolName": "check_audio",
+     "input": {
+      "sequenceId": "s2"
+     }
+    }
+   ],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.0006999999999999999
+  },
+  {
+   "ts": "2026-10-11T14:21:49.687Z",
+   "type": "tool",
+   "callId": "call_5_0",
+   "tool": "view_frames",
+   "args": {
+    "sequenceId": "s2",
+    "atSeqMs": [
+     1650,
+     3550
+    ]
+   },
+   "result": {
+    "frames": [
+     {
+      "seqMs": 1650,
+      "srcMs": 4583,
+      "health": []
+     },
+     {
+      "seqMs": 3550,
+      "srcMs": 6917,
+      "health": []
+     }
+    ],
+    "note": "no vision model: frame-health flags only"
+   },
+   "subRun": 2
+  },
+  {
+   "ts": "2026-10-11T14:21:49.688Z",
+   "type": "tool",
+   "callId": "call_5_1",
+   "tool": "check_audio",
+   "args": {
+    "sequenceId": "s2"
+   },
+   "result": {
+    "pass": true,
+    "targetLufs": -14,
+    "durationMs": 6000,
+    "checks": [
+     {
+      "id": "cueTiming",
+      "status": "pass",
+      "limitMs": 33,
+      "maxAbsDeltaMs": 12,
+      "failures": []
+     },
+     {
+      "id": "oneEventPerCue",
+      "status": "pass",
+      "failures": []
+     },
+     {
+      "id": "spacing",
+      "status": "pass",
+      "minGapMs": 120,
+      "failures": []
+     },
+     {
+      "id": "underSpeech",
+      "status": "pass",
+      "failures": []
+     },
+     {
+      "id": "loudness",
+      "status": "pass",
+      "integratedLufs": -14.2,
+      "truePeakDbtp": -1.4
+     }
+    ],
+    "cues": [
+     {
+      "index": 1,
+      "atMs": 1200,
+      "type": "appear",
+      "hero": false
+     },
+     {
+      "index": 2,
+      "atMs": 1250,
+      "type": "appear",
+      "hero": false
+     }
+    ],
+    "dropped": [],
+    "listen": [
+     {
+      "atMs": 600,
+      "timecode": "00:00.600",
+      "kind": "hero cue",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 1500,
+      "timecode": "00:01.500",
+      "kind": "hero cue",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 2600,
+      "timecode": "00:02.600",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 3400,
+      "timecode": "00:03.400",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 4800,
+      "timecode": "00:04.800",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     }
+    ],
+    "picture": "no vision model: qa.png not described; use the numbers above"
+   },
+   "subRun": 2
+  },
+  {
+   "ts": "2026-10-11T14:21:49.693Z",
+   "type": "step",
+   "step": 3,
+   "subRun": 2,
+   "scope": [
+    "seq_mv3ww5woajry"
+   ],
+   "text": "Placed the scenes.",
+   "calls": [],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.0008399999999999998
+  },
+  {
+   "ts": "2026-10-11T14:21:49.693Z",
+   "type": "subRun",
+   "subRun": 2,
+   "scope": [
+    "seq_mv3ww5woajry"
+   ],
+   "status": "completed",
+   "summary": "Placed the scenes.",
+   "steps": 3
+  },
+  {
+   "ts": "2026-10-11T14:21:49.693Z",
+   "type": "aliases",
+   "table": {
+    "m1": "m_mv3ww4tffqci",
+    "s1": "seq_mv3ww5woajrx",
+    "c1": "it_mv3ww5wt59mk",
+    "c2": "it_mv3ww5wt59ml",
+    "c3": "it_mv3ww5xhh1xi",
+    "c4": "it_mv3ww5xhh1xk",
+    "s2": "seq_mv3ww5woajry",
+    "c5": "it_mv3ww5wu5v2p",
+    "c6": "it_mv3ww5wu5v2q",
+    "c7": "it_mv3ww5y32oh8",
+    "c8": "it_mv3ww5y32oha",
+    "c9": "it_mv3ww5zqfj7k",
+    "c10": "it_mv3ww607ckg1",
+    "c11": "it_mv3ww6341txx",
+    "c12": "it_mv3ww63octga"
+   }
+  },
+  {
+   "ts": "2026-10-11T14:21:49.711Z",
+   "type": "tool",
+   "tool": "set_transition",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajry",
+    "itemId": "it_mv3ww6341txx",
+    "transition": {
+     "template": "vox/paper-tear",
+     "durationMs": 700
+    }
+   },
+   "result": {
+    "version": 18,
+    "results": [
+     {
+      "op": "setTransition",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c11",
+        "startMs": 767,
+        "durationMs": 1766,
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "variables": {
+         "text": "A long video"
+        },
+        "transitionIn": {
+         "template": "vox/paper-tear",
+         "durationMs": 700
+        },
+        "trackId": "V2"
+       }
+      ]
+     }
+    ]
+   },
+   "versions": [
+    18
+   ],
+   "subRun": 2
+  },
+  {
+   "ts": "2026-10-11T14:21:49.728Z",
+   "type": "tool",
+   "tool": "set_transition",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv3ww5woajry",
+    "itemId": "it_mv3ww63octga",
+    "transition": {
+     "template": "vox/paper-tear",
+     "durationMs": 700
+    }
+   },
+   "result": {
+    "version": 19,
+    "results": [
+     {
+      "op": "setTransition",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c12",
+        "startMs": 2533,
+        "durationMs": 2034,
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "variables": {
+         "text": "A short clip"
+        },
+        "sfxOff": [
+         "reveal"
+        ],
+        "transitionIn": {
+         "template": "vox/paper-tear",
+         "durationMs": 700
+        },
+        "trackId": "V2"
+       }
+      ]
+     }
+    ]
+   },
+   "versions": [
+    19
+   ],
+   "subRun": 2
+  },
+  {
+   "ts": "2026-10-11T14:21:49.728Z",
+   "type": "done",
+   "runId": "run_wftest0001",
+   "status": "completed",
+   "summary": "Made 2 clip(s).\nNo fast model: the heuristic scorer picks moments and every free-form turn is an edit.\nNo vision model: frames and qa.png are checked by numbers and flags only.\nNo fast model: the heuristic scorer picked the moments.\nTighten s1: cut 1 of 1 pause(s) (--yes).\nTighten s2: cut 1 of 1 pause(s) (--yes).\nSub-run 1 (s1): completed. Placed the scenes.\nClip s1: completed; 2 scene(s), speaker 25 %. Frame-health flags: none. Audio QA PASS; -14.2 LUFS, true peak -1.4 dBTP. Listen at 00:00.600, 00:01.500, 00:02.600, 00:03.400, 00:04.800 and check by ear (the agent measures; it cannot hear). Edges: vox/paper-tear added on c9; vox/paper-tear added on c10. Skipped: no vision model: frames and qa.png were not described.\nSub-run 2 (s2): completed. Placed the scenes.\nClip s2: completed; 2 scene(s), speaker 25 %. Frame-health flags: none. Audio QA PASS; -14.2 LUFS, true peak -1.4 dBTP. Listen at 00:00.600, 00:01.500, 00:02.600, 00:03.400, 00:04.800 and check by ear (the agent measures; it cannot hear). Edges: vox/paper-tear added on c11; vox/paper-tear added on c12. Skipped: no vision model: frames and qa.png were not described.",
+   "costUsd": 0.00084,
+   "versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+   ],
+   "todos": [],
+   "aliases": {
+    "m1": "m_mv3ww4tffqci",
+    "s1": "seq_mv3ww5woajrx",
+    "c1": "it_mv3ww5wt59mk",
+    "c2": "it_mv3ww5wt59ml",
+    "c3": "it_mv3ww5xhh1xi",
+    "c4": "it_mv3ww5xhh1xk",
+    "s2": "seq_mv3ww5woajry",
+    "c5": "it_mv3ww5wu5v2p",
+    "c6": "it_mv3ww5wu5v2q",
+    "c7": "it_mv3ww5y32oh8",
+    "c8": "it_mv3ww5y32oha",
+    "c9": "it_mv3ww5zqfj7k",
+    "c10": "it_mv3ww607ckg1",
+    "c11": "it_mv3ww6341txx",
+    "c12": "it_mv3ww63octga"
+   }
+  }
+ ]
+}
