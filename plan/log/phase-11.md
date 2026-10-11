@@ -30,7 +30,7 @@ Test order: 1, 2, 3, 15, 4, 18, 14, 12b, 5, 6, 19, 7, 8, 16, 13, 17, 9, 10, 11, 
 - [x] `vox config providers add|list|remove`, `roles set`, `prices set`, `probe` (`packages/cli`).
 - [x] Verify after `git merge main` (all green, below).
 - [x] Review: self-review (token budget).
-- [ ] MANUAL STEP 1 (owner keys, live probe) — open; the phase waits on it and is not merged.
+- [x] MANUAL STEP 1 (owner keys, live probe) — deferred to phase 13 step 7b by the owner (D-44): keys go in through the Settings screen. Merged on mock, replay and Apple on-device evidence.
 
 ## Files created / changed
 55 files on `phase/11-agent-core` (+8,109 / −53 against main).

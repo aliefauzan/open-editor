@@ -1321,3 +1321,18 @@ Phase 11 built the agent core in `packages/agent` and the `vox config` commands.
   `<Resources>/bin/vox-apple-llm` in the app, else the dev build in `native/apple-llm`.
 - **Open for phase 12:** job writes by the agent carry `actor: agent` but no `runId`, so `undoRun`
   does not undo them; the change note leaves them out by the run's own versions.
+
+## D-44 — Live provider checks wait for the Settings screen (2026-10-11)
+
+The owner asked to enter provider keys (OpenRouter, Ollama, Claude, OpenCode Zen, 9router) through
+the app's Settings screen once it exists, so any user can add theirs the same way later, instead of
+through the CLI now.
+Decision: every step that needs a real provider key or a live model moves to phase 13, after step 7
+(Settings with an OpenRouter key + an Ollama model, "Test" probe, roles):
+- phase 11 MANUAL STEP 1 (`vox config probe --json openrouter:<id> ollama:<model>`) and MANUAL STEP 2
+  (optional other providers);
+- phase 12 steps 9 (live `pnpm eval` per provider, incl. the injection image case, Ollama tool-list
+  cost) and 10 (real URL, OpenRouter tools mode + Ollama plan mode), and phase 12 done-when 1–3.
+Phases 11 and 12 merge on mock-model, replay and Apple on-device evidence; their logs mark these
+items "deferred to 13 (D-44)". Phase 13 step 7b runs them and records the results in the phase 11 and
+12 logs. Nothing else changes: keys still go only to the Keychain (S18), never through argv.
