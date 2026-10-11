@@ -50,7 +50,8 @@ self-test tests → renderer component tests (panel, cards, settings) → E2E (m
 - [ ] 7b Deferred live checks — keyless providers done by the AI (phase 11 and 12 logs); OpenRouter open
 - [x] 8 Version 1.0.0, `pnpm dist`, release notes (`docs/release-notes/v1.0.0.md`)
 - [x] 8b Fresh-clone check (PASS, see "Verify results")
-- [ ] 9 GitHub Release v1.0.0 draft created by the AI; the orchestrator publishes it
+- [ ] 9 GitHub Release v1.0.0: draft created by the AI (target `f808c24`, asset `Vox-Studio-1.0.0-arm64.dmg`
+      196822622 bytes, SHA-256 `0b1b8e14…f68d56c`); the orchestrator publishes it
 - [ ] 10 Owner install from the Release (orchestrator / owner)
 
 ## Files created / changed
