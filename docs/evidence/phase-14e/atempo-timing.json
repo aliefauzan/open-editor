@@ -1,0 +1,131 @@
+{
+ "what": "ffmpeg 8.1.2 atempo timing on a 10 ms 1 kHz click every 0.73 s (20 s, 48 kHz mono); error = first sample at 1/5 of the local peak minus k*0.73/speed",
+ "rows": [
+  {
+   "speed": 2.0,
+   "filters": "atempo=2",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -17.8,
+   "maxErrMs": -5.0,
+   "meanErrMs": -11.45
+  },
+  {
+   "speed": 0.5,
+   "filters": "atempo=0.5",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -57.1,
+   "maxErrMs": -32.5,
+   "meanErrMs": -45.04
+  },
+  {
+   "speed": 4.0,
+   "filters": "atempo=4",
+   "clicks": 14,
+   "of": 26,
+   "minErrMs": -17.1,
+   "maxErrMs": 6.7,
+   "meanErrMs": -6.11
+  },
+  {
+   "speed": 0.25,
+   "filters": "atempo=0.5,atempo=0.5",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -146.4,
+   "maxErrMs": -85.3,
+   "meanErrMs": -117.04
+  },
+  {
+   "speed": 2.0,
+   "filters": "adelay=1024S,atempo=2",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -7.5,
+   "maxErrMs": 4.7,
+   "meanErrMs": -1.6
+  },
+  {
+   "speed": 1.5,
+   "filters": "adelay=1024S,atempo=1.5",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -3.3,
+   "maxErrMs": 6.7,
+   "meanErrMs": 1.75
+  },
+  {
+   "speed": 1.25,
+   "filters": "adelay=1024S,atempo=1.25",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -0.6,
+   "maxErrMs": 4.4,
+   "meanErrMs": 1.94
+  },
+  {
+   "speed": 0.9,
+   "filters": "adelay=1024S,atempo=0.9",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -1.1,
+   "maxErrMs": 14.1,
+   "meanErrMs": 1.8
+  },
+  {
+   "speed": 0.75,
+   "filters": "adelay=1024S,atempo=0.75",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -4.5,
+   "maxErrMs": 14.9,
+   "meanErrMs": 2.74
+  },
+  {
+   "speed": 0.6,
+   "filters": "adelay=1024S,atempo=0.6",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -9.4,
+   "maxErrMs": 12.8,
+   "meanErrMs": 3.47
+  },
+  {
+   "speed": 0.5,
+   "filters": "adelay=1024S,atempo=0.5",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -14.5,
+   "maxErrMs": 10.2,
+   "meanErrMs": -2.39
+  },
+  {
+   "speed": 4.0,
+   "filters": "adelay=1024S,atempo=4",
+   "clicks": 12,
+   "of": 26,
+   "minErrMs": -11.8,
+   "maxErrMs": 13.0,
+   "meanErrMs": -2.33
+  },
+  {
+   "speed": 0.25,
+   "filters": "adelay=1024S,atempo=0.5,adelay=1024S,atempo=0.5",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -31.8,
+   "maxErrMs": 42.7,
+   "meanErrMs": 10.17
+  },
+  {
+   "speed": 0.4,
+   "filters": "adelay=1024S,atempo=0.8,adelay=1024S,atempo=0.5",
+   "clicks": 26,
+   "of": 26,
+   "minErrMs": -16.2,
+   "maxErrMs": 39.4,
+   "meanErrMs": 12.95
+  }
+ ]
+}
