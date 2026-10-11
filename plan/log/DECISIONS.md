@@ -1871,3 +1871,36 @@ D-49 and D-58 (the AI reviews the evidence itself, up to 3 rounds).
 **Why**: the simplest option that keeps the done-when (validate passes with cue timing; the sheet matches the reel).
 **Alternatives**: a landscape-layout stack (would need panel-specific templates); a `move` cue on the stack (fails
 the timing check); a `hero` cue for the stamp (unmeasured, and a dud sound when no stamp is set).
+
+## D-66 — Screenplay match workflow: scoring bars, one use per clip, embed role, fixture without drawtext (phase 14b, 2026-10-12)
+**Context**: 14b adds the screenplay match workflow (parse, tag, match, lay out), its quick action and
+`vox agent --workflow screenplay`. The agent spec says "embedding similarity when an `embed` model is set, else LLM
+ranking" but not the score bars, the reuse rule, or how the `embed` role becomes a function (it was never wired).
+**Decision**:
+- Fixture: `scripts/make-screenplay-set.ts` makes the 6-scene `.fountain`, 6 shuffled clips (`say` voice Samantha
+  plus ffmpeg bitexact flags), `tags.json` and `expected.json`. The Homebrew ffmpeg has no `drawtext` (D-17), so the
+  scene number on each clip is a seven-segment digit drawn with `drawbox`. It runs as `node scripts/make-screenplay-set.ts`
+  (Node 24 runs TypeScript; `tsx` is not installed), not `pnpm exec tsx`. Two runs give identical sha256 for all 9 files.
+- The workflow has three new checkpoints, `tag`, `match`, `layout`, marked after the sequence exists. Ops go through
+  the engine as one `batch` (one undo entry; `undoRun` works).
+- Score bars: LLM score >= 0.5 (0-10 scale / 10), embedding cosine >= 0.3, word overlap >= 0.2. Below the bar a scene
+  gets a `base/placeholder` with its heading. Each clip is used at most once: pairs are taken from the highest
+  score down; ties go to the clip whose length is closest to the scene's estimated length, then to the smaller id.
+  The note reads "Scene N had K matching clips: used X (best take, score S); also matched: ...".
+- Ranking order: `embed` role, else the `fast` role, else the `editor` role (one JSON call per scene per batch of
+  12 clips), else per-scene word overlap with a note. The LLM prompt lists the spoken words of each clip after
+  "says:" and tells the model that repeated dialogue is the strongest sign (a first live run with no such hint scored
+  every clip 0 with `qwen3.5`).
+- Tagging: an editor model that sees images is the describer when no `vision` role is set. A clip with a
+  `description` counts as tagged (cache). Clips with audio and no transcript are transcribed first (not above 120 s).
+  Descriptions and tags from models are sanitised and capped before they are stored (S34).
+- `createEmbedder(entry, modelId, deps)` in the provider factory supports `ollama`, `openai`, and `openrouter` /
+  `openai-compatible` (`/embeddings`); other providers raise `CONFIG_INVALID`. `buildEmbedder` reads `roles.embed`.
+  Only fake-fetch and fake-embedder tests cover it: no embedding model is installed and no key is entered.
+- CLI: `--screenplay <file|mediaId>` (required with `--workflow screenplay`) and `--footage <mediaId>` (repeatable;
+  default: every video in the project). The app picks the workflow when a document is attached and the message says
+  screenplay, script or scene(s); the "Match screenplay" button sends it directly.
+**Why**: the bars are the simplest rule that avoids a wrong clip (a placeholder is better than a wrong take) and keeps
+a small local model usable; one use per clip stops two scenes from taking the same take.
+**Alternatives**: Hungarian assignment (no gain over greedy for <= 60 scenes and a visible tie rule); a per-scene
+best-of without the one-use rule (duplicates); `drawtext` via a new ffmpeg build (D-17 forbids the dependency).
