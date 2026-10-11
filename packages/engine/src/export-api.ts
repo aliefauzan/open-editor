@@ -287,7 +287,8 @@ function mediaUsedBy(s: Sequence, media: readonly MediaItem[]): Set<string> {
 
 export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): ExportApi {
   const hf = deps.hyperframes ?? runHyperframes;
-  const ffTools = deps.tools['ffmpeg'] ? { ffmpeg: deps.tools['ffmpeg'] } : {};
+  // read at use: setup may find ffmpeg after the engine opened (a Homebrew prefix not on PATH)
+  const ffTools = () => (deps.tools['ffmpeg'] ? { ffmpeg: deps.tools['ffmpeg'] } : {});
   const redact = (s: string): string => deps.redactor.redact(s);
   const read = async (projectId: string) => (await deps.store(projectId)).read();
 
@@ -333,7 +334,7 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
         },
         async (tmp, signal) => {
           await runTool('ffmpeg', muxArgs(picture, mixWav, tmp), {
-            tools: ffTools,
+            tools: ffTools(),
             redact,
             ...(signal ? { signal } : {}),
           });

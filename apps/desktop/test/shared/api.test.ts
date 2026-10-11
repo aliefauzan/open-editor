@@ -8,7 +8,7 @@ describe('window.vox schema (app spec "Engine-host API")', () => {
       'projects.list', 'projects.create', 'projects.open', 'projects.reveal',
       'ops.apply', 'history.undo', 'history.redo', 'history.list',
       'snapshots.list', 'snapshots.create',
-      'media.importFiles', 'media.importUrl', 'media.classifyUrl', 'media.peaks',
+      'media.importFiles', 'media.importUrl', 'media.classifyUrl', 'media.search', 'media.peaks',
       'captions.get', 'jobs.start', 'jobs.get', 'jobs.cancel', 'preview.url', 'geo.search',
       'agent.run', 'agent.runs', 'agent.stop', 'agent.decide', 'agent.undoRun',
       'settings.get', 'settings.save', 'settings.probe',

@@ -209,9 +209,9 @@ function ffArgs(g: MixGraph, post: string | null, out: string[]): string[] {
   return args;
 }
 
-async function ffmpeg(args: string[]): Promise<string> {
+async function ffmpeg(args: string[], bin = 'ffmpeg'): Promise<string> {
   try {
-    const r = await run('ffmpeg', args, { maxBuffer: 64 * 1024 * 1024 });
+    const r = await run(bin, args, { maxBuffer: 64 * 1024 * 1024 });
     return r.stderr;
   } catch (e) {
     const err = e as { code?: unknown; stderr?: string; message?: string };
@@ -245,6 +245,8 @@ export interface MixOptions {
   normalize?: boolean;
   /** Write `speech.wav`, `other.wav` and `sfx.wav` here (no limiter, no `loudnorm`). */
   stemsDir?: string;
+  /** The resolved ffmpeg (engine tool map); default `ffmpeg` on PATH. */
+  ffmpeg?: string;
 }
 
 export interface MixResult {
@@ -259,17 +261,16 @@ export interface MixResult {
 export async function renderMix(input: MixInput, opts: MixOptions): Promise<MixResult> {
   const graph = mixGraph(input);
   mkdirSync(dirname(opts.out), { recursive: true });
+  const ff = (args: string[]) => ffmpeg(args, opts.ffmpeg);
   let measured: LoudnormMeasure | undefined;
   if (opts.normalize === false) {
-    await ffmpeg(ffArgs(graph, null, [...WAV, opts.out]));
+    await ff(ffArgs(graph, null, [...WAV, opts.out]));
   } else {
-    measured = lastJson(
-      await ffmpeg(ffArgs(graph, loudnormPass1(input.preset), ['-f', 'null', '-'])),
-    );
+    measured = lastJson(await ff(ffArgs(graph, loudnormPass1(input.preset), ['-f', 'null', '-'])));
     // silence (no audio, or every source muted) has no integrated loudness: nothing to normalise
     const silent = !Number.isFinite(Number(measured.input_i));
     const post = silent ? null : loudnormPass2(input.preset, measured);
-    await ffmpeg(ffArgs(graph, post, [...WAV, opts.out]));
+    await ff(ffArgs(graph, post, [...WAV, opts.out]));
   }
   let stems: Record<StemKind, string> | undefined;
   if (opts.stemsDir) {
@@ -280,7 +281,7 @@ export async function renderMix(input: MixInput, opts: MixOptions): Promise<MixR
       other: join(dir, 'other.wav'),
       sfx: join(dir, 'sfx.wav'),
     };
-    for (const k of STEMS) await ffmpeg(ffArgs(mixGraph(input, k), null, [...WAV, stems[k]]));
+    for (const k of STEMS) await ff(ffArgs(mixGraph(input, k), null, [...WAV, stems[k]]));
   }
   return { out: opts.out, graph, ...(measured ? { measured } : {}), ...(stems ? { stems } : {}) };
 }

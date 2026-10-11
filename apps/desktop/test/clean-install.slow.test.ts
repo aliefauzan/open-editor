@@ -137,7 +137,7 @@ describe('clean install from the quarantined .dmg (D-16)', () => {
   test('the full editor: the offline fixture opens and renders to MP4, SRT and OTIO (10b)', async () => {
     const e = openEngine({ projectsDir: join(home, 'Projects'), stylesDirs: [STYLES] });
     const off = await makeOfflineProject(e, 'Clean install fixture');
-    const brew = fakeBrew(join(root, 'brew'));
+    const brew = join(root, 'brew', 'brew-bin'); // the fake brew of the setup test above
     const a = await launchPackaged(app, {
       env: baseEnv(`${brew}:${NO_BREW_PATH}`),
       userData: join(home, 'ud'),

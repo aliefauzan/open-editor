@@ -949,7 +949,8 @@ export function openEngine(opts: EngineOptions): Engine {
           durationMs: o.range ? o.range.endMs - o.range.startMs : Math.max(0, ...ends),
           preset: o.preset ?? 'youtube',
         },
-        o,
+        // the live tool map: setup may find ffmpeg after the engine opened (D-45)
+        { ...o, ...(opts.tools?.['ffmpeg'] ? { ffmpeg: opts.tools['ffmpeg'] } : {}) },
       );
     },
 
