@@ -40,24 +40,51 @@ export function llmScorerSlot(engine: Pick<AgentEngine, 'quickClips'>): Slot {
 
 /**
  * Runs `body` (the quick-clips job) with `fn` as the engine's `llm` scorer. Runs on one engine
- * take turns, so a run never scores with another run's model.
+ * take turns, so a run never scores with another run's model. A run whose `signal` aborts while it
+ * waits for its turn throws RunStopped and never runs `body`; the runs after it keep their turns.
  */
 export async function withLlmScorer<T>(
   engine: Pick<AgentEngine, 'quickClips'>,
   fn: QuickClipScorer,
   body: () => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const slot = llmScorerSlot(engine);
-  const turn = slot.queue.then(async () => {
+  const before = slot.queue;
+  let release!: () => void;
+  const done = new Promise<void>((r) => (release = r));
+  // the next run waits for the run before this one and for this one
+  slot.queue = before.then(() => done);
+  try {
+    await untilAborted(before, signal);
     slot.current = fn;
     try {
       return await body();
     } finally {
       delete slot.current;
     }
+  } finally {
+    release();
+  }
+}
+
+/** Waits for `p` (which never rejects); throws RunStopped as soon as `signal` aborts. */
+async function untilAborted(p: Promise<unknown>, signal: AbortSignal | undefined): Promise<void> {
+  if (!signal) {
+    await p;
+    return;
+  }
+  if (signal.aborted) throw new RunStopped();
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_r, reject) => {
+    onAbort = () => reject(new RunStopped());
+    signal.addEventListener('abort', onAbort, { once: true });
   });
-  slot.queue = turn.catch(() => undefined);
-  return turn;
+  try {
+    await Promise.race([p, aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
 }
 
 const ScoresSchema = z.strictObject({

@@ -2,6 +2,7 @@
 // scorer error falls back to the heuristic and the run summary says so.
 import { describe, expect, test } from 'vitest';
 import { readRunRecord } from '../../src/loop/record.ts';
+import { RunStopped } from '../../src/loop/run.ts';
 import { createLlmScorer, scoreOf, withLlmScorer } from '../../src/quickScorer.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { toolsStylist } from '../helpers/stylists.ts';
@@ -191,4 +192,42 @@ describe('LLM scorer: Stop at the budget prompt', () => {
     expect(r.sequenceIds).toEqual([]);
     expect((await kit.engine.getProject(kit.projectId)).sequences).toHaveLength(before);
   }, 120_000);
+});
+
+describe('LLM scorer slot: abort while waiting', () => {
+  test('a run stopped while another holds the slot never runs its job; the queue goes on', async () => {
+    const engine = {
+      quickClips: { registerScorer: () => undefined, scorers: () => [] },
+    };
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const ran: string[] = [];
+    const first = withLlmScorer(engine as never, (() => [1]) as never, async () => {
+      ran.push('first');
+      await held;
+      return 'first';
+    });
+    const ac = new AbortController();
+    const second = withLlmScorer(
+      engine as never,
+      (() => [2]) as never,
+      () => {
+        ran.push('second');
+        return Promise.resolve('second');
+      },
+      ac.signal,
+    );
+    const third = withLlmScorer(engine as never, (() => [3]) as never, () => {
+      ran.push('third');
+      return Promise.resolve('third');
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    ac.abort();
+    await expect(second).rejects.toBeInstanceOf(RunStopped);
+    expect(ran).toEqual(['first']);
+    release();
+    await expect(first).resolves.toBe('first');
+    await expect(third).resolves.toBe('third');
+    expect(ran).toEqual(['first', 'third']);
+  });
 });
