@@ -23,7 +23,7 @@ import {
   installComponent,
 } from '../../src/engine-host/setup/install.ts';
 import { loadManifest } from '../../src/engine-host/setup/manifest.ts';
-import { syncArgs, syncEnv } from '../../src/engine-host/setup/pyenv.ts';
+import { sourceHashOf, syncArgs, syncEnv } from '../../src/engine-host/setup/pyenv.ts';
 import { DESKTOP, REPO } from './app.ts';
 
 export const DIST = join(DESKTOP, 'dist');
@@ -121,6 +121,7 @@ export async function seedTools(o: {
     .update(readFileSync(join(o.pyDir, 'uv.lock')))
     .digest('hex');
   writeFileSync(join(o.toolsDir, 'py-env', '.vox-lock-hash'), `${lock}\n`);
+  writeFileSync(join(o.toolsDir, 'py-env', '.vox-src-hash'), `${await sourceHashOf(o.pyDir)}\n`);
   linkPuppeteerCache(o.home);
 }
 

@@ -143,7 +143,10 @@ async function statusOf(
         return {
           ...base,
           state: 'stale',
-          detail: 'built from an older uv.lock than this app ships',
+          detail:
+            check.stale === 'sources'
+              ? 'built from older Python tools than this app ships'
+              : 'built from an older uv.lock than this app ships',
         };
       }
       if (check.state === 'missing') {

@@ -22,6 +22,8 @@ export interface ToolPaths {
   python: string;
   /** SHA-256 of the bundled uv.lock the env was synced from (D-12) */
   lockHash: string;
+  /** SHA-256 of the bundled project's own files (pyproject.toml, vox_py/) the env was built from */
+  srcHash: string;
   downloads: string;
 }
 
@@ -33,6 +35,7 @@ export function toolPaths(toolsDir: string): ToolPaths {
     uvCache: join(toolsDir, 'uv-cache'),
     python: join(toolsDir, 'python'),
     lockHash: join(pyEnv, '.vox-lock-hash'),
+    srcHash: join(pyEnv, '.vox-src-hash'),
     downloads: join(toolsDir, '.downloads'),
   };
 }
