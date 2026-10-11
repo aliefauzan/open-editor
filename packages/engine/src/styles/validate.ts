@@ -12,6 +12,7 @@
 // The SFX kit rules join in phase 07 (`audio-qa --kit`).
 import { execFile } from 'node:child_process';
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -23,9 +24,11 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, join, sep } from 'node:path';
 import { promisify } from 'node:util';
+import { z } from 'zod';
 import { compileSequence, presetText, type CompileOptions } from '../compile/compile.ts';
 import { writeBuildTo } from '../compile/write.ts';
 import { isVoxError } from '../errors.ts';
+import { repoPyProject, runPyTool, type PyBridgeOptions } from '../py.ts';
 import type { MediaItem, Project, Sequence, Track, Transcript } from '../model/schema.ts';
 import { CAPTION_DEFAULTS } from '../ops/captions.ts';
 import { hyperframesBin } from '../render/layers.ts';
@@ -74,6 +77,10 @@ export interface ValidateOptions {
   /** Write `previews/` (needs `render`). Default true. */
   previews?: boolean;
   ffmpeg?: string;
+  /** SFX kit check (`audio-qa --kit`, styles spec "SFX rules"). Default true. */
+  kit?: boolean;
+  /** Python tool bridge for the kit check; default the repo's `py/` with `uv` from PATH. */
+  py?: Pick<PyBridgeOptions, 'pyProject' | 'uv' | 'toolsDir'>;
   /** Scratch folder; default a new temp folder, removed at the end. */
   workDir?: string;
   onProgress?: (line: string) => void;
@@ -435,6 +442,10 @@ export async function validateStyle(o: ValidateOptions): Promise<ValidateReport>
     }
   }
   sfxCredits(style, problem, count);
+  if (o.kit !== false) {
+    progress('sfx kit');
+    await sfxKit(style, o, problem, count, report);
+  }
 
   const wantRender = o.render !== false;
   const wantDom = o.dom !== false;
@@ -538,6 +549,74 @@ function sfxCredits(
         message: `sfx ${name}: the CREDITS.md entry for ${basename(file)} names no licence (CC0 or project)`,
       });
     }
+  }
+}
+
+const KitResult = z.looseObject({
+  mode: z.literal('kit'),
+  pass: z.boolean(),
+  files: z.array(
+    z.looseObject({
+      path: z.string(),
+      pass: z.boolean(),
+      checks: z.array(z.looseObject({ id: z.string(), pass: z.boolean(), rule: z.string() })),
+    }),
+  ),
+});
+
+/**
+ * The SFX kit check (phase 07 step 8b): every own SFX file through the audio QA kit mode; a failing
+ * check becomes an `sfx-kit` problem naming the file and the rule. The sheet (one waveform and
+ * spectrogram per file) is copied to `previews/sfx-sheet.png` for a person or a vision review.
+ */
+async function sfxKit(
+  style: ResolvedStyle,
+  o: ValidateOptions,
+  problem: (p: ValidateProblem) => void,
+  count: (r: string) => void,
+  report: ValidateReport,
+): Promise<void> {
+  const own = Object.entries(style.files.sfx)
+    .filter(([, f]) => inside(style.dir, f))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  if (own.length === 0) return;
+  count('sfx-kit');
+  const out = mkdtempSync(join(tmpdir(), 'vox-kit-'));
+  try {
+    const r = await runPyTool(
+      'audioqa',
+      {
+        mode: 'kit',
+        styleId: style.id,
+        files: own.map(([name, path]) => ({ path, type: style.style.sfx[name]?.type ?? 'cut' })),
+        outDir: out,
+        ...(o.ffmpeg ? { ffmpeg: o.ffmpeg } : {}),
+      },
+      KitResult,
+      { pyProject: o.py?.pyProject ?? repoPyProject(), ...o.py },
+    );
+    r.files.forEach((f, i) => {
+      const name = own[i]![0];
+      for (const c of f.checks.filter((x) => !x.pass)) {
+        problem({
+          rule: 'sfx-kit',
+          message: `sfx ${name}: ${basename(f.path)} fails ${c.id} (${c.rule})`,
+        });
+      }
+    });
+    if (o.previews !== false) {
+      const dir = join(style.dir, 'previews');
+      mkdirSync(dir, { recursive: true });
+      copyFileSync(join(out, `kit-${style.id}.png`), join(dir, 'sfx-sheet.png'));
+      report.previews.push('previews/sfx-sheet.png');
+    }
+  } catch (e) {
+    problem({
+      rule: 'sfx-kit',
+      message: `the SFX kit check did not run: ${e instanceof Error ? e.message : String(e)}`,
+    });
+  } finally {
+    rmSync(out, { recursive: true, force: true });
   }
 }
 
