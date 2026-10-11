@@ -42,3 +42,20 @@ export * from './loop/plan.ts';
 export * from './loop/record.ts';
 export * from './loop/provider-errors.ts';
 export { buildSystemPrompt, BASE_PROMPT, DATA_RULE } from './loop/prompt.ts';
+
+export * from './workflows/load.ts';
+export * from './workflows/checkpoints.ts';
+export * from './workflows/run-workflow.ts';
+export {
+  type ClipReport,
+  type Layout,
+  coverTransition,
+  clipSummary,
+  speakerShare,
+} from './workflows/stylize.ts';
+export { sourceIn } from './workflows/clipper.ts';
+export { classifyIntent, type Intent } from './workflows/intent.ts';
+export { createLlmScorer, llmScorerSlot, LLM_SCORER_ID, withLlmScorer } from './quickScorer.ts';
+export { scrubSoundClaims } from './loop/summary.ts';
+export { sourceNamedByUser } from './tools/sources.ts';
+export * from './config/run-models.ts';

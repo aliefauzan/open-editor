@@ -44,7 +44,7 @@ import {
   type Role,
   type RoleVerdict,
 } from '@vox/agent';
-import { createRedactor, VoxError, type Redactor } from '@vox/engine';
+import { createRedactor, VoxError, type Engine, type Redactor } from '@vox/engine';
 
 /** What `vox config` needs from outside; tests replace any of it. */
 export interface AgentCliDeps {
@@ -55,6 +55,9 @@ export interface AgentCliDeps {
   createModel: (entry: ProviderEntry, modelId: string, apiKey: string | null) => LanguageModelV4;
   /** Extra probe options (tests: `checks`, `context`). */
   probe: Omit<ProbeRunDeps, 'apple'>;
+  /** `vox agent` tests: fake engine jobs (Python, render) and an engine wrapper. */
+  runJob?: (kind: string, args: Record<string, unknown>) => Promise<unknown>;
+  wrapEngine?: (e: Engine) => Engine;
 }
 
 export interface ConfigIo {
@@ -87,7 +90,7 @@ function appleHelper(io: ConfigIo): AppleModelOptions | undefined {
   return existsSync(path) ? { command: path } : undefined;
 }
 
-function depsOf(io: ConfigIo): AgentCliDeps {
+export function depsOf(io: ConfigIo): AgentCliDeps {
   const apple = io.agent && 'apple' in io.agent ? io.agent.apple : appleHelper(io);
   const fetchFn = io.agent?.fetch;
   return {
@@ -103,6 +106,8 @@ function depsOf(io: ConfigIo): AgentCliDeps {
           ...(apple !== undefined && { apple }),
         })),
     probe: io.agent?.probe ?? {},
+    ...(io.agent?.runJob && { runJob: io.agent.runJob }),
+    ...(io.agent?.wrapEngine && { wrapEngine: io.agent.wrapEngine }),
   };
 }
 

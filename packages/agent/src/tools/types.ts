@@ -21,6 +21,7 @@ export type AgentEngine = Pick<
   | 'imageProviders'
   | 'captions'
   | 'compile'
+  | 'quickClips'
 >;
 
 /** `read` tools change nothing; a question turn may call only these (S35). */

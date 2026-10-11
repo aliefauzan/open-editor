@@ -125,6 +125,24 @@ describe('quickClips job (step 12)', () => {
     await e2.undo(o2.projectId);
     expect((await e2.getProject(o2.projectId)).sequences.map((s) => s.id)).toEqual(before);
   }, 60_000);
+
+  test('an agent run id on the job lands on the entry; undoRun removes the clips (D-50)', async () => {
+    const e2 = newEngine();
+    const o2 = await makeOfflineProject(e2);
+    const before = (await e2.getProject(o2.projectId)).sequences.map((s) => s.id);
+    const job = await quick(e2, {
+      projectId: o2.projectId,
+      mediaId: o2.mediaId,
+      ...OPTS,
+      actor: 'agent',
+      runId: 'run_quick0001',
+    });
+    expect(job.status, JSON.stringify(job.error)).toBe('done');
+    const entry = (await e2.history(o2.projectId)).at(-1)!;
+    expect(entry).toMatchObject({ actor: 'agent', runId: 'run_quick0001', jobId: job.id });
+    await e2.undoRun(o2.projectId, 'run_quick0001');
+    expect((await e2.getProject(o2.projectId)).sequences.map((s) => s.id)).toEqual(before);
+  }, 60_000);
 });
 
 describe('quickClips options and scorers (steps 12, 12b)', () => {

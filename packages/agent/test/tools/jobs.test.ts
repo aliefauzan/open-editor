@@ -61,6 +61,7 @@ describe('ingest source rule (step 6, S20)', () => {
       projectId: f.projectId,
       inputs: ['https://youtu.be/abc123'],
       actor: 'agent',
+      runId: 'run_test',
     });
     expect(JSON.stringify(out.result)).toContain('"m1"');
   });

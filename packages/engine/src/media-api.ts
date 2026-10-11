@@ -78,12 +78,21 @@ export const FacetrackToolRequestSchema = z.strictObject({
 });
 
 export const ActorSchema = z.enum(ACTORS).optional();
+/** The agent run that started the job; its history entry carries it, so `undoRun` covers it (D-50). */
+export const RunIdSchema = z
+  .string()
+  .regex(/^run_[A-Za-z0-9_-]{1,64}$/)
+  .optional();
 const MediaJobArgs = z.strictObject({
   projectId: z.string(),
   mediaId: MediaIdSchema,
   actor: ActorSchema,
+  runId: RunIdSchema,
 });
-export const IngestJobArgsSchema = IngestArgsSchema.extend({ actor: ActorSchema });
+export const IngestJobArgsSchema = IngestArgsSchema.extend({
+  actor: ActorSchema,
+  runId: RunIdSchema,
+});
 export const TranscribeJobArgsSchema = MediaJobArgs.extend({
   language: z.string().min(1).max(16).optional(),
 });
@@ -240,11 +249,12 @@ async function detectionInput(
 export async function applyJobOps(
   store: ProjectStore,
   ops: OpCall[],
-  o: { actor: Actor; jobId: string; baseVersion: number },
+  o: { actor: Actor; jobId: string; baseVersion: number; runId?: string | undefined },
 ): Promise<number> {
   if (ops.length === 0) return (await store.read()).version;
   const call: OpCall = ops.length === 1 ? ops[0]! : { op: 'batch', args: { ops } };
-  const r = await store.apply(call, o);
+  const { runId, ...rest } = o;
+  const r = await store.apply(call, runId === undefined ? rest : { ...rest, runId });
   // applyOp reports a refused op in its results (JOB_CONFLICT, a failed batch step); the job fails.
   const bad = r.results.find((x) => x.status !== 'succeeded' && x.error)?.error;
   if (bad) {
@@ -399,7 +409,7 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
     async run(args, ctx) {
       const { store, project, baseVersion, dir } = await begin(args.projectId);
       const config = await deps.config();
-      const { actor, ...ingestArgs } = args;
+      const { actor, runId, ...ingestArgs } = args;
       const r = await ingest(
         {
           projectDir: dir,
@@ -428,6 +438,7 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
       }
       const version = await applyJobOps(store, ops, {
         actor: actor ?? 'user',
+        runId,
         jobId: ctx.jobId,
         baseVersion,
       });
@@ -479,6 +490,7 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
           ];
       const version = await applyJobOps(store, ops, {
         actor: args.actor ?? 'user',
+        runId: args.runId,
         jobId: ctx.jobId,
         baseVersion,
       });
@@ -526,6 +538,7 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
           : [{ op: 'updateMedia', args: { mediaId: media.id, patch: { shotsPath } } }];
       const version = await applyJobOps(store, ops, {
         actor: args.actor ?? 'user',
+        runId: args.runId,
         jobId: ctx.jobId,
         baseVersion,
       });
@@ -586,6 +599,7 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
           : [{ op: 'updateMedia', args: { mediaId: media.id, patch: { facetrackPath } } }];
       const version = await applyJobOps(store, ops, {
         actor: args.actor ?? 'user',
+        runId: args.runId,
         jobId: ctx.jobId,
         baseVersion,
       });

@@ -17,6 +17,8 @@ const AGENT_CODES = [
   'TOOL_UNKNOWN',
   'TOOL_REFUSED',
   'PLAN_INVALID',
+  'CHECKPOINT_MISSED',
+  'ROLE_MISSING',
 ];
 
 describe('VoxError', () => {
