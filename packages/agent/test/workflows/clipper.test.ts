@@ -3,6 +3,8 @@
 import { describe, expect, test } from 'vitest';
 import { VoxError } from '../../src/errors.ts';
 import { readRunRecord } from '../../src/loop/record.ts';
+import { AgentRun, RunStopped } from '../../src/loop/run.ts';
+import { buildRegistry } from '../../src/tools/registry.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { workflowJob } from '../../src/workflows/clipper.ts';
 import { sceneItems } from '../../src/workflows/stylize.ts';
@@ -180,4 +182,36 @@ describe('run end status', () => {
     });
     expect(r.done.status).toBe('stopped');
   }, 120_000);
+});
+
+describe('workflow calls after a Stop', () => {
+  test('workflowCall on a stopped run throws RunStopped and runs no tool', async () => {
+    const kit = await workflowKit();
+    const base = buildRegistry(kit.engine);
+    let ran = 0;
+    const registry = {
+      ...base,
+      get: (name: string) => {
+        const t = base.get(name);
+        return t && { ...t, run: (...a: Parameters<typeof t.run>) => (ran++, t.run(...a)) };
+      },
+    };
+    const ac = new AbortController();
+    const run = await AgentRun.start(
+      { ...kit.deps, registry, models: { editor: role(dynamicModel(toolsStylist()).model) } },
+      {
+        projectId: kit.projectId,
+        workflow: 'clipper',
+        message: 'x',
+        allowedTools: [],
+        mode: 'tools',
+        signal: ac.signal,
+      },
+    );
+    ac.abort();
+    await expect(run.workflowCall('ingest', { source: FIXTURE_VIDEO })).rejects.toBeInstanceOf(
+      RunStopped,
+    );
+    expect(ran).toBe(0);
+  });
 });

@@ -948,6 +948,7 @@ export class AgentRun {
    * when the user stops at a pause; tool errors throw as VoxError.
    */
   async workflowCall(name: string, args: unknown, subRun?: number): Promise<ToolOutput> {
+    if (this.#req.signal?.aborted) throw new RunStopped(); // stopped: no further tool runs
     let output = await invokeTool(this.ctx, this.registry, name, args);
     for (let i = 0; output.pause && i < MAX_PAUSE_LOOPS; i++) {
       const d = await this.pause({
