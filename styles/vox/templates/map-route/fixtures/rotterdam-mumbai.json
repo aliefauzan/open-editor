@@ -1,0 +1,8 @@
+{
+  "places": [
+    { "name": "Rotterdam", "lat": 51.92, "lon": 4.48 },
+    { "name": "Mumbai", "lat": 19.08, "lon": 72.88 }
+  ],
+  "route": true,
+  "zoom": "world"
+}

@@ -1,0 +1,8 @@
+{
+  "places": [
+    { "name": "Lisbon", "lat": 38.72, "lon": -9.14 },
+    { "name": "Madrid", "lat": 40.42, "lon": -3.7 }
+  ],
+  "route": true,
+  "zoom": "region"
+}

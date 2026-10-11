@@ -1,0 +1,11 @@
+{
+  "places": [
+    { "name": "Rotterdam Maasvlakte", "lat": 51.92, "lon": 4.48 },
+    { "name": "Port Said, Egypt", "lat": 31.26, "lon": 32.3 },
+    { "name": "Jebel Ali, Dubai", "lat": 25.01, "lon": 55.06 },
+    { "name": "Mumbai (Nhava Sheva)", "lat": 18.95, "lon": 72.95 }
+  ],
+  "route": true,
+  "zoom": "world",
+  "palette": "vox"
+}

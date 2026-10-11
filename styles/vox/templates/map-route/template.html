@@ -1,0 +1,329 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background-color: var(--tok-color-sea);
+        }
+        .v-page {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+        .m-stage {
+          position: absolute;
+          inset: 0;
+        }
+        .m-map,
+        .m-over {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .m-paper {
+          position: absolute;
+          inset: 0;
+          background-image: var(--tok-texture-paper);
+          background-size: 50% auto;
+          mix-blend-mode: multiply;
+          opacity: 0.35;
+        }
+        .m-route {
+          fill: none;
+          stroke: var(--tok-color-accent);
+          stroke-linecap: round;
+        }
+        .m-pin {
+          fill: var(--tok-color-accent);
+          stroke: #ffffff;
+        }
+        .m-tag {
+          position: absolute;
+          padding: 0.2em 0.45em 0.16em;
+          background: var(--tok-color-ink);
+          color: #ffffff;
+          font-family: var(--tok-font-caption);
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          white-space: nowrap;
+          line-height: 1.1;
+        }
+        .v-page.bg-paper .m-tag {
+          background: var(--tok-color-paper);
+          color: var(--tok-color-ink);
+        }
+        .v-page.bg-highlight .m-tag {
+          background: var(--tok-color-highlight);
+          color: var(--tok-color-ink);
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="v-page">
+          <div class="m-stage">
+            <img class="m-map" alt="" />
+            <div class="m-paper"></div>
+            <svg class="m-over" viewBox="0 0 1080 1920" preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <mask id="__ID__-route-mask" maskUnits="userSpaceOnUse">
+                  <path class="m-route-reveal" fill="none" stroke="#ffffff" />
+                </mask>
+              </defs>
+              <path class="m-route" />
+              <g class="m-pins"></g>
+            </svg>
+            <div class="m-tags"></div>
+          </div>
+        </div>
+      </div>
+      <script>
+        // vox:motion:begin
+        /* global window */
+        // vox motion helpers (styles spec Part B "Tokens" motion; phase 07 step 3).
+        // Templates inline a copy of this file between the `vox:motion` markers (scripts/sync-vox-motion.mjs
+        // writes the copies; a test checks they equal this file). Everything is deterministic: timing comes
+        // from the GSAP timeline only, and jitter uses a PRNG seeded from the scene instance id.
+        (function () {
+          'use strict';
+          if (window.voxMotion) return;
+
+          // FNV-1a 32-bit hash of a string: the jitter seed of a scene instance
+          function hash(str) {
+            var h = 0x811c9dc5;
+            for (var i = 0; i < str.length; i++) {
+              h ^= str.charCodeAt(i);
+              h = Math.imul(h, 0x01000193) >>> 0;
+            }
+            return h >>> 0;
+          }
+
+          // mulberry32: small seeded PRNG, values in [0, 1)
+          function rng(seed) {
+            var a = seed >>> 0;
+            return function () {
+              a = (a + 0x6d2b79f5) >>> 0;
+              var t = a;
+              t = Math.imul(t ^ (t >>> 15), t | 1);
+              t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+              return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+          }
+
+          function tokenOf(root, name, fallback) {
+            var v = window.getComputedStyle(root).getPropertyValue(name).trim();
+            return v === '' ? fallback : v;
+          }
+
+          // create(root, id): the helper set of one scene instance. `fps` is the frame grid the holds use
+          // (the sequence's data-fps when present, else 30).
+          function create(root, id, opts) {
+            var o = opts || {};
+            var gsap = window.gsap;
+            var fpsAttr = window.document.querySelector('[data-fps]');
+            var fps = o.fps || (fpsAttr ? Number(fpsAttr.getAttribute('data-fps')) : 30) || 30;
+            var hold = Math.max(
+              1,
+              Math.round(Number(tokenOf(root, '--tok-motion-frame-hold', '1')) || 1),
+            );
+            var jitterPx = Number(tokenOf(root, '--tok-motion-jitter-px', '0')) || 0;
+            var easing = tokenOf(root, '--tok-motion-easing', 'back.out(1.6)');
+            var entrance = tokenOf(root, '--tok-motion-entrance', 'pop');
+            var random = rng(hash(String(id)));
+            var step = hold / fps;
+
+            // An ease whose progress only changes every `hold` frames (animation "on twos").
+            function held(ease, duration) {
+              var base = gsap.parseEase(ease) || gsap.parseEase('none');
+              var n = Math.max(1, Math.round((duration * fps) / hold));
+              if (hold === 1) return base;
+              return function (p) {
+                return p >= 1 ? 1 : base(Math.floor(p * n) / n);
+              };
+            }
+
+            // pop(tl, el, at, d?): the style entrance. `pop` scales up from 0.6 with the style easing,
+            // held on twos; unknown entrances fall back to `fade` (styles spec "Tokens").
+            function pop(tl, el, at, d) {
+              var dur = d || 0.4;
+              if (entrance === 'pop') {
+                tl.fromTo(
+                  el,
+                  { scale: 0.6, opacity: 0 },
+                  { scale: 1, opacity: 1, duration: dur, ease: held(easing, dur) },
+                  at,
+                );
+              } else {
+                tl.fromTo(el, { opacity: 0 }, { opacity: 1, duration: dur, ease: 'none' }, at);
+              }
+              jitter(tl, el, at, dur);
+              return at + dur;
+            }
+
+            // slideIn(tl, el, at, fromX, fromY, d?): a card moving in, held on twos.
+            function slideIn(tl, el, at, fromX, fromY, d) {
+              var dur = d || 0.5;
+              tl.fromTo(
+                el,
+                { xPercent: fromX, yPercent: fromY },
+                { xPercent: 0, yPercent: 0, duration: dur, ease: held('power3.out', dur) },
+                at,
+              );
+              return at + dur;
+            }
+
+            // jitter(tl, el, from, dur): seeded offsets of up to jitterPx on every held frame of
+            // [from, from + dur), then rest at 0. Entrances only, so held shots stay still.
+            function jitter(tl, el, from, dur) {
+              if (!(jitterPx > 0) || hold < 2) return;
+              var count = Math.max(1, Math.floor(dur / step));
+              for (var i = 0; i < count; i++) {
+                tl.set(
+                  el,
+                  {
+                    x: Math.round((random() * 2 - 1) * jitterPx),
+                    y: Math.round((random() * 2 - 1) * jitterPx),
+                  },
+                  from + i * step,
+                );
+              }
+              tl.set(el, { x: 0, y: 0 }, from + count * step);
+            }
+
+            // pushIn(tl, el, from, dur, amount?): slow camera push, continuous (camera moves are never held).
+            function pushIn(tl, el, from, dur, amount) {
+              tl.fromTo(
+                el,
+                { scale: 1 },
+                { scale: 1 + (amount || 0.06), duration: dur, ease: 'power2.inOut' },
+                from,
+              );
+            }
+
+            return {
+              fps: fps,
+              hold: hold,
+              step: step,
+              jitterPx: jitterPx,
+              easing: easing,
+              random: random,
+              held: held,
+              pop: pop,
+              slideIn: slideIn,
+              jitter: jitter,
+              pushIn: pushIn,
+            };
+          }
+
+          window.voxMotion = { create: create, hash: hash, rng: rng };
+        })();
+        // vox:motion:end
+      </script>
+      <script>
+        // vox/map-route: the hook's projected map (map.svg), pins and tags popping in one by one, the
+        // dashed route drawn through a mask, and a slow push-in on the whole stage.
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var v = mount.vars;
+          var W = __W__;
+          var H = __H__;
+          var DUR = __DUR__;
+          var M = voxMotion.create(root, '__ID__');
+          var page = root.querySelector('.v-page');
+          page.classList.add('bg-' + (v.bg || 'dark'));
+          var NS = 'http://www.w3.org/2000/svg';
+          var stage = root.querySelector('.m-stage');
+          root.querySelector('.m-map').setAttribute('src', v.map);
+          // viewBox 1080x1920 scaled to cover the canvas (same as preserveAspectRatio slice)
+          var k = Math.max(W / 1080, H / 1920);
+          var ox = (W - 1080 * k) / 2;
+          var oy = (H - 1920 * k) / 2;
+          var route = root.querySelector('.m-route');
+          var reveal = root.querySelector('.m-route-reveal');
+          var pinsG = root.querySelector('.m-pins');
+          var tags = root.querySelector('.m-tags');
+          var PUSH = 0.1;
+          var font = Math.round(W * 0.032);
+          route.setAttribute('stroke-width', '9');
+          route.setAttribute('stroke-dasharray', '26 18');
+          reveal.setAttribute('stroke-width', '24');
+          if (v.routePath) {
+            route.setAttribute('d', v.routePath);
+            reveal.setAttribute('d', v.routePath);
+            route.setAttribute('mask', 'url(#__ID__-route-mask)');
+          }
+          var pinEls = [];
+          for (var i = 0; i < v.pins.length; i++) {
+            var p = v.pins[i];
+            var c = document.createElementNS(NS, 'circle');
+            c.setAttribute('class', 'm-pin');
+            c.setAttribute('cx', p.x);
+            c.setAttribute('cy', p.y);
+            c.setAttribute('r', '15');
+            c.setAttribute('stroke-width', '5');
+            c.style.transformOrigin = p.x + 'px ' + p.y + 'px';
+            pinsG.appendChild(c);
+            var t = document.createElement('div');
+            t.className = 'm-tag';
+            t.textContent = p.name;
+            t.style.fontSize = font + 'px';
+            // monospaced: width is known without measuring (0.6 em advance + letter spacing + padding)
+            var tw = font * (p.name.length * 0.64 + 0.9);
+            var px = ox + p.x * k;
+            var py = oy + p.y * k;
+            // tags alternate sides from pin to pin, so close places do not stack their tags
+            var right = i % 2 === 0 ? px < W * 0.7 : px < W * 0.3;
+            var left = right ? px + font * 0.9 : px - tw - font * 0.9;
+            // clamp so the tag stays inside the side margins also at the end of the push-in
+            var lo = W / 2 - (W / 2 - W * 0.125) / (1 + PUSH);
+            var hi = W / 2 + (W * 0.875 - W / 2) / (1 + PUSH);
+            left = Math.max(lo, Math.min(hi - tw, left));
+            t.style.left = left + 'px';
+            t.style.top = py - font * 0.7 + 'px';
+            tags.appendChild(t);
+            pinEls.push({ pin: c, tag: t });
+          }
+          var tl = gsap.timeline({ paused: true });
+          var gap = Math.min(0.45, (DUR * 0.5) / Math.max(1, pinEls.length));
+          gap = Math.max(M.step, Math.round(gap / M.step) * M.step);
+          for (var j = 0; j < pinEls.length; j++) {
+            var at = 0.3 + j * gap;
+            M.pop(tl, pinEls[j].pin, at, 0.3);
+            M.pop(tl, pinEls[j].tag, at + M.step, 0.3);
+          }
+          if (v.routePath) {
+            var len = reveal.getTotalLength ? reveal.getTotalLength() : 4000;
+            reveal.style.strokeDasharray = len + ' ' + len;
+            var dur = Math.max(0.4, (pinEls.length - 1) * gap);
+            tl.fromTo(
+              reveal,
+              { strokeDashoffset: len },
+              { strokeDashoffset: 0, duration: dur, ease: M.held('power1.inOut', dur) },
+              0.3 + M.step * 2,
+            );
+          }
+          M.pushIn(tl, stage, 0, DUR, PUSH);
+          tl.set(root, {}, DUR);
+          window.__timelines[mount.key] = mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

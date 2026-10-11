@@ -18,6 +18,26 @@
     },
     {
       "kind": "scene",
+      "template": "vox/map-route",
+      "fixture": "bengaluru-city"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/map-route",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/map-route",
+      "fixture": "region"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/map-route",
+      "fixture": "rotterdam-mumbai"
+    },
+    {
+      "kind": "scene",
       "template": "vox/paper-collage",
       "fixture": "dark-single"
     },
