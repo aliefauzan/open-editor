@@ -163,6 +163,12 @@ export async function makeQuickClips(
       };
     }
     const r = made.result as { sequenceIds: string[]; requested: number; note?: string };
+    // a retry worked: the failed rows of earlier attempts are no longer news
+    for (const row of jobs.getState().rows) {
+      if (row.status === 'failed' && (row.kind === 'ingest' || row.kind === 'makeClips')) {
+        jobs.getState().dismiss(row.id);
+      }
+    }
     onProgress({ progress: 1, message: 'Done' });
     return {
       ok: true,
