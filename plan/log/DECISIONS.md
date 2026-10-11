@@ -1474,3 +1474,18 @@ cannot be switched off per item.
    are switched off with `sfxOff`; because transition cues cannot be, the agent prefers hard cuts and uses a
    transition only where its sound is the accent (written in `styles/vox/guide.md` "Sound"; the demo applies it).
 **Consequence**: GATE 3 round 2 evidence regenerated; validate, kit check and demo audio QA pass.
+
+## D-49 — GATE 3: approved by owner delegation after round 2 (phase 07, 2026-10-11)
+
+**Context**: GATE 3 round 2 evidence was ready (D-48). The owner wrote: "just do all by yourself, you got all my
+permission to do everything" (2026-10-11 21:47), delegating the gate to the AI.
+**Decision**: GATE 3: approve. The AI reviewed `docs/evidence/phase-07/side-by-side.jpg` row by row against the
+references (collage with clipping and highlighter, kinetic serif, stat, map route, mixed-family `word-reveal`) and
+found the style close to the references. The two `LISTEN.md` moments (`00:06.200` timpani, `00:14.012` type key)
+were checked by measurement, not by ear: `qa.json` passes cue timing (25 ms and 12 ms, under one frame), one event
+per cue, SFX at least 6 LU under speech and loudness (-14 LUFS target). An AI cannot listen, so the "ears" check
+is a measurement stand-in, recorded as such.
+**Consequence**: phase 07 merges. Follow-ups (backlog, not blocking): a yellow serif emphasis word over light
+footage is only just readable (its shadow carries it; consider a darker plate or outline on light frames);
+speaker and runtime footage grading needs an engine filter (D-48). The Freesound originals TODO line stays open
+(required before release; needs a Freesound login).

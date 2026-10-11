@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | waiting for GATE 3 (owner) |
-| Started · Finished | 2026-10-11 19:20 · |
+| Status | done (GATE 3 approved by owner delegation, D-49) |
+| Started · Finished | 2026-10-11 19:20 · 2026-10-11 21:55 |
 | Model | Opus 5.5 · high (phase agent, parallel run with 10b; self-review (token budget)) |
 | Machine | M5, macOS 27 |
 | Branch | phase/07-vox-style |
@@ -228,3 +228,11 @@ No `style.json`, templates, `motion.js` or previews were created.
   (same dedication) or extend the enum; keep the true licence in `CREDITS.md`.
 - Everything else in the phase: `style.json`, tokens, templates, motion.js, transitions, overlay, caption presets, guide, previews, GATE 3.
 - Re-extracting the texture or sounds: see `ASSETS.md` and `CREDITS.md` (processing recipe: atrim, 5 ms fades, gain to -1 dBFS peak).
+
+## GATE 3 result and merge (orchestrator, 2026-10-11)
+
+GATE 3: approved by owner delegation (D-49). Sheet reviewed by the AI; the two listen moments checked by
+measurement (`qa.json` all pass), not by ear. Main merged into the branch (vidprep, plan and docs only; no engine
+or style code). Re-verified in the worktree: `pnpm lint` clean, `pnpm typecheck` clean, `pytest` 135 passed,
+`vox style validate vox` ok (0 problems), `vitest run packages/engine/test/styles` 200 passed. Merged `--no-ff`.
+Open: Freesound originals (TODO, required before release).
