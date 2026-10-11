@@ -1904,3 +1904,17 @@ ranking" but not the score bars, the reuse rule, or how the `embed` role becomes
 a small local model usable; one use per clip stops two scenes from taking the same take.
 **Alternatives**: Hungarian assignment (no gain over greedy for <= 60 scenes and a visible tie rule); a per-scene
 best-of without the one-use rule (duplicates); `drawtext` via a new ffmpeg build (D-17 forbids the dependency).
+
+## D-67 — GATE 6 reopened by the owner (phase 14a, 2026-10-12)
+**Context**: D-65 passed GATE 6 by owner delegation after round 2. The owner looked at
+`docs/evidence/phase-14a/side-by-side.jpg` and wrote "its not look the same", and asked to use agent-reach to find
+Vox assets (also on Pinterest).
+**Decision**: GATE 6 and row 14a go back to open. The D-65 open notes are now blockers: test patterns instead of
+archive photos, a flat bevelled frame instead of the reel's carved rococo gilt frame, a 3-panel `stack` at about 65 %
+width instead of the reel's full-width landscape panels, a large clean newspaper card instead of the reel's small aged
+front page, and a generic circle drawing instead of the airliner side-view line drawing. Round 3 sources real assets
+(public domain or CC0 only for shipped files; Pinterest images are look references only, never shipped) and redoes
+the four templates against the reel frames, then shows the owner a new sheet. A delegated pass is not used for this
+gate again: the owner decides round 3.
+**Why**: the owner's own review overrides a delegated pass.
+**Alternatives**: keep D-65 and move the notes to the backlog (rejected by the owner).
