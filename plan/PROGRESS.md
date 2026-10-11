@@ -22,7 +22,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 13 | App: agent panel + settings + v1.0 | 10b, 12 | [~] | 2026-10-12 | | Waiting for the orchestrator: publish the draft Release v1.0.0, owner install (step 10), merge. Agent panel, Settings, packaging with the Apple helper, fresh-clone check PASS, E2E 10/10, tests 2482 pass; live checks with Ollama + Apple pass, OpenRouter open (no key); D-59 | log/phase-13.md |
 | 14 | v1.1 (done when 14a–14g are all [x]) | 14a–14g | [ ] | | | | log/phase-14.md |
 | 14a | `vox` v1.1 templates + GATE 6 | 13 | [x] | 2026-10-12 | 2026-10-12 | year-card, framed-portrait, newspaper, stack; validate green (cue timing 30); GATE 6 passed by owner delegation after 2 rounds; D-65 | log/phase-14a.md |
-| 14b | Screenplay match workflow | 13 | [~] | 2026-10-12 | | In progress (worktree .worktrees/phase-14b) | log/phase-14b.md |
+| 14b | Screenplay match workflow | 13 | [x] | 2026-10-12 | 2026-10-12 | 6-scene fixture set matched in screenplay order (mock + live Ollama/Apple, small-model flakes noted); CLI, app button, embed role; D-66 | log/phase-14b.md |
 | 14c | Claude Code skill | 13 | [x] | 2026-10-12 | 2026-10-12 | `vox-studio` skill (9 steps, 6 checkpoints) + test of its commands; manual run done by hand as a stand-in (D-63): 3 clips rendered, audio QA pass; real Claude Code run optional in TODO | log/phase-14c.md |
 | 14d | Local image generation (mflux) | 13 | [~] | 2026-10-12 | | | log/phase-14d.md |
 | 14e | Clip speed + GATE 7 | 13 | [~] | 2026-10-12 05:52 | | | log/phase-14e.md |
