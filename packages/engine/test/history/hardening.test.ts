@@ -11,6 +11,7 @@ import {
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { ProjectStore } from '../../src/history/store.ts';
+import { SCHEMA_VERSION } from '../../src/model/schema.ts';
 import type { ProjectChangedEvent } from '../../src/history/types.ts';
 import { templates } from '../helpers/templates.ts';
 import { newStore, readEntries, readProjectFile } from '../helpers/store.ts';
@@ -32,7 +33,7 @@ describe('store hardening', () => {
 
   test('S36: a project made newer by another process fails SCHEMA_TOO_NEW before any lock or write', async () => {
     const { store, dir } = await newStore();
-    const raw = { ...readProjectFile(dir), schemaVersion: 3 };
+    const raw = { ...readProjectFile(dir), schemaVersion: SCHEMA_VERSION + 1 };
     writeFileSync(join(dir, 'project.json'), JSON.stringify(raw));
     const files = readdirSync(dir).sort();
     let locked = false;
