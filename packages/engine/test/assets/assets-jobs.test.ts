@@ -5,7 +5,7 @@
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { openEngine, type Engine } from '../../src/api.ts';
+import { openEngine, version, type Engine } from '../../src/api.ts';
 import { VoxError } from '../../src/errors.ts';
 import type { JobInfo } from '../../src/jobs.ts';
 import type { Resolver } from '../../src/net/address.ts';
@@ -141,7 +141,7 @@ describe('assets.search + assets.fetch', () => {
       ['openverse-aaaa-1111', 'CC BY'],
     ]);
     expect(s.result?.dropped).toBe(1);
-    expect(calls).toEqual(['api.openverse.org VoxStudio/0.0.0 (https://example.org/contact)']);
+    expect(calls).toEqual([`api.openverse.org VoxStudio/${version} (https://example.org/contact)`]);
 
     const f = await run<{ mediaId: string; reused: boolean; license: string; version: number }>(
       e,
@@ -150,7 +150,7 @@ describe('assets.search + assets.fetch', () => {
     );
     expect(f.status, JSON.stringify(f.error)).toBe('done');
     expect(f.result?.license).toBe('CC BY 4.0');
-    expect(hits.at(-1)).toBe('/tram.jpg VoxStudio/0.0.0 (https://example.org/contact)');
+    expect(hits.at(-1)).toBe(`/tram.jpg VoxStudio/${version} (https://example.org/contact)`);
     const proj = await e.getProject(p.id);
     const m = proj.media.find((x) => x.id === f.result?.mediaId);
     expect(m?.kind).toBe('image');

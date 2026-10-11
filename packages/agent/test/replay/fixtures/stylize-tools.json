@@ -1,592 +1,731 @@
 {
-  "name": "stylize-tools",
-  "step": "5",
-  "setup": "quick1",
-  "request": {
-    "workflow": "stylize",
-    "message": "add the vox beats",
-    "mode": "tools",
-    "stylizeQuick": true
+ "name": "stylize-tools",
+ "step": "5",
+ "setup": "quick1",
+ "request": {
+  "workflow": "stylize",
+  "message": "add the vox beats",
+  "mode": "tools",
+  "stylizeQuick": true
+ },
+ "lines": [
+  {
+   "ts": "2026-10-11T19:56:57.550Z",
+   "type": "started",
+   "runId": "run_wftest0001",
+   "projectId": "p_mv48v4ei194l",
+   "workflow": "stylize",
+   "mode": "tools",
+   "models": {
+    "editor": "OpenRouter:test/model"
+   },
+   "message": "add the vox beats",
+   "attachments": [],
+   "allowedTools": [
+    "get_transcript",
+    "get_template",
+    "add_scene",
+    "update_scene",
+    "move_item",
+    "trim_item",
+    "set_transition",
+    "search_images",
+    "fetch_image",
+    "cutout",
+    "view_frames",
+    "check_audio"
+   ],
+   "planKind": "clip",
+   "question": false,
+   "version": 5
   },
-  "lines": [
+  {
+   "ts": "2026-10-11T19:56:57.567Z",
+   "type": "tool",
+   "tool": "update_sequence",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv48v5eqe9h2",
+    "styleId": "vox"
+   },
+   "result": {
+    "version": 6,
+    "results": [
+     {
+      "op": "updateSequence",
+      "status": "succeeded",
+      "items": []
+     }
+    ]
+   },
+   "versions": [
+    6
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.584Z",
+   "type": "tool",
+   "tool": "set_captions",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv48v5eqe9h2",
+    "enabled": true,
+    "preset": "vox/mono-box"
+   },
+   "result": {
+    "version": 7,
+    "results": [
+     {
+      "op": "setCaptions",
+      "status": "succeeded",
+      "items": []
+     }
+    ]
+   },
+   "versions": [
+    7
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.590Z",
+   "type": "step",
+   "step": 1,
+   "subRun": 1,
+   "scope": [
+    "seq_mv48v5eqe9h2"
+   ],
+   "text": "",
+   "calls": [
     {
-      "ts": "2026-10-11T16:29:17.523Z",
-      "type": "started",
-      "runId": "run_wftest0001",
-      "projectId": "p_mv41g241hwh1",
-      "workflow": "stylize",
-      "mode": "tools",
-      "models": {
-        "editor": "OpenRouter:test/model"
-      },
-      "message": "add the vox beats",
-      "attachments": [],
-      "allowedTools": [
-        "get_transcript",
-        "get_template",
-        "add_scene",
-        "update_scene",
-        "move_item",
-        "trim_item",
-        "set_transition",
-        "search_images",
-        "fetch_image",
-        "cutout",
-        "view_frames",
-        "check_audio"
-      ],
-      "planKind": "clip",
-      "question": false,
-      "version": 5
+     "toolCallId": "call_1_0",
+     "toolName": "add_scene",
+     "input": {
+      "sequenceId": "s1",
+      "trackId": "V2",
+      "startMs": 750,
+      "durationMs": 1750,
+      "template": "vox/kinetic-serif",
+      "variables": {
+       "text": "A long video"
+      }
+     }
     },
     {
-      "ts": "2026-10-11T16:29:17.539Z",
-      "type": "tool",
-      "tool": "update_sequence",
-      "by": "workflow",
-      "args": {
-        "sequenceId": "seq_mv41g370e27z",
-        "styleId": "vox"
+     "toolCallId": "call_1_1",
+     "toolName": "add_scene",
+     "input": {
+      "sequenceId": "s1",
+      "trackId": "V2",
+      "startMs": 2500,
+      "durationMs": 2000,
+      "template": "vox/kinetic-serif",
+      "variables": {
+       "text": "A short clip"
       },
-      "result": {
-        "version": 6,
-        "results": [
-          {
-            "op": "updateSequence",
-            "status": "succeeded",
-            "items": []
-          }
-        ]
-      },
-      "versions": [6],
-      "subRun": 1
-    },
-    {
-      "ts": "2026-10-11T16:29:17.555Z",
-      "type": "tool",
-      "tool": "set_captions",
-      "by": "workflow",
-      "args": {
-        "sequenceId": "seq_mv41g370e27z",
-        "enabled": true,
-        "preset": "vox/mono-box"
-      },
-      "result": {
-        "version": 7,
-        "results": [
-          {
-            "op": "setCaptions",
-            "status": "succeeded",
-            "items": []
-          }
-        ]
-      },
-      "versions": [7],
-      "subRun": 1
-    },
-    {
-      "ts": "2026-10-11T16:29:17.560Z",
-      "type": "step",
-      "step": 1,
-      "subRun": 1,
-      "scope": ["seq_mv41g370e27z"],
-      "text": "",
-      "calls": [
-        {
-          "toolCallId": "call_1_0",
-          "toolName": "add_scene",
-          "input": {
-            "sequenceId": "s1",
-            "trackId": "V2",
-            "startMs": 750,
-            "durationMs": 1750,
-            "template": "vox/kinetic-serif",
-            "variables": {
-              "text": "A long video"
-            }
-          }
-        },
-        {
-          "toolCallId": "call_1_1",
-          "toolName": "add_scene",
-          "input": {
-            "sequenceId": "s1",
-            "trackId": "V2",
-            "startMs": 2500,
-            "durationMs": 2000,
-            "template": "vox/kinetic-serif",
-            "variables": {
-              "text": "A short clip"
-            },
-            "sfxOff": ["reveal"]
-          }
-        }
-      ],
-      "usage": {
-        "inputTokens": 100,
-        "outputTokens": 20,
-        "cacheReadTokens": 0,
-        "cacheWriteTokens": 0,
-        "reasoningTokens": 0
-      },
-      "costUsd": 0.00014,
-      "spentUsd": 0.00014
-    },
-    {
-      "ts": "2026-10-11T16:29:17.577Z",
-      "type": "tool",
-      "callId": "call_1_0",
-      "tool": "add_scene",
-      "args": {
-        "sequenceId": "s1",
-        "trackId": "V2",
-        "startMs": 750,
-        "durationMs": 1750,
+      "sfxOff": [
+       "reveal"
+      ]
+     }
+    }
+   ],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.00014
+  },
+  {
+   "ts": "2026-10-11T19:56:57.607Z",
+   "type": "tool",
+   "callId": "call_1_0",
+   "tool": "add_scene",
+   "args": {
+    "sequenceId": "s1",
+    "trackId": "V2",
+    "startMs": 750,
+    "durationMs": 1750,
+    "template": "vox/kinetic-serif",
+    "variables": {
+     "text": "A long video"
+    }
+   },
+   "result": {
+    "version": 8,
+    "results": [
+     {
+      "op": "addScene",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c3",
+        "type": "scene",
         "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "startMs": 767,
+        "durationMs": 1733,
         "variables": {
-          "text": "A long video"
-        }
-      },
-      "result": {
-        "version": 8,
-        "results": [
-          {
-            "op": "addScene",
-            "status": "succeeded",
-            "items": [
-              {
-                "id": "c3",
-                "type": "scene",
-                "template": "vox/kinetic-serif",
-                "templateVersion": "1.0.0",
-                "startMs": 767,
-                "durationMs": 1766,
-                "variables": {
-                  "text": "A long video"
-                },
-                "trackId": "V2"
-              }
-            ],
-            "report": {
-              "itemIds": ["c3"]
-            }
-          }
-        ]
-      },
-      "versions": [8],
-      "changes": [
-        {
-          "key": "item:seq_mv41g370e27z/it_mv41g3994j12",
-          "before": null,
-          "after": {
-            "id": "it_mv41g3994j12",
-            "startMs": 767,
-            "durationMs": 1766,
-            "type": "scene",
-            "template": "vox/kinetic-serif",
-            "templateVersion": "1.0.0",
-            "variables": {
-              "text": "A long video"
-            },
-            "trackId": "V2"
-          }
-        }
+         "text": "A long video"
+        },
+        "trackId": "V2"
+       }
       ],
-      "subRun": 1
-    },
+      "report": {
+       "itemIds": [
+        "c3"
+       ]
+      }
+     }
+    ]
+   },
+   "versions": [
+    8
+   ],
+   "changes": [
     {
-      "ts": "2026-10-11T16:29:17.582Z",
-      "type": "tool",
-      "callId": "call_1_1",
-      "tool": "add_scene",
-      "args": {
-        "sequenceId": "s1",
-        "trackId": "V2",
+     "key": "item:seq_mv48v5eqe9h2/it_mv48v5h70oo1",
+     "before": null,
+     "after": {
+      "id": "it_mv48v5h70oo1",
+      "startMs": 767,
+      "durationMs": 1733,
+      "type": "scene",
+      "template": "vox/kinetic-serif",
+      "templateVersion": "1.0.0",
+      "variables": {
+       "text": "A long video"
+      },
+      "trackId": "V2"
+     }
+    }
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.623Z",
+   "type": "tool",
+   "callId": "call_1_1",
+   "tool": "add_scene",
+   "args": {
+    "sequenceId": "s1",
+    "trackId": "V2",
+    "startMs": 2500,
+    "durationMs": 2000,
+    "template": "vox/kinetic-serif",
+    "variables": {
+     "text": "A short clip"
+    },
+    "sfxOff": [
+     "reveal"
+    ]
+   },
+   "result": {
+    "version": 9,
+    "results": [
+     {
+      "op": "addScene",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c4",
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
         "startMs": 2500,
         "durationMs": 2000,
-        "template": "vox/kinetic-serif",
         "variables": {
-          "text": "A short clip"
+         "text": "A short clip"
         },
-        "sfxOff": ["reveal"]
-      },
-      "result": {
-        "version": 8,
-        "results": [
-          {
-            "op": "addScene",
-            "status": "failed",
-            "error": {
-              "code": "OVERLAP",
-              "message": "Item it_mv41g39p8xuj overlaps it_mv41g3994j12 on track V2",
-              "hint": "Pick a free time, or pass onOverlap: 'overwrite' or 'insert'"
-            }
-          }
-        ]
-      },
-      "subRun": 1
-    },
-    {
-      "ts": "2026-10-11T16:29:17.586Z",
-      "type": "step",
-      "step": 2,
-      "subRun": 1,
-      "scope": ["seq_mv41g370e27z"],
-      "text": "",
-      "calls": [
-        {
-          "toolCallId": "call_2_0",
-          "toolName": "view_frames",
-          "input": {
-            "sequenceId": "s1",
-            "atSeqMs": [1650]
-          }
-        },
-        {
-          "toolCallId": "call_2_1",
-          "toolName": "check_audio",
-          "input": {
-            "sequenceId": "s1"
-          }
-        }
+        "sfxOff": [
+         "reveal"
+        ],
+        "trackId": "V2"
+       }
       ],
-      "usage": {
-        "inputTokens": 100,
-        "outputTokens": 20,
-        "cacheReadTokens": 0,
-        "cacheWriteTokens": 0,
-        "reasoningTokens": 0
-      },
-      "costUsd": 0.00014,
-      "spentUsd": 0.00028
-    },
-    {
-      "ts": "2026-10-11T16:29:17.587Z",
-      "type": "tool",
-      "callId": "call_2_0",
-      "tool": "view_frames",
-      "args": {
-        "sequenceId": "s1",
-        "atSeqMs": [1650]
-      },
-      "result": {
-        "frames": [
-          {
-            "seqMs": 1650,
-            "srcMs": 10450,
-            "health": []
-          }
-        ],
-        "note": "no vision model: frame-health flags only"
-      },
-      "subRun": 1
-    },
-    {
-      "ts": "2026-10-11T16:29:17.587Z",
-      "type": "tool",
-      "callId": "call_2_1",
-      "tool": "check_audio",
-      "args": {
-        "sequenceId": "s1"
-      },
-      "result": {
-        "pass": true,
-        "targetLufs": -14,
-        "durationMs": 6000,
-        "checks": [
-          {
-            "id": "cueTiming",
-            "status": "pass",
-            "limitMs": 33,
-            "maxAbsDeltaMs": 12,
-            "failures": []
-          },
-          {
-            "id": "oneEventPerCue",
-            "status": "pass",
-            "failures": []
-          },
-          {
-            "id": "spacing",
-            "status": "pass",
-            "minGapMs": 120,
-            "failures": []
-          },
-          {
-            "id": "underSpeech",
-            "status": "pass",
-            "failures": []
-          },
-          {
-            "id": "loudness",
-            "status": "pass",
-            "integratedLufs": -14.2,
-            "truePeakDbtp": -1.4
-          }
-        ],
-        "cues": [
-          {
-            "index": 1,
-            "atMs": 1200,
-            "type": "appear",
-            "hero": false
-          },
-          {
-            "index": 2,
-            "atMs": 1250,
-            "type": "appear",
-            "hero": false
-          }
-        ],
-        "dropped": [],
-        "listen": [
-          {
-            "atMs": 600,
-            "timecode": "00:00.600",
-            "kind": "hero cue",
-            "listenFor": "one clean hit on the cut"
-          },
-          {
-            "atMs": 1500,
-            "timecode": "00:01.500",
-            "kind": "hero cue",
-            "listenFor": "one clean hit on the cut"
-          },
-          {
-            "atMs": 2600,
-            "timecode": "00:02.600",
-            "kind": "loud SFX",
-            "listenFor": "one clean hit on the cut"
-          },
-          {
-            "atMs": 3400,
-            "timecode": "00:03.400",
-            "kind": "loud SFX",
-            "listenFor": "one clean hit on the cut"
-          },
-          {
-            "atMs": 4800,
-            "timecode": "00:04.800",
-            "kind": "loud SFX",
-            "listenFor": "one clean hit on the cut"
-          }
-        ],
-        "picture": "no vision model: qa.png not described; use the numbers above"
-      },
-      "subRun": 1
-    },
-    {
-      "ts": "2026-10-11T16:29:17.594Z",
-      "type": "step",
-      "step": 3,
-      "subRun": 1,
-      "scope": ["seq_mv41g370e27z"],
-      "text": "Placed the scenes.",
-      "calls": [],
-      "usage": {
-        "inputTokens": 100,
-        "outputTokens": 20,
-        "cacheReadTokens": 0,
-        "cacheWriteTokens": 0,
-        "reasoningTokens": 0
-      },
-      "costUsd": 0.00014,
-      "spentUsd": 0.00041999999999999996
-    },
-    {
-      "ts": "2026-10-11T16:29:17.594Z",
-      "type": "subRun",
-      "subRun": 1,
-      "scope": ["seq_mv41g370e27z"],
-      "status": "completed",
-      "summary": "Placed the scenes.",
-      "steps": 3
-    },
-    {
-      "ts": "2026-10-11T16:29:17.594Z",
-      "type": "aliases",
-      "table": {
-        "s1": "seq_mv41g370e27z",
-        "c1": "it_mv41g374dcv1",
-        "m1": "m_mv41g24h9nbe",
-        "c2": "it_mv41g374dcv2",
-        "c3": "it_mv41g3994j12"
+      "report": {
+       "itemIds": [
+        "c4"
+       ]
       }
-    },
+     }
+    ]
+   },
+   "versions": [
+    9
+   ],
+   "changes": [
     {
-      "ts": "2026-10-11T16:29:17.610Z",
-      "type": "tool",
-      "tool": "set_transition",
-      "by": "workflow",
-      "args": {
-        "sequenceId": "seq_mv41g370e27z",
-        "itemId": "it_mv41g3994j12",
-        "transition": {
-          "template": "vox/paper-tear",
-          "durationMs": 700
-        }
+     "key": "item:seq_mv48v5eqe9h2/it_mv48v5hn0b3q",
+     "before": null,
+     "after": {
+      "id": "it_mv48v5hn0b3q",
+      "startMs": 2500,
+      "durationMs": 2000,
+      "type": "scene",
+      "template": "vox/kinetic-serif",
+      "templateVersion": "1.0.0",
+      "variables": {
+       "text": "A short clip"
       },
-      "result": {
-        "version": 9,
-        "results": [
-          {
-            "op": "setTransition",
-            "status": "succeeded",
-            "items": [
-              {
-                "id": "c3",
-                "startMs": 767,
-                "durationMs": 1766,
-                "type": "scene",
-                "template": "vox/kinetic-serif",
-                "templateVersion": "1.0.0",
-                "variables": {
-                  "text": "A long video"
-                },
-                "transitionIn": {
-                  "template": "vox/paper-tear",
-                  "durationMs": 700
-                },
-                "trackId": "V2"
-              }
-            ]
-          }
-        ]
-      },
-      "versions": [9],
-      "subRun": 1
-    },
-    {
-      "ts": "2026-10-11T16:29:17.611Z",
-      "type": "tool",
-      "tool": "view_frames",
-      "by": "workflow",
-      "args": {
-        "sequenceId": "seq_mv41g370e27z",
-        "atSeqMs": [1650]
-      },
-      "result": {
-        "frames": [
-          {
-            "seqMs": 1650,
-            "srcMs": 10450,
-            "health": []
-          }
-        ],
-        "note": "no vision model: frame-health flags only"
-      },
-      "subRun": 1
-    },
-    {
-      "ts": "2026-10-11T16:29:17.611Z",
-      "type": "tool",
-      "tool": "check_audio",
-      "by": "workflow",
-      "args": {
-        "sequenceId": "seq_mv41g370e27z"
-      },
-      "result": {
-        "pass": true,
-        "targetLufs": -14,
-        "durationMs": 6000,
-        "checks": [
-          {
-            "id": "cueTiming",
-            "status": "pass",
-            "limitMs": 33,
-            "maxAbsDeltaMs": 12,
-            "failures": []
-          },
-          {
-            "id": "oneEventPerCue",
-            "status": "pass",
-            "failures": []
-          },
-          {
-            "id": "spacing",
-            "status": "pass",
-            "minGapMs": 120,
-            "failures": []
-          },
-          {
-            "id": "underSpeech",
-            "status": "pass",
-            "failures": []
-          },
-          {
-            "id": "loudness",
-            "status": "pass",
-            "integratedLufs": -14.2,
-            "truePeakDbtp": -1.4
-          }
-        ],
-        "cues": [
-          {
-            "index": 1,
-            "atMs": 1200,
-            "type": "appear",
-            "hero": false
-          },
-          {
-            "index": 2,
-            "atMs": 1250,
-            "type": "appear",
-            "hero": false
-          }
-        ],
-        "dropped": [],
-        "listen": [
-          {
-            "atMs": 600,
-            "timecode": "00:00.600",
-            "kind": "hero cue",
-            "listenFor": "one clean hit on the cut"
-          },
-          {
-            "atMs": 1500,
-            "timecode": "00:01.500",
-            "kind": "hero cue",
-            "listenFor": "one clean hit on the cut"
-          },
-          {
-            "atMs": 2600,
-            "timecode": "00:02.600",
-            "kind": "loud SFX",
-            "listenFor": "one clean hit on the cut"
-          },
-          {
-            "atMs": 3400,
-            "timecode": "00:03.400",
-            "kind": "loud SFX",
-            "listenFor": "one clean hit on the cut"
-          },
-          {
-            "atMs": 4800,
-            "timecode": "00:04.800",
-            "kind": "loud SFX",
-            "listenFor": "one clean hit on the cut"
-          }
-        ],
-        "picture": "no vision model: qa.png not described; use the numbers above"
-      },
-      "subRun": 1
-    },
-    {
-      "ts": "2026-10-11T16:29:17.611Z",
-      "type": "done",
-      "runId": "run_wftest0001",
-      "status": "completed",
-      "summary": "Styled 1 clip(s).\nNo fast model: the heuristic scorer picks moments and every free-form turn is an edit.\nNo vision model: frames and qa.png are checked by numbers and flags only.\nSub-run 1 (s1): completed. Placed the scenes.\nClip s1: completed; 1 scene(s), speaker 65 %. Frame-health flags: none. Audio QA PASS; -14.2 LUFS, true peak -1.4 dBTP. Listen at 00:00.600, 00:01.500, 00:02.600, 00:03.400, 00:04.800 and check by ear (the agent measures; it cannot hear). Edges: vox/paper-tear added on c3. Skipped: no vision model: frames and qa.png were not described.",
-      "costUsd": 0.00042,
-      "versions": [6, 7, 8, 9],
-      "todos": [],
-      "aliases": {
-        "s1": "seq_mv41g370e27z",
-        "c1": "it_mv41g374dcv1",
-        "m1": "m_mv41g24h9nbe",
-        "c2": "it_mv41g374dcv2",
-        "c3": "it_mv41g3994j12"
-      }
+      "sfxOff": [
+       "reveal"
+      ],
+      "trackId": "V2"
+     }
     }
-  ]
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.629Z",
+   "type": "step",
+   "step": 2,
+   "subRun": 1,
+   "scope": [
+    "seq_mv48v5eqe9h2"
+   ],
+   "text": "",
+   "calls": [
+    {
+     "toolCallId": "call_2_0",
+     "toolName": "view_frames",
+     "input": {
+      "sequenceId": "s1",
+      "atSeqMs": [
+       1634,
+       3500
+      ]
+     }
+    },
+    {
+     "toolCallId": "call_2_1",
+     "toolName": "check_audio",
+     "input": {
+      "sequenceId": "s1"
+     }
+    }
+   ],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.00028
+  },
+  {
+   "ts": "2026-10-11T19:56:57.630Z",
+   "type": "tool",
+   "callId": "call_2_0",
+   "tool": "view_frames",
+   "args": {
+    "sequenceId": "s1",
+    "atSeqMs": [
+     1634,
+     3500
+    ]
+   },
+   "result": {
+    "frames": [
+     {
+      "seqMs": 1634,
+      "srcMs": 10434,
+      "health": []
+     },
+     {
+      "seqMs": 3500,
+      "srcMs": 12300,
+      "health": []
+     }
+    ],
+    "note": "no vision model: frame-health flags only"
+   },
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.631Z",
+   "type": "tool",
+   "callId": "call_2_1",
+   "tool": "check_audio",
+   "args": {
+    "sequenceId": "s1"
+   },
+   "result": {
+    "pass": true,
+    "targetLufs": -14,
+    "durationMs": 6000,
+    "checks": [
+     {
+      "id": "cueTiming",
+      "status": "pass",
+      "limitMs": 33,
+      "maxAbsDeltaMs": 12,
+      "failures": []
+     },
+     {
+      "id": "oneEventPerCue",
+      "status": "pass",
+      "failures": []
+     },
+     {
+      "id": "spacing",
+      "status": "pass",
+      "minGapMs": 120,
+      "failures": []
+     },
+     {
+      "id": "underSpeech",
+      "status": "pass",
+      "failures": []
+     },
+     {
+      "id": "loudness",
+      "status": "pass",
+      "integratedLufs": -14.2,
+      "truePeakDbtp": -1.4
+     }
+    ],
+    "cues": [
+     {
+      "index": 1,
+      "atMs": 1200,
+      "type": "appear",
+      "hero": false
+     },
+     {
+      "index": 2,
+      "atMs": 1250,
+      "type": "appear",
+      "hero": false
+     }
+    ],
+    "dropped": [],
+    "listen": [
+     {
+      "atMs": 600,
+      "timecode": "00:00.600",
+      "kind": "hero cue",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 1500,
+      "timecode": "00:01.500",
+      "kind": "hero cue",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 2600,
+      "timecode": "00:02.600",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 3400,
+      "timecode": "00:03.400",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 4800,
+      "timecode": "00:04.800",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     }
+    ],
+    "picture": "no vision model: qa.png not described; use the numbers above"
+   },
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.637Z",
+   "type": "step",
+   "step": 3,
+   "subRun": 1,
+   "scope": [
+    "seq_mv48v5eqe9h2"
+   ],
+   "text": "Placed the scenes.",
+   "calls": [],
+   "usage": {
+    "inputTokens": 100,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0
+   },
+   "costUsd": 0.00014,
+   "spentUsd": 0.00041999999999999996
+  },
+  {
+   "ts": "2026-10-11T19:56:57.637Z",
+   "type": "subRun",
+   "subRun": 1,
+   "scope": [
+    "seq_mv48v5eqe9h2"
+   ],
+   "status": "completed",
+   "summary": "Placed the scenes.",
+   "steps": 3
+  },
+  {
+   "ts": "2026-10-11T19:56:57.638Z",
+   "type": "aliases",
+   "table": {
+    "s1": "seq_mv48v5eqe9h2",
+    "c1": "it_mv48v5eu1te9",
+    "m1": "m_mv48v4f1403j",
+    "c2": "it_mv48v5eu1tea",
+    "c3": "it_mv48v5h70oo1",
+    "c4": "it_mv48v5hn0b3q"
+   }
+  },
+  {
+   "ts": "2026-10-11T19:56:57.655Z",
+   "type": "tool",
+   "tool": "set_transition",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv48v5eqe9h2",
+    "itemId": "it_mv48v5h70oo1",
+    "transition": {
+     "template": "vox/paper-tear",
+     "durationMs": 700
+    }
+   },
+   "result": {
+    "version": 10,
+    "results": [
+     {
+      "op": "setTransition",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c3",
+        "startMs": 767,
+        "durationMs": 1733,
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "variables": {
+         "text": "A long video"
+        },
+        "transitionIn": {
+         "template": "vox/paper-tear",
+         "durationMs": 700
+        },
+        "trackId": "V2"
+       }
+      ]
+     }
+    ]
+   },
+   "versions": [
+    10
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.671Z",
+   "type": "tool",
+   "tool": "set_transition",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv48v5eqe9h2",
+    "itemId": "it_mv48v5hn0b3q",
+    "transition": {
+     "template": "vox/paper-tear",
+     "durationMs": 700
+    }
+   },
+   "result": {
+    "version": 11,
+    "results": [
+     {
+      "op": "setTransition",
+      "status": "succeeded",
+      "items": [
+       {
+        "id": "c4",
+        "startMs": 2500,
+        "durationMs": 2000,
+        "type": "scene",
+        "template": "vox/kinetic-serif",
+        "templateVersion": "1.0.0",
+        "variables": {
+         "text": "A short clip"
+        },
+        "sfxOff": [
+         "reveal"
+        ],
+        "transitionIn": {
+         "template": "vox/paper-tear",
+         "durationMs": 700
+        },
+        "trackId": "V2"
+       }
+      ]
+     }
+    ]
+   },
+   "versions": [
+    11
+   ],
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.672Z",
+   "type": "tool",
+   "tool": "view_frames",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv48v5eqe9h2",
+    "atSeqMs": [
+     1633,
+     3500
+    ]
+   },
+   "result": {
+    "frames": [
+     {
+      "seqMs": 1633,
+      "srcMs": 10433,
+      "health": []
+     },
+     {
+      "seqMs": 3500,
+      "srcMs": 12300,
+      "health": []
+     }
+    ],
+    "note": "no vision model: frame-health flags only"
+   },
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.672Z",
+   "type": "tool",
+   "tool": "check_audio",
+   "by": "workflow",
+   "args": {
+    "sequenceId": "seq_mv48v5eqe9h2"
+   },
+   "result": {
+    "pass": true,
+    "targetLufs": -14,
+    "durationMs": 6000,
+    "checks": [
+     {
+      "id": "cueTiming",
+      "status": "pass",
+      "limitMs": 33,
+      "maxAbsDeltaMs": 12,
+      "failures": []
+     },
+     {
+      "id": "oneEventPerCue",
+      "status": "pass",
+      "failures": []
+     },
+     {
+      "id": "spacing",
+      "status": "pass",
+      "minGapMs": 120,
+      "failures": []
+     },
+     {
+      "id": "underSpeech",
+      "status": "pass",
+      "failures": []
+     },
+     {
+      "id": "loudness",
+      "status": "pass",
+      "integratedLufs": -14.2,
+      "truePeakDbtp": -1.4
+     }
+    ],
+    "cues": [
+     {
+      "index": 1,
+      "atMs": 1200,
+      "type": "appear",
+      "hero": false
+     },
+     {
+      "index": 2,
+      "atMs": 1250,
+      "type": "appear",
+      "hero": false
+     }
+    ],
+    "dropped": [],
+    "listen": [
+     {
+      "atMs": 600,
+      "timecode": "00:00.600",
+      "kind": "hero cue",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 1500,
+      "timecode": "00:01.500",
+      "kind": "hero cue",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 2600,
+      "timecode": "00:02.600",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 3400,
+      "timecode": "00:03.400",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     },
+     {
+      "atMs": 4800,
+      "timecode": "00:04.800",
+      "kind": "loud SFX",
+      "listenFor": "one clean hit on the cut"
+     }
+    ],
+    "picture": "no vision model: qa.png not described; use the numbers above"
+   },
+   "subRun": 1
+  },
+  {
+   "ts": "2026-10-11T19:56:57.672Z",
+   "type": "done",
+   "runId": "run_wftest0001",
+   "status": "completed",
+   "summary": "Styled 1 clip(s).\nNo fast model: the heuristic scorer picks moments and every free-form turn is an edit.\nNo vision model: frames and qa.png are checked by numbers and flags only.\nSub-run 1 (s1): completed. Placed the scenes.\nClip s1: completed; 2 scene(s), speaker 25 %. Frame-health flags: none. Audio QA PASS; -14.2 LUFS, true peak -1.4 dBTP. Listen at 00:00.600, 00:01.500, 00:02.600, 00:03.400, 00:04.800 and check by ear (the agent measures; it cannot hear). Edges: vox/paper-tear added on c3; vox/paper-tear added on c4. Skipped: no vision model: frames and qa.png were not described.",
+   "costUsd": 0.00042,
+   "versions": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+   ],
+   "todos": [],
+   "aliases": {
+    "s1": "seq_mv48v5eqe9h2",
+    "c1": "it_mv48v5eu1te9",
+    "m1": "m_mv48v4f1403j",
+    "c2": "it_mv48v5eu1tea",
+    "c3": "it_mv48v5h70oo1",
+    "c4": "it_mv48v5hn0b3q"
+   }
+  }
+ ]
 }
