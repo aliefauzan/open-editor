@@ -1,6 +1,12 @@
 // IPC sender check + zod validation (S11) and the external-link allowlist (S10). Pure: main/index.ts
 // passes the real WebFrameMain; tests pass plain objects.
-import { appError, parseCall, type CallResult, type ErrorData, type Method } from '../shared/api.ts';
+import {
+  appError,
+  parseCall,
+  type CallResult,
+  type ErrorData,
+  type Method,
+} from '../shared/api.ts';
 
 export const APP_ORIGIN = 'vox-app://app';
 

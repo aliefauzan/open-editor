@@ -26,7 +26,9 @@ describe('engine host handlers (step 8)', () => {
     const { h } = setup();
     const p = (await h['projects.create']!('Demo')) as { id: string };
     expect(p.id).toMatch(/^p_/);
-    expect(await h['projects.list']!()).toEqual([expect.objectContaining({ id: p.id, name: 'Demo' })]);
+    expect(await h['projects.list']!()).toEqual([
+      expect.objectContaining({ id: p.id, name: 'Demo' }),
+    ]);
     expect(await h['projects.open']!(p.id)).toMatchObject({ project: { id: p.id }, version: 0 });
     const r = (await h['ops.apply']!({
       projectId: p.id,
@@ -58,12 +60,21 @@ describe('engine host handlers (step 8)', () => {
     await run('addSequence', { name: 'Main', id: 'seq_main' }, 0);
     await run(
       'addScene',
-      { sequenceId: 'seq_main', trackId: 'V1', startMs: 0, durationMs: 2000, template: 'base/title', variables: { title: 'Hi' } },
+      {
+        sequenceId: 'seq_main',
+        trackId: 'V1',
+        startMs: 0,
+        durationMs: 2000,
+        template: 'base/title',
+        variables: { title: 'Hi' },
+      },
       1,
     );
     const url = await h['preview.url']!(p.id, 'seq_main');
     expect(url).toBe(`vox-media://p/${p.id}/build/seq_main/index.html`);
-    expect(existsSync(join(engine.projectsDir, p.id, 'build', 'seq_main', 'index.html'))).toBe(true);
+    expect(existsSync(join(engine.projectsDir, p.id, 'build', 'seq_main', 'index.html'))).toBe(
+      true,
+    );
   });
 
   it('has no handler for later-phase or main-only methods (the RPC answers NOT_AVAILABLE)', () => {
@@ -78,8 +89,16 @@ describe('engine host handlers (step 8)', () => {
     const seen: [string, unknown][] = [];
     forwardEvents(engine, (name, payload) => seen.push([name, payload]));
     const p = (await h['projects.create']!('Ev')) as { id: string };
-    await h['ops.apply']!({ projectId: p.id, op: 'addSequence', args: { name: 'Main' }, baseVersion: 0 });
-    expect(seen).toContainEqual(['project.changed', expect.objectContaining({ projectId: p.id, version: 1 })]);
+    await h['ops.apply']!({
+      projectId: p.id,
+      op: 'addSequence',
+      args: { name: 'Main' },
+      baseVersion: 0,
+    });
+    expect(seen).toContainEqual([
+      'project.changed',
+      expect.objectContaining({ projectId: p.id, version: 1 }),
+    ]);
   });
 });
 

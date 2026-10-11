@@ -54,9 +54,9 @@ export function App() {
   const s = useShell();
   const [name, setName] = useState('');
   useEffect(() => {
-    void s.loadProjects();
+    // once on mount; store actions come from getState() so the effect has no dependencies
+    void useShell.getState().loadProjects();
     return window.vox.on('host.restarted', () => void useShell.getState().hostRestarted());
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
   }, []);
   return (
     <div className="flex h-full flex-col">

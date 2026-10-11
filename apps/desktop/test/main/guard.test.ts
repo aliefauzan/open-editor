@@ -32,7 +32,13 @@ describe('handleCall', () => {
 
   it('rejects a subframe call before validation and never forwards it', async () => {
     const forward = vi.fn();
-    const r = await handleCall({ ...mainFrame, parent: mainFrame }, true, 'projects.list', [], forward);
+    const r = await handleCall(
+      { ...mainFrame, parent: mainFrame },
+      true,
+      'projects.list',
+      [],
+      forward,
+    );
     expect(r).toMatchObject({ ok: false, error: { code: 'IPC_REJECTED' } });
     expect(forward).not.toHaveBeenCalled();
   });

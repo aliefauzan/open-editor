@@ -29,7 +29,11 @@ export class EngineHost {
   restarts = 0;
   roots: HostRoots | null = null;
 
-  constructor(private readonly opts: HostOptions) {}
+  private readonly opts: HostOptions;
+
+  constructor(opts: HostOptions) {
+    this.opts = opts;
+  }
 
   get pid(): number | undefined {
     return this.child?.pid;

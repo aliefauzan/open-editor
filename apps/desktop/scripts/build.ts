@@ -43,7 +43,11 @@ async function preload(): Promise<void> {
       emptyOutDir: true,
       target: 'chrome152',
       minify: false,
-      lib: { entry: path.join(SRC, 'preload', 'index.ts'), formats: ['cjs'], fileName: () => 'index.cjs' },
+      lib: {
+        entry: path.join(SRC, 'preload', 'index.ts'),
+        formats: ['cjs'],
+        fileName: () => 'index.cjs',
+      },
       rollupOptions: { external: ['electron'] },
     },
   });
@@ -76,4 +80,6 @@ if (pkg) {
     'index.mjs',
   );
 }
-process.stdout.write(`built ${path.relative(process.cwd(), OUT) || OUT}${pkg ? ' (package)' : ''}\n`);
+process.stdout.write(
+  `built ${path.relative(process.cwd(), OUT) || OUT}${pkg ? ' (package)' : ''}\n`,
+);

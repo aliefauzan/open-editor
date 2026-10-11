@@ -18,13 +18,24 @@ describe('window.vox schema (app spec "Engine-host API")', () => {
     ]; // prettier-ignore
     expect([...METHODS].sort()).toEqual([...table].sort());
     expect(EVENTS).toEqual(
-      expect.arrayContaining(['project.changed', 'job.progress', 'preview.updated', 'setup.progress']),
+      expect.arrayContaining([
+        'project.changed',
+        'job.progress',
+        'preview.updated',
+        'setup.progress',
+      ]),
     );
   });
 
   it('accepts the D-15 ops.apply shape with coalesceKey', () => {
     const r = parseCall('ops.apply', [
-      { projectId: 'p_abc', op: 'updateClip', args: { x: 1 }, baseVersion: 3, coalesceKey: 'volume:it_1' },
+      {
+        projectId: 'p_abc',
+        op: 'updateClip',
+        args: { x: 1 },
+        baseVersion: 3,
+        coalesceKey: 'volume:it_1',
+      },
     ]);
     expect(r.ok).toBe(true);
   });
@@ -35,8 +46,16 @@ describe('window.vox schema (app spec "Engine-host API")', () => {
     ['missing args', 'projects.open', []],
     ['bad project id', 'projects.open', ['../etc']],
     ['extra arg', 'projects.list', [1]],
-    ['negative baseVersion', 'ops.apply', [{ projectId: 'p_a', op: 'x', args: {}, baseVersion: -1 }]],
-    ['unknown key', 'ops.apply', [{ projectId: 'p_a', op: 'x', args: {}, baseVersion: 0, evil: 1 }]],
+    [
+      'negative baseVersion',
+      'ops.apply',
+      [{ projectId: 'p_a', op: 'x', args: {}, baseVersion: -1 }],
+    ],
+    [
+      'unknown key',
+      'ops.apply',
+      [{ projectId: 'p_a', op: 'x', args: {}, baseVersion: 0, evil: 1 }],
+    ],
     ['raw path in render job', 'jobs.start', ['render', { path: '/tmp/x.mp4' }]],
     ['raw dir in job', 'jobs.start', ['render', { dir: '/tmp' }]],
     ['bad loudness', 'jobs.start', ['render', { targetId: 't1', loudness: 'loud' }]],
@@ -49,7 +68,10 @@ describe('window.vox schema (app spec "Engine-host API")', () => {
   });
 
   it('accepts a render job with a targetId and loudness', () => {
-    expect(parseCall('jobs.start', ['render', { targetId: 't1', loudness: 'tiktok', captions: 'burn' }]).ok).toBe(true);
+    expect(
+      parseCall('jobs.start', ['render', { targetId: 't1', loudness: 'tiktok', captions: 'burn' }])
+        .ok,
+    ).toBe(true);
   });
 
   it('every method has a zod tuple', () => {

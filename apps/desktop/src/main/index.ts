@@ -172,8 +172,13 @@ if (TEST) {
       hostPid: () => host.pid,
       restarts: () => host.restarts,
       roots: () => host.roots,
+      // the effective preferences Chromium got (not in Electron 44's typings, present at runtime)
       webPreferences: () =>
-        BrowserWindow.getAllWindows().map((w) => w.webContents.getLastWebPreferences()),
+        BrowserWindow.getAllWindows().map((w) =>
+          (
+            w.webContents as unknown as { getLastWebPreferences(): unknown }
+          ).getLastWebPreferences(),
+        ),
       /** Runs the real IPC check for a given frame (a subframe, another window, …). */
       callAs: (frame: WebFrameMain, method: string, args: unknown[]) =>
         call(frame, webContentsOf(frame), method, args),

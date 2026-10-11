@@ -31,10 +31,15 @@ export function toErrorData(e: unknown): ErrorData {
   };
 }
 
-export type Handlers = Partial<Record<Method, (...args: never[]) => Promise<unknown>>>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- args were validated by main (zod)
+type Handler = (...args: any[]) => Promise<unknown>;
+export type Handlers = Partial<Record<Method, Handler>>;
 
 /** Engine-host side: answers requests with `handlers`; returns `emit` for events. */
-export function serve(port: PortLike, handlers: Handlers): (name: EventName, payload: unknown) => void {
+export function serve(
+  port: PortLike,
+  handlers: Handlers,
+): (name: EventName, payload: unknown) => void {
   port.on('message', (raw) => {
     const m = unwrap(raw) as Partial<Request>;
     if (typeof m?.id !== 'number' || typeof m.method !== 'string') return;
@@ -42,11 +47,15 @@ export function serve(port: PortLike, handlers: Handlers): (name: EventName, pay
     const fn = Object.hasOwn(handlers, m.method) ? handlers[m.method] : undefined;
     const reply = (r: Reply) => port.postMessage(r);
     if (!fn) {
-      reply({ id, ok: false, error: appError('NOT_AVAILABLE', `${m.method} is not available yet`) });
+      reply({
+        id,
+        ok: false,
+        error: appError('NOT_AVAILABLE', `${m.method} is not available yet`),
+      });
       return;
     }
     Promise.resolve()
-      .then(() => (fn as (...a: unknown[]) => Promise<unknown>)(...(m.args ?? [])))
+      .then(() => fn(...(m.args ?? [])))
       .then(
         (value) => reply({ id, ok: true, value }),
         (e: unknown) => reply({ id, ok: false, error: toErrorData(e) }),
@@ -68,9 +77,17 @@ export function createClient(
   onEvent: (name: EventName, payload: unknown) => void,
 ): Client {
   let next = 1;
-  const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>();
+  const pending = new Map<
+    number,
+    { resolve: (v: unknown) => void; reject: (e: unknown) => void }
+  >();
   port.on('message', (raw) => {
-    const m = unwrap(raw) as Partial<Reply & EventMsg>;
+    const m = unwrap(raw) as Partial<EventMsg> & {
+      id?: number;
+      ok?: boolean;
+      value?: unknown;
+      error?: ErrorData;
+    };
     if (typeof m?.event === 'string') {
       onEvent(m.event, m.payload);
       return;

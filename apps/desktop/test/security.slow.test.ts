@@ -8,7 +8,11 @@ import { engineAt, hostileProject } from './helpers/fixture.ts';
 type Hooks = {
   log: { blocked: string[]; external: string[]; permissions: string[] };
   webPreferences(): Record<string, unknown>[];
-  callAs(frame: unknown, method: string, args: unknown[]): Promise<{ ok: boolean; error?: { code: string } }>;
+  callAs(
+    frame: unknown,
+    method: string,
+    args: unknown[],
+  ): Promise<{ ok: boolean; error?: { code: string } }>;
 };
 
 let app: ElectronApplication;
@@ -30,14 +34,20 @@ const mediaFetch = (url: string, headers: Record<string, string> = {}) =>
   app.evaluate(
     async ({ session }, a) => {
       const r = await session.defaultSession.fetch(a.url, { headers: a.headers });
-      return { status: r.status, headers: Object.fromEntries(r.headers), size: (await r.arrayBuffer()).byteLength };
+      return {
+        status: r.status,
+        headers: Object.fromEntries(r.headers),
+        size: (await r.arrayBuffer()).byteLength,
+      };
     },
     { url, headers },
   );
 
 describe('window (S10, S28)', () => {
   it('every window has the security webPreferences', async () => {
-    const prefs = await app.evaluate(() => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.webPreferences());
+    const prefs = await app.evaluate(() =>
+      (globalThis as unknown as { __voxTest: Hooks }).__voxTest.webPreferences(),
+    );
     expect(prefs.length).toBeGreaterThan(0);
     for (const p of prefs) {
       expect(p).toMatchObject({
@@ -74,8 +84,12 @@ describe('window (S10, S28)', () => {
     });
     await page.waitForTimeout(500);
     expect(page.url()).toBe('vox-app://app/index.html');
-    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(before);
-    const log = await app.evaluate(() => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.log);
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(
+      before,
+    );
+    const log = await app.evaluate(
+      () => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.log,
+    );
     expect(log.external).toEqual(['https://github.com/', 'https://creativecommons.org/licenses/']);
   });
 });
@@ -103,7 +117,9 @@ describe('network and permissions (S12, S15)', () => {
       ),
     );
     expect(viaSession).toBe('blocked');
-    const log = await app.evaluate(() => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.log);
+    const log = await app.evaluate(
+      () => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.log,
+    );
     expect(log.blocked).toContain('https://example.com/session-probe');
   });
 
@@ -136,8 +152,12 @@ describe('network and permissions (S12, S15)', () => {
     expect(r.microphone).not.toBe('granted');
     expect(r.notifications).toBe('denied');
     expect(r.geolocation).toBe('denied:1');
-    const log = await app.evaluate(() => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.log);
-    expect(log.permissions).toEqual(expect.arrayContaining(['media', 'notifications', 'geolocation']));
+    const log = await app.evaluate(
+      () => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.log,
+    );
+    expect(log.permissions).toEqual(
+      expect.arrayContaining(['media', 'notifications', 'geolocation']),
+    );
   });
 });
 
@@ -168,7 +188,9 @@ describe('IPC (S11)', () => {
       const win = BrowserWindow.getAllWindows()[0]!;
       const main = await t.callAs(win.webContents.mainFrame, 'projects.list', []);
       const sub = win.webContents.mainFrame.frames[0];
-      const fromSub = sub ? await t.callAs(sub, 'projects.list', []) : { ok: true, error: { code: 'no subframe' } };
+      const fromSub = sub
+        ? await t.callAs(sub, 'projects.list', [])
+        : { ok: true, error: { code: 'no subframe' } };
       const other = new BrowserWindow({ show: false });
       await other.loadURL('data:text/html,<p>other</p>');
       const fromOther = await t.callAs(other.webContents.mainFrame, 'projects.list', []);
@@ -239,7 +261,9 @@ describe('hostile template (S14)', () => {
     });
     await page.waitForTimeout(300);
     expect(page.url()).toBe('vox-app://app/index.html');
-    const log = await app.evaluate(() => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.log);
+    const log = await app.evaluate(
+      () => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.log,
+    );
     expect(log.external).not.toContain('https://example.com/');
   });
 
@@ -247,8 +271,10 @@ describe('hostile template (S14)', () => {
     // every console error must be one of the expected denials above
     const own = consoleErrors.filter(
       (m) =>
-        !/Content Security Policy|Refused to connect|Unsafe attempt to initiate navigation|net::ERR_BLOCKED|denied|Permission/i.test(m),
+        !/Content Security Policy|Refused to connect|Unsafe attempt to initiate navigation|net::ERR_BLOCKED|denied|Permission/i.test(
+          m,
+        ),
     );
-    expect(own, consoleErrors.join(" | ")).toEqual([]);
+    expect(own, consoleErrors.join(' | ')).toEqual([]);
   });
 });

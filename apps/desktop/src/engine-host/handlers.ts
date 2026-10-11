@@ -2,11 +2,10 @@
 // main (zod, S11); handlers map them onto the engine API. Methods of later phases are absent and
 // answer NOT_AVAILABLE (rpc.ts). Main-only methods (dialogs, reveal) never reach the host.
 import { classifyUrl, type Engine, type OpCall } from '@vox/engine';
-import type { EventName, MethodArgs } from '../shared/api.ts';
+import type { EventName, Method, MethodArgs } from '../shared/api.ts';
 import type { Handlers } from './rpc.ts';
 
-type A<M extends Parameters<typeof argsOf>[0]> = MethodArgs<M>;
-const argsOf = <M extends keyof Handlers>(m: M) => m;
+type A<M extends Method> = MethodArgs<M>;
 
 /** `vox-media://` URL of a project file (path segments encoded). */
 export function mediaUrl(projectId: string, rel: string): string {

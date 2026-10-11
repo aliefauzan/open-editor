@@ -5,7 +5,10 @@ import { expect, test } from '@playwright/test';
 import { launchApp, tempHome } from '../test/helpers/app.ts';
 import { engineAt, SPIKE_SRC, spikeProject } from '../test/helpers/fixture.ts';
 
-test.skip(!existsSync(SPIKE_SRC), `fixture missing: ${SPIKE_SRC} (run packages/engine/test/fixtures/make.sh)`);
+test.skip(
+  !existsSync(SPIKE_SRC),
+  `fixture missing: ${SPIKE_SRC} (run packages/engine/test/fixtures/make.sh)`,
+);
 
 test('smoke: app starts, opens the 90 s fixture, the preview plays', async () => {
   const t = tempHome('vox-smoke-');
@@ -16,14 +19,22 @@ test('smoke: app starts, opens the 90 s fixture, the preview plays', async () =>
     const player = page.getByTestId('player');
     await player.waitFor({ timeout: 120_000 });
     expect(await player.getAttribute('sandbox-origin')).toBe('opaque');
-    expect(await player.getAttribute('src')).toMatch(/^vox-media:\/\/p\/p_[a-z0-9]+\/build\/seq_main\/index\.html$/);
+    expect(await player.getAttribute('src')).toMatch(
+      /^vox-media:\/\/p\/p_[a-z0-9]+\/build\/seq_main\/index\.html$/,
+    );
     await page.waitForFunction(
-      () => (document.querySelector('hyperframes-player') as unknown as { duration?: number })?.duration! > 0,
+      () =>
+        ((document.querySelector('hyperframes-player') as unknown as { duration?: number } | null)
+          ?.duration ?? 0) > 0,
       undefined,
       { timeout: 120_000 },
     );
     const time = () =>
-      page.evaluate(() => (document.querySelector('hyperframes-player') as unknown as { currentTime: number }).currentTime);
+      page.evaluate(
+        () =>
+          (document.querySelector('hyperframes-player') as unknown as { currentTime: number })
+            .currentTime,
+      );
     const t0 = await time();
     await page.getByTestId('play').click();
     await page.waitForTimeout(2500);

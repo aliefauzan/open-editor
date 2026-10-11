@@ -38,7 +38,14 @@ describe('engine host (step 8)', () => {
       const scene = await window.vox.ops.apply({
         projectId: p.id,
         op: 'addScene',
-        args: { sequenceId: 'seq_main', trackId: 'V1', startMs: 0, durationMs: 2000, template: 'base/title', variables: { title: 'Hi' } },
+        args: {
+          sequenceId: 'seq_main',
+          trackId: 'V1',
+          startMs: 0,
+          durationMs: 2000,
+          template: 'base/title',
+          variables: { title: 'Hi' },
+        },
         baseVersion: apply.version,
       });
       const stale = await window.vox.ops.apply({
@@ -54,7 +61,9 @@ describe('engine host (step 8)', () => {
     expect(r.list.map((p) => p.id)).toContain(projectId);
     expect(r.opened.version).toBe(0);
     expect(r.apply.version).toBe(1);
-    expect(r.apply.results).toEqual([expect.objectContaining({ op: 'addSequence', status: 'succeeded' })]);
+    expect(r.apply.results).toEqual([
+      expect.objectContaining({ op: 'addSequence', status: 'succeeded' }),
+    ]);
     expect(r.scene.version).toBe(2);
     expect(r.stale.results[0]).toMatchObject({ status: 'conflicted', error: { code: 'STALE' } });
     expect(r.events).toEqual([
@@ -78,7 +87,11 @@ describe('engine host (step 8)', () => {
     const after = await hostPid();
     expect(after).toBeGreaterThan(0);
     expect(after).not.toBe(pid);
-    expect(await app.evaluate(() => (globalThis as unknown as { __voxTest: Hooks }).__voxTest.restarts())).toBe(1);
+    expect(
+      await app.evaluate(() =>
+        (globalThis as unknown as { __voxTest: Hooks }).__voxTest.restarts(),
+      ),
+    ).toBe(1);
     // the project came back from disk and the preview was rebuilt
     await page.getByTestId('player').waitFor({ timeout: 60_000 });
     const opened = await page.evaluate((id) => window.vox.projects.open(id), projectId);

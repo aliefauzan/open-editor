@@ -4,6 +4,7 @@
 // Launched by timeline-runner.ts through Playwright's `_electron` (CommonJS: Playwright's Electron
 // launcher waits for a CommonJS main); not part of the app.
 'use strict';
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose (see above)
 const { BrowserWindow, app } = require('electron');
 
 const url = process.argv.find((a) => a.startsWith('http://127.0.0.1:'));

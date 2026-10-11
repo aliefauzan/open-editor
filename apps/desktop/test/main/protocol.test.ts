@@ -58,7 +58,9 @@ describe('vox-media:// path rule (S1 through the protocol)', () => {
   });
 
   it('rejects a raw ".." that skipped URL normalisation', async () => {
-    expect(await resolveMediaPath({ host: 'p', pathname: '/p_test/../../secret.txt' }, ctx)).toBeNull();
+    expect(
+      await resolveMediaPath({ host: 'p', pathname: '/p_test/../../secret.txt' }, ctx),
+    ).toBeNull();
   });
 });
 
@@ -74,7 +76,11 @@ describe('headers (S13, S28)', () => {
   });
 
   it('non-media types are attachments with nosniff', () => {
-    const r = fileResponse(join(ctx.projectsDir, 'p_test', 'project.json'), new Request('vox-media://p/x'), CSP_MEDIA);
+    const r = fileResponse(
+      join(ctx.projectsDir, 'p_test', 'project.json'),
+      new Request('vox-media://p/x'),
+      CSP_MEDIA,
+    );
     expect(r.headers.get('Content-Disposition')).toBe('attachment');
     expect(r.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(r.headers.get('Content-Security-Policy')).toBeNull();
@@ -90,12 +96,20 @@ describe('headers (S13, S28)', () => {
 
   it('range requests return 206 with Content-Range', async () => {
     const f = join(ctx.projectsDir, 'p_test', 'build', 'seq_main', 'clip.mp4');
-    const r = fileResponse(f, new Request('vox-media://p/x', { headers: { Range: 'bytes=10-19' } }), CSP_MEDIA);
+    const r = fileResponse(
+      f,
+      new Request('vox-media://p/x', { headers: { Range: 'bytes=10-19' } }),
+      CSP_MEDIA,
+    );
     expect(r.status).toBe(206);
     expect(r.headers.get('Content-Range')).toBe('bytes 10-19/1000');
     expect(r.headers.get('Content-Type')).toBe('video/mp4');
     expect((await r.arrayBuffer()).byteLength).toBe(10);
-    const bad = fileResponse(f, new Request('vox-media://p/x', { headers: { Range: 'bytes=2000-' } }), CSP_MEDIA);
+    const bad = fileResponse(
+      f,
+      new Request('vox-media://p/x', { headers: { Range: 'bytes=2000-' } }),
+      CSP_MEDIA,
+    );
     expect(bad.status).toBe(416);
     expect(parseRange('bytes=-100', 1000)).toEqual([900, 999]);
   });

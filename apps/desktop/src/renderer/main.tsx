@@ -7,7 +7,10 @@ declare module 'react' {
   // eslint-disable-next-line @typescript-eslint/no-namespace -- JSX intrinsic element typing
   namespace JSX {
     interface IntrinsicElements {
-      'hyperframes-player': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+      'hyperframes-player': React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement>,
+        HTMLElement
+      > & {
         src?: string;
         width?: string;
         height?: string;
