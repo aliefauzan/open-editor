@@ -1,6 +1,7 @@
 """facetrack: MediaPipe faces + Apple Vision body and saliency boxes at 12 fps on 360p (D-15)."""
 
 import os
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -223,3 +224,69 @@ def test_parallel_detection_matches_one_thread(face_model, monkeypatch):
     four = facetrack.handle(dict(request))
     assert four == one
     assert len(one["samples"]) >= 58
+
+
+def test_ordered_run_runs_each_stage_beside_the_others_in_item_order():
+    # Faces (CPU) and Vision (Neural Engine) of one frame run at the same time on their own pools:
+    # each fake stage only returns once the other stage of the same item has started.
+    n = 30
+    face_in = [threading.Event() for _ in range(n)]
+    vision_in = [threading.Event() for _ in range(n)]
+
+    def vision(i):
+        vision_in[i].set()
+        return ("vision", i, face_in[i].wait(5))
+
+    def faces(i):
+        face_in[i].set()
+        return ("faces", i, vision_in[i].wait(5))
+
+    out = list(facetrack.ordered_run(iter(range(n)), [(vision, 2), (faces, 4)]))
+    assert out == [(("vision", i, True), ("faces", i, True)) for i in range(n)]
+
+
+def test_ordered_run_reads_ahead_at_most_two_per_worker_of_the_largest_pool():
+    read = []
+
+    def items():
+        for i in range(40):
+            read.append(i)
+            yield i
+
+    out = []
+    for r in facetrack.ordered_run(items(), [(lambda i: -i, 2), (lambda i: i * i, 4)]):
+        assert len(read) - len(out) <= 8
+        out.append(r)
+    assert out == [(-i, i * i) for i in range(40)]
+
+
+def test_ordered_run_with_one_worker_each_runs_the_stages_inline_in_order():
+    calls = []
+
+    def stage(name):
+        def fn(i):
+            calls.append((name, i, threading.current_thread() is threading.main_thread()))
+            return name
+
+        return fn
+
+    out = list(facetrack.ordered_run(iter([1, 2]), [(stage("vision"), 1), (stage("faces"), 1)]))
+    assert out == [("vision", "faces"), ("vision", "faces")]
+    assert calls == [
+        ("vision", 1, True),
+        ("faces", 1, True),
+        ("vision", 2, True),
+        ("faces", 2, True),
+    ]
+
+
+def test_ordered_run_raises_the_first_error_in_order():
+    def fn(i):
+        if i == 5:
+            raise ValueError("bad frame")
+        return i
+
+    results = facetrack.ordered_run(iter(range(20)), [(lambda i: i, 2), (fn, 3)])
+    assert [next(results)[1] for _ in range(5)] == [0, 1, 2, 3, 4]
+    with pytest.raises(ValueError, match="bad frame"):
+        next(results)
