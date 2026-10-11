@@ -29,7 +29,7 @@ import { isVoxError } from '../errors.ts';
 import type { MediaItem, Project, Sequence, Track, Transcript } from '../model/schema.ts';
 import { CAPTION_DEFAULTS } from '../ops/captions.ts';
 import { hyperframesBin } from '../render/layers.ts';
-import { cueTimingFindings, frameDiffs, type CueAt } from './cue-timing.ts';
+import { cueTimingFindings, windowDiffs, type CueAt } from './cue-timing.ts';
 import { checkHookDeterminism, checkHookSource } from './hookcheck.ts';
 import type { ResolvedStyle, StyleRegistry, TemplateDef } from './registry.ts';
 import { captionSafeArea, variablesValidator, type SafeArea } from './schema.ts';
@@ -685,7 +685,7 @@ async function renderPass(c: PassCtx & { o: ValidateOptions; ffmpeg: string }): 
       count('cue-timing');
       const s = frameOf(w.startMs);
       const e = frameOf(w.startMs + w.durationMs);
-      const diffs = frameDiffs(gray.slice(s, e), gray[s - 1]);
+      const diffs = windowDiffs(gray, s, e);
       const cues: CueAt[] = w.def.sfxCues.map((q) => ({
         name: q.name,
         type: q.type,

@@ -1,0 +1,39 @@
+{
+  "columns": 6,
+  "cells": [
+    {
+      "kind": "scene",
+      "template": "vox/kinetic-serif",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/kinetic-serif",
+      "fixture": "paper-left"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/kinetic-serif",
+      "fixture": "punchline"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/stat",
+      "fixture": "coffee"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/stat",
+      "fixture": "dark"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/stat",
+      "fixture": "longest"
+    },
+    {
+      "kind": "caption",
+      "preset": "base/plain"
+    }
+  ]
+}

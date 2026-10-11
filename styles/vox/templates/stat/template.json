@@ -1,0 +1,27 @@
+{
+  "name": "stat",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "One big number or short fact in serif type, an optional second line with a hand-drawn red underline, an optional yellow mono tag, over an optional faded archive photo on paper. Like \"2 billion cups. Every single day.\" in the reference reel.",
+  "useWhen": [
+    "the speaker says a number, amount, percentage or date",
+    "a single striking fact",
+    "a comparison that fits in one line"
+  ],
+  "durationMs": { "min": 1200, "default": 2500, "max": 5000 },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "value": { "type": "string", "minLength": 1, "maxLength": 24 },
+      "line2": { "type": "string", "maxLength": 48 },
+      "bgPhoto": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "tag": { "type": "string", "maxLength": 32 },
+      "bg": { "enum": ["paper", "dark", "highlight"] }
+    },
+    "required": ["value"],
+    "additionalProperties": false
+  },
+  "slots": { "bgPhoto": "image" },
+  "sfxCues": [{ "name": "reveal", "atMs": "entrance", "sfx": "thump-tap", "type": "hero" }],
+  "minEntranceMs": 1500
+}

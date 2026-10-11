@@ -6,8 +6,8 @@ npm registry, commons.wikimedia.org, with User-Agent `VoxStudio-assets/0.0 (http
 
 ## Fonts (`assets/fonts/`)
 
-See `assets/fonts/SOURCES.md` (per-file upstream path, SHA-256, licence text). All SIL OFL 1.1. Both display
-candidates are present: Libre Caslon Display and DM Serif Display. Phase 07 picks one and removes the other.
+See `assets/fonts/SOURCES.md` (per-file upstream path, SHA-256, licence text). All SIL OFL 1.1. Display
+font kept: DM Serif Display (phase 07 rendered both on `kinetic-serif` and `stat`; Libre Caslon Display was too light next to the reference and was removed).
 
 ## Geo (`assets/geo/countries-50m.json`)
 
@@ -37,7 +37,7 @@ candidates are present: Libre Caslon Display and DM Serif Display. Phase 07 pick
 
 ## SFX (`assets/sfx/`)
 
-Candidates only, see `assets/sfx/CREDITS.md`.
+Accepted in phase 07 (five files; `typewriter` removed), see `assets/sfx/CREDITS.md`.
 
 ## Vendored code (`templates/map-route/vendor/`)
 

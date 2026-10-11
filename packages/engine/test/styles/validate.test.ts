@@ -3,7 +3,7 @@
 // `skipEntrance` (step 5b), and the cue-timing measurement on synthetic frame differences (step 6).
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { cueTimingFindings, frameDiffs } from '../../src/styles/cue-timing.ts';
+import { cueTimingFindings, frameDiffs, windowDiffs } from '../../src/styles/cue-timing.ts';
 import { loadStyleRegistry } from '../../src/styles/registry.ts';
 import {
   fileRefProblems,
@@ -119,5 +119,16 @@ describe('cue timing on frame differences (step 6)', () => {
     expect(cueTimingFindings(diffs, [{ name: 'm', type: 'move', frame: 31 }])).toEqual([]);
     expect(cueTimingFindings(diffs, [{ name: 'm', type: 'move', frame: 60 }])).toHaveLength(1);
     expect(cueTimingFindings(diffs, [{ name: 'h', type: 'hero', frame: 60 }])).toEqual([]);
+  });
+});
+
+describe('cue window at the start of the render (phase 07)', () => {
+  test('a scene at frame 0 is compared with the black canvas, so an appear cue at 0 is measured', () => {
+    const gray = Array.from({ length: 10 }, () => new Uint8Array(64).fill(26));
+    const diffs = windowDiffs(gray, 0, 10);
+    expect(diffs[0]).toBe(26);
+    expect(cueTimingFindings(diffs, [{ name: 'in', type: 'appear', frame: 0 }])).toEqual([]);
+    // later windows keep comparing with the frame before them
+    expect(windowDiffs(gray, 3, 10)[0]).toBe(0);
   });
 });

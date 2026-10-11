@@ -1,0 +1,30 @@
+{
+  "name": "kinetic-serif",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "A punchline set in large serif type, revealed word by word. Words listed in `emphasis` are set larger and pop in. Dark background by default, like the reference reel's \"without animating a single frame\".",
+  "useWhen": [
+    "a punchline or key sentence",
+    "a short quote worth reading on screen",
+    "the speaker states the main claim"
+  ],
+  "durationMs": { "min": 1200, "default": 2500, "max": 5000 },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "minLength": 1, "maxLength": 60 },
+      "emphasis": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "maxItems": 6
+      },
+      "align": { "enum": ["left", "center"] },
+      "bg": { "enum": ["paper", "dark", "highlight"] }
+    },
+    "required": ["text"],
+    "additionalProperties": false
+  },
+  "slots": {},
+  "sfxCues": [{ "name": "reveal", "atMs": "entrance", "sfx": "paper-pop", "type": "appear" }],
+  "minEntranceMs": 1500
+}
