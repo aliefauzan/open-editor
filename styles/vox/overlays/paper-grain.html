@@ -1,0 +1,225 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .g-grain {
+          position: absolute;
+          inset: -64px;
+          mix-blend-mode: overlay;
+          opacity: var(--tok-texture-grain);
+        }
+        .g-vignette {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse at 50% 45%,
+            rgb(0 0 0 / 0%) 55%,
+            rgb(0 0 0 / 14%) 82%,
+            rgb(0 0 0 / 30%) 100%
+          );
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="g-grain"></div>
+        <div class="g-vignette"></div>
+      </div>
+      <script>
+        // vox:motion:begin
+        /* global window */
+        // vox motion helpers (styles spec Part B "Tokens" motion; phase 07 step 3).
+        // Templates inline a copy of this file between the `vox:motion` markers (scripts/sync-vox-motion.mjs
+        // writes the copies; a test checks they equal this file). Everything is deterministic: timing comes
+        // from the GSAP timeline only, and jitter uses a PRNG seeded from the scene instance id.
+        (function () {
+          'use strict';
+          if (window.voxMotion) return;
+
+          // FNV-1a 32-bit hash of a string: the jitter seed of a scene instance
+          function hash(str) {
+            var h = 0x811c9dc5;
+            for (var i = 0; i < str.length; i++) {
+              h ^= str.charCodeAt(i);
+              h = Math.imul(h, 0x01000193) >>> 0;
+            }
+            return h >>> 0;
+          }
+
+          // mulberry32: small seeded PRNG, values in [0, 1)
+          function rng(seed) {
+            var a = seed >>> 0;
+            return function () {
+              a = (a + 0x6d2b79f5) >>> 0;
+              var t = a;
+              t = Math.imul(t ^ (t >>> 15), t | 1);
+              t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+              return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+          }
+
+          function tokenOf(root, name, fallback) {
+            var v = window.getComputedStyle(root).getPropertyValue(name).trim();
+            return v === '' ? fallback : v;
+          }
+
+          // create(root, id): the helper set of one scene instance. `fps` is the frame grid the holds use
+          // (the sequence's data-fps when present, else 30).
+          function create(root, id, opts) {
+            var o = opts || {};
+            var gsap = window.gsap;
+            var fpsAttr = window.document.querySelector('[data-fps]');
+            var fps = o.fps || (fpsAttr ? Number(fpsAttr.getAttribute('data-fps')) : 30) || 30;
+            var hold = Math.max(
+              1,
+              Math.round(Number(tokenOf(root, '--tok-motion-frame-hold', '1')) || 1),
+            );
+            var jitterPx = Number(tokenOf(root, '--tok-motion-jitter-px', '0')) || 0;
+            var easing = tokenOf(root, '--tok-motion-easing', 'back.out(1.6)');
+            var entrance = tokenOf(root, '--tok-motion-entrance', 'pop');
+            var random = rng(hash(String(id)));
+            var step = hold / fps;
+
+            // An ease whose progress only changes every `hold` frames (animation "on twos").
+            function held(ease, duration) {
+              var base = gsap.parseEase(ease) || gsap.parseEase('none');
+              var n = Math.max(1, Math.round((duration * fps) / hold));
+              if (hold === 1) return base;
+              return function (p) {
+                return p >= 1 ? 1 : base(Math.floor(p * n) / n);
+              };
+            }
+
+            // pop(tl, el, at, d?): the style entrance. `pop` scales up from 0.6 with the style easing,
+            // held on twos; unknown entrances fall back to `fade` (styles spec "Tokens").
+            function pop(tl, el, at, d) {
+              var dur = d || 0.4;
+              if (entrance === 'pop') {
+                tl.fromTo(
+                  el,
+                  { scale: 0.6, opacity: 0 },
+                  { scale: 1, opacity: 1, duration: dur, ease: held(easing, dur) },
+                  at,
+                );
+              } else {
+                tl.fromTo(el, { opacity: 0 }, { opacity: 1, duration: dur, ease: 'none' }, at);
+              }
+              jitter(tl, el, at, dur);
+              return at + dur;
+            }
+
+            // slideIn(tl, el, at, fromX, fromY, d?): a card moving in, held on twos.
+            function slideIn(tl, el, at, fromX, fromY, d) {
+              var dur = d || 0.5;
+              tl.fromTo(
+                el,
+                { xPercent: fromX, yPercent: fromY },
+                { xPercent: 0, yPercent: 0, duration: dur, ease: held('power3.out', dur) },
+                at,
+              );
+              return at + dur;
+            }
+
+            // jitter(tl, el, from, dur): seeded offsets of up to jitterPx on every held frame of
+            // [from, from + dur), then rest at 0. Entrances only, so held shots stay still.
+            function jitter(tl, el, from, dur) {
+              if (!(jitterPx > 0) || hold < 2) return;
+              var count = Math.max(1, Math.floor(dur / step));
+              for (var i = 0; i < count; i++) {
+                tl.set(
+                  el,
+                  {
+                    x: Math.round((random() * 2 - 1) * jitterPx),
+                    y: Math.round((random() * 2 - 1) * jitterPx),
+                  },
+                  from + i * step,
+                );
+              }
+              tl.set(el, { x: 0, y: 0 }, from + count * step);
+            }
+
+            // pushIn(tl, el, from, dur, amount?): slow camera push, continuous (camera moves are never held).
+            function pushIn(tl, el, from, dur, amount) {
+              tl.fromTo(
+                el,
+                { scale: 1 },
+                { scale: 1 + (amount || 0.06), duration: dur, ease: 'power2.inOut' },
+                from,
+              );
+            }
+
+            return {
+              fps: fps,
+              hold: hold,
+              step: step,
+              jitterPx: jitterPx,
+              easing: easing,
+              random: random,
+              held: held,
+              pop: pop,
+              slideIn: slideIn,
+              jitter: jitter,
+              pushIn: pushIn,
+            };
+          }
+
+          window.voxMotion = { create: create, hash: hash, rng: rng };
+        })();
+        // vox:motion:end
+      </script>
+      <script>
+        // vox/paper-grain: film grain at --tok-texture-grain plus a slight vignette. The grain is a
+        // seeded noise tile drawn once; it shifts to a new seeded offset on every held frame.
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var DUR = __DUR__;
+          var M = voxMotion.create(root, '__ID__');
+          var grain = root.querySelector('.g-grain');
+          var size = 256;
+          var c = document.createElement('canvas');
+          c.width = size;
+          c.height = size;
+          var g = c.getContext('2d');
+          var img = g.createImageData(size, size);
+          for (var i = 0; i < size * size; i++) {
+            var n = Math.round(M.random() * 255);
+            img.data[i * 4] = n;
+            img.data[i * 4 + 1] = n;
+            img.data[i * 4 + 2] = n;
+            img.data[i * 4 + 3] = 255;
+          }
+          g.putImageData(img, 0, 0);
+          grain.style.backgroundImage = 'url(' + c.toDataURL('image/png') + ')';
+          var tl = gsap.timeline({ paused: true });
+          var steps = Math.max(1, Math.floor(DUR / M.step));
+          for (var k = 0; k < steps; k++) {
+            tl.set(
+              grain,
+              { x: Math.round(M.random() * 64) - 32, y: Math.round(M.random() * 64) - 32 },
+              k * M.step,
+            );
+          }
+          tl.set(root, {}, DUR);
+          window.__timelines[mount.key] = mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

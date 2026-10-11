@@ -1,0 +1,15 @@
+{
+  "name": "slide-paper",
+  "version": "1.0.0",
+  "kind": "transition",
+  "description": "A paper card slides through the frame and covers it at the cut, then slides on and uncovers the next shot (cover style, no source handles).",
+  "useWhen": ["between two scenes inside a story", "a quick change of place"],
+  "durationMs": { "min": 400, "default": 700, "max": 1200 },
+  "variables": {
+    "type": "object",
+    "properties": { "direction": { "enum": ["up", "left"] } },
+    "additionalProperties": false
+  },
+  "slots": {},
+  "sfxCues": [{ "name": "slide", "atMs": 0, "sfx": "whoosh", "type": "move" }]
+}

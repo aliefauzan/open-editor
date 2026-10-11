@@ -50,12 +50,17 @@
     }
   },
   "captions": {
-    "default": "base/plain",
-    "presets": ["base/plain"]
+    "default": "vox/mono-box",
+    "presets": ["vox/mono-box", "vox/serif-lower"]
   },
   "templates": ["kinetic-serif", "stat", "paper-collage", "map-route"],
-  "transitions": [],
-  "overlays": [],
+  "transitions": ["paper-tear", "slide-paper"],
+  "overlays": [
+    {
+      "name": "paper-grain",
+      "default": true
+    }
+  ],
   "pacing": {
     "beatMs": {
       "min": 1200,

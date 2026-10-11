@@ -67,8 +67,22 @@
       "fixture": "longest"
     },
     {
+      "kind": "transition",
+      "template": "vox/paper-tear",
+      "fixture": "(cut)"
+    },
+    {
+      "kind": "transition",
+      "template": "vox/slide-paper",
+      "fixture": "(cut)"
+    },
+    {
       "kind": "caption",
-      "preset": "base/plain"
+      "preset": "vox/mono-box"
+    },
+    {
+      "kind": "caption",
+      "preset": "vox/serif-lower"
     }
   ]
 }

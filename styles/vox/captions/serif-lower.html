@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .c-chunk {
+          position: absolute;
+          opacity: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          white-space: nowrap;
+        }
+        .c-line {
+          display: block;
+        }
+        .c-word {
+          font-family: var(--tok-font-display);
+          font-weight: var(--tok-font-display-weight);
+          color: var(--tok-color-caption);
+          opacity: 0.6;
+          text-shadow:
+            0 0.04em 0.12em rgb(0 0 0 / 65%),
+            0 0 0.3em rgb(0 0 0 / 35%);
+        }
+        .c-word.c-emph {
+          color: var(--tok-color-highlight);
+        }
+        .c-word.c-on {
+          text-decoration: underline var(--tok-color-accent) 0.07em;
+          text-underline-offset: 0.12em;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+      </div>
+      <script>
+        // vox/serif-lower (styles spec Part B): white serif with a soft shadow, low in the frame. Unread
+        // words are at 60 % opacity, active and read words full white (the active word also underlined
+        // in red, so it differs from a read word, D-XX), emphasis words yellow. Lines
+        // come from the engine (never re-wrapped); the box is placed from the font size and line count
+        // without measuring the DOM; all state changes are timeline sets at word times.
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var v = mount.vars;
+          var W = __W__;
+          var H = __H__;
+          var side = (v.safeArea.rightPct / 100) * W;
+          var usable = W - 2 * side;
+          // DM Serif Display averages under 0.55 em per character; size for maxCharsPerLine at that
+          var cols = Math.max(1, v.maxCharsPerLine);
+          var size = Math.min(W * 0.062, usable / (cols * 0.55));
+          // the line height covers the font's content area (ascent + descent about 1.36 em)
+          var lineH = size * 1.4;
+          var limit = (1 - v.safeArea.bottomPct / 100) * H;
+          var centre = (v.position.yPct / 100) * H;
+          var tl = gsap.timeline({ paused: true });
+          for (var i = 0; i < v.chunks.length; i++) {
+            var c = v.chunks[i];
+            var el = document.createElement('div');
+            el.className = 'c-chunk';
+            var h = c.lines.length * lineH;
+            var top = Math.max(0, Math.min(centre - h / 2, limit - h));
+            el.style.left = side + 'px';
+            el.style.width = usable + 'px';
+            el.style.top = top + 'px';
+            el.style.fontSize = size + 'px';
+            el.style.lineHeight = lineH + 'px';
+            for (var l = 0; l < c.lines.length; l++) {
+              var line = document.createElement('div');
+              line.className = 'c-line';
+              var words = c.lines[l].words;
+              for (var k = 0; k < words.length; k++) {
+                var w = words[k];
+                if (k > 0) line.appendChild(document.createTextNode(' '));
+                var span = document.createElement('span');
+                span.className = w.emphasis ? 'c-word c-emph' : 'c-word';
+                span.setAttribute('data-key', w.key);
+                span.textContent = w.text;
+                line.appendChild(span);
+                tl.set(span, { opacity: 1, className: span.className + ' c-on' }, w.startMs / 1000);
+                tl.set(span, { className: span.className }, w.endMs / 1000);
+              }
+              el.appendChild(line);
+            }
+            root.appendChild(el);
+            tl.set(el, { opacity: 1 }, c.startMs / 1000);
+            tl.set(el, { opacity: 0 }, c.endMs / 1000);
+          }
+          window.__timelines[mount.key] = mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

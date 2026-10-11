@@ -10,6 +10,7 @@ import {
   textLength,
   textWithoutMaxLength,
   validateStyle,
+  windowCueFrames,
 } from '../../src/styles/validate.ts';
 import { REPO_STYLES } from '../compile/fixture.ts';
 
@@ -130,5 +131,20 @@ describe('cue window at the start of the render (phase 07)', () => {
     expect(cueTimingFindings(diffs, [{ name: 'in', type: 'appear', frame: 0 }])).toEqual([]);
     // later windows keep comparing with the frame before them
     expect(windowDiffs(gray, 3, 10)[0]).toBe(0);
+  });
+});
+
+describe('cue frames per window (phase 07)', () => {
+  test('scene cues count from the scene start, transition cues from the cut', () => {
+    const cues = [
+      { name: 'a', type: 'appear' as const, atMs: 'entrance' as const },
+      { name: 'b', type: 'move' as const, atMs: 100 },
+    ];
+    expect(windowCueFrames({ kind: 'scene', startMs: 3000 }, cues).map((c) => c.frame)).toEqual([
+      0, 3,
+    ]);
+    // window 1000 ms before the cut at 5000: the cut is frame 30 of the window (30 fps)
+    const tx = windowCueFrames({ kind: 'transition', startMs: 4000, cutMs: 5000 }, cues);
+    expect(tx.map((c) => c.frame)).toEqual([30, 33]);
   });
 });

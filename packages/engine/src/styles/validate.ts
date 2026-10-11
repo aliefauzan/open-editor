@@ -306,6 +306,24 @@ interface Window {
   durationMs: number;
   /** Contact sheet / thumbnail time (ms on the sequence). */
   stillMs: number;
+  /** Transitions: the cut, which their cue offsets count from (engine "Sound cues"). */
+  cutMs?: number;
+}
+
+/**
+ * Cue frames relative to a window's first frame: scene cues count from the scene start, transition
+ * cues from the cut (phase 07: transitions are measured like scenes).
+ */
+export function windowCueFrames(
+  w: Pick<Window, 'kind' | 'startMs' | 'cutMs'>,
+  cues: readonly { name: string; type: CueAt['type']; atMs: number | 'entrance' }[],
+): CueAt[] {
+  const base = w.kind === 'transition' ? (w.cutMs ?? w.startMs) : w.startMs;
+  return cues.map((q) => ({
+    name: q.name,
+    type: q.type,
+    frame: frameOf(base + (q.atMs === 'entrance' ? 0 : q.atMs)) - frameOf(w.startMs),
+  }));
 }
 
 const clampDur = (def: TemplateDef, ms: number) =>
@@ -621,6 +639,7 @@ async function renderPass(c: PassCtx & { o: ValidateOptions; ffmpeg: string }): 
       startMs: cut - Math.round(dur / 2) - 300,
       durationMs: dur + 600,
       stillMs: cut - Math.round(dur / 4),
+      cutMs: cut,
     });
     t += 2 * CLIP_MS + GAP_MS;
   }
@@ -682,16 +701,12 @@ async function renderPass(c: PassCtx & { o: ValidateOptions; ffmpeg: string }): 
         message: `frame ${frameOf(w.stillMs)} of ${w.def.id} (${w.fixture}) is blank`,
       });
     }
-    if (w.kind === 'scene' && w.def.sfxCues?.length) {
+    if (w.def.sfxCues?.length) {
       count('cue-timing');
       const s = frameOf(w.startMs);
       const e = frameOf(w.startMs + w.durationMs);
       const diffs = windowDiffs(gray, s, e);
-      const cues: CueAt[] = w.def.sfxCues.map((q) => ({
-        name: q.name,
-        type: q.type,
-        frame: frameOf(q.atMs === 'entrance' ? 0 : q.atMs),
-      }));
+      const cues = windowCueFrames(w, w.def.sfxCues);
       for (const f of cueTimingFindings(diffs, cues)) {
         problem({ rule: 'cue-timing', template: w.def.id, fixture: w.fixture, message: f.message });
       }
