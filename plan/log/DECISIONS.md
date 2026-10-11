@@ -1136,7 +1136,7 @@ of builds, media and data stay refused. The media CSP (`connect-src 'none'`) is 
 discloses nothing; only `vox-app://` and `vox-media://` pages can reach the scheme at all (all
 http/https/ws is blocked, S10). Test: `test/main/protocol.test.ts` (font CORS case).
 
-## D-1 · 2026-10-11 · phase 11 (early G2) · Provider presets, context sources, tool-list measure and role rules
+## D-38 · 2026-10-11 · phase 11 (early G2) · Provider presets, context sources, tool-list measure and role rules
 
 **Decision**:
 - Presets add `openai` (`https://api.openai.com/v1`, responses API) and `gemini`

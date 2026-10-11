@@ -105,7 +105,7 @@ question (D-26, left for phase 11).
 ## Early steps (D-19) — g2-providers
 
 Branch `early/g2-providers` (worktree `.worktrees/early-g2-providers`), from main b2a7b41, main
-merged in at 9f37d55. No `@vox/engine` import; errors use the G1 `UtilError` shim. Decisions: D-1.
+merged in at 9f37d55. No `@vox/engine` import; errors use the G1 `UtilError` shim. Decisions: D-38.
 N1 and G1 files are only imported.
 
 **Done** (all in `packages/agent`, tests first, `MockLanguageModelV4` or the fake helper, no network):
@@ -130,7 +130,7 @@ N1 and G1 files are only imported.
 - `src/providers/probe.ts`: tools, loop, vision (generated solid-colour PNG), plan/json checks;
   results carry codes or HTTP status only, never provider text.
 - `src/providers/context.ts`: OpenRouter models list (context, price via G1
-  `parseOpenRouterPricing`, modalities, tools), Ollama `/api/show`, `detectContext` per D-1.
+  `parseOpenRouterPricing`, modalities, tools), Ollama `/api/show`, `detectContext` per D-38.
 - `src/providers/tool-cost.ts`: `toolDefinitions`, `serializedToolList` (provider's own `tools`
   JSON), `estimateTokens`, `checkToolListCost` (25 %), `measureToolListCost`.
 - `src/providers/roles.ts`: `ROLES`, `EDITOR_MIN_CONTEXT` 32,000, `selectMode`, `roleCheck`,

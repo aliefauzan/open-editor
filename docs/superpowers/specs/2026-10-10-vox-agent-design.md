@@ -135,7 +135,7 @@ run summary says "visual self-review skipped: no vision model".
      limits: { maxUsdPerRun, maxStepsPerRun }, contact?: string, projectsDir?: string }`
   (`apiKey` is absent for keyless local providers; `preset` is the preset the entry was created
   from and drives Zen routing and local pricing; `options.numCtx` (Ollama) and
-  `options.contextTokens` (model id to context size, for providers with no context endpoint), D-1).
+  `options.contextTokens` (model id to context size, for providers with no context endpoint), D-38).
   `options` holds provider settings such as Ollama `numCtx` (default 32768, sent on every
   request). The file is read and written only through the engine's config module
   (`readConfig`/`writeConfig`, spec 1), which applies mode `0600` from the first write
