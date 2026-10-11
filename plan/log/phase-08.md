@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | in progress |
-| Started · Finished | 2026-10-11 08:17 · |
+| Status | done |
+| Started · Finished | 2026-10-11 08:17 · 2026-10-11 09:15 |
 | Model | Opus 5.5 · high (single agent; owner asked to cut token cost) |
 | Machine | M5, macOS 27 |
 | Branch | phase/08-app-shell-security |
@@ -44,6 +44,111 @@ within 10 % → decided by the numbers, no stop. Evidence `docs/evidence/phase-0
 Bench changes: `--browser electron` (Playwright `_electron`, CommonJS bench main
 `bench/timeline-electron-main.cjs`; an ESM main made `_electron.launch` time out). A first try at the
 laptop's work-area size (1512x835) put the trim clip off-screen (0 updates), hence the fixed 1920x1080 window.
+
+## Checklist
+- [x] 1–3 GATE 4: bench in Electron, prototype checks, PASS (D-35) — section above
+- [x] 4 IPC: subframe / non-`vox-app://` sender rejected, invalid args → `ARGS_INVALID` (S11) —
+      `test/main/guard.test.ts`, `test/shared/api.test.ts`, `test/security.slow.test.ts`
+- [x] 5 `vox-media://`: media CSP with `connect-src 'none'`, `attachment` + `nosniff`, 206/416 ranges,
+      traversal (encoded `..`, absolute, NUL, symlink out) refused (S1, S13) — `test/main/protocol.test.ts`,
+      security slow test
+- [x] 6 hostile template fixture: `fetch`, `parent.vox`, `window.top.location` get nothing (S14) —
+      security slow test (`hostileProject`)
+- [x] 7 renderer http(s)/ws blocked, `will-navigate` / `window.open` denied, permissions denied (log
+      asserted), effective `webPreferences` asserted, app CSP with `frame-ancestors 'none'`,
+      allowlisted external links only (S10, S12, S15, S28) — security slow test, `guard.test.ts`
+- [x] 8 engine host: projects list/create/open, `ops.apply` with `baseVersion` + `coalesceKey`, per-op
+      `results`, stale → `conflicted`/`STALE` (D-28), events forwarded through the redactor, crash →
+      restart + reload + banner — `test/engine-host/handlers.test.ts`, `test/engine-host.slow.test.ts`
+- [x] 9 minimal UI (project picker + opaque-sandbox preview) and `e2e/smoke.spec.ts`: the 90 s fixture
+      plays, current time advances, no console errors
+- [x] 10 skeleton `.dmg` (ad-hoc signed arm64, 123 MB): `pnpm -C apps/desktop dist` builds it; the app
+      launched from `/Applications` (Playwright drove the installed binary: picker loads, create project
+      round-trips through the bundled engine host, no console errors, `__voxTest` absent).
+      Screenshot `docs/evidence/phase-08/B10-packaged-app.png`. MANUAL STEP (optional) in TODO.
+
+## What was built
+- `apps/desktop/src/shared/api.ts`: the `window.vox` method table as zod tuples (37 methods), events,
+  app error codes, `parseCall`. `src/preload/index.ts` builds `window.vox` from it.
+- `src/main/`: `protocol.ts` (`vox-app://`, `vox-media://`, CSPs, headers, ranges, path rule from
+  `@vox/engine/paths`), `guard.ts` (sender check, zod, external-link allowlist), `host.ts` (engine host
+  in a `utilityProcess` on a `MessageChannelMain`, restart ≤ 5/min), `index.ts` (schemes, session
+  hardening, navigation / window / webview / permission handlers, IPC, test hooks only when
+  `!app.isPackaged && VOX_E2E=1`).
+- `src/engine-host/`: `rpc.ts` (MessagePort RPC; error replies redacted), `handlers.ts` (window.vox →
+  engine API; later-phase methods answer `NOT_AVAILABLE`), `index.ts` (opens the engine with
+  `trustFile`).
+- `src/renderer/`: React 19 + Zustand + Tailwind 4; project picker, `<hyperframes-player
+  sandbox-origin="opaque">` preview, host-restart banner.
+- `scripts/build.ts` (vite 8, D-36), `electron-builder.yml` (skeleton), `e2e/` (Playwright for
+  Electron), `test/helpers/{app,fixture}.ts`, bench `--browser electron` (A3).
+
+## Decisions
+D-35 (GATE 4 pass, keep the library), D-36 (plain vite 8 build, no electron-vite; CJS main for
+Playwright; shell pins; shadcn/ui deferred to 10a), D-37 (`vox-media://` CORS-enabled, `ACAO: *` on
+fonts only; app spec "Untrusted HTML" edited). R5 rows filled.
+
+## Review
+self-review (owner asked to cut token cost). Security focus (R4 S1, S10–S15, S19, S28; R6):
+- HIGH, fixed: engine-host error replies passed `Error.message` through unredacted (only events went
+  through the redactor); a provider error could carry a key to the renderer. `serve()` now redacts
+  error replies; test with the R4 canary key (`handlers.test.ts`).
+- MEDIUM, fixed: Playwright `test-results/` was tracked; now ignored.
+- LOW, accepted: `vox-media://p/...` is one origin for every project, so one project's build could
+  embed another project's files by URL; it cannot read or send them (`connect-src 'none'`, no network,
+  no CORS on non-fonts). Revisit if per-project hosts are cheap in 10a.
+- LOW, for 09: the skeleton bundle still has Electron's `default_app.asar`, and fuses are not set yet
+  (S27 is a phase 09 step).
+- Checked, no finding: sender check needs main frame + `vox-app://app` + an app window; zod on every
+  call; `projects.reveal` id validated twice; test hooks absent in the packaged app; `will-navigate`,
+  `will-redirect`, window open, webview attach all denied; permission request and check handlers
+  deny; app CSP `frame-ancestors 'none'`; ACAO only on fonts.
+- TypeScript / React: typecheck now covers tests, e2e and scripts (it did not before; 22 errors
+  fixed: erasable-syntax parameter property, RPC message typing, handler arg types); the effect in
+  `App.tsx` reads store actions through `getState()` (no stale deps).
+- UI review: the minimal shell is not the editor (10a), so there is nothing to compare with the
+  reference layout yet (`docs/reference/invideo-layout.png` is not in place either). Dark, readable,
+  no overflow at 1280×820 (screenshot above).
+
+## Verify (2026-10-11)
+- `pnpm -C apps/desktop test`: 7 files, 99 passed.
+- `pnpm -C apps/desktop bench:timeline` (bench lock, headless shell): 60 / 60 / 60 fps, linked 3/3,
+  marquee 3/3 → PASS. In Electron (A3, evidence): 119.7 / 119.7 / 119.4 fps.
+- `pnpm -C apps/desktop e2e -- smoke` (`VOX_FIXTURES` = engine fixtures): 1 passed (4.4 s).
+- `pnpm -C apps/desktop test:slow -- security`: 3 files, 19 passed (security 16, engine-host 2,
+  prototype 1).
+- `pnpm typecheck` (desktop), `pnpm lint` clean; root `pnpm test` 120 files, 1734 passed, 1 skipped.
+
+## Done when
+| Item | State |
+|---|---|
+| GATE 4 decided (DECISIONS with numbers) | yes, D-35 |
+| Main / engine-host security tests pass incl. S28 | yes (security slow test 16/16) |
+| Skeleton `.dmg` builds and launches | yes (from `/Applications`) |
+| Fixture plays under the production CSP and sandbox mode | yes (smoke e2e) |
+| `window.vox` schema frozen once 05 is also done | not yet: 05 is `[~]` (GATE 2); PROGRESS milestone stays open |
+
+## Deviations
+- No electron-vite (D-36). Main and preload are CommonJS bundles.
+- `vox-media://` is CORS-enabled for fonts (D-37; the spec said `corsEnabled: false`).
+- `media.importFiles`, `exports.*`, `setup.*`, `agent.*` answer `NOT_AVAILABLE` until their phases.
+- `getUserMedia` for the microphone never answers in Electron 44 when denied (no reject); the test
+  waits 5 s and asserts it is not granted, plus the permission log.
+
+## Manual steps
+- Optional (does not block the merge): open the `.dmg` once through Gatekeeper ("Open Anyway"); see
+  `plan/TODO.md` "Manual steps".
+
+## Handoff
+- pnpm does not run Electron's postinstall unless allowed: `pnpm-workspace.yaml` `allowBuilds` has
+  `electron: true` now; on an existing checkout run `node install.js` in
+  `apps/desktop/node_modules/electron` (and `spike/`) once. CI needs the same.
+- Phase 09: engine-host resources (data files, vendored runtime, tools) in the bundle; fuses (S27);
+  drop `default_app.asar`; icon; size. Packaged builds run `out/engine-host/index.mjs`.
+- Phase 10a: trust confirmation UI (`styles.accept` exists; ask the user before trusting, as 06
+  said); shadcn/ui; the editor layout. Playwright's Electron launcher needs a CommonJS main.
+- Phase 05 merge: re-run `pnpm -C apps/desktop test` and the security slow test; then mark the
+  `window.vox` freeze milestone.
 
 ## Early steps (D-19) — u1-timeline-bench
 
