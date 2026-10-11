@@ -3,6 +3,8 @@ packages:
   - apps/*
   - spike
 allowBuilds:
+  electron: true
+  electron-winstaller: false
   esbuild: true
 minimumReleaseAgeExclude:
   - prettier@3.9.10

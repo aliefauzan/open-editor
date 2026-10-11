@@ -1,0 +1,30 @@
+# Skeleton packaging (phase 08 step 10): ad-hoc signed arm64 .dmg. Phase 09 extends it (bundled
+# tools, notarization-free clean-install test, resources).
+appId: app.vox.studio
+productName: Vox Studio
+directories:
+  output: dist
+  buildResources: build
+# Everything the app needs is bundled into out/ by scripts/build.ts --package; no node_modules.
+files:
+  - out/**/*
+  - package.json
+  - '!**/node_modules/**'
+extraResources:
+  - from: ../../styles
+    to: styles
+    filter: ['**/*', '!**/node_modules/**']
+npmRebuild: false
+nodeGypRebuild: false
+electronDist: node_modules/electron/dist
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  category: public.app-category.video
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
+dmg:
+  writeUpdateInfo: false
+publish: null
