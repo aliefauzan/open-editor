@@ -265,6 +265,7 @@ Track {
   name?: string
   locked: boolean; hidden: boolean; muted: boolean
   syncLock: boolean          // default true; ripple/insert shift this track too
+  duck?: boolean             // audio tracks only (v1.1, plan D-61): lowered under the speech tracks in the mix
   items: Item[]              // stored sorted by startMs; no overlaps within a track
 }
 
@@ -506,7 +507,7 @@ except `inMs` (source ms).
   { sequenceId, name? }` (new ids, link groups kept; reports `sequenceId`),
   `removeSequence { sequenceId }`.
 - `addTrack { sequenceId, kind: 'video' | 'audio', name? }` (next free `V<n>`/`A<n>`, on
-  top), `updateTrack { sequenceId, trackId, name?, locked?, hidden?, muted?, syncLock? }`,
+  top), `updateTrack { sequenceId, trackId, name?, locked?, hidden?, muted?, syncLock?, duck? }`,
   `removeTrack { sequenceId, trackId }` (empty tracks only, else `TRACK_NOT_EMPTY`),
   `reorderTracks { sequenceId, kind, trackIds }` (a permutation).
 - `placeClip { sequenceId, trackId, mediaId, startMs, inMs = 0, durationMs?, withAudio?,
@@ -800,7 +801,11 @@ The export loudness target is a preset: `youtube` = −14 LUFS (default), `tikto
 −12 LUFS, `broadcast` = −23 LUFS (`render --loudness`).
 `render` renders the picture with HyperFrames (silent) and muxes it with
 this mix. Audio and picture are both placed from the same frame-grid times, so sync
-does not depend on the browser. Ducking (v1.1) adds `sidechaincompress` per track.
+does not depend on the browser.
+Ducking (v1.1, plan D-61): an audio track with `duck: true` that is not a captions source has its clips
+mixed into one bus, which `sidechaincompress` lowers while the speech bus (the captions source tracks,
+after their gain-to-target, volume and fades) is loud. This sits after each clip's gain-to-target and
+before the final `amix`; speech and SFX are never ducked, and with no speech clip the flag does nothing.
 The same graph can write three stems (speech = audio tracks with captions sources,
 other audio tracks, SFX) as WAV for the audio QA; stems skip `loudnorm`.
 

@@ -22,13 +22,13 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 13 | App: agent panel + settings + v1.0 | 10b, 12 | [~] | 2026-10-12 | | Waiting for the orchestrator: publish the draft Release v1.0.0, owner install (step 10), merge. Agent panel, Settings, packaging with the Apple helper, fresh-clone check PASS, E2E 10/10, tests 2482 pass; live checks with Ollama + Apple pass, OpenRouter open (no key); D-59 | log/phase-13.md |
 | 14 | v1.1 (done when 14a–14g are all [x]) | 14a–14g | [ ] | | | | log/phase-14.md |
 | 14a | `vox` v1.1 templates + GATE 6 | 13 | [ ] | | | | log/phase-14a.md |
-| 14b | Screenplay match workflow | 13 | [ ] | | | | log/phase-14b.md |
+| 14b | Screenplay match workflow | 13 | [~] | 2026-10-12 | | In progress (worktree .worktrees/phase-14b) | log/phase-14b.md |
 | 14c | Claude Code skill | 13 | [ ] | | | | log/phase-14c.md |
-| 14d | Local image generation (mflux) | 13 | [ ] | | | | log/phase-14d.md |
-| 14e | Clip speed + GATE 7 | 13 | [ ] | | | | log/phase-14e.md |
-| 14f | Audio ducking | 13 | [ ] | | | | log/phase-14f.md |
+| 14d | Local image generation (mflux) | 13 | [~] | 2026-10-12 | | | log/phase-14d.md |
+| 14e | Clip speed + GATE 7 | 13 | [~] | 2026-10-12 05:52 | | | log/phase-14e.md |
+| 14f | Audio ducking | 13 | [~] | 2026-10-12 | | | log/phase-14f.md |
 | 14g | FCPXML export option | 13 | [ ] | | | | log/phase-14g.md |
-| 15 | Styles Part C: style from reference | 13 | [ ] | | | | log/phase-15.md |
+| 15 | Styles Part C: style from reference | 13 | [~] | 2026-10-12 | | In progress | log/phase-15.md |
 
 ## Gates and milestones
 
