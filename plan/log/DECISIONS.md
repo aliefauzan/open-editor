@@ -1042,3 +1042,44 @@ pass on the tiktok preset; the rest are the simplest options that meet phase 05'
 - The engine integration test (step 9) runs the real `transcribe` job when the Whisper weights are in the Hugging Face cache and `CI` is unset; otherwise it seeds the checked-in transcript of the same file.
 
 **Why**: These are the simplest choices that make the selection deterministic and testable on crafted inputs, keep a broken AI scorer from blocking quick clips, and make the frame check independent of the framing choice.
+
+## D-34 · 2026-10-11 · phase 06 · Style tooling: trust store, validate checks, caption word keys
+
+**Decision**: Phase 06 settles these points that the styles spec and the phase plan leave open:
+- Trust (S8): `vox style trust` records `{ hash, trustedAt }` per style id in `<VOX_HOME>/trust.json`
+  (engine option `trustFile`). The hash is SHA-256 over the style's `*.mjs`/`*.cjs`/`*.js` files in
+  path order; editing them withdraws trust. A style's own `trusted` field counts only for built-in
+  styles (D-23). `remove` forgets the trust and fails with `VALIDATION` while another installed style
+  extends the style; built-in styles cannot be trusted, accepted or removed.
+- `vox style new <id> [--extends <style>] [--name]` scaffolds a draft, untrusted partial child (no own
+  templates, `guide.md`, empty `templates/`) in the user styles folder; the parent defaults to `base`.
+- `TEMPLATE_VERSION` migrate: on a major mismatch compile calls `migrate(variables, fromVersion)` of the
+  declaring style's trusted hook, then validates the result (`VARIABLES_INVALID`); no `migrate` export
+  keeps `TEMPLATE_VERSION`; an untrusted declaring style fails with `HOOK_UNTRUSTED` without loading it.
+- Hook static check: hooks and their imports may import only relative paths inside the style folder and
+  Node built-ins other than network and process modules (`http`, `https`, `http2`, `net`, `tls`,
+  `dgram`, `dns`, `child_process`, `cluster`, `worker_threads`, `inspector`); `require()` and dynamic
+  `import()` fail. Determinism runs each fixture through the hook twice with instance id
+  `validate-<fixture>` and compares JSON bytes; hooks of untrusted styles are not run (a note).
+- Scene text safe area: the safe area of the style's default caption preset (20 / 12 on 9:16) with
+  top ≥ 0; checked on each template's longest fixture at the middle and last frame. `base/title`
+  (`.t-box`) and `base/text-overlay` (`.o-band`) side margins move from 8 % to 12 % and 10 % so their
+  text stays inside it.
+- Validation project: 1080×1920 at 30 fps; generated sample media `m_video`, `m_img`, `m_cutout`;
+  overlays off. Each own scene fixture sits on V2 at its default duration, 500 ms apart; each own
+  transition joins two 1500 ms V1 clips. One render (`--quality draft --strict-all`) plus a lint of
+  the preview build. A transition's still is taken at cut − duration/4.
+- `minEntranceMs` m: the short instance is max(`durationMs.min`, 0.75·m), the long one
+  max(1.5·m, default) clamped to the duration range (1500 / 3000 ms for m = 2000). Resting-state
+  equality allows opacity ±0.01 and translation ±(`jitterPx` + 0.5) px.
+- Cue timing: thresholds from the scene window's median frame difference: spike ≥ max(2, 4·median),
+  motion ≥ max(0.5, 2·median); frames are 108×192 grey.
+- Caption presets mark each word element with `data-key="<CaptionWord.key>"` (spec edit, styles
+  "Caption presets"), so validate reads each word's look and box.
+- Previews: `previews/contact.jpg` plus `contact.json` (cell labels), `<template>.jpg` (540 wide) and
+  `<template>.gif` (10 fps, 270 wide) per own template and transition.
+- SFX credits: `assets/sfx/CREDITS.md` has a line naming each SFX file and `CC0` or `project`.
+
+**Why**: These are the simplest choices that make every phase 06 check measurable and deterministic,
+keep trust outside the style folder (a copied folder cannot trust itself), and freeze the style and
+caption preset formats (R2) with the one field validate needs.

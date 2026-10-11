@@ -11,7 +11,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 03 | Engine: styles loader, `base`, compile, captions, audio | 01, 02 | [x] | 2026-10-11 03:20 | 2026-10-11 04:35 | base style, compile (render + preview), captions, audio mix + stems + cues, layers MOV; 90 s spike fixture 0 cut errors (D-30) | log/phase-03.md |
 | 04 | Engine: jobs, Python bridge, ingest, transcribe, facetrack | 01, 02 | [x] | 2026-10-11 04:43 | 2026-10-11 05:40 | Jobs on the engine (ingest, transcribe, shots, facetrack), yt-dlp + LOGIN_REQUIRED, doctor, CLI chain; seeds committed; D-31 | log/phase-04.md |
 | 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [~] waiting: GATE 2 | 2026-10-11 05:43 | | Assets, render + mux, exports, audio QA, quick clips, CLI; local GATE 2 parts pass (A/V sync 0.69 ms, frames exact on 29.97/VFR); URLs, Resolve, Commons contact wait for the owner; D-32, D-33 | log/phase-05.md |
-| 06 | Style tooling (Part A rest) | 03 | [ ] | | | | log/phase-06.md |
+| 06 | Style tooling (Part A rest) | 03 | [x] | 2026-10-11 07:31 | 2026-10-11 08:09 | `vox style validate/new/trust/accept/remove`, migrate, hook checks, safe area, `minEntranceMs`, caption preset and cue checks; base previews; style + caption preset formats frozen (D-34) | log/phase-06.md |
 | 07 | `vox` style v1 + GATE 3 | 05, 06 | [ ] | | | | log/phase-07.md |
 | 08 | App shell + security + GATE 4 | 01, 03 | [ ] | | | | log/phase-08.md |
 | 09 | App: first-run setup + `.dmg` | 05, 08 | [ ] | | | | log/phase-09.md |
