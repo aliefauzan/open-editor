@@ -269,6 +269,45 @@ describe('plan mode (step 9)', () => {
     ]);
   });
 
+  test('ClipPlan: a beat that does not end after its start is dropped, the rest applies', async () => {
+    const f = await fixtureProject({ engine: { templates: lookup } });
+    const beat = (startMs: number, endMs: number, title: string) => ({
+      startMs,
+      endMs,
+      kind: 'scene',
+      template: 'base/title',
+      variables: { title },
+    });
+    const m = scriptedModel([
+      {
+        json: {
+          sequences: [
+            {
+              sequenceId: 's1',
+              beats: [
+                { startMs: 4000, endMs: 4000, kind: 'speaker' },
+                beat(2000, 4000, 'Kept'),
+                beat(6000, 6000, 'Empty'),
+                beat(9000, 7000, 'Backwards'),
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+    const { deps } = runDeps(f, roleModel(m.model), { templates: lookup });
+    const { done, run } = await runAgent(deps, req(f, { planKind: 'clip' }));
+    expect(done.status, done.summary).toBe('completed');
+    expect(m.prompts).toHaveLength(1);
+    const seq = (await f.engine.getProject(f.projectId)).sequences[0]!;
+    const scenes = seq.videoTracks.find((t) => t.id === 'V2')!.items;
+    expect(scenes.map((s) => [s.startMs, s.durationMs])).toEqual([[2000, 2000]]);
+    const rec = readRunRecord(run.record.path).find((l) => l.tool === 'batch');
+    expect(JSON.stringify(rec?.['repairs'])).toMatch(
+      /dropped: ends at 6000.*dropped: ends at 7000/,
+    );
+  });
+
   test('confirm plan: pauses (approval, kind plan); stop applies nothing', async () => {
     const f = await fixtureProject();
     const m = scriptedModel([

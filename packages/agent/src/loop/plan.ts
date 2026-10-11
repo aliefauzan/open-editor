@@ -45,7 +45,8 @@ export const ClipPlanSchema = z.strictObject({
                 variables: z.record(z.string(), z.unknown()).optional(),
                 imageQueries: z.array(z.string().trim().min(1).max(200)).max(4).optional(),
               })
-              .refine((b) => b.endMs > b.startMs, { message: 'endMs must be after startMs' })
+              // a beat that does not end after it starts is dropped as a repair (clipPlanToOps), so
+              // one slip among many beats of a small model does not reject the whole plan
               .refine((b) => b.kind === 'speaker' || (b.template ?? '') !== '', {
                 message: 'a scene beat needs a template',
               }),
@@ -227,6 +228,10 @@ export async function clipPlanToOps(
     for (const [i, b] of beats.entries()) {
       if (b.kind !== 'scene') continue;
       const note = (what: string) => repairs.push({ beat: i, sequenceId: sp.sequenceId, what });
+      if (b.endMs <= b.startMs) {
+        note(`dropped: ends at ${String(b.endMs)}, not after its start ${String(b.startMs)}`);
+        continue;
+      }
       let template = b.template as string;
       let t = templates.get(template);
       if (!t || t.kind !== 'scene') {
