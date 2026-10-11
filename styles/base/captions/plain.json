@@ -1,0 +1,7 @@
+{
+  "name": "plain",
+  "description": "Plain word-by-word captions: white text with a dark outline, the active word bold, emphasis words 1.2x larger; read and unread words look the same.",
+  "case": "asis",
+  "stripPunctuation": false,
+  "position": { "yPct": 75 }
+}

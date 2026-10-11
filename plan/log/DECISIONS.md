@@ -829,3 +829,309 @@ Adding an image or audio type later means one sniff signature plus its demuxer w
 - Spec edits made with this entry: engine "Audio QA" (`qa.png` sentence, request and kit sheet), phase 05 deliverables line, R5 numpy row.
 
 **Why**: One option that works with the ffmpeg on the M5 and stays in numpy, which the tool already needs. Pillow or a bundled font would add a pin for a picture that only needs lines and digits. A vision model reads the numbers next to the markers and takes the legend from `qa.json`.
+
+## D-28 · 2026-10-11 · phase 02 · Engine contract details fixed at the freeze
+
+**Decision**: Details the engine spec and D-18 left open or that review changed, fixed before the
+phase 02 contracts freeze (R2 rows "02"):
+- **`OpResult.error` is `VoxErrorJson`** (`{ code, message, hint, details? }`), not a `VoxError`
+  instance, so an `ApplyResult` crosses IPC and `--json` unchanged. Thrown errors stay `VoxError`.
+  `isVoxError` also accepts a VoxError from another copy of the module (name, string `code` and
+  `hint`); the `VoxError` constructor is unchanged.
+- **History lines are read loosely**: unknown fields from a newer engine are kept, not rejected
+  (`project.json` stays strict). A line is invalid when an `op` entry has no `op` or an
+  `undo`/`redo` entry has no `targets`. Only the last line can be torn (unterminated or not JSON);
+  a complete JSON line that fails the schema is `HISTORY_CORRUPT` wherever it is, never truncated.
+- **Recovery of a coalesced entry** (crash between history append and project write): the replaced
+  entry's `before` values are applied first, then the entry's `after` values, because a coalesced
+  entry drops keys that returned to their start.
+- **A write that fails** (thrown error, not a crash) after the history append takes the line out
+  again, so a write reported as failed never comes back as a recovered version.
+- **Lock**: `project.lock` is created by hard-linking a fully written temp file
+  (`.project.lock.<nonce>`; `link` fails with EEXIST like `O_EXCL`), so a killed writer never leaves
+  an empty or torn lock. Content `{ pid, host, startedAt, nonce }`. Breakers of a stale lock are
+  serialised by `.project.lock.break` (cleared when older than 10 s) and remove the lock only if it
+  still holds the stale content. Only `ESRCH` means a dead pid; `EPERM` counts as alive.
+- **S36 order**: when the files changed on disk, the schema is checked before the lock is taken, so
+  `SCHEMA_TOO_NEW` leaves no lock file and no log line.
+- **External changes**: `getProject`, `view` and `history` reload when another process wrote and
+  emit `project.changed` with `actor: 'external'`, like `applyOp`; the event is emitted even when the
+  op that found the change fails. A listener that throws never fails a write that landed.
+- **Snapshots**: names starting with `auto-` are reserved for the engine (`vox snapshot` refuses
+  them; `restoreSnapshot` may still restore them). Snapshots are written to a temp file and
+  hard-linked into place.
+- **Ids**: prefix + 8 base-36 time digits + 4 base-36 digits from a counter that starts at a random
+  value each millisecond and counts up within it (D-18 said "4 random"), so ids made in the same
+  millisecond still sort by creation.
+- **Validation tightened** (no shape change): override `startMs < endMs` when both are set,
+  `sourceRange.outMs > inMs`, transcript `speechRegions` `endMs >= startMs`, `meta.createdAt` and
+  `meta.updatedAt` are ISO date-times.
+- **Engine API**: `@vox/engine` lists its exports by name (no `export *`). A project folder must be
+  a real folder (a symlink is `PROJECT_NOT_FOUND`) whose `project.json` id equals the folder name
+  (else `VALIDATION`). `engine.log` writes are best effort.
+- **CLI**: `vox undo <project> --run <runId>` runs `undoRun`; `vox op` takes `--actor user|agent|cli`
+  (`external` is engine-only), `--run-id`, `--base-version`, `--coalesce-key`; `vox snapshot
+  <project> --list`; `vox paths --json` prints `tools: { dir }` until phase 04 fills tool paths.
+  Text output drops terminal control characters (names come from project files).
+- Spec edits made with this entry: engine "History" (history line reading), "Write order, crash
+  recovery, locking" (`ApplyResult.error`, lock step 1, step 2 reads, coalesced recovery),
+  "Project folder" (`auto-` snapshot names), CLI table (`undo --run`, `op` flags, `snapshot --list`).
+
+**Why**: Review findings (code, TypeScript, type design, security S1/S25/S36/S22) on the phase 02
+diff. Each option is the smallest that keeps done-when #6 (no lost or corrupt project under kill)
+and S36 testable, and an `ApplyResult` must be plain data for the app's IPC (phase 08).
+
+## D-29 · 2026-10-11 · phase 01 · GATE 1: all nine items pass; whole-sequence render, opaque preview, NTSC go, no pre-render cache
+
+**Decision**: GATE 1 is decided by its numbers (D-10). Measured on the M5 with HyperFrames 0.8.145,
+GSAP 3.15.0 and Electron 44.7.0 (Chromium 152), under the bench lock, in the final run
+`pnpm -C spike bench:all` (load averages 5.7–11.9 on 10 cores):
+
+- 1 cuts: 0 mismatches over 43 cuts and 2700 frames (VFR clip included) · 2 A/V: max 0.35 ms ·
+  3 render: 0.67× real time (60.5 s for 90 s, `--quality draft --strict-all`) · 5 peak RSS 2.07 GB ·
+  9 NTSC 30000/1001: 0 mismatches, A/V max 0.4 ms.
+- 4 preview, opaque sandbox: min 26.4 fps per 1 s window, max stall 83 ms, seek to a cut max 53 ms
+  with 0 wrong frames in 80 seeks, picture and `<audio>` within 1 frame of the clock during play and
+  after 8 seek + play cycles (p95 16.3 / 0 ms and 23.8 / 0 ms), 0 network requests. Attempt 1 failed
+  (a measuring error, plus stale pictures for about 1 s after 1 in 40 seeks); attempts 2 and 3 and
+  the final run passed after the fixes below.
+- 6 op → preview: scene-only patch max 31 ms; full reload max 757 ms (both under 1 s).
+- 7 mechanisms: per-instance vars (10 instances), scoped tokens, muted video + separate audio, GSAP
+  volume tween all work in render and preview.
+- Heavy-scene fps margin: 20.8 % (29 fps), the same in three runs.
+- 8 fillers (recorded only): "um" and "uh" survive with and without the filler `initial_prompt`.
+
+Outcome (engine spec "Spike"): HyperFrames renders whole sequences (no hybrid export). The preview
+keeps `sandbox-origin="opaque"` (no `allow-same-origin` fallback, no app "Preview fallback").
+NTSC go: `canvas.fps` keeps 30000/1001. No pre-render cache (margin ≥ 20 %). Pins: R5 rows for
+HyperFrames, GSAP, Electron and the HyperFrames Chrome.
+
+The preview build needs these helpers (`spike/templates/vox-preview.js`). Phase 03 compile and
+phase 10a preview carry them over:
+- `data-media-start` of preview videos 1 ms late (Chromium truncates `currentTime` to whole µs);
+- pre-cue of the next clip and paused exact-frame sync (runtime tolerances: 0.5 s first sync, 40 ms);
+- inactive videos stay visible at opacity 0 (with `visibility:hidden` a paused video showed an older
+  picture for about 1 s after a seek);
+- after a reload, seek to the saved playhead only once every template is mounted (`vox-playhead`);
+- the scene-only patch path (`vox-patch`) for op → preview.
+
+The margin is close to the 20 % bar. If phase 10a measures under 20 % on the real styles, the
+pre-render cache comes back (D-15 rule), as a new DECISIONS entry.
+
+**Why**: The outcome list in the engine spec selects the outcome from the numbers (D-10, D-15).
+Evidence: `docs/SPIKE_RESULTS.md`, `docs/evidence/phase-01/`.
+
+## D-30 · 2026-10-11 · phase 03 · Compile, audio mix and layer renderer: implementation choices
+
+**Decision**: Phase 03 settles these points the specs leave open:
+- Template registration: templates write `window.__timelines[mount.key] = mount.register(tl);`
+  (`vox.mount` returns `key`; `register` returns `tl`), so `hyperframes lint` sees the registration in
+  inline preview templates too. `hyperframes lint` scans only `index.html`; render-mode scene files are
+  not linted by it.
+- `sfxCues` `atMs: 'entrance'` is offset 0 from the item start; transition cues sit at the cut.
+- Shot-blending transitions (`blendsShots`): half the transition in whole frames, rounded up
+  (`blendHalf`); the incoming clip starts that many frames early (its `inMs` reduced), the outgoing clip
+  runs as many frames longer; the transition instance spans [cut − half, + duration]. `NO_HANDLES`
+  uses the same whole-frame half. (A half of 250 ms = 7.5 frames put the incoming clip off the grid and
+  showed the source one frame late.)
+- Range builds: scenes that start before the range are dropped with a warning; a transition cut by
+  the range start is dropped.
+- Render builds carry no `<audio>`; preview builds carry `<audio>` per clip and SFX cue (SFX capped at
+  3 s). `captions.srt` and `audio/cues.json` are written into every build. Sequence overlays default to
+  the style's default overlays.
+- Fonts: one `@font-face` per token font file and its same-prefix siblings; weight from the `fvar`
+  `wght` axis or OS/2 `usWeightClass`; files copied to `fonts/<styleId>/`.
+- Captions: the preset gets `{ chunks, position: { yPct }, safeArea, maxCharsPerLine }`; `base/plain`
+  line height is 1.35 × 1.2 em so a 1.2x emphasis word's box stays inside the chunk (and the safe area).
+- Audio mix: per clip `atrim` → 48 kHz stereo → `afftdn` (light `nr=12:nf=-40`, strong `nr=24:nf=-30`)
+  → gain (target − integratedLufs) dB → `volume` → `afade` (clip-relative) → `adelay` in samples; SFX
+  delayed to the cue; `amix normalize=0`, pad/trim to the sequence length, `alimiter` at −1 dBFS
+  (`level=0`, `latency=1`), then two-pass `loudnorm` (linear) and back to 48 kHz. Output WAV is
+  `pcm_f32le`. Stems (speech = captions source tracks, other, SFX) use the same chains with no limiter
+  and no loudnorm. A silent mix skips loudnorm.
+- Layer renderer: `compile` option `layers` (scene item ids, `<itemId>-tx`, `overlay-<name>`,
+  `captions`; render mode only; unknown ids → `VALIDATION`) emits only those layers on a transparent
+  background without media clips; `renderLayers` writes `build/<seq>-layers/` and runs
+  `hyperframes render --format mov` (ProRes 4444 with alpha).
+- New error codes (R2): `MEDIA_MISSING`, `TEMPLATE_VERSION`, `HOOK_UNTRUSTED` (appended; no code
+  renamed or removed).
+
+**Why**: Each is the simplest option that keeps phase 03's done-when (rule 6f); the frame-grid and
+caption fixes came from the step 12 and 9c tests.
+
+## D-31 · 2026-10-11 · phase 04 · Jobs, ingest, transcribe, shots, facetrack, doctor: implementation choices
+
+**Decision**: Phase 04 settles these points the specs leave open:
+- Derived files: thumbs sprite is one frame every 2 s, cells 90 px high, 10 per row; peaks are mono
+  4 kHz, the largest |sample| of every 40 samples (100 peaks per second). The m4a is extracted even
+  with `{ proxies: false }` (transcribe and the audio mix need it).
+- Network retry: 1 try + 3 retries with 1 s, 2 s, 4 s backoff; final errors (`LOGIN_REQUIRED`, `NET_BLOCKED`,
+  `CANCELLED`) stop at once.
+- Local ingest refuses files over 16 GiB.
+- Ingest cache index files: `cache/ingest/<sha256>.json` (content hash → media id),
+  `cache/media/<mediaId>.json` (the media's content hash), `cache/ingest/url-<hash>.json` (link →
+  media id and post count). A rerun reuses the media and adds no history entry.
+- yt-dlp: the engine's report and progress flags (`--newline`, `--progress-template`, `--print`) come
+  after the spec argv; the cookies flag still appears only when the config key is set (S33).
+  Recorded fixture stderr texts are reconstructed from yt-dlp's own messages (no live capture in CI).
+- Tools dir layout: `<tools>/bin` (binaries, else PATH), `<tools>/models`, `<tools>/py-env` (its
+  presence switches the bridge to packaged mode, `uv run --frozen`).
+- Whisper: `modelPath` is passed only when `<tools>/models/whisper-large-v3-turbo/weights.safetensors`
+  exists; otherwise the tool uses the pinned revision from the Hugging Face cache. Transcribe cache key
+  = sha256 of [version, media hash, repo, revision, English filler list, language]; `transcriptRev` =
+  the key's first 16 hex chars.
+- Face model: the engine downloads `blaze_face_full_range.tflite` into `<tools>/models` on first
+  facetrack (public URL through `fetchPublic`, 16 MiB cap, SHA-256 checked, temp file then rename,
+  retry as above); a SHA mismatch is `TOOL_FAILED`.
+- Jobs: the actor defaults to `user`; the CLI passes `cli`. A job's project ops go in one `batch` with
+  `{ jobId, baseVersion }`; a refused or conflicted result fails the job (`JOB_CONFLICT`).
+- `shots/<mediaId>.json` and `facetracks/<mediaId>.json` are both the output and the cache (a rerun
+  with the file present runs nothing). The facetrack path cache is `cache/facetrack/<key>.json`, key
+  over the options plus a hash of the detections and shot texts; `mediaFrames` stills are cached in
+  `cache/frames/<mediaId>-<ms>.png`.
+- Config functions (`voxHome`, `configPath`, `readConfig`, `writeConfig`) take an env argument so the
+  CLI and its tests are hermetic.
+- `vox doctor` checks: ffmpeg, ffprobe, yt-dlp, deno (warn only), node, uv, yt-dlp-ejs, yt-dlp JS
+  runtime (warn when node-only), yt-dlp impersonation (warn only: on the M5 curl_cffi 0.16.3 is
+  "unsupported"), python env imports (skipped with `--quick`), hyperframes and its Chrome, Silero VAD
+  SHA-256, face model, Whisper weights, contact. Exit code 0 when no check is `error`. The contact
+  prompt runs only on a terminal without `--json` and only while `contact` is unset.
+
+**Why**: Each is the simplest option that meets phase 04's done-when; the values come from the
+fixture tests (sprite and peaks sizes, retry timing) and the M5 doctor run (impersonation warning).
+
+## D-32 · 2026-10-11 · phase 05 · Assets, render, export: mix true peak and implementation choices
+
+**Decision**: Phase 05 changes one contract point and settles these points the specs leave open:
+- Mix true peak (contract change, engine spec "Audio mix"): the final two-pass `loudnorm` aims at
+  −1.5 dBTP (`MIX_TRUE_PEAK_DBTP`), not −1. The audio QA ceiling stays −1 dBTP (`TRUE_PEAK_DBTP`).
+  Aiming exactly at the ceiling left a tiktok (−12 LUFS) mix at about −1.0 dBTP, which the QA's own
+  measurement flagged; 0.5 dB headroom passes on every preset without touching the targets.
+- `compile` takes `captions?: boolean` (default on); `render --captions none` and the per-layer
+  compiles of `export-timeline` use it.
+- Licences: Commons `pd` counts as PDM; NC, ND and GFDL candidates are dropped from search results.
+  `assets.cutout` refuses ND images with the new code `LICENSE_REFUSED`; `assets.generate` without a
+  registered image provider fails with the new code `PROVIDER_MISSING`.
+- Cutout model: rembg `u2net.onnx` (Apache-2.0, SHA-256 pinned, 200 MiB cap) downloaded into
+  `<tools>/models/rembg` on first use, like the face model.
+- Render: default quality `standard`; without `sequenceId` the first sequence renders. The export
+  stem is `<project name>-<sequence name>`. The picture is a silent HyperFrames MP4, muxed with the
+  WAV mix by ffmpeg (video copy, AAC 192k 48 kHz, metadata stripped, `+faststart`).
+- HyperFrames runs with an allowlisted environment (PATH, HOME, locale, TMPDIR, Puppeteer/Chrome and
+  HyperFrames variables) plus telemetry off, so no API key reaches it (its snapshot `--describe`
+  calls Gemini when a key is present).
+- `engine.frames()` uses `hyperframes snapshot`, cached in `cache/frames/<seq>/<build hash>/`.
+- `export-timeline`: OTIO media references are always absolute `file://` paths. Layer MOVs
+  (ProRes 4444 with alpha) are one per scene, transition, overlay item and one for captions, in
+  `<name>-layers/` beside the `.otio`; a name clash takes the same `(2)` suffix as the `.otio`.
+- `credits` lists archive media referenced by any sequence, with its licence and attribution text.
+- Test files for the E3 export target are named `export-target*.test.ts` so the phase verify filter
+  `test -- export-target audio-qa` selects them.
+
+**Why**: The true-peak change is the smallest one that makes the phase 05 loudness check (step 8e)
+pass on the tiktok preset; the rest are the simplest options that meet phase 05's done-when.
+
+## D-33 · 2026-10-11 · phase 05 · Quick clips and GATE 2 checks: implementation choices
+
+**Decision**: Phase 05 settles these points that the engine spec "Quick clips" and the phase plan leave open (no contract change):
+- Heuristic signals: energy is the variance of short-term loudness (400 ms windows, 100 ms step), hook is a first sentence that is a question or holds a digit or an English cardinal number word, coverage is the share of facetrack samples with a face. Energy is min-max scaled over the candidate set (0 when all are equal); the speech score is the spec's speech ratio minus the pause penalty, unscaled.
+- A registered scorer that throws or returns a wrong number of scores falls back to the heuristic; the result names `heuristic` and carries `scorerError { scorer, message }`. An unknown `scorer` id fails with `NOT_FOUND`.
+- `quickClips` on media without a transcript fails with `VALIDATION` and the hint `vox transcribe <mediaId>`; non-video media fails with `MEDIA_UNSUPPORTED`. Quick-clip sequences take the source rate when it is in the fixed set, else `nearestFixedFps`.
+- CLI: `-o` is the short form of `--output` (a file target); `--out-dir` is a folder target; `vox quick --out-dir` needs `--render`.
+- GATE 2 frame check (done-when 10, `scripts/gate2-frames.ts`): the clip's framing is switched to `contain` in one batch (undone afterwards) so the burnt-in counter stays on screen whatever `auto` chose; expected counters are read from the media's reference picture, which is the CFR copy for a VFR source (D-15) and the source otherwise.
+- The engine integration test (step 9) runs the real `transcribe` job when the Whisper weights are in the Hugging Face cache and `CI` is unset; otherwise it seeds the checked-in transcript of the same file.
+
+**Why**: These are the simplest choices that make the selection deterministic and testable on crafted inputs, keep a broken AI scorer from blocking quick clips, and make the frame check independent of the framing choice.
+
+## D-34 · 2026-10-11 · phase 06 · Style tooling: trust store, validate checks, caption word keys
+
+**Decision**: Phase 06 settles these points that the styles spec and the phase plan leave open:
+- Trust (S8): `vox style trust` records `{ hash, trustedAt }` per style id in `<VOX_HOME>/trust.json`
+  (engine option `trustFile`). The hash is SHA-256 over the style's `*.mjs`/`*.cjs`/`*.js` files in
+  path order; editing them withdraws trust. A style's own `trusted` field counts only for built-in
+  styles (D-23). `remove` forgets the trust and fails with `VALIDATION` while another installed style
+  extends the style; built-in styles cannot be trusted, accepted or removed.
+- `vox style new <id> [--extends <style>] [--name]` scaffolds a draft, untrusted partial child (no own
+  templates, `guide.md`, empty `templates/`) in the user styles folder; the parent defaults to `base`.
+- `TEMPLATE_VERSION` migrate: on a major mismatch compile calls `migrate(variables, fromVersion)` of the
+  declaring style's trusted hook, then validates the result (`VARIABLES_INVALID`); no `migrate` export
+  keeps `TEMPLATE_VERSION`; an untrusted declaring style fails with `HOOK_UNTRUSTED` without loading it.
+- Hook static check: hooks and their imports may import only relative paths inside the style folder and
+  Node built-ins other than network and process modules (`http`, `https`, `http2`, `net`, `tls`,
+  `dgram`, `dns`, `child_process`, `cluster`, `worker_threads`, `inspector`); `require()` and dynamic
+  `import()` fail. Determinism runs each fixture through the hook twice with instance id
+  `validate-<fixture>` and compares JSON bytes; hooks of untrusted styles are not run (a note).
+- Scene text safe area: the safe area of the style's default caption preset (20 / 12 on 9:16) with
+  top ≥ 0; checked on each template's longest fixture at the middle and last frame. `base/title`
+  (`.t-box`) and `base/text-overlay` (`.o-band`) side margins move from 8 % to 12 % and 10 % so their
+  text stays inside it.
+- Validation project: 1080×1920 at 30 fps; generated sample media `m_video`, `m_img`, `m_cutout`;
+  overlays off. Each own scene fixture sits on V2 at its default duration, 500 ms apart; each own
+  transition joins two 1500 ms V1 clips. One render (`--quality draft --strict-all`) plus a lint of
+  the preview build. A transition's still is taken at cut − duration/4.
+- `minEntranceMs` m: the short instance is max(`durationMs.min`, 0.75·m), the long one
+  max(1.5·m, default) clamped to the duration range (1500 / 3000 ms for m = 2000). Resting-state
+  equality allows opacity ±0.01 and translation ±(`jitterPx` + 0.5) px.
+- Cue timing: thresholds from the scene window's median frame difference: spike ≥ max(2, 4·median),
+  motion ≥ max(0.5, 2·median); frames are 108×192 grey.
+- Caption presets mark each word element with `data-key="<CaptionWord.key>"` (spec edit, styles
+  "Caption presets"), so validate reads each word's look and box.
+- Previews: `previews/contact.jpg` plus `contact.json` (cell labels), `<template>.jpg` (540 wide) and
+  `<template>.gif` (10 fps, 270 wide) per own template and transition.
+- SFX credits: `assets/sfx/CREDITS.md` has a line naming each SFX file and `CC0` or `project`.
+
+**Why**: These are the simplest choices that make every phase 06 check measurable and deterministic,
+keep trust outside the style folder (a copied folder cannot trust itself), and freeze the style and
+caption preset formats (R2) with the one field validate needs.
+
+## D-35 · 2026-10-11 · phase 08 · GATE 4: pass, the timeline keeps `@xzdarcy/react-timeline-editor`
+
+**Decision**: GATE 4 is decided by its numbers (README §5, D-10). Re-run inside the app's pinned
+Electron 44.7.0 (Chromium 152.0.7977.130) as D-19 asked, under the bench lock, with
+`node bench/timeline.ts --browser electron --attempts 3 --gesture-ms 3000`: 1,000 items on 8 tracks,
+a real 1920x1080 window at DPR 2 on the M5 display (ANGLE Metal), production React build.
+Medians: drag 119.7 fps, trim 119.7 fps, linked V1/A1 drag 119.4 fps (p95 frame ≤ 9.6 ms, at most
+1 frame over 20 ms per gesture); linked check 3/3 (equal `startMs` after the drop), marquee exactly
+50 of 50 3/3, every gesture moved the clip (library updates = mouse moves, 344–360). Bar 50 fps:
+the result is 139 % above it, not within 10 %, so no owner stop. The early U1 run in the Playwright
+headless shell (fixed 60 Hz) gave 60.0 fps on all three gestures (D-19 evidence, `A1-`).
+Outcome: phase 10a builds the timeline on `@xzdarcy/react-timeline-editor` 1.0.0 through its public
+props and events only, with the app's own marquee, linked follow (`getActionRender` offsets, one
+store update per move) and multi-select, as the U1 prototype shows. No custom canvas.
+
+**Why**: The app spec "Timeline implementation" pass rule (fps ≥ 50 and both prototype checks) holds
+in the shell the app ships. Evidence: `docs/evidence/phase-08/A3-timeline-bench-electron.json`,
+`A1-timeline-bench.json`; log `plan/log/phase-08.md`.
+
+## D-36 · 2026-10-11 · phase 08 · App build: plain vite 8 build script, no electron-vite; shell pins
+
+**Decision**: `apps/desktop` builds with its own `scripts/build.ts` on vite 8.3.4 (already pinned for
+the GATE 4 bench, D-19) instead of electron-vite. Outputs: `out/renderer` (React app plus the
+vendored `@hyperframes/player` global script), `out/preload/index.cjs`, `out/main/index.cjs`
+(CommonJS, all dependencies bundled), and with `--package` the bundled engine host
+`out/engine-host/index.mjs`. In development the engine host runs from TypeScript source through
+`utilityProcess` (Node type stripping); packaged builds use the bundle. Packaging is
+electron-builder 26.15.3 with a skeleton config (ad-hoc signed arm64 `.dmg`, `out/**` only, no
+`node_modules`, built-in styles as `extraResources`); phase 09 extends it. Shell pins: Zustand
+5.0.15, Tailwind CSS 4.3.3 with `@tailwindcss/vite` 4.3.3, `@playwright/test` 1.64.0 (same as the
+bench `playwright`). shadcn/ui is not added in 08 (the minimal UI needs no components); phase 10a
+adds it when the editor UI starts.
+
+**Why**: electron-vite 5.0.0 declares peer vite ^5–7 and the repo is on vite 8 (R5 note: "electron-vite
+must accept it or the pin moves"); a 90-line build script avoids a second vite and a peer
+override. Main is CommonJS because Playwright's `_electron.launch` hangs on an ESM main (seen with
+the bench and the app); the bench's own main (`bench/timeline-electron-main.cjs`) is CommonJS for
+the same reason. Evidence: `plan/log/phase-08.md`.
+
+## D-37 · 2026-10-11 · phase 08 · `vox-media://` is CORS-enabled; only font responses allow any origin
+
+**Decision**: `vox-media://` is registered with `corsEnabled: true` (was `false` in the app spec
+"Untrusted HTML"). The handler adds `Access-Control-Allow-Origin: *` only to font responses
+(`.woff2`, `.woff`, `.ttf`, `.otf`); every other response has no CORS header, so cross-origin reads
+of builds, media and data stay refused. The media CSP (`connect-src 'none'`) is unchanged.
+
+**Why**: The player runs builds in an opaque-origin sandbox (origin `null`, S14). Browsers load
+`@font-face` fonts in CORS mode, so with CORS off every style font failed to load in the preview
+(console errors in the smoke test). Fonts are public style assets, so allowing them to any origin
+discloses nothing; only `vox-app://` and `vox-media://` pages can reach the scheme at all (all
+http/https/ws is blocked, S10). Test: `test/main/protocol.test.ts` (font CORS case).

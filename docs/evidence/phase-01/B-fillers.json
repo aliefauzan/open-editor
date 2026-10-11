@@ -1,0 +1,237 @@
+{
+  "item": 8,
+  "recordedOnly": true,
+  "wav": "fixtures/speech-fillers.wav",
+  "load": {
+    "load": [
+      12.65,
+      9.68,
+      10.66
+    ],
+    "cores": 10
+  },
+  "repo": "mlx-community/whisper-large-v3-turbo",
+  "revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+  "mlxWhisper": "0.4.3",
+  "mlx": "0.32.3",
+  "spoken": {
+    "um": 1,
+    "uh": 1,
+    "backToBackRepeats": 1
+  },
+  "fillerPrompt": "Umm, let me think like, hmm... Okay, here's what I'm, like, thinking. Uh, um, so, you know, I mean.",
+  "withoutPrompt": {
+    "text": "so um i think i think we should uh start now the first point is simple it just works",
+    "language": "en",
+    "words": 19,
+    "fillers": 2,
+    "um": 1,
+    "uh": 1,
+    "backToBackRepeats": 1,
+    "seconds": 1.19,
+    "wordList": [
+      {
+        "w": "so",
+        "start": 0,
+        "end": 0.32
+      },
+      {
+        "w": "um",
+        "start": 0.32,
+        "end": 0.82
+      },
+      {
+        "w": "i",
+        "start": 0.82,
+        "end": 1.22
+      },
+      {
+        "w": "think",
+        "start": 1.22,
+        "end": 1.46
+      },
+      {
+        "w": "i",
+        "start": 1.46,
+        "end": 1.64
+      },
+      {
+        "w": "think",
+        "start": 1.64,
+        "end": 1.86
+      },
+      {
+        "w": "we",
+        "start": 1.86,
+        "end": 2.02
+      },
+      {
+        "w": "should",
+        "start": 2.02,
+        "end": 2.34
+      },
+      {
+        "w": "uh",
+        "start": 2.34,
+        "end": 2.78
+      },
+      {
+        "w": "start",
+        "start": 2.78,
+        "end": 3.4
+      },
+      {
+        "w": "now",
+        "start": 3.4,
+        "end": 3.68
+      },
+      {
+        "w": "the",
+        "start": 3.68,
+        "end": 4.3
+      },
+      {
+        "w": "first",
+        "start": 4.3,
+        "end": 4.56
+      },
+      {
+        "w": "point",
+        "start": 4.56,
+        "end": 4.82
+      },
+      {
+        "w": "is",
+        "start": 4.82,
+        "end": 5.02
+      },
+      {
+        "w": "simple",
+        "start": 5.02,
+        "end": 5.36
+      },
+      {
+        "w": "it",
+        "start": 5.36,
+        "end": 6.34
+      },
+      {
+        "w": "just",
+        "start": 6.34,
+        "end": 6.56
+      },
+      {
+        "w": "works",
+        "start": 6.56,
+        "end": 7
+      }
+    ]
+  },
+  "withPrompt": {
+    "text": "So, um, I think I think we should, uh, start now. The first point is simple. It just works.",
+    "language": "en",
+    "words": 19,
+    "fillers": 2,
+    "um": 1,
+    "uh": 1,
+    "backToBackRepeats": 1,
+    "seconds": 1.2,
+    "wordList": [
+      {
+        "w": "So,",
+        "start": 0,
+        "end": 0.32
+      },
+      {
+        "w": "um,",
+        "start": 0.52,
+        "end": 0.84
+      },
+      {
+        "w": "I",
+        "start": 1.04,
+        "end": 1.24
+      },
+      {
+        "w": "think",
+        "start": 1.24,
+        "end": 1.46
+      },
+      {
+        "w": "I",
+        "start": 1.46,
+        "end": 1.64
+      },
+      {
+        "w": "think",
+        "start": 1.64,
+        "end": 1.86
+      },
+      {
+        "w": "we",
+        "start": 1.86,
+        "end": 2.02
+      },
+      {
+        "w": "should,",
+        "start": 2.02,
+        "end": 2.34
+      },
+      {
+        "w": "uh,",
+        "start": 2.5,
+        "end": 2.82
+      },
+      {
+        "w": "start",
+        "start": 3.06,
+        "end": 3.38
+      },
+      {
+        "w": "now.",
+        "start": 3.38,
+        "end": 3.68
+      },
+      {
+        "w": "The",
+        "start": 4.02,
+        "end": 4.3
+      },
+      {
+        "w": "first",
+        "start": 4.3,
+        "end": 4.56
+      },
+      {
+        "w": "point",
+        "start": 4.56,
+        "end": 4.82
+      },
+      {
+        "w": "is",
+        "start": 4.82,
+        "end": 5.02
+      },
+      {
+        "w": "simple.",
+        "start": 5.02,
+        "end": 5.36
+      },
+      {
+        "w": "It",
+        "start": 5.8,
+        "end": 6.34
+      },
+      {
+        "w": "just",
+        "start": 6.34,
+        "end": 6.58
+      },
+      {
+        "w": "works.",
+        "start": 6.58,
+        "end": 6.98
+      }
+    ]
+  }
+}

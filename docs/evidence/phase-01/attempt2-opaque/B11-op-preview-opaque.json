@@ -1,0 +1,227 @@
+{
+  "item": 6,
+  "pass": true,
+  "rule": "op -> visible < 1 s through the scene-only patch path; full reload recorded",
+  "reloadUnder1s": true,
+  "mode": "opaque",
+  "attempt": 2,
+  "electron": "44.7.0",
+  "chrome": "152.0.7977.130",
+  "box": {
+    "w": 450,
+    "h": 800,
+    "scaleFactor": 2
+  },
+  "loadBefore": {
+    "load": [
+      7.33,
+      9.35,
+      12.09
+    ],
+    "cores": 10
+  },
+  "loadAfter": {
+    "load": [
+      9.07,
+      8.82,
+      11.44
+    ],
+    "cores": 10
+  },
+  "note": "other phases were running on this machine during the measurement (load averages above)",
+  "wallS": 135.1,
+  "error": null,
+  "blockedNetworkRequests": 0,
+  "notFound": [],
+  "consoleErrors": [],
+  "patch": {
+    "pass": true,
+    "baseline": {
+      "ms": 643,
+      "got": [
+        225,
+        7,
+        225
+      ]
+    },
+    "latencyMs": {
+      "n": 6,
+      "p50": 28,
+      "p95": 34,
+      "max": 34
+    },
+    "failed": 0,
+    "patchedSceneStillVisibleAt645": true,
+    "timelines": 12,
+    "runs": [
+      {
+        "trimmed": true,
+        "ms": 34,
+        "compileMs": 2,
+        "got": [
+          0,
+          0,
+          0
+        ],
+        "before645": [
+          255,
+          0,
+          255
+        ]
+      },
+      {
+        "trimmed": false,
+        "ms": 17,
+        "compileMs": 0,
+        "got": [
+          255,
+          0,
+          255
+        ],
+        "before645": [
+          255,
+          0,
+          255
+        ]
+      },
+      {
+        "trimmed": true,
+        "ms": 28,
+        "compileMs": 0,
+        "got": [
+          0,
+          0,
+          0
+        ],
+        "before645": [
+          255,
+          0,
+          255
+        ]
+      },
+      {
+        "trimmed": false,
+        "ms": 14,
+        "compileMs": 0,
+        "got": [
+          255,
+          0,
+          255
+        ],
+        "before645": [
+          255,
+          0,
+          255
+        ]
+      },
+      {
+        "trimmed": true,
+        "ms": 29,
+        "compileMs": 0,
+        "got": [
+          0,
+          0,
+          0
+        ],
+        "before645": [
+          255,
+          0,
+          255
+        ]
+      },
+      {
+        "trimmed": false,
+        "ms": 19,
+        "compileMs": 0,
+        "got": [
+          255,
+          0,
+          255
+        ],
+        "before645": [
+          255,
+          0,
+          255
+        ]
+      }
+    ]
+  },
+  "reload": {
+    "pass": true,
+    "latencyMs": {
+      "n": 6,
+      "p50": 439,
+      "p95": 475,
+      "max": 475
+    },
+    "failed": 0,
+    "runs": [
+      {
+        "trimmed": true,
+        "ms": 447,
+        "compileMs": 0,
+        "readyMs": 14,
+        "got": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "trimmed": false,
+        "ms": 438,
+        "compileMs": 0,
+        "readyMs": 14,
+        "got": [
+          255,
+          0,
+          255
+        ]
+      },
+      {
+        "trimmed": true,
+        "ms": 364,
+        "compileMs": 0,
+        "readyMs": 13,
+        "got": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "trimmed": false,
+        "ms": 439,
+        "compileMs": 0,
+        "readyMs": 13,
+        "got": [
+          255,
+          0,
+          255
+        ]
+      },
+      {
+        "trimmed": true,
+        "ms": 423,
+        "compileMs": 0,
+        "readyMs": 14,
+        "got": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "trimmed": false,
+        "ms": 475,
+        "compileMs": 0,
+        "readyMs": 13,
+        "got": [
+          255,
+          0,
+          255
+        ]
+      }
+    ]
+  }
+}

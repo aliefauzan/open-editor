@@ -1,0 +1,6 @@
+{
+  "panels": [
+    { "template": "kit/swatch", "variables": { "label": "one" } },
+    { "template": "kit/swatch", "variables": { "label": "two" } }
+  ]
+}

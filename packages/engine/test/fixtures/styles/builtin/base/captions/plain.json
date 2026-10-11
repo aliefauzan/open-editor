@@ -1,0 +1,7 @@
+{
+  "name": "plain",
+  "description": "Plain captions.",
+  "case": "asis",
+  "stripPunctuation": false,
+  "position": { "yPct": 75 }
+}

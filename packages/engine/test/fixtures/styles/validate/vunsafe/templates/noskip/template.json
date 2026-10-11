@@ -1,0 +1,16 @@
+{
+  "name": "noskip",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "Test scene: a card slides in, a dot pops at 500 ms, a label.",
+  "useWhen": ["tests"],
+  "durationMs": { "min": 500, "default": 3000, "max": 8000 },
+  "variables": {
+    "type": "object",
+    "properties": { "label": { "type": "string", "maxLength": 40 } },
+    "required": ["label"],
+    "additionalProperties": false
+  },
+  "slots": {},
+  "minEntranceMs": 2000
+}

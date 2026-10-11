@@ -1,0 +1,286 @@
+{
+  "item": 7,
+  "side": "render",
+  "pass": true,
+  "vars": {
+    "pass": true,
+    "instances": 10,
+    "worstDist": 4
+  },
+  "tokens": {
+    "pass": true,
+    "instances": 10,
+    "worstDist": 3
+  },
+  "mutedVideoSeparateAudio": {
+    "pass": true,
+    "clickAmpRenderOverSource": 0.977
+  },
+  "volumeTween": {
+    "pass": true,
+    "ratio": 0.406,
+    "expected": 0.4
+  },
+  "points": [
+    {
+      "f": 345,
+      "id": "s7",
+      "what": "swatch",
+      "expect": "#0080ff",
+      "got": [
+        0,
+        125,
+        253
+      ],
+      "dist": 4,
+      "ok": true
+    },
+    {
+      "f": 345,
+      "id": "s7",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        231,
+        68,
+        44
+      ],
+      "dist": 2,
+      "ok": true
+    },
+    {
+      "f": 645,
+      "id": "s1",
+      "what": "swatch",
+      "expect": "#ff00ff",
+      "got": [
+        252,
+        0,
+        253
+      ],
+      "dist": 4,
+      "ok": true
+    },
+    {
+      "f": 645,
+      "id": "s1",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        45,
+        109,
+        235
+      ],
+      "dist": 3,
+      "ok": true
+    },
+    {
+      "f": 990,
+      "id": "s2",
+      "what": "swatch",
+      "expect": "#00ffff",
+      "got": [
+        0,
+        252,
+        253
+      ],
+      "dist": 4,
+      "ok": true
+    },
+    {
+      "f": 990,
+      "id": "s2",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        231,
+        68,
+        44
+      ],
+      "dist": 2,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3",
+      "what": "swatch",
+      "expect": "#ffff00",
+      "got": [
+        252,
+        253,
+        0
+      ],
+      "dist": 4,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        231,
+        68,
+        44
+      ],
+      "dist": 2,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3-p1",
+      "what": "swatch",
+      "expect": "#40ff40",
+      "got": [
+        62,
+        253,
+        63
+      ],
+      "dist": 3,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3-p1",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        45,
+        109,
+        235
+      ],
+      "dist": 3,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3-p2",
+      "what": "swatch",
+      "expect": "#4040ff",
+      "got": [
+        62,
+        65,
+        252
+      ],
+      "dist": 4,
+      "ok": true
+    },
+    {
+      "f": 1275,
+      "id": "s3-p2",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        231,
+        68,
+        44
+      ],
+      "dist": 2,
+      "ok": true
+    },
+    {
+      "f": 1725,
+      "id": "s4",
+      "what": "swatch",
+      "expect": "#00ff00",
+      "got": [
+        0,
+        254,
+        0
+      ],
+      "dist": 1,
+      "ok": true
+    },
+    {
+      "f": 1725,
+      "id": "s4",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        45,
+        109,
+        235
+      ],
+      "dist": 3,
+      "ok": true
+    },
+    {
+      "f": 2045,
+      "id": "s8",
+      "what": "swatch",
+      "expect": "#ff0080",
+      "got": [
+        252,
+        0,
+        127
+      ],
+      "dist": 3,
+      "ok": true
+    },
+    {
+      "f": 2045,
+      "id": "s8",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        45,
+        109,
+        235
+      ],
+      "dist": 3,
+      "ok": true
+    },
+    {
+      "f": 2445,
+      "id": "s5",
+      "what": "swatch",
+      "expect": "#ff8000",
+      "got": [
+        252,
+        126,
+        0
+      ],
+      "dist": 4,
+      "ok": true
+    },
+    {
+      "f": 2445,
+      "id": "s5",
+      "what": "token",
+      "expect": "#2f6fed",
+      "got": [
+        45,
+        109,
+        235
+      ],
+      "dist": 3,
+      "ok": true
+    },
+    {
+      "f": 2535,
+      "id": "s6",
+      "what": "swatch",
+      "expect": "#8000ff",
+      "got": [
+        125,
+        0,
+        252
+      ],
+      "dist": 4,
+      "ok": true
+    },
+    {
+      "f": 2535,
+      "id": "s6",
+      "what": "token",
+      "expect": "#e8442e",
+      "got": [
+        231,
+        68,
+        44
+      ],
+      "dist": 2,
+      "ok": true
+    }
+  ]
+}

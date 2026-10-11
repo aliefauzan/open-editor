@@ -10,8 +10,14 @@ export default defineConfig({
           'packages/*/test/**/*.slow.test.ts',
           'apps/*/test/**/*.slow.test.ts',
           'test/**/*.slow.test.ts',
+          'spike/test/**/*.slow.test.ts',
         ]
-      : ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.ts', 'test/**/*.test.ts'],
+      : [
+          'packages/*/test/**/*.test.ts',
+          'apps/*/test/**/*.test.ts',
+          'test/**/*.test.ts',
+          'spike/test/**/*.test.ts',
+        ],
     exclude: slow
       ? ['**/node_modules/**']
       : [

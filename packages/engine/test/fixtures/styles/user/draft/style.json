@@ -1,0 +1,14 @@
+{
+  "id": "draft",
+  "name": "Draft",
+  "version": "0.1.0",
+  "description": "Untrusted draft child of paper.",
+  "status": "draft",
+  "extends": "paper",
+  "source": { "type": "extracted", "reference": "fixture.mp4" },
+  "trusted": false,
+  "tokens": { "colors": { "accentSoft": "#ff0066" } },
+  "templates": ["card"],
+  "transitions": [],
+  "overlays": [{ "name": "grain", "default": true }]
+}

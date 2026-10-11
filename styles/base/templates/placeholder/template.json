@@ -1,0 +1,18 @@
+{
+  "name": "placeholder",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "A visible gap marker: a striped grey frame with a short label saying what should go here. Used for beats the agent could not fill, so the gap is obvious in the preview and the export.",
+  "useWhen": [
+    "no suitable picture was found for a beat",
+    "a beat is waiting for the user's own footage"
+  ],
+  "durationMs": { "min": 500, "default": 3000, "max": 30000 },
+  "variables": {
+    "type": "object",
+    "properties": { "label": { "type": "string", "minLength": 1, "maxLength": 120 } },
+    "required": ["label"],
+    "additionalProperties": false
+  },
+  "slots": {}
+}

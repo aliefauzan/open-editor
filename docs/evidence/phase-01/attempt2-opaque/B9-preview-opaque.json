@@ -1,0 +1,919 @@
+{
+  "item": 4,
+  "pass": true,
+  "parts": {
+    "play": true,
+    "avWithin1Frame": true,
+    "seekToCut": true,
+    "noNetwork": true
+  },
+  "mode": "opaque",
+  "attempt": 2,
+  "electron": "44.7.0",
+  "chrome": "152.0.7977.130",
+  "box": {
+    "w": 450,
+    "h": 800,
+    "scaleFactor": 2
+  },
+  "loadBefore": {
+    "load": [
+      7.33,
+      9.35,
+      12.09
+    ],
+    "cores": 10
+  },
+  "loadAfter": {
+    "load": [
+      9.07,
+      8.82,
+      11.44
+    ],
+    "cores": 10
+  },
+  "note": "other phases were running on this machine during the measurement (load averages above)",
+  "wallS": 135.1,
+  "error": null,
+  "blockedNetworkRequests": 0,
+  "notFound": [],
+  "consoleErrors": [],
+  "play": {
+    "wallS": 89.9,
+    "startupMs": 5,
+    "minFps": 28.2,
+    "windowsBelow24": [],
+    "stall": {
+      "maxMs": 83,
+      "rafGapMs": 34,
+      "frameAdvanceGapMs": 44,
+      "videoGapMs": 83,
+      "videoGapAtFrame": 34
+    },
+    "presentedVideoFrames": 2096,
+    "expectedVideoFrames": 2145,
+    "avMs": {
+      "n": 955,
+      "p50": 8,
+      "p95": 15.9,
+      "max": 18
+    },
+    "audioVsClockMs": {
+      "n": 955,
+      "p50": 0,
+      "p95": 0,
+      "max": 1.3
+    },
+    "pictureVsClockMs": {
+      "n": 1557,
+      "p50": 3.9,
+      "p95": 13.3,
+      "max": 37.7
+    },
+    "pictureVsClockSignedP50Ms": -3.5,
+    "heavy": {
+      "stackMinFps": 30,
+      "slotMinFps": 29,
+      "minFps": 29,
+      "marginPct": 20.8
+    },
+    "frameMs": 33.333,
+    "longFrames": [],
+    "samples": {
+      "raf": 10749,
+      "vfc": 2201,
+      "av": 1335,
+      "mediaEvents": 303
+    }
+  },
+  "windows": [
+    {
+      "k": 0,
+      "fps": 28.8,
+      "timelineFps": 29.8,
+      "videoFps": 28.8,
+      "spanMs": 1006
+    },
+    {
+      "k": 1,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 2,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1002
+    },
+    {
+      "k": 3,
+      "fps": 29.3,
+      "timelineFps": 30.3,
+      "videoFps": 29.3,
+      "spanMs": 990
+    },
+    {
+      "k": 4,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 5,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 6,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 7,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 8,
+      "fps": 29.5,
+      "timelineFps": 30.5,
+      "videoFps": 29.5,
+      "spanMs": 985
+    },
+    {
+      "k": 9,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 999
+    },
+    {
+      "k": 10,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 11,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 12,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 13,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 14,
+      "fps": 29.2,
+      "timelineFps": 30.3,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 15,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 16,
+      "fps": 29.2,
+      "timelineFps": 30.3,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 17,
+      "fps": 29.8,
+      "timelineFps": 29.8,
+      "videoFps": 29.8,
+      "spanMs": 1008
+    },
+    {
+      "k": 18,
+      "fps": 29.2,
+      "timelineFps": 30.2,
+      "videoFps": 29.2,
+      "spanMs": 993
+    },
+    {
+      "k": 19,
+      "fps": 30.1,
+      "timelineFps": 30.1,
+      "videoFps": 30.1,
+      "spanMs": 998
+    },
+    {
+      "k": 20,
+      "fps": 29.9,
+      "timelineFps": 29.9,
+      "videoFps": null,
+      "spanMs": 1002
+    },
+    {
+      "k": 21,
+      "fps": 30.1,
+      "timelineFps": 30.1,
+      "videoFps": null,
+      "spanMs": 998
+    },
+    {
+      "k": 22,
+      "fps": 29.9,
+      "timelineFps": 29.9,
+      "videoFps": null,
+      "spanMs": 1002
+    },
+    {
+      "k": 23,
+      "fps": 29.3,
+      "timelineFps": 30.3,
+      "videoFps": 29.3,
+      "spanMs": 990
+    },
+    {
+      "k": 24,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 25,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 26,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 27,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 28,
+      "fps": 28.5,
+      "timelineFps": 30.5,
+      "videoFps": 28.5,
+      "spanMs": 983
+    },
+    {
+      "k": 29,
+      "fps": 29.2,
+      "timelineFps": 30.2,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 30,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 31,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 32,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 33,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 34,
+      "fps": 28.2,
+      "timelineFps": 30.2,
+      "videoFps": 28.2,
+      "spanMs": 992
+    },
+    {
+      "k": 35,
+      "fps": 30.3,
+      "timelineFps": 30.3,
+      "videoFps": 30.3,
+      "spanMs": 992
+    },
+    {
+      "k": 36,
+      "fps": 28.8,
+      "timelineFps": 29.8,
+      "videoFps": 28.8,
+      "spanMs": 1008
+    },
+    {
+      "k": 37,
+      "fps": 29.2,
+      "timelineFps": 30.3,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 38,
+      "fps": 29.8,
+      "timelineFps": 29.8,
+      "videoFps": 29.8,
+      "spanMs": 1008
+    },
+    {
+      "k": 39,
+      "fps": 30.2,
+      "timelineFps": 30.2,
+      "videoFps": 30.2,
+      "spanMs": 994
+    },
+    {
+      "k": 40,
+      "fps": 30.1,
+      "timelineFps": 30.1,
+      "videoFps": null,
+      "spanMs": 998
+    },
+    {
+      "k": 41,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 42,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 43,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 44,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 45,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 46,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 47,
+      "fps": 30.3,
+      "timelineFps": 30.3,
+      "videoFps": 30.3,
+      "spanMs": 992
+    },
+    {
+      "k": 48,
+      "fps": 29.7,
+      "timelineFps": 29.7,
+      "videoFps": 29.7,
+      "spanMs": 1009
+    },
+    {
+      "k": 49,
+      "fps": 29.2,
+      "timelineFps": 30.3,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 50,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 51,
+      "fps": 29.2,
+      "timelineFps": 30.3,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 52,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 53,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 54,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 55,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 56,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 57,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 58,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 59,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1001
+    },
+    {
+      "k": 60,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 999
+    },
+    {
+      "k": 61,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 62,
+      "fps": 28.2,
+      "timelineFps": 30.2,
+      "videoFps": 28.2,
+      "spanMs": 992
+    },
+    {
+      "k": 63,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 64,
+      "fps": 29.2,
+      "timelineFps": 30.3,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 65,
+      "fps": 28.8,
+      "timelineFps": 29.8,
+      "videoFps": 28.8,
+      "spanMs": 1008
+    },
+    {
+      "k": 66,
+      "fps": 29.2,
+      "timelineFps": 30.3,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 67,
+      "fps": 29.1,
+      "timelineFps": 30.1,
+      "videoFps": 29.1,
+      "spanMs": 998
+    },
+    {
+      "k": 68,
+      "fps": 29.8,
+      "timelineFps": 29.8,
+      "videoFps": 29.8,
+      "spanMs": 1008
+    },
+    {
+      "k": 69,
+      "fps": 29.3,
+      "timelineFps": 30.3,
+      "videoFps": 29.3,
+      "spanMs": 990
+    },
+    {
+      "k": 70,
+      "fps": 28.7,
+      "timelineFps": 29.7,
+      "videoFps": 28.7,
+      "spanMs": 1010
+    },
+    {
+      "k": 71,
+      "fps": 30.1,
+      "timelineFps": 30.1,
+      "videoFps": 30.1,
+      "spanMs": 998
+    },
+    {
+      "k": 72,
+      "fps": 30.3,
+      "timelineFps": 30.3,
+      "videoFps": 30.3,
+      "spanMs": 992
+    },
+    {
+      "k": 73,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 74,
+      "fps": 28.8,
+      "timelineFps": 29.8,
+      "videoFps": 28.8,
+      "spanMs": 1008
+    },
+    {
+      "k": 75,
+      "fps": 29.2,
+      "timelineFps": 30.2,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 76,
+      "fps": 29,
+      "timelineFps": 29.9,
+      "videoFps": 29,
+      "spanMs": 1002
+    },
+    {
+      "k": 77,
+      "fps": 29.1,
+      "timelineFps": 30.1,
+      "videoFps": 29.1,
+      "spanMs": 998
+    },
+    {
+      "k": 78,
+      "fps": 29.2,
+      "timelineFps": 30.3,
+      "videoFps": 29.2,
+      "spanMs": 992
+    },
+    {
+      "k": 79,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 80,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 81,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 82,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 83,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 84,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 85,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": null,
+      "spanMs": 1000
+    },
+    {
+      "k": 86,
+      "fps": 29,
+      "timelineFps": 30,
+      "videoFps": 29,
+      "spanMs": 1000
+    },
+    {
+      "k": 87,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 88,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    },
+    {
+      "k": 89,
+      "fps": 30,
+      "timelineFps": 30,
+      "videoFps": 30,
+      "spanMs": 1000
+    }
+  ],
+  "avseek": {
+    "avMs": {
+      "n": 158,
+      "p50": 7.3,
+      "p95": 16.1,
+      "max": 18.7
+    },
+    "pictureVsClockMs": {
+      "n": 227,
+      "p50": 13,
+      "p95": 27.7,
+      "max": 33.2
+    },
+    "audioVsClockMs": {
+      "n": 158,
+      "p50": 0,
+      "p95": 0,
+      "max": 0
+    },
+    "cycles": [
+      {
+        "at": 3.2,
+        "avMs": {
+          "n": 20,
+          "p50": 7.9,
+          "p95": 9.7,
+          "max": 9.7
+        },
+        "pictureVsClockMs": {
+          "n": 29,
+          "p50": 10.3,
+          "p95": 20.7,
+          "max": 20.8
+        },
+        "audioVsClockMs": {
+          "n": 20,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "firstMs": 0.5
+      },
+      {
+        "at": 12.5,
+        "avMs": {
+          "n": 20,
+          "p50": 11.6,
+          "p95": 18.7,
+          "max": 18.7
+        },
+        "pictureVsClockMs": {
+          "n": 30,
+          "p50": 15.9,
+          "p95": 29.2,
+          "max": 33.2
+        },
+        "audioVsClockMs": {
+          "n": 20,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "firstMs": 1
+      },
+      {
+        "at": 27.4,
+        "avMs": {
+          "n": 19,
+          "p50": 1.6,
+          "p95": 5.1,
+          "max": 5.1
+        },
+        "pictureVsClockMs": {
+          "n": 29,
+          "p50": 22,
+          "p95": 28.8,
+          "max": 29.2
+        },
+        "audioVsClockMs": {
+          "n": 19,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "firstMs": 1.2
+      },
+      {
+        "at": 35.1,
+        "avMs": {
+          "n": 28,
+          "p50": 3.7,
+          "p95": 9,
+          "max": 9
+        },
+        "pictureVsClockMs": {
+          "n": 41,
+          "p50": 19.3,
+          "p95": 21.6,
+          "max": 30.5
+        },
+        "audioVsClockMs": {
+          "n": 28,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "firstMs": 0.2
+      },
+      {
+        "at": 63,
+        "avMs": {
+          "n": 28,
+          "p50": 7.3,
+          "p95": 9.9,
+          "max": 9.9
+        },
+        "pictureVsClockMs": {
+          "n": 41,
+          "p50": 11.5,
+          "p95": 28,
+          "max": 29.1
+        },
+        "audioVsClockMs": {
+          "n": 28,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "firstMs": 0
+      },
+      {
+        "at": 70.6,
+        "avMs": {
+          "n": 23,
+          "p50": 10.4,
+          "p95": 16.4,
+          "max": 16.8
+        },
+        "pictureVsClockMs": {
+          "n": 28,
+          "p50": 7.3,
+          "p95": 18.4,
+          "max": 18.9
+        },
+        "audioVsClockMs": {
+          "n": 23,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "firstMs": 0.7
+      },
+      {
+        "at": 76.2,
+        "avMs": {
+          "n": 20,
+          "p50": 9.9,
+          "p95": 15.9,
+          "max": 15.9
+        },
+        "pictureVsClockMs": {
+          "n": 29,
+          "p50": 9.1,
+          "p95": 23.5,
+          "max": 23.6
+        },
+        "audioVsClockMs": {
+          "n": 20,
+          "p50": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "firstMs": 1.5
+      },
+      {
+        "at": 81.9,
+        "avMs": {
+          "n": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "pictureVsClockMs": {
+          "n": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "audioVsClockMs": {
+          "n": 0,
+          "p50": null,
+          "p95": null,
+          "max": null
+        },
+        "firstMs": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "dip-to-black",
+  "version": "1.0.0",
+  "kind": "transition",
+  "description": "The picture fades to black up to the cut and back up from black after it. Cover style: needs no source handles, so it works at any cut.",
+  "useWhen": ["a change of topic or chapter", "a cut at the edge of a clip with no handles"],
+  "durationMs": { "min": 200, "default": 600, "max": 3000 },
+  "variables": { "type": "object", "properties": {}, "additionalProperties": false },
+  "slots": {}
+}

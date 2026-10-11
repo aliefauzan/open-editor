@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: repeating-linear-gradient(
+            45deg,
+            #3a3a3a 0,
+            #3a3a3a 40px,
+            #2e2e2e 40px,
+            #2e2e2e 80px
+          );
+          color: #f0f0f0;
+        }
+        .p-box {
+          position: absolute;
+          left: 10%;
+          right: 10%;
+          top: 35%;
+          bottom: 35%;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          text-align: center;
+          border: 4px dashed #9a9a9a;
+          padding: 4%;
+          box-sizing: border-box;
+        }
+        .p-tag {
+          font-family: var(--tok-font-caption);
+          font-weight: var(--tok-font-caption-weight);
+          opacity: 0.7;
+          margin-bottom: 0.6em;
+        }
+        .p-label {
+          font-family: var(--tok-font-body);
+          font-weight: var(--tok-font-body-weight);
+          line-height: 1.25;
+          overflow-wrap: anywhere;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="p-box">
+          <div class="p-tag">PLACEHOLDER</div>
+          <div class="p-label"></div>
+        </div>
+      </div>
+      <script>
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var w = __W__;
+          var label = root.querySelector('.p-label');
+          label.textContent = mount.vars.label;
+          label.style.fontSize = Math.round(w * 0.045) + 'px';
+          root.querySelector('.p-tag').style.fontSize = Math.round(w * 0.03) + 'px';
+          window.__timelines[mount.key] = mount.register(gsap.timeline({ paused: true }));
+        })();
+      </script>
+    </template>
+  </body>
+</html>

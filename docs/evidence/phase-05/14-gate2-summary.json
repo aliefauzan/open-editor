@@ -1,0 +1,111 @@
+{
+  "yt_dlp": "2026.07.04",
+  "sections": [
+    {
+      "section": "quick local file --render --out-dir (done-when 8)",
+      "pass": true,
+      "detail": {
+        "files": 3
+      }
+    },
+    {
+      "section": "audio-qa writes qa.json, qa.png, LISTEN.md (done-when 9)",
+      "pass": true,
+      "detail": {
+        "pass": true,
+        "checks": [
+          {
+            "id": "cueTiming",
+            "status": "skipped"
+          },
+          {
+            "id": "oneEventPerCue",
+            "status": "pass"
+          },
+          {
+            "id": "spacing",
+            "status": "pass"
+          },
+          {
+            "id": "sfxUnderSpeech",
+            "status": "pass"
+          },
+          {
+            "id": "loudness",
+            "status": "pass"
+          }
+        ]
+      }
+    },
+    {
+      "section": "frames match the reference on ntsc-2997-20s.mp4 (done-when 10)",
+      "pass": true,
+      "detail": {
+        "clips": [
+          {
+            "fps": "30000/1001",
+            "reference": "m_mv30jg0cb579.mp4",
+            "frames": 131,
+            "mismatches": 0
+          },
+          {
+            "fps": "30000/1001",
+            "reference": "m_mv30jg0cb579.mp4",
+            "frames": 169,
+            "mismatches": 0
+          },
+          {
+            "fps": "30000/1001",
+            "reference": "m_mv30jg0cb579.mp4",
+            "frames": 132,
+            "mismatches": 0
+          }
+        ]
+      }
+    },
+    {
+      "section": "frames match the reference on phone-vfr-20s.mp4 (done-when 10)",
+      "pass": true,
+      "detail": {
+        "clips": [
+          {
+            "fps": "30000/1001",
+            "reference": "m_mv30kgrwehix.cfr.mp4",
+            "frames": 167,
+            "mismatches": 0
+          },
+          {
+            "fps": "30000/1001",
+            "reference": "m_mv30kgrwehix.cfr.mp4",
+            "frames": 171,
+            "mismatches": 0
+          }
+        ]
+      }
+    },
+    {
+      "section": "removePauses = one undo entry (done-when 10)",
+      "pass": true,
+      "detail": {
+        "sequenceId": "seq_mv30kr9e5mfu",
+        "historyEntriesAdded": 1,
+        "removePausesChangedSequence": true,
+        "v1ItemsBefore": 1,
+        "v1ItemsAfterRemove": 3,
+        "undoRestoredSequence": true
+      }
+    },
+    {
+      "section": "newer schemaVersion refused, files unchanged (done-when 10)",
+      "pass": true,
+      "detail": {
+        "code": "SCHEMA_TOO_NEW",
+        "hint": "Update Vox Studio to open it; nothing was changed",
+        "treeSha256Before": "c6b5f4964fca9527",
+        "treeSha256After": "c6b5f4964fca9527",
+        "unchanged": true
+      }
+    }
+  ],
+  "pass": true
+}

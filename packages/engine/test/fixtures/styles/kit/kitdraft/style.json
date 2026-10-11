@@ -1,0 +1,13 @@
+{
+  "id": "kitdraft",
+  "name": "Kit draft",
+  "version": "0.1.0",
+  "description": "Untrusted test child of kit.",
+  "status": "draft",
+  "extends": "kit",
+  "source": { "type": "extracted", "reference": "fixture.mp4" },
+  "trusted": false,
+  "tokens": { "colors": { "accent": "#00aa00" } },
+  "templates": ["note"],
+  "transitions": []
+}

@@ -1,11 +1,121 @@
 # Phase 04 — Engine: jobs, Python bridge, ingest, transcribe, facetrack
 
-Status: not started; early steps done under D-19
+Status: [x] done (2026-10-11, single agent, worktree `.worktrees/phase-04`, branch
+`phase/04-engine-jobs-ingest-transcribe`)
+
+## Plan (full phase run)
+
+Early packages E1–E4 and P1 did steps 1, 2, 3 (TS + pytest), 4, 5 (argv), 5b (URL table), 6, 7, 8,
+9b (measuring), 9c core, 10b, 11, 12 (tool), 12b, 12c. This run wires them in:
+1. Tools: `resolveToolPaths` (tools dir, then PATH) → `EngineOptions.tools`; config `projectsDir` in
+   CLI; redactor into `EngineLog`, `VoxError` JSON/cause redacted.
+2. Jobs on the engine: `engine.jobs` (runner + kinds), `engine.on('job.*')`, job results as one
+   `batch` with `{ jobId, baseVersion }` (step 1b tests).
+3. yt-dlp: S33 cookies from `readConfig()` only, `--js-runtimes node` when deno is absent, env proxy
+   vars stripped, `LOGIN_REQUIRED` mapping, recorded fixtures (format choice, carousel), retry 3×.
+4. Ingest stage (local file/folder/URL/doc): copy → sniff → analyse → CFR copy → proxy → audio m4a
+   → thumbs sprite → peaks → `addMedia`; cache by input hash; `{ proxies: false }`.
+5. Stages `transcribe`, `shots`, `facetrack` (detections + path cache), `mediaFrames`.
+6. CLI: `doctor`, `ingest`, `transcribe`, `shots`, `facetrack`, `media-frames`.
+7. Commit `transcripts/`, `shots/`, `facetracks/` fixtures for `talking-head-20s`.
+Test order: tools/config → jobs 1b → ytdlp → ingest → transcribe/shots/facetrack → doctor → CLI.
+
+Resume notes: none yet.
+
+## Checklist
+
+Early packages (D-19, sections below) did steps 1, 2, 3 (TS + pytest), 4, 5, 5b (URL table), 6, 7, 8,
+9b (measuring), 9c core, 10b (Python), 11, 12 (tool), 12b, 12c. This run:
+- [x] 1b Job results: one `batch` with `{ jobId, baseVersion }`; conflicting edit → `JOB_CONFLICT`,
+      nothing changed; unrelated edit passes (`test/media-jobs.test.ts`).
+- [x] 3 Tools dir (`tools.ts`: `<tools>/bin`, else PATH), config `projectsDir` in the CLI, zod ↔ JSON
+      Schema agreement for transcribe request/result, doctext result, facetrack request.
+- [x] 5/5b yt-dlp download: S33 cookies from config only, `--js-runtimes node` without deno, proxy env
+      stripped, `LOGIN_REQUIRED` + hint, 1080×1920 format choice, carousel first item + count.
+- [x] 9/9b Ingest stage (file/folder/URL/doc): sniff → analyse → CFR copy → proxy → m4a → thumbs →
+      peaks → `addMedia`; cache by content hash; `{ proxies: false }`; mp4/mov/webm, VFR, NTSC.
+- [x] 9c `shots` job on `cuts-2shot` (proxy and original at 360p), cached; facetrack subjects equal
+      with and without proxies.
+- [x] 10 `transcribe` job (cached, `transcriptRev`); seeds committed:
+      `test/fixtures/{transcripts,shots,facetracks}/talking-head-20s.json`.
+- [x] 10b engine side: speech gate and word kinds through the job (`music-silence`: words only from
+      the 12 s sentence; `speech-fillers`: `filler` and `repeat` kinds).
+- [x] 12/12c `facetrack` job (face model fetched into `<tools>/models`, SHA checked) and
+      `engine.facetrackPath` (cached); `engine.mediaFrames`.
+- [x] 13 `vox doctor` (+ `<project>`, `--unlock`, contact prompt once on a TTY).
+- [x] 14 Retry 3× (1/2/4 s); yt-dlp failure hint suggests a local file.
+- [x] CLI: `ingest`, `transcribe`, `shots`, `facetrack`, `media-frames`, `doctor`.
+- [ ] 15 MANUAL STEP (owner, optional): real YouTube / Instagram reel / TikTok ingest (TODO).
+
+## Files created / changed
+
+Engine `src/`: `api.ts` (jobs, redactor, doctor, facetrackPath, mediaFrames), `config.ts` (env arg),
+`doctor.ts`, `errors.ts` (`LOGIN_REQUIRED`, redacted cause), `media-api.ts` (job kinds, face model,
+mediaFrames, facetrackPath), `net/retry.ts`, `py.ts`, `stages/{ingest,transcribe,ytdlp}.ts`,
+`stages/media/{derive,run}.ts`, `stages/shots.ts`, `tools.ts`. CLI `src/main.ts`.
+Tests: `test/{doctor,media-api,media-jobs,errors}.test.ts`, `test/stages/{ingest,ytdlp}.test.ts`,
+`test/stages/{ingest,media-jobs}.slow.test.ts`, `test/stages/{media-chain,ytdlp}.local.test.ts`,
+`test/tools/tools.test.ts`, `test/helpers/{fake-py,fake-ytdlp}.mjs`, `test/py/*`,
+`test/fixtures/ytdlp/*` (recorded info JSON + stderr), seeds above; `packages/cli/test/media.test.ts`.
+
+## Verify results
+
+After `git merge main` (2026-10-11 05:35), fixtures from `make.sh`:
+- `pnpm -C packages/engine test`: 87 files, 1184 passed (local tier included).
+- `pnpm -C packages/engine test:slow -- stages`: 3 files, 11 passed.
+- `uv run --project py pytest`: 109 passed.
+- `pnpm -C packages/cli exec vox doctor --json`: exit 0, `ok: true`, 15 checks; warnings only:
+  `yt-dlp-impersonate` (curl_cffi 0.16.3 "unsupported" on the M5), `model-face` (not downloaded yet in
+  the default tools dir; first facetrack fetches it), `contact` (not set).
+- Root `pnpm test`: 111 files, 1642 passed, 1 skipped. `pnpm lint` and `pnpm typecheck` clean.
+
+## Done when
+
+- [x] S2–S6, S17, S19, S33 tests pass; self-review found no CRITICAL/HIGH.
+- [x] Sources tests: URL classes, `LOGIN_REQUIRED`, 1080×1920 choice, carousel first item.
+- [x] CLI chain on `talking-head-20s.mp4` (scratch `VOX_HOME` and tools dir): `vox ingest` → `shots` →
+      `transcribe` → `facetrack`, one history entry each (actor `cli`); rerun prints reused/cached and
+      adds no entry; `media-frames` gives 2 PNGs. `JOB_CONFLICT` in `media-jobs.test.ts`.
+- [x] VFR + CFR copy, loudness, speech gate, word kinds, shots, facetrack path tests pass.
+- [x] `vox doctor` passes on the M5 (provisional; warnings above).
+- [x] R5 rows (mlx-whisper revision, MediaPipe model, onnxruntime, Silero SHA-256, pyobjc Vision)
+      filled (P1).
+
+## Review findings
+
+Self-review (owner asked to cut token cost), R6 focus (code, python, silent failures) and security
+(S2–S6, S17, S19, S33). No CRITICAL/HIGH. Fixed MEDIUM: `doctor --unlock` reported `removed: true`
+when unlink failed (now only ENOENT is ignored); a facetrack path cache file with a wrong shape was
+returned (now rebuilt). Checked: media paths come from `relPath()` in the schema; ffmpeg argv keep
+format/protocol whitelists (`frameArgs`); cookies only from config; job errors and `VoxError.cause`
+redacted (canary test); face model download through `fetchPublic` with size cap and SHA.
+
+## Deviations
+
+- Implementation choices recorded as D-31. New error code this run: `LOGIN_REQUIRED` (R2 already
+  lists it); `MEDIA_BOUNDS`, `TOOL_FAILED`, `NET_DNS`, `PY_TOOL_FAILED` came from earlier packages.
+- `pnpm -C packages/engine test -- <file> -t <name>` treats the `-t` value as a path filter; run
+  `npx vitest run <file> -t <name>` for one test.
+
+## MANUAL STEPS
+
+- Step 15 (optional, does not block merge; needed at GATE 2): added to TODO "Manual steps".
+
+## Handoff notes
+
+- Job kinds on `engine.jobs`: `ingest`, `transcribe` (gpu), `shots`, `facetrack`; args strict, optional
+  `actor` (default `user`). Results apply as one `batch` with `jobId`.
+- Seeds for later phases: `packages/engine/test/fixtures/{transcripts,shots,facetracks}/talking-head-20s.json`
+  (media hash of the checked-in mp4); regenerate with `VOX_WRITE_SEEDS=1` on `media-chain.local`.
+- Phase 05: `engine.facetrackPath(projectId, mediaId, opts)` is ready for the compile path provider;
+  `readConfig(env)` gives `contact`. Phase 09: the face model lands in `<tools>/models` on first
+  facetrack; Whisper uses `<tools>/models/whisper-large-v3-turbo` when present, else the HF cache.
+- Phase 11: use `engine.redactor.addSecrets` and `readConfig`/`writeConfig` (env-aware).
 
 ## Early steps (D-19) — e1-net-sources
 
-Branch `early/e1-net-sources` (worktree `.worktrees/early-e1-net-sources`), pushed; **not merged**:
-waits for phase 02 (merge after 02, shim swap). Commits 1017749, 972662c.
+Branch `early/e1-net-sources`, pushed; **merged** into main as 02cf19b (2026-10-11, after 02 at
+5d89ddd). Commits 1017749, 972662c, shim swap 928dc27; worktree removed.
 
 **Steps done**: 4 (proxy, S3), 5 argv part (S4; S33 argv part only), 5b classify part (D-13 URL
 table), plus the S29 core for phase 05 (in-process checked fetch).
@@ -56,9 +166,13 @@ idle tunnels / no connection cap, LOW missed special ranges, LOW abort cleanup, 
 into an open tunnel, LOW malformed `Location`. Not done (left to 04): proxy port allowlist and
 per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
 
+**Merge (after 02)**: shim swapped (`../errors.ts` in 4 src + 3 test files, shim deleted), the five
+codes appended to `ERROR_CODES`. Verify after merging main: typecheck, lint (prettier) green;
+`pnpm test` 961 passed / 1 skipped (one run hit the 30 s timeout in 02's `log.test.ts` rotation
+test at load average 22 from parallel agents; it passes in 2 s alone, twice); pytest 109 passed
+after `make.sh` (fresh worktree had no generated audio-QA fixtures).
+
 **Left for phase 04**
-- Shim swap: `errors.pending.ts` → `../errors.ts` imports in the 5 src + 3 test files, delete the
-  shim, append the codes above.
 - S33 config sourcing (`ingest.cookiesFromBrowser` from `readConfig()` only; a URL, project file or
   ingest argument cannot set it) + its tests; `jsRuntime` detection (deno absent → `node`).
 - `LOGIN_REQUIRED` mapping from yt-dlp stderr, recorded `fixtures/ytdlp/*` (1080×1920 format choice,
@@ -96,8 +210,8 @@ per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
   its test; `engine.redactor`, `engine.jobs`, `on()` and `readConfig`/`writeConfig` exports in
   `api.ts`; redact `VoxError.cause` at creation/serialisation after the shim swap; pytest JSON-Schema
   agreement per tool (P1's tools); `ToolPaths` (uv path, tools dir) from `openEngine`.
-- **Branch**: `early/e2-config-jobs` at 4bee254, pushed; worktree kept. Merge state: ready, waiting
-  for 02 (shim swap, then merge).
+- **Branch**: `early/e2-config-jobs`, shim swapped to errors.ts after 02; merged to main as 6502042; worktree
+  removed (verify: pnpm test 1459 passed / 1 skipped, pytest 109 passed).
 
 ## Early steps (D-19) — p1-py-tools
 
@@ -177,8 +291,8 @@ per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
   tool via `py.ts`, detections file) and path cache storage under the cache key; CLI `vox shots` /
   `vox facetrack`; ingest with `{proxies:false}` uses the 360p path; offline seeded fixture files.
   For phase 05: the compile path provider (`applyClipFraming` per item → translate + scale).
-- **Branch**: `early/e4-shots-facetrack` at a6a3b55 (main merged in, incl. P1), pushed; worktree kept.
-  Merge state: ready, waiting for 02 (merge after 02).
+- **Branch**: `early/e4-shots-facetrack`, shim swapped to errors.ts after 02; merged to main as 560506d; worktree removed.
+  Merge state: merged (verify: pnpm test 1032 passed / 1 skipped, pytest 109 passed).
 
 ## Early steps (D-19) — e3-media-export
 
@@ -214,5 +328,5 @@ per-run proxy auth (spec asks neither; the proxy reaches public addresses only).
   the proxy / CFR copy / image re-encode into an O_EXCL temp then move it (rule in `proxy.ts`); pass the
   tools folder and `engine.redactor.redact` to `runTool`; use 02's `model/fps.ts` and model types in
   place of the local `Fps`; audio m4a, thumbnails and peaks; E4's shots runner onto `run.ts`.
-- **Branch**: `early/e3-media-export` at a4d3a88, pushed; worktree kept. Merge state: ready, waiting
-  for 02 (merge after 02).
+- **Branch**: `early/e3-media-export`, shim swapped to errors.ts after 02; merged to main as bfcdb3f; worktree
+  removed (verify: pnpm test 1238 passed / 1 skipped, pytest 109 passed).
