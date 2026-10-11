@@ -1,7 +1,7 @@
 {
   "id": "vox",
   "name": "Vox",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Vox-like paper collage: archive cutouts with a red outline on warm paper, yellow land on a blue sea, serif kinetic type, yellow label tags and black-boxed mono captions. Entrances pop and hold on twos for a stop-motion feel.",
   "status": "active",
   "extends": "base",
@@ -53,7 +53,16 @@
     "default": "vox/mono-box",
     "presets": ["vox/mono-box", "vox/serif-lower", "vox/word-reveal"]
   },
-  "templates": ["kinetic-serif", "stat", "paper-collage", "map-route"],
+  "templates": [
+    "kinetic-serif",
+    "stat",
+    "paper-collage",
+    "map-route",
+    "year-card",
+    "framed-portrait",
+    "newspaper",
+    "stack"
+  ],
   "transitions": ["paper-tear", "slide-paper"],
   "overlays": [
     {

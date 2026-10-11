@@ -1,0 +1,61 @@
+{
+  "name": "newspaper",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "An aged newspaper clipping slides in on the board: masthead rule with a date, a big serif headline, an optional subhead, an optional halftone photo and columns of grey text lines. Like the \"LA JOCONDE A DISPARU\" front page in the reference reel. `language` sets the language of the headline (hyphenation and quotes), so a French or Indonesian headline breaks correctly.",
+  "useWhen": [
+    "the speaker quotes a headline, a news report or a front page",
+    "an event is introduced as news (a theft, an election, a launch, a disaster)",
+    "a date and a headline together anchor a story"
+  ],
+  "durationMs": {
+    "min": 1200,
+    "default": 3000,
+    "max": 5000
+  },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "headline": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 60
+      },
+      "subhead": {
+        "type": "string",
+        "maxLength": 100
+      },
+      "photo": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "date": {
+        "type": "string",
+        "maxLength": 24
+      },
+      "language": {
+        "type": "string",
+        "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$",
+        "maxLength": 12
+      },
+      "bg": {
+        "enum": ["paper", "dark", "highlight"]
+      }
+    },
+    "required": ["headline"],
+    "additionalProperties": false
+  },
+  "slots": {
+    "photo": "image"
+  },
+  "sfxCues": [
+    {
+      "name": "clipping-in",
+      "atMs": 120,
+      "sfx": "paper-slide",
+      "type": "move"
+    }
+  ],
+  "minEntranceMs": 1500
+}

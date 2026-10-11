@@ -1251,7 +1251,7 @@ async function contactSheet(
     '-frames:v',
     '1',
     '-q:v',
-    '3',
+    '6',
     join(out, 'contact.jpg'),
   ]);
   writeFileSync(
