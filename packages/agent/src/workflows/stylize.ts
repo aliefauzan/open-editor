@@ -201,9 +201,11 @@ async function edgeTransitions(
   return notes;
 }
 
-const lastCall = (run: AgentRun, tool: string, sequenceId: string, subRun: number) =>
+/** The last successful call of `tool` on the sequence in this sub-run, at index `from` or later. */
+const lastCall = (run: AgentRun, tool: string, sequenceId: string, subRun: number, from = 0) =>
   run.calls.findLast(
-    (c) =>
+    (c, i) =>
+      i >= from &&
       c.tool === tool &&
       c.ok &&
       c.subRun === subRun &&
@@ -298,13 +300,19 @@ export async function stylizeSequences(
     });
     if (turn.status === 'stopped') throw new RunStopped();
     if (turn.status !== 'completed') skipped.push(`sub-run ${turn.status}: ${turn.summary}`);
+    const preEdges = (await run.ctx.engine.getProject(run.ctx.projectId)).version;
+    const mark = run.calls.length;
     const edges = await edgeTransitions(run, sequenceId, style, subRun);
 
     let p = await run.ctx.engine.getProject(run.ctx.projectId);
     let s = p.sequences.find((x) => x.id === sequenceId)!;
     const scenes = sceneItems(s);
+    // The model's frames and audio checks predate the edges: when the edges changed the project, the
+    // workflow checks again itself (as in plan mode), and only checks after the edges count.
+    const edged = p.version > preEdges;
+    const from = edged ? mark : 0;
 
-    if (plan && scenes.length > 0) {
+    if ((plan || edged) && scenes.length > 0) {
       await run.workflowCall('view_frames', { sequenceId, atSeqMs: midpoints(s) }, subRun);
       await run.workflowCall('check_audio', { sequenceId }, subRun);
       p = await run.ctx.engine.getProject(run.ctx.projectId);
@@ -341,12 +349,12 @@ export async function stylizeSequences(
         placeholders ? `${String(placeholders)} placeholder(s)` : 'all slots filled',
       );
 
-    const frames = lastCall(run, 'view_frames', sequenceId, subRun);
+    const frames = lastCall(run, 'view_frames', sequenceId, subRun, from);
     if (frames)
       cp.met('review', sequenceId, `${String(healthOf(frames.result).length)} health flag(s)`);
     else cp.missed('review', sequenceId, 'view_frames was not called');
 
-    const qa = lastCall(run, 'check_audio', sequenceId, subRun);
+    const qa = lastCall(run, 'check_audio', sequenceId, subRun, from);
     if (qa) cp.met('sound', sequenceId, (qa.result as QaView).pass ? 'pass' : 'FAIL reported');
     else cp.missed('sound', sequenceId, 'check_audio was not called');
     if (!run.deps.models.vision && !run.deps.models.editor.vision)

@@ -120,8 +120,13 @@ describe('sound review (step 4b, D-14)', () => {
     const fixes = r.run.calls.filter((c) => c.tool === 'update_scene' && c.by === 'model');
     expect(fixes).toHaveLength(1);
     expect(fixes[0]!.args).toMatchObject({ sfxOff: ['reveal'] });
-    const qa = r.run.calls.filter((c) => c.tool === 'check_audio');
-    expect(qa.map((c) => (c.result as { pass: boolean }).pass)).toEqual([false, true]);
+    const pass = (by: string) =>
+      r.run.calls
+        .filter((c) => c.tool === 'check_audio' && c.by === by)
+        .map((c) => (c.result as { pass: boolean }).pass);
+    expect(pass('model')).toEqual([false, true]);
+    // the clip edges changed the clip after the model's checks: the workflow checked once more
+    expect(pass('workflow')).toEqual([true]);
     expect(r.done.summary).toContain('Audio QA PASS');
     expect(r.done.summary).toMatch(
       /Listen at 00:00\.600, 00:01\.500, 00:02\.600, 00:03\.400, 00:04\.800/,
@@ -143,7 +148,10 @@ describe('sound review (step 4b, D-14)', () => {
       sequenceIds,
     });
     expect(r.done.status, r.done.summary).toBe('completed');
-    expect(r.run.calls.filter((c) => c.tool === 'check_audio')).toHaveLength(3);
+    const qa = (by: string) => r.run.calls.filter((c) => c.tool === 'check_audio' && c.by === by);
+    expect(qa('model')).toHaveLength(3);
+    // the workflow's own check after the clip edges
+    expect(qa('workflow')).toHaveLength(1);
     expect(r.done.summary).toContain('Audio QA FAIL; still failing: spacing');
     expect(r.done.summary).not.toMatch(GOOD);
     expect(r.clips[0]!.audio).toMatchObject({ pass: false, failing: ['spacing'] });
@@ -177,5 +185,24 @@ describe('clip edges', () => {
     });
     expect(r.done.status, r.done.summary).toBe('completed');
     expect(r.clips[0]!.edges.join('; ')).toMatch(/could not be set \(no room for the transition\)/);
+  }, 120_000);
+  test('tools mode: review and sound use checks made after the edges changed the clip', async () => {
+    const kit = await workflowKit();
+    const { sequenceIds } = await quickClipsProject(kit, 1);
+    const m = dynamicModel(toolsStylist());
+    kit.deps.models = { editor: role(m.model) };
+    const r = await runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'stylize',
+      message: 'style it',
+      mode: 'tools',
+      sequenceIds,
+    });
+    expect(r.done.status, r.done.summary).toBe('completed');
+    const last = (tool: string) => r.run.calls.findLastIndex((c) => c.tool === tool);
+    expect(last('set_transition')).toBeGreaterThan(-1);
+    expect(last('view_frames')).toBeGreaterThan(last('set_transition'));
+    expect(last('check_audio')).toBeGreaterThan(last('set_transition'));
+    expect(r.checkpoints.filter((c) => c.status !== 'met')).toEqual([]);
   }, 120_000);
 });
