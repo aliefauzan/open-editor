@@ -1746,3 +1746,30 @@ anything found is fixed on a follow-up branch from main. PROGRESS row 13 stays [
 are recorded; the v1.0 milestone row is set only after them.
 **Why**: The checks left are release and install checks of a build that already passed Verify; waiting
 would hold eight phases behind them.
+
+## D-61 — Audio ducking: `duck` flag on audio tracks, one compressor per ducked track (phase 14f, 2026-10-12)
+**Context**: Engine spec "Audio" says ducking (v1.1) adds `sidechaincompress` per track; the plan puts it after
+each clip's gain-to-target and before `amix`, with an inspector toggle (D-15). The spec did not say where the
+switch lives, what drives the compressor, or what is never ducked.
+**Decision**:
+- **Model (additive)**: `AudioTrack.duck?: boolean` (absent = off). `updateTrack` takes `duck` (audio tracks
+  only, else `VALIDATION`; `false` removes the field). No `schemaVersion` bump: an older project loads
+  unchanged, and the field is optional.
+- **Mix graph**: the clips of a ducked track are mixed into one track bus, which goes through
+  `sidechaincompress=threshold=0.04:ratio=5:attack=20:release=400:makeup=1:link=average:detection=rms`,
+  keyed by the speech bus (every clip of the captions source tracks, after its gain-to-target, `volume`
+  and fades), then into the final `amix` and the limiter. So it ducks level-matched sources (D-15).
+- **What ducks**: only non-speech audio tracks with `duck: true`. Speech tracks (captions sources) and
+  SFX are never ducked; with no speech clip in the mix the flag changes nothing. Muted tracks stay out.
+- **Stems**: the `other` stem keeps the duck (the detector clips are read but not added to it), so the stems
+  still match what the mix hears; `speech` and `sfx` stems are unchanged. Audio QA thresholds are unchanged.
+- **Numbers**: real talking-head speech over pink-noise music: the music is 11.5 dB lower while speech is
+  active; 400 ms gaps reopen it partway (release 400 ms); synthetic speech-level noise ducks it 9.6 dB and
+  the music is back within 1 dB after the release.
+- **UI**: audio clip inspector row "Duck under speech" (the clip's whole track; disabled on a speech track).
+  Default off, so existing projects and the clipper output sound the same.
+**Why**: A track-level flag matches "per track"; keying on the captions source tracks needs no new
+setting and no second notion of "speech"; SFX stays under the existing `sfxUnderSpeech` check (its cue gain
+is the lever there, not ducking).
+**Alternatives**: duck each clip separately (many detector copies, same sound); key on the speech stem after
+`loudnorm` (the detector would not be level-matched); ducking SFX (changes the SFX stem the audio QA measures).
