@@ -66,9 +66,12 @@ export interface SyncOptions {
   onOutput?: (line: string) => void;
 }
 
-/** The exact arguments of the sync, in one place (phase 09 may add flags here only). */
+/**
+ * The exact arguments of the sync, in one place. `--compile-bytecode` (phase 09): the setup pays the
+ * one-time bytecode compile, so the first doctor run and the first job do not (minutes otherwise).
+ */
 export function syncArgs(pyDir: string): string[] {
-  return ['sync', '--frozen', '--no-editable', '--project', pyDir];
+  return ['sync', '--frozen', '--no-editable', '--compile-bytecode', '--project', pyDir];
 }
 
 /** Variables that could redirect the frozen sync to another index, mirror, config or interpreter. */

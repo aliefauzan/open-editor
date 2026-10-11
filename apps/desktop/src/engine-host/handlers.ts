@@ -2,7 +2,8 @@
 // main (zod, S11); handlers map them onto the engine API. Methods of later phases are absent and
 // answer NOT_AVAILABLE (rpc.ts). Main-only methods (dialogs, reveal) never reach the host.
 import { classifyUrl, type Engine, type OpCall } from '@vox/engine';
-import type { EventName, Method, MethodArgs } from '../shared/api.ts';
+import type { EventName, Method, MethodArgs, SetupStatusData } from '../shared/api.ts';
+import type { AppSetup } from './app-setup.ts';
 import type { Handlers } from './rpc.ts';
 
 type A<M extends Method> = MethodArgs<M>;
@@ -12,7 +13,7 @@ export function mediaUrl(projectId: string, rel: string): string {
   return `vox-media://p/${projectId}/${rel.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-export function createHandlers(engine: Engine): Handlers {
+export function createHandlers(engine: Engine, setup?: AppSetup): Handlers {
   const user = { actor: 'user' as const };
   return {
     'projects.list': async () => engine.listProjects(),
@@ -50,6 +51,14 @@ export function createHandlers(engine: Engine): Handlers {
     'styles.get': async (id: A<'styles.get'>[0]) => engine.styles.get(id),
     'styles.accept': async (id: A<'styles.accept'>[0]) => engine.styles.accept(id),
     'styles.remove': async (id: A<'styles.remove'>[0]) => engine.styles.remove(id),
+    'geo.search': async (q: A<'geo.search'>[0]) => engine.geo.search(q),
+    ...(setup === undefined
+      ? {}
+      : {
+          'setup.status': async (): Promise<SetupStatusData> => setup.status(),
+          'setup.install': async (c: A<'setup.install'>[0]) => setup.install(c),
+          'setup.updateYtDlp': async () => setup.updateYtDlp(),
+        }),
   } as Handlers;
 }
 

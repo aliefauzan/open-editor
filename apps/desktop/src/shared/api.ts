@@ -181,8 +181,68 @@ export interface ApplyResultData {
   results: { status: string; error?: ErrorData; report?: unknown }[];
 }
 
+// First-run setup (phase 09; engine host `AppSetup`, kept structural here).
+export interface SetupComponentData {
+  id: string;
+  label: string;
+  kind: string;
+  licence: string;
+  sizeBytes: number;
+  state: 'ready' | 'missing' | 'stale' | 'modified';
+  detail?: string;
+  path?: string;
+  version?: string;
+}
+export interface DoctorCheckData {
+  name: string;
+  level: 'ok' | 'warn' | 'error';
+  detail: string;
+  fix?: string;
+}
+export type UpdateData =
+  | { status: 'pending' | 'disabled' }
+  | { status: 'up-to-date'; current: string; latest: string }
+  | { status: 'available'; current: string; latest: string; name: string; url: string }
+  | { status: 'error'; code: string; message: string };
+export interface SetupStatusData {
+  components: SetupComponentData[];
+  ffmpeg: {
+    state: 'ok' | 'brew-missing' | 'ffmpeg-missing';
+    ffmpegPath?: string;
+    version?: string;
+    commands: string[];
+  };
+  /** stage → component ids it waits for */
+  disabledStages: Record<string, string[]>;
+  ready: boolean;
+  doctor?: { ok: boolean; checks: DoctorCheckData[] };
+  /** The doctor runs in the background; a `setup.progress` event (component `doctor`) follows. */
+  doctorRunning: boolean;
+  /** Components ready and no doctor error: the green "Ready". */
+  done: boolean;
+  busy: string[];
+  update: UpdateData;
+}
+export interface SetupInstallData {
+  installed: string[];
+  skipped: string[];
+  failed: { id: string; code: string; message: string }[];
+}
+export interface SetupProgressData {
+  type: 'setup.progress';
+  /** a component id, or `doctor` when a doctor run finished */
+  component: string;
+  phase: 'download' | 'verify' | 'extract' | 'install' | 'sync' | 'done' | 'error';
+  receivedBytes?: number;
+  totalBytes?: number;
+  message?: string;
+}
+
 /** Typed results per method where phase 08 defines one; `unknown` elsewhere. */
 export interface Results {
+  'setup.status': SetupStatusData;
+  'setup.install': SetupInstallData;
+  'setup.updateYtDlp': { version: string };
   'projects.list': ProjectSummary[];
   'projects.create': OpenedProject['project'];
   'projects.open': OpenedProject;

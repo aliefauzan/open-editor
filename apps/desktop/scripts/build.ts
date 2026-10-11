@@ -3,12 +3,15 @@
 //   out/preload    the window.vox bridge (CommonJS, sandboxed preload)
 //   out/main       Electron main (CommonJS: Playwright's Electron launcher needs a CJS main)
 //   out/engine-host  bundled engine host, packaged builds only (`--package`); dev runs src/ (TS)
+//   out-resources/   packaged builds only: the app's Resources (scripts/stage-resources.ts) and
+//                    the bundled `vox` CLI (out-resources/cli/vox.mjs)
 // Usage: node scripts/build.ts [--package]
 import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import { build, type InlineConfig } from 'vite';
+import { STAGE, stageResources } from './stage-resources.ts';
 
 const ROOT = path.join(import.meta.dirname, '..');
 const OUT = path.join(ROOT, 'out');
@@ -53,14 +56,20 @@ async function preload(): Promise<void> {
   });
 }
 
-async function nodeBundle(entry: string, outDir: string, format: 'cjs' | 'es', file: string) {
+async function nodeBundle(
+  entry: string,
+  outDir: string,
+  format: 'cjs' | 'es',
+  file: string,
+  emptyOutDir = true,
+) {
   await build({
     ...base,
     ssr: { noExternal: true, external: NODE_EXTERNALS },
     build: {
       ssr: entry,
       outDir,
-      emptyOutDir: true,
+      emptyOutDir,
       target: 'node24',
       minify: false,
       rollupOptions: { external: NODE_EXTERNALS, output: { format, entryFileNames: file } },
@@ -78,6 +87,14 @@ if (pkg) {
     path.join(OUT, 'engine-host'),
     'es',
     'index.mjs',
+  );
+  await stageResources();
+  await nodeBundle(
+    path.join(SRC, 'cli', 'vox.ts'),
+    path.join(STAGE, 'cli'),
+    'es',
+    'vox.mjs',
+    false,
   );
 }
 process.stdout.write(

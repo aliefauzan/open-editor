@@ -3,6 +3,8 @@
 
 import { readFileSync } from 'node:fs';
 import { SetupError } from './errors.ts';
+// bundled into the engine host (a file next to the bundle would sit outside app.asar's reach)
+import BUNDLED from './manifest.json' with { type: 'json' };
 import type { ArchiveFormat } from './extract.ts';
 
 interface Base {
@@ -137,8 +139,9 @@ export function validateManifest(value: unknown): Manifest {
   return value as Manifest;
 }
 
-export function loadManifest(
-  path: string | URL = new URL('./manifest.json', import.meta.url),
-): Manifest {
-  return validateManifest(JSON.parse(readFileSync(path, 'utf8')));
+/** The pinned manifest (bundled), or a manifest file (tests). */
+export function loadManifest(path?: string | URL): Manifest {
+  return validateManifest(
+    path === undefined ? structuredClone(BUNDLED) : JSON.parse(readFileSync(path, 'utf8')),
+  );
 }

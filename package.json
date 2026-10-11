@@ -15,7 +15,9 @@
     "test:slow": "VOX_SLOW=1 vitest run",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present run typecheck"
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present run typecheck",
+    "dev": "pnpm -C apps/desktop start",
+    "dist": "pnpm -C apps/desktop dist"
   },
   "devDependencies": {
     "@vox/cli": "workspace:*",

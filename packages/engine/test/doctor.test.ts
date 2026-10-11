@@ -1,6 +1,7 @@
 // `vox doctor` checks (plan phase 04 step 13) with a fake exec: versions, fix lines for missing
 // tools, the node-only yt-dlp warning, yt-dlp-ejs and impersonation, contact; project checks for
 // caption-override orphans and --unlock.
+import { createHash } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -48,6 +49,40 @@ const by = (r: { checks: { name: string; fix?: string }[] }, name: string) =>
   r.checks.find((c) => c.name === name);
 
 describe('doctor', () => {
+  test('app Python env: a lock hash that differs from the shipped uv.lock is an error with its fix (D-12)', async () => {
+    const py = tempDir();
+    const env = tempDir();
+    writeFileSync(join(py, 'uv.lock'), 'lock v2\n');
+    const run = () =>
+      doctor({
+        tools: { ...all, py, pyEnv: env },
+        config: { contact: 'me@example.org' },
+        exec: fakeExec(),
+        quick: true,
+        home: tempDir(),
+      });
+    expect(by(await run(), 'python-env-lock')).toMatchObject({ level: 'error' });
+    writeFileSync(join(env, '.vox-lock-hash'), 'not-the-hash');
+    const stale = await run();
+    expect(by(stale, 'python-env-lock')).toMatchObject({ level: 'error' });
+    expect(by(stale, 'python-env-lock')?.fix).toMatch(/Repair/);
+    expect(stale.ok).toBe(false);
+    writeFileSync(
+      join(env, '.vox-lock-hash'),
+      createHash('sha256').update('lock v2\n').digest('hex'),
+    );
+    expect(by(await run(), 'python-env-lock')).toMatchObject({ level: 'ok' });
+    // no app env (dev / CLI with uv's own env): no lock check
+    const dev = await doctor({
+      tools: all,
+      config: {},
+      exec: fakeExec(),
+      quick: true,
+      home: tempDir(),
+    });
+    expect(by(dev, 'python-env-lock')).toBeUndefined();
+  });
+
   test('all tools found: versions listed; impersonation missing is a warning, not an error', async () => {
     const r = await doctor({
       tools: all,
