@@ -48,5 +48,5 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | GATE 5 — 4-core done (`.dmg` clean-install test + owner's run with a fresh `VOX_HOME`, manual editing, quick clips, latency; D-16) | 10b | [x] | 2026-10-12, D-58 | pass by owner delegation; evidence `docs/evidence/phase-10b/gate5/` 00–13 |
 | v1.0 — fresh-clone check + owner installs the Release `.dmg` from the README and exports a clip (friend optional, D-16) | 13 | [ ] | | |
 | GATE 6 — sheet for the 4 new `vox` templates | 14a | [ ] | | |
-| GATE 7 — clip-speed design | 14e | [ ] | | |
+| GATE 7 — clip-speed design | 14e | [x] | 2026-10-12, D-62 | pass by owner delegation after round 2: playbackRate frame exact, atempo preroll, A/V max 9.35 ms |
 | GATE 8 — blind A/B of an extracted style | 15 | [ ] | | |
