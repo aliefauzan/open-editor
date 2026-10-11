@@ -7,6 +7,7 @@ import type { QuickClipScorer, ScorerInput } from '@vox/engine';
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { wrapData } from './loop/envelope.ts';
+import { RunStopped } from './loop/run.ts';
 import type { RoleModel, Usage } from './loop/types.ts';
 import { estimateTokens } from './providers/tool-cost.ts';
 import type { AgentEngine } from './tools/types.ts';
@@ -85,8 +86,28 @@ export interface ScorerHost {
 
 const n = (x: number | undefined) => (typeof x === 'number' && x >= 0 ? x : 0);
 
-/** The scorer function for one run: `fast` requests under the run's budget. */
-export function createLlmScorer(host: ScorerHost, fast: RoleModel): QuickClipScorer {
+/**
+ * The scorer function for one run: `fast` requests under the run's budget. A Stop at the budget
+ * prompt calls `onStop` before the scorer throws: the engine catches every scorer error and falls
+ * back to its heuristic, so the workflow learns of the Stop through `onStop` (and cancels the job).
+ */
+export function createLlmScorer(
+  host: ScorerHost,
+  fast: RoleModel,
+  onStop?: () => void,
+): QuickClipScorer {
+  const scorer = scoreWith(host, fast);
+  return async (input, ctx) => {
+    try {
+      return await scorer(input, ctx);
+    } catch (err) {
+      if (err instanceof RunStopped) onStop?.();
+      throw err;
+    }
+  };
+}
+
+function scoreWith(host: ScorerHost, fast: RoleModel): QuickClipScorer {
   return async (input: ScorerInput, ctx) => {
     const scores = new Array<number>(input.candidates.length).fill(Number.NaN);
     const ask = async (batch: ScorerInput['candidates']) => {

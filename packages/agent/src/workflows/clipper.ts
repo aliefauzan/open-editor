@@ -28,12 +28,22 @@ export interface ClipperSteps {
   notes: string[];
 }
 
-/** Runs an engine job as the agent with the run's id (job tools' rules, D-50). */
-async function workflowJob<T>(run: AgentRun, kind: string, args: Record<string, unknown>) {
+/**
+ * Runs an engine job as the agent with the run's id (job tools' rules, D-50). `stop` cancels the job
+ * as the run's own signal does.
+ */
+async function workflowJob<T>(
+  run: AgentRun,
+  kind: string,
+  args: Record<string, unknown>,
+  stop?: AbortSignal,
+) {
   const full = { projectId: run.ctx.projectId, ...args, actor: 'agent', runId: run.runId };
+  const signals = [run.ctx.signal, stop].filter((s): s is AbortSignal => s !== undefined);
+  const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
   const result = (await (run.ctx.runJob
-    ? run.ctx.runJob(kind, full)
-    : runEngineJob(run.ctx.engine, kind, full, run.ctx.signal))) as T;
+    ? run.ctx.runJob(kind, full, signal)
+    : runEngineJob(run.ctx.engine, kind, full, signal))) as T;
   const version = (await run.ctx.engine.getProject(run.ctx.projectId)).version;
   if (version > run.ctx.seenVersion) {
     run.ctx.seenVersion = version;
@@ -168,18 +178,37 @@ export async function clipperSteps(
   if (!have?.facetrackPath) await run.workflowCall('facetrack', { mediaId });
 
   const fast = run.deps.models.fast;
+  // A Stop at the scorer's budget prompt cancels the job (the engine would otherwise fall back to
+  // its heuristic and write the sequences) and stops the run.
+  const stop = new AbortController();
   const quick = () =>
-    workflowJob<QuickClipsResult>(run, 'quickClips', {
-      mediaId,
-      count: opts.count,
-      minMs: opts.minMs,
-      maxMs: opts.maxMs,
-      scorer: fast ? LLM_SCORER_ID : 'heuristic',
-      prompt: run.request.message.slice(0, 2000),
-    });
-  const q = fast
-    ? await withLlmScorer(run.ctx.engine, createLlmScorer(run, fast), quick)
-    : await quick();
+    workflowJob<QuickClipsResult>(
+      run,
+      'quickClips',
+      {
+        mediaId,
+        count: opts.count,
+        minMs: opts.minMs,
+        maxMs: opts.maxMs,
+        scorer: fast ? LLM_SCORER_ID : 'heuristic',
+        prompt: run.request.message.slice(0, 2000),
+      },
+      stop.signal,
+    );
+  let q: QuickClipsResult;
+  try {
+    q = fast
+      ? await withLlmScorer(
+          run.ctx.engine,
+          createLlmScorer(run, fast, () => stop.abort()),
+          quick,
+        )
+      : await quick();
+  } catch (err) {
+    if (stop.signal.aborted) throw new RunStopped();
+    throw err;
+  }
+  if (stop.signal.aborted) throw new RunStopped();
   if (!fast) notes.push('No fast model: the heuristic scorer picked the moments.');
   if (q.scorerError)
     notes.push(

@@ -156,3 +156,39 @@ describe('LLM scorer slot', () => {
     expect(regs).toHaveLength(1);
   });
 });
+
+describe('LLM scorer: Stop at the budget prompt', () => {
+  test('Stop at the scorer’s budget pause stops the run; quick clips writes no sequence', async () => {
+    const kit = await workflowKit();
+    const before = (await kit.engine.getProject(kit.projectId)).sequences.length;
+    const fast = dynamicModel(() => ({ json: { scores: [] } }));
+    const editor = dynamicModel(toolsStylist());
+    const pauses: string[] = [];
+    kit.deps.limits = { maxUsdPerRun: 0.000_001, maxStepsPerRun: 60 };
+    kit.deps.onPause = (p) => {
+      pauses.push(p.reason);
+      return Promise.resolve({ action: 'stop' });
+    };
+    kit.deps.models = {
+      editor: role(editor.model),
+      fast: role(fast.model, { maxOutputTokens: 2_000 }),
+    };
+    const r = await runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'clipper',
+      message: `make 1 vox clip from ${FIXTURE_VIDEO}`,
+      mode: 'tools',
+      count: 1,
+      minMs: 4000,
+      maxMs: 8000,
+      tighten: 'all',
+    });
+    expect(pauses).toEqual(['budget']);
+    expect(r.done.status, r.done.summary).toBe('stopped');
+    expect(r.done.summary).not.toContain('scorer failed');
+    expect(fast.prompts).toHaveLength(0);
+    expect(editor.prompts).toHaveLength(0);
+    expect(r.sequenceIds).toEqual([]);
+    expect((await kit.engine.getProject(kit.projectId)).sequences).toHaveLength(before);
+  }, 120_000);
+});

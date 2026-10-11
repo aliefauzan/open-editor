@@ -125,7 +125,7 @@ export interface RunDeps {
   templates?: TemplateLookup;
   registry?: ToolRegistry;
   /** Runs an engine job (tests: fakes for the Python jobs); default: the engine job runner. */
-  runJob?: (kind: string, args: Record<string, unknown>) => Promise<unknown>;
+  runJob?: (kind: string, args: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
   /** Reads a still the engine wrote (tests). */
   readImage?: (path: string) => Promise<Uint8Array>;
   sleep?: (ms: number) => Promise<void>;

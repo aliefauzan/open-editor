@@ -42,7 +42,9 @@ async function job(
 ): Promise<unknown> {
   const full = { projectId: ctx.projectId, ...args };
   const run = () =>
-    ctx.runJob ? ctx.runJob(kind, full) : runEngineJob(ctx.engine, kind, full, ctx.signal);
+    ctx.runJob
+      ? ctx.runJob(kind, full, ctx.signal)
+      : runEngineJob(ctx.engine, kind, full, ctx.signal);
   try {
     return await run();
   } catch (e) {
