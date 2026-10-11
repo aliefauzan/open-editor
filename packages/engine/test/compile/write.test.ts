@@ -39,3 +39,21 @@ describe('writeBuildTo', () => {
     expect(readdirSync(join(root, 'build'))).toEqual(['seq_a']);
   });
 });
+
+describe('writeBuildTo with offline media', () => {
+  it('a preview build skips a missing media file (the clip shows nothing); a render build fails', () => {
+    const root = mkdtempSync(join(tmpdir(), 'vox-wb-'));
+    const dir = join(root, 'build', 'seq_a');
+    const b = (mode: string) =>
+      ({
+        ...build({ 'index.html': mode }, { 'media/m_gone.mp4': join(root, 'gone.mp4') }),
+        mode,
+      }) as BuildResult;
+    writeBuildTo(b('preview'), dir);
+    expect(readFileSync(join(dir, 'index.html'), 'utf8')).toBe('preview');
+    expect(existsSync(join(dir, 'media', 'm_gone.mp4'))).toBe(false);
+    expect(() => writeBuildTo(b('render'), join(root, 'build', 'seq_r'))).toThrow(
+      /source file is missing/,
+    );
+  });
+});

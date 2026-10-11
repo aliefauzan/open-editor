@@ -28,7 +28,9 @@ import { DESKTOP, REPO } from './app.ts';
 
 export const DIST = join(DESKTOP, 'dist');
 export const APP = join(DIST, 'mac-arm64', 'Vox Studio.app');
-export const EVIDENCE = join(REPO, 'docs', 'evidence', 'phase-09');
+/** Phase 09 by default; a rerun at a later gate passes its own folder (10b: GATE 5). */
+export const EVIDENCE =
+  process.env['VOX_EVIDENCE_DIR'] ?? join(REPO, 'docs', 'evidence', 'phase-09');
 /** Pinned components downloaded once (hash-checked) and cloned into each test's tools folder. */
 const CACHE_TOOLS = join(DESKTOP, 'cache', 'tools');
 

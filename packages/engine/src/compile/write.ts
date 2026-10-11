@@ -68,6 +68,9 @@ function fill(build: BuildResult, dir: string): void {
   }
   for (const [rel, from] of [...build.links].sort(([a], [b]) => (a < b ? -1 : 1))) {
     if (!existsSync(from)) {
+      // offline media (moved or deleted): the preview still opens without that file; the timeline
+      // shows the clip as offline with relink (app spec "Error handling"); exports fail clearly
+      if (build.mode === 'preview') continue;
       throw new VoxError(
         'MEDIA_MISSING',
         `${rel}: source file is missing`,

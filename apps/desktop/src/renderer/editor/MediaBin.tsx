@@ -8,7 +8,8 @@ import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from 'r
 import type { MediaItem } from '../../shared/project.ts';
 import { useCtx, useEditor } from './context.tsx';
 import type { JobRow } from './jobs.ts';
-import { DRAG_MEDIA } from './Timeline.tsx';
+import { seqOf } from './editing.ts';
+import { DRAG_MEDIA, dropOp } from './Timeline.tsx';
 
 export function mediaName(m: MediaItem): string {
   if (m.origin.url) {
@@ -260,6 +261,19 @@ export function MediaBin() {
       (err: unknown) => editor.getState().toast(err),
     );
   };
+  /** Keyboard and menu path to the timeline (same op as a drop at the playhead). */
+  const addAtPlayhead = (m: MediaItem) => {
+    const st = editor.getState();
+    const seq = seqOf(st.project, st.sequenceId);
+    if (!seq) return;
+    const call = dropOp(
+      seq,
+      { kind: 'media', id: m.id, hasAudio: m.hasAudio === true },
+      st.playheadMs,
+      null,
+    );
+    if (call) void st.apply(call);
+  };
   const openMenu = (e: MouseEvent, mediaId: string) => {
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, mediaId, replace: false });
@@ -385,6 +399,18 @@ export function MediaBin() {
                     e.dataTransfer.effectAllowed = 'copy';
                   }}
                   onContextMenu={(e) => openMenu(e, m.id)}
+                  tabIndex={0}
+                  aria-label={`${mediaName(m)}, ${m.kind}${off ? ', offline' : ''}. Enter adds it at the playhead`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !off) {
+                      e.preventDefault();
+                      addAtPlayhead(m);
+                    } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+                      e.preventDefault();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setMenu({ x: r.left + 8, y: r.bottom, mediaId: m.id, replace: false });
+                    }
+                  }}
                   className={`cursor-grab rounded bg-neutral-900 ${view === 'list' ? 'flex items-center gap-2 p-1' : 'p-1'} ${off ? 'ring-1 ring-red-600' : ''}`}
                 >
                   <div className={view === 'list' ? 'w-16 shrink-0' : ''}>
@@ -413,6 +439,19 @@ export function MediaBin() {
         >
           {!menu.replace ? (
             <>
+              {!offline.includes(target.id) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="px-3 py-1 text-left hover:bg-neutral-800"
+                  onClick={() => {
+                    setMenu(null);
+                    addAtPlayhead(target);
+                  }}
+                >
+                  Add at playhead
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"

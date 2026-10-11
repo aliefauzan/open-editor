@@ -57,6 +57,8 @@ export function App() {
             <Editor
               onClose={() => {
                 ctx.editor.getState().close();
+                // the next-steps bar belongs to the quick-clips project that was open
+                ctx.ui.getState().set({ nextSteps: false, quickNote: null, exportOpen: false });
                 void useShell.getState().loadProjects();
               }}
               onOpenSetup={() => useSetup.getState().show(true)}

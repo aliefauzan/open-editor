@@ -3,7 +3,7 @@
 // dialog and link, drag payload, offline + relink), the archive tab (search results with licence and
 // warnings, fetch, session cache) and "Replace in timeline with…".
 import { join } from 'node:path';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EditorProvider } from '../../src/renderer/editor/context.tsx';
 import { MediaBin } from '../../src/renderer/editor/MediaBin.tsx';
@@ -119,6 +119,21 @@ describe('media bin (A3)', () => {
       dataTransfer: { setData: (k: string, v: string) => (data[k] = v), effectAllowed: '' },
     });
     expect(JSON.parse(data[DRAG_MEDIA]!)).toEqual({ kind: 'media', id: 'm_v', hasAudio: true });
+  });
+
+  it('keyboard: Enter on an item adds it at the playhead (a linked pair, one op)', async () => {
+    const t = await setup();
+    act(() => t.ctx.editor.getState().setPlayhead(9000));
+    const n = (await t.engine.history(t.project.id)).length;
+    const li = document.querySelector('[data-media-id="m_v"]') as HTMLElement;
+    li.focus();
+    fireEvent.keyDown(li, { key: 'Enter' });
+    await waitFor(async () => expect((await t.engine.history(t.project.id)).length).toBe(n + 1));
+    await idle(t);
+    const p = (await t.engine.getProject(t.project.id)) as unknown as Project;
+    const s = p.sequences[0]!;
+    expect(s.videoTracks.flatMap((x) => x.items).some((i) => i.startMs === 9000)).toBe(true);
+    expect(s.audioTracks.flatMap((x) => x.items).some((i) => i.startMs === 9000)).toBe(true);
   });
 
   it('"Replace in timeline with…" is one replaceMedia op', async () => {
