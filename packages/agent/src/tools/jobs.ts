@@ -35,16 +35,19 @@ export async function runEngineJob(
   }
 }
 
-async function job(
-  ctx: ToolContext,
+/**
+ * Runs a job on the run's project; a JOB_CONFLICT runs it once more on the current project.
+ * `signal` (default: the run's) cancels it.
+ */
+export async function job(
+  ctx: Pick<ToolContext, 'projectId' | 'runJob' | 'engine' | 'signal'>,
   kind: string,
   args: Record<string, unknown>,
+  signal: AbortSignal | undefined = ctx.signal,
 ): Promise<unknown> {
   const full = { projectId: ctx.projectId, ...args };
   const run = () =>
-    ctx.runJob
-      ? ctx.runJob(kind, full, ctx.signal)
-      : runEngineJob(ctx.engine, kind, full, ctx.signal);
+    ctx.runJob ? ctx.runJob(kind, full, signal) : runEngineJob(ctx.engine, kind, full, signal);
   try {
     return await run();
   } catch (e) {

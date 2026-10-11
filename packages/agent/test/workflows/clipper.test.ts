@@ -3,6 +3,7 @@
 import { describe, expect, test } from 'vitest';
 import { readRunRecord } from '../../src/loop/record.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
+import { workflowJob } from '../../src/workflows/clipper.ts';
 import { sceneItems } from '../../src/workflows/stylize.ts';
 import { assertClips, CLIP, planStylist, toolsStylist } from '../helpers/stylists.ts';
 import { dynamicModel, FIXTURE_VIDEO, role, workflowKit, type Kit } from '../helpers/workflow.ts';
@@ -85,4 +86,35 @@ describe('checkpoint enforcement (step 3)', () => {
     // nothing was styled
     expect(r.prompts).toHaveLength(0);
   }, 120_000);
+});
+
+/** A stand-in run for workflowJob: project versions read in order, a scripted runJob. */
+function fakeRun(versions: number[], runJob: (kind: string) => Promise<unknown>) {
+  const reads = [...versions];
+  const run = {
+    runId: 'run_unit',
+    versions: [] as number[],
+    record: { write: () => undefined },
+    ctx: {
+      projectId: 'p_unit',
+      seenVersion: 5,
+      runJob: (kind: string) => runJob(kind),
+      engine: { getProject: () => Promise.resolve({ version: reads.shift() ?? versions.at(-1)! }) },
+    },
+  };
+  return run;
+}
+
+describe('workflow jobs (job tools’ rules)', () => {
+  test('JOB_CONFLICT runs the job once more', async () => {
+    let calls = 0;
+    const run = fakeRun([5, 6], () => {
+      calls++;
+      return calls === 1
+        ? Promise.reject(Object.assign(new Error('conflict'), { code: 'JOB_CONFLICT' }))
+        : Promise.resolve({ ok: true });
+    });
+    await expect(workflowJob(run as never, 'quickClips', {})).resolves.toEqual({ ok: true });
+    expect(calls).toBe(2);
+  });
 });
