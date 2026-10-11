@@ -5,13 +5,7 @@ import { readRunRecord } from '../../src/loop/record.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { sceneItems } from '../../src/workflows/stylize.ts';
 import { assertClips, CLIP, planStylist, toolsStylist } from '../helpers/stylists.ts';
-import {
-  dynamicModel,
-  FIXTURE_VIDEO,
-  role,
-  workflowKit,
-  type Kit,
-} from '../helpers/workflow.ts';
+import { dynamicModel, FIXTURE_VIDEO, role, workflowKit, type Kit } from '../helpers/workflow.ts';
 
 async function clipper(kit: Kit, mode: 'tools' | 'plan', next: ReturnType<typeof toolsStylist>) {
   const m = dynamicModel(next);
@@ -85,7 +79,9 @@ describe('checkpoint enforcement (step 3)', () => {
     const r = await clipper(kit, 'tools', toolsStylist());
     expect(r.done.status).toBe('failed');
     expect(r.done.error?.code).toBe('CHECKPOINT_MISSED');
-    expect(r.done.summary).toMatch(/missed required checkpoint: ranges \(s\d: no sourceRange saved\)/);
+    expect(r.done.summary).toMatch(
+      /missed required checkpoint: ranges \(s\d: no sourceRange saved\)/,
+    );
     // nothing was styled
     expect(r.prompts).toHaveLength(0);
   }, 120_000);

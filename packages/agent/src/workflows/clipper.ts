@@ -57,7 +57,16 @@ async function tighten(
 ): Promise<string> {
   const dry = await run.workflowCall('remove_pauses', { sequenceId, dryRun: true });
   const res = run.aliases.fromModel(dry.result) as {
-    results: { report?: { ranges?: { startMs: number; endMs: number; kind: TightenRange['kind']; wordKeys: string[] }[] } }[];
+    results: {
+      report?: {
+        ranges?: {
+          startMs: number;
+          endMs: number;
+          kind: TightenRange['kind'];
+          wordKeys: string[];
+        }[];
+      };
+    }[];
   };
   const raw = res.results[0]?.report?.ranges ?? [];
   const alias = run.aliases.aliasOf(sequenceId);
@@ -126,7 +135,10 @@ export async function clipperSteps(
     // no link or file named: clip the project's own video (the first one), if it has one
     const p = await run.ctx.engine.getProject(run.ctx.projectId);
     mediaId = p.media.find((m) => m.kind === 'video')?.id;
-    if (mediaId) notes.push(`No link or file named: clipped ${run.aliases.aliasOf(mediaId)}, the project's video.`);
+    if (mediaId)
+      notes.push(
+        `No link or file named: clipped ${run.aliases.aliasOf(mediaId)}, the project's video.`,
+      );
   }
   if (!mediaId) {
     if (!source)
@@ -141,7 +153,11 @@ export async function clipperSteps(
     };
     mediaId = media.result?.media?.find((m) => m.kind === undefined || m.kind === 'video')?.mediaId;
     if (!mediaId)
-      throw new VoxError('MEDIA_UNSUPPORTED', `${source} gave no video`, 'Pass a video link or file.');
+      throw new VoxError(
+        'MEDIA_UNSUPPORTED',
+        `${source} gave no video`,
+        'Pass a video link or file.',
+      );
   }
   // the job chain; a step whose output the media item already has is not run again
   const have = (await run.ctx.engine.getProject(run.ctx.projectId)).media.find(
@@ -169,7 +185,9 @@ export async function clipperSteps(
   }
   if (!fast) notes.push('No fast model: the heuristic scorer picked the moments.');
   if (q.scorerError)
-    notes.push(`The LLM scorer failed (${q.scorerError.message}); the heuristic scorer picked the moments.`);
+    notes.push(
+      `The LLM scorer failed (${q.scorerError.message}); the heuristic scorer picked the moments.`,
+    );
   if (q.note) notes.push(q.note);
 
   const p = await run.ctx.engine.getProject(run.ctx.projectId);
@@ -178,7 +196,11 @@ export async function clipperSteps(
     if (!s?.sourceRange) cp.missed('ranges', sequenceId, 'no sourceRange saved');
     else if (!s.captions?.enabled) cp.missed('ranges', sequenceId, 'captions are off');
     else
-      cp.met('ranges', sequenceId, `${String(s.sourceRange.inMs)}–${String(s.sourceRange.outMs)} srcMs`);
+      cp.met(
+        'ranges',
+        sequenceId,
+        `${String(s.sourceRange.inMs)}–${String(s.sourceRange.outMs)} srcMs`,
+      );
   }
   const open = cp.open(q.sequenceIds).filter((m) => m.checkpoint === 'ranges');
   if (open.length > 0) throw cp.error(open, (id) => run.aliases.aliasOf(id));
@@ -189,6 +211,7 @@ export async function clipperSteps(
       'Try another length (e.g. 20–60 s) or a longer video.',
     );
 
-  for (const sequenceId of q.sequenceIds) notes.push(await tighten(run, cp, sequenceId, opts.tighten));
+  for (const sequenceId of q.sequenceIds)
+    notes.push(await tighten(run, cp, sequenceId, opts.tighten));
   return { mediaId, sequenceIds: q.sequenceIds, scorer: q.scorer, notes };
 }

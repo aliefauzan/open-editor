@@ -54,8 +54,7 @@ export interface TightenRange {
  * whole list; empty: skip the step).
  */
 export type PauseDecision =
-  | { action: 'continue'; maxUsdPerRun?: number; wordKeys?: string[] }
-  | { action: 'stop' };
+  { action: 'continue'; maxUsdPerRun?: number; wordKeys?: string[] } | { action: 'stop' };
 
 export interface Usage {
   inputTokens: number;

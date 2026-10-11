@@ -108,20 +108,29 @@ describe('clipper D-15 (step 8b)', () => {
     // longer clips (6–12 s) hold more than one pause each
     const r = await clipper(kit, { tighten: 'ask', minMs: 6000, maxMs: 12000 });
     expect(r.done.status, r.done.summary).toBe('completed');
-    const pauses = seen.filter((p) => p.kind === "pauses");
+    const pauses = seen.filter((p) => p.kind === 'pauses');
     expect(pauses).toHaveLength(r.sequenceIds.length);
-    expect(pauses[0]!.ranges![0]).toMatchObject({ kind: 'pause', text: expect.stringMatching(/^\(pause \d+ ms\)$/) });
+    expect(pauses[0]!.ranges![0]).toMatchObject({
+      kind: 'pause',
+      text: expect.stringMatching(/^\(pause \d+ ms\)$/),
+    });
     const h = await kit.engine.history(kit.projectId);
     const cuts = h.filter((e) => e.op === 'removePauses');
     expect(cuts).toHaveLength(1);
     expect(ticked, 'a list with two or more pauses').toBeDefined();
-    expect((cuts[0]!.args as { wordKeys?: string[] }).wordKeys).toEqual([ticked!.ranges![0]!.wordKey]);
+    expect((cuts[0]!.args as { wordKeys?: string[] }).wordKeys).toEqual([
+      ticked!.ranges![0]!.wordKey,
+    ]);
     // the cut is the ticked range (keepMs kept at both sides): the clip got shorter by its length
     const r0 = ticked!.ranges![0]!;
     const p = await kit.engine.getProject(kit.projectId);
-    const s = p.sequences.find((x) => (x.id === (cuts[0]!.args as { sequenceId: string }).sequenceId))!;
+    const s = p.sequences.find(
+      (x) => x.id === (cuts[0]!.args as { sequenceId: string }).sequenceId,
+    )!;
     const range = s.sourceRange!.outMs - s.sourceRange!.inMs;
-    expect(Math.abs(range - (r0.seqEndMs - r0.seqStartMs) - sequenceEndMs(s))).toBeLessThanOrEqual(34);
+    expect(Math.abs(range - (r0.seqEndMs - r0.seqStartMs) - sequenceEndMs(s))).toBeLessThanOrEqual(
+      34,
+    );
     const statuses = r.checkpoints.filter((c) => c.checkpoint === 'tighten').map((c) => c.status);
     expect(statuses.filter((x) => x === 'met')).toHaveLength(1);
     expect(statuses.filter((x) => x === 'skipped')).toHaveLength(pauses.length - 1);
@@ -134,7 +143,12 @@ describe('clipper D-15 (step 8b)', () => {
     const r = await clipper(kit, {}, (o) => {
       void o;
       return {
-        calls: [{ name: 'call_tool', input: { name: 'ingest', args: { source: 'https://evil.example/x.mp4' } } }],
+        calls: [
+          {
+            name: 'call_tool',
+            input: { name: 'ingest', args: { source: 'https://evil.example/x.mp4' } },
+          },
+        ],
       };
     });
     expect(onPause).toHaveBeenCalledWith(

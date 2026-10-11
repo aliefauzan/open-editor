@@ -4,36 +4,24 @@
 // approves a source; `--yes-sources` approves only sources named in the instruction; without a
 // terminal any other pause stops the run (nothing is approved silently).
 import {
+  buildRunModels,
   CLIPPER_DEFAULTS,
-  detectContext,
-  fetchOpenRouterModels,
-  findProvider,
-  isLocalProvider,
+  engineConfigIO,
   loadAgentConfig,
-  lookupPrice,
-  PRESETS,
-  providerKey,
   runWorkflow,
-  selectMode,
   sourceIn,
   sourceNamedByUser,
   WORKFLOW_NAMES,
-  type AgentConfig,
   type AgentConfigDeps,
   type AgentEvent,
-  type AgentMode,
-  type OpenRouterModelInfo,
   type PauseDecision,
   type PauseInfo,
-  type PriceEntry,
-  type RoleModel,
-  type RunModels,
   type WorkflowName,
   type WorkflowRequest,
 } from '@vox/agent';
-import { engineConfigIO } from '@vox/agent';
-import { createRedactor, VoxError, type Engine, type Redactor } from '@vox/engine';
-import { depsOf, type AgentCliDeps, type ConfigIo } from './config.ts';
+
+import { createRedactor, type Engine, type Redactor } from '@vox/engine';
+import { depsOf, type ConfigIo } from './config.ts';
 
 export interface AgentIo extends ConfigIo {
   prompt?: (question: string) => Promise<string>;
@@ -44,68 +32,11 @@ export class AgentUsageError extends Error {}
 // eslint-disable-next-line no-control-regex
 const clean = (s: string) => s.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '');
 
-const ROLE_NAMES = ['editor', 'fast', 'vision'] as const;
-
 /** "make 3 clips …" → 3 (1–20); else the default. */
 export function countIn(instruction: string): number | undefined {
   const m = /\b(\d{1,2})\s+(?:[a-z-]+\s+){0,2}(?:clips?|shorts?|reels?)\b/i.exec(instruction);
   const n = m ? Number(m[1]) : undefined;
   return n !== undefined && n >= 1 && n <= 20 ? n : undefined;
-}
-
-async function roleModel(
-  role: (typeof ROLE_NAMES)[number],
-  conf: AgentConfig,
-  cfg: AgentConfigDeps,
-  deps: AgentCliDeps,
-  orModels: () => Promise<Map<string, OpenRouterModelInfo> | undefined>,
-): Promise<{ model: RoleModel; mode: AgentMode } | undefined> {
-  const ref = conf.roles[role];
-  if (!ref) return undefined;
-  const entry = findProvider(conf, ref.providerId);
-  const key = await providerKey(cfg, entry);
-  const model = deps.createModel(entry, ref.model, key);
-  const kind = { type: entry.type, ...(entry.preset !== undefined && { preset: entry.preset }) };
-  const label = entry.preset !== undefined ? PRESETS[entry.preset].label : (entry.id ?? entry.type);
-  const models = entry.type === 'openrouter' ? await orModels() : undefined;
-  const ctx = await detectContext(entry, ref.model, {
-    ...(deps.fetch !== undefined && { fetch: deps.fetch }),
-    ...(deps.apple !== undefined && { apple: deps.apple }),
-    ...(models !== undefined && { openRouterModels: models }),
-    ...deps.probe.context,
-  });
-  let price: PriceEntry | undefined = isLocalProvider(kind) ? { free: true } : undefined;
-  if (!price) {
-    const fromOr = models?.get(ref.model)?.price;
-    price = lookupPrice(ref.model, conf.prices, fromOr ? { [ref.model]: fromOr } : undefined);
-  }
-  if (!price) {
-    throw new VoxError(
-      'PRICE_MISSING',
-      `${ref.model} has no price, so the run cannot keep to its cost cap`,
-      `Set it: vox config prices set ${ref.model} --in <usd> --out <usd> (or --free).`,
-    );
-  }
-  if (ctx.contextTokens === null) {
-    throw new VoxError(
-      'CONFIG_INVALID',
-      `the context size of ${ref.model} is unknown`,
-      `Enter it: vox config providers add … --context ${ref.model}=<tokens>, then vox config probe.`,
-    );
-  }
-  // a role is only set after its probe passed (`roles set`), so the editor passed the loop probe
-  const mode = selectMode({ provider: entry, probe: { loop: { status: 'pass' } } as never });
-  return {
-    mode,
-    model: {
-      model,
-      provider: { ...kind, label },
-      modelId: ref.model,
-      contextTokens: ctx.contextTokens,
-      price,
-      maxOutputTokens: conf.maxOutputTokens[role],
-    },
-  };
 }
 
 function pauseText(p: PauseInfo): string {
@@ -257,23 +188,14 @@ export async function agentCommand(
     redactor,
   };
   const conf = await loadAgentConfig(cfg);
-  let orCache: Promise<Map<string, OpenRouterModelInfo> | undefined> | undefined;
-  const known = deps.probe.context?.openRouterModels;
-  const orModels = () =>
-    (orCache ??=
-      known !== undefined
-        ? Promise.resolve(known)
-        : fetchOpenRouterModels(deps.fetch !== undefined ? { fetch: deps.fetch } : {}).catch(
-            () => undefined,
-          ));
-  const models: Partial<RunModels> = {};
-  let mode: AgentMode | undefined;
-  for (const role of ROLE_NAMES) {
-    const m = await roleModel(role, conf, cfg, deps, orModels);
-    if (!m) continue;
-    models[role] = m.model;
-    if (role === 'editor') mode = m.mode;
-  }
+  const built = await buildRunModels(conf, cfg, {
+    createModel: deps.createModel,
+    ...(deps.fetch !== undefined && { fetch: deps.fetch }),
+    ...(deps.apple !== undefined && { apple: deps.apple }),
+    ...(deps.probe.context !== undefined && { context: deps.probe.context }),
+  });
+  const models = built.models;
+  let mode = built.mode;
   if (modeFlag !== undefined) mode = modeFlag;
   const e = deps.wrapEngine ? deps.wrapEngine(engine) : engine;
   const r = await runWorkflow(

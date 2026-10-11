@@ -70,7 +70,8 @@ export function loadWorkflow(name: WorkflowName, dir?: string): Workflow {
       `Use one of: ${WORKFLOW_NAMES.join(', ')}.`,
     );
   }
-  const url = dir === undefined ? new URL(`../../workflows/${name}.md`, import.meta.url) : undefined;
+  const url =
+    dir === undefined ? new URL(`../../workflows/${name}.md`, import.meta.url) : undefined;
   const key = url?.href ?? `${dir!}/${name}.md`;
   let w = cache.get(key);
   if (!w) {

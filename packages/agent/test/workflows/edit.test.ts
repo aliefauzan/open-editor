@@ -54,7 +54,10 @@ describe('free-form edit (step 4)', () => {
     const editor = script([
       {
         calls: [
-          { name: 'trim_item', input: { sequenceId: 's1', itemId: 'c1', edge: 'end', toMs: 17000 } },
+          {
+            name: 'trim_item',
+            input: { sequenceId: 's1', itemId: 'c1', edge: 'end', toMs: 17000 },
+          },
         ],
       },
       { text: 'Made the clip 2 s longer.' },
@@ -152,12 +155,18 @@ describe('free-form D-15 (step 8c, S35)', () => {
       if (n === 0) {
         await f.engine.applyOp(
           f.projectId,
-          { op: 'trimItem', args: { sequenceId: f.sequenceId, itemId: f.v1, edge: 'end', toMs: 14000 } },
+          {
+            op: 'trimItem',
+            args: { sequenceId: f.sequenceId, itemId: f.v1, edge: 'end', toMs: 14000 },
+          },
           { actor: 'user' },
         );
         return {
           calls: [
-            { name: 'trim_item', input: { sequenceId: 's1', itemId: 'c1', edge: 'end', toMs: 17000 } },
+            {
+              name: 'trim_item',
+              input: { sequenceId: 's1', itemId: 'c1', edge: 'end', toMs: 17000 },
+            },
           ],
         };
       }

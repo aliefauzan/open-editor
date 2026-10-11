@@ -86,7 +86,10 @@ function soundScript(fixes: number, finalText: string) {
       const target = scenes[(scenes.length - round) % scenes.length] ?? scenes[0]!;
       return {
         calls: [
-          { name: 'update_scene', input: { sequenceId: seq, itemId: target.id, sfxOff: ['reveal'] } },
+          {
+            name: 'update_scene',
+            input: { sequenceId: seq, itemId: target.id, sfxOff: ['reveal'] },
+          },
           { name: 'check_audio', input: { sequenceId: seq } },
         ],
       };
@@ -118,7 +121,9 @@ describe('sound review (step 4b, D-14)', () => {
     const qa = r.run.calls.filter((c) => c.tool === 'check_audio');
     expect(qa.map((c) => (c.result as { pass: boolean }).pass)).toEqual([false, true]);
     expect(r.done.summary).toContain('Audio QA PASS');
-    expect(r.done.summary).toMatch(/Listen at 00:00\.600, 00:01\.500, 00:02\.600, 00:03\.400, 00:04\.800/);
+    expect(r.done.summary).toMatch(
+      /Listen at 00:00\.600, 00:01\.500, 00:02\.600, 00:03\.400, 00:04\.800/,
+    );
     expect(r.done.summary).not.toMatch(GOOD);
   }, 120_000);
 

@@ -58,3 +58,4 @@ export { classifyIntent, type Intent } from './workflows/intent.ts';
 export { createLlmScorer, llmScorerSlot, LLM_SCORER_ID } from './quickScorer.ts';
 export { scrubSoundClaims } from './loop/summary.ts';
 export { sourceNamedByUser } from './tools/sources.ts';
+export * from './config/run-models.ts';

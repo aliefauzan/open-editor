@@ -8,9 +8,14 @@ import { openEngine, writeConfig, type Engine } from '@vox/engine';
 import type { OpenRouterModelInfo } from '@vox/agent';
 import { describe, expect, test, vi } from 'vitest';
 import { makeOfflineProject } from '../../../scripts/make-offline-project.ts';
-import type { ScriptStep } from '../../agent/test/helpers/model.ts';
-import { toolsStylist } from '../../agent/test/helpers/stylists.ts';
-import { dynamicModel, fakeJobs, fakeRender, REPO } from '../../agent/test/helpers/workflow.ts';
+import {
+  dynamicModel,
+  fakeJobs,
+  fakeRender,
+  REPO,
+  toolsStylist,
+  type ScriptStep,
+} from '@vox/agent/test-kit';
 import { run, type Io } from '../src/main.ts';
 
 const CANARY_KEY = 'sk-or-v1-CANARY0000000000000000000000000000000000000000000000000000';

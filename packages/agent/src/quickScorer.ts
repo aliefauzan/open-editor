@@ -67,7 +67,9 @@ export function createLlmScorer(host: ScorerHost, fast: RoleModel): QuickClipSco
     const scores = new Array<number>(input.candidates.length).fill(Number.NaN);
     for (let i = 0; i < input.candidates.length; i += SCORE_BATCH) {
       const batch = input.candidates.slice(i, i + SCORE_BATCH);
-      const text = batch.map((c) => `#${String(c.index)} (${String(c.endMs - c.startMs)} ms): ${c.text}`).join('\n');
+      const text = batch
+        .map((c) => `#${String(c.index)} (${String(c.endMs - c.startMs)} ms): ${c.text}`)
+        .join('\n');
       const prompt = `${input.prompt ? `The user wants: ${input.prompt}\n` : ''}Score every candidate below by its #index.\n${wrapData('transcript', text)}`;
       await host.ensureBudget(fast, estimateTokens(SCORER_SYSTEM + prompt));
       const r = await generateText({
@@ -94,7 +96,8 @@ export function createLlmScorer(host: ScorerHost, fast: RoleModel): QuickClipSco
       }
     }
     const missing = scores.filter((x) => Number.isNaN(x)).length;
-    if (missing > 0) throw new Error(`the fast model left ${String(missing)} candidate(s) unscored`);
+    if (missing > 0)
+      throw new Error(`the fast model left ${String(missing)} candidate(s) unscored`);
     return scores;
   };
 }

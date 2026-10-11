@@ -75,7 +75,10 @@ function selectionText(run: AgentRun, sel: Selection | undefined): string {
   return parts.join(', ');
 }
 
-export async function runWorkflow(deps: WorkflowDeps, req: WorkflowRequest): Promise<WorkflowResult> {
+export async function runWorkflow(
+  deps: WorkflowDeps,
+  req: WorkflowRequest,
+): Promise<WorkflowResult> {
   const w = loadWorkflow(req.workflow);
   if (!deps.models.editor) {
     throw new VoxError(
@@ -189,7 +192,12 @@ export async function runWorkflow(deps: WorkflowDeps, req: WorkflowRequest): Pro
     );
   } catch (err) {
     if (err instanceof RunStopped || req.signal?.aborted)
-      return result(run.finish('stopped', 'Stopped by the user; the edits so far stay (undo the run to remove them).'));
+      return result(
+        run.finish(
+          'stopped',
+          'Stopped by the user; the edits so far stay (undo the run to remove them).',
+        ),
+      );
     const e = deps.redactor.redact(
       toVoxErrorJson(
         isVoxError(err)

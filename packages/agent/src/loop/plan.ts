@@ -485,20 +485,40 @@ async function questionTurn(run: AgentRun, opts: TurnOptions): Promise<TurnResul
     const inj = await run.injection(opts.scope);
     const out = await run.structured({
       system: `${run.systemPrompt()}\n\nThis turn is a question: answer it from the current state; change nothing. Answer with { answer }.`,
-      messages: [{ role: 'user', content: `${opts.instruction ?? run.request.message}\n\n${inj.text}` }],
+      messages: [
+        { role: 'user', content: `${opts.instruction ?? run.request.message}\n\n${inj.text}` },
+      ],
       schema: AnswerSchema,
     });
-    run.record.write({ type: 'step', step: 1, mode: 'plan', scope: opts.scope, plan: out.value, usage: out.usage });
+    run.record.write({
+      type: 'step',
+      step: 1,
+      mode: 'plan',
+      scope: opts.scope,
+      plan: out.value,
+      usage: out.usage,
+    });
     const r = AnswerSchema.safeParse(out.value);
-    const summary = r.success ? r.data.answer : String(typeof out.value === 'string' ? out.value : 'No answer.');
+    const summary = r.success
+      ? r.data.answer
+      : String(typeof out.value === 'string' ? out.value : 'No answer.');
     return endPlan(run, opts, { status: 'completed', summary, steps: 1 });
   } catch (err) {
     if (err instanceof RunStopped)
       return endPlan(run, opts, { status: 'stopped', summary: 'Stopped by the user.', steps: 1 });
     const e = run.deps.redactor.redact(
-      toVoxErrorJson(isVoxError(err) ? err : new VoxError('TOOL_FAILED', 'plan mode failed', 'See the run record.', { cause: err })),
+      toVoxErrorJson(
+        isVoxError(err)
+          ? err
+          : new VoxError('TOOL_FAILED', 'plan mode failed', 'See the run record.', { cause: err }),
+      ),
     );
-    return endPlan(run, opts, { status: 'failed', summary: `${e.message}. ${e.hint}`, steps: 1, error: e });
+    return endPlan(run, opts, {
+      status: 'failed',
+      summary: `${e.message}. ${e.hint}`,
+      steps: 1,
+      error: e,
+    });
   }
 }
 

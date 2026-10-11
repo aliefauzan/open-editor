@@ -73,7 +73,9 @@ export function pairOf(s: Sequence): PairItem[] {
 export function sceneItems(s: Sequence) {
   return s.videoTracks
     .filter((t) => t.id !== 'V1')
-    .flatMap((t) => t.items.filter((i) => i.type === 'scene').map((i) => ({ track: t.id, item: i })))
+    .flatMap((t) =>
+      t.items.filter((i) => i.type === 'scene').map((i) => ({ track: t.id, item: i })),
+    )
     .sort((a, b) => a.item.startMs - b.item.startMs);
 }
 
@@ -125,7 +127,9 @@ function emptySlots(p: Project, slots: Record<string, string>, vars: unknown): s
 
 /** The style's first transition that covers the cut (needs no source handles). */
 export function coverTransition(style: ResolvedStyle): string | undefined {
-  const own = (style.style.transitions ?? []).map((n) => (n.includes('/') ? n : `${style.id}/${n}`));
+  const own = (style.style.transitions ?? []).map((n) =>
+    n.includes('/') ? n : `${style.id}/${n}`,
+  );
   const all = [...own, ...Object.keys(style.templates)];
   return all.find((id) => {
     const t = style.templates[id];
@@ -299,7 +303,8 @@ export async function stylizeSequences(
       JSON.stringify(pairOf(s)) === pair0 &&
       JSON.stringify(s.sourceRange ?? null) === range0 &&
       JSON.stringify(s.captions?.overrides ?? []) === overrides0;
-    if (!kept) cp.missed('storyboard', sequenceId, 'the V1/A1 pair, sourceRange or a caption edit changed');
+    if (!kept)
+      cp.missed('storyboard', sequenceId, 'the V1/A1 pair, sourceRange or a caption edit changed');
     else if (scenes.length === 0) cp.missed('storyboard', sequenceId, 'no scene placed');
     else cp.met('storyboard', sequenceId, `${String(scenes.length)} scene(s)`);
 
@@ -307,15 +312,25 @@ export async function stylizeSequences(
     const empty = scenes.flatMap(({ item }) => {
       if (item.type !== 'scene') return [];
       const t = style.templates[item.template];
-      return t ? emptySlots(p, t.slots, item.variables).map((x) => `${run.aliases.aliasOf(item.id)} ${x}`) : [];
+      return t
+        ? emptySlots(p, t.slots, item.variables).map((x) => `${run.aliases.aliasOf(item.id)} ${x}`)
+        : [];
     });
-    const placeholders = scenes.filter(({ item }) => item.type === 'scene' && item.template === PLACEHOLDER).length;
+    const placeholders = scenes.filter(
+      ({ item }) => item.type === 'scene' && item.template === PLACEHOLDER,
+    ).length;
     if (scenes.length === 0) cp.missed('fill', sequenceId, 'no scene to fill');
     else if (empty.length > 0) cp.missed('fill', sequenceId, `empty slot(s): ${empty.join(', ')}`);
-    else cp.met('fill', sequenceId, placeholders ? `${String(placeholders)} placeholder(s)` : 'all slots filled');
+    else
+      cp.met(
+        'fill',
+        sequenceId,
+        placeholders ? `${String(placeholders)} placeholder(s)` : 'all slots filled',
+      );
 
     const frames = lastCall(run, 'view_frames', sequenceId, subRun);
-    if (frames) cp.met('review', sequenceId, `${String(healthOf(frames.result).length)} health flag(s)`);
+    if (frames)
+      cp.met('review', sequenceId, `${String(healthOf(frames.result).length)} health flag(s)`);
     else cp.missed('review', sequenceId, 'view_frames was not called');
 
     const qa = lastCall(run, 'check_audio', sequenceId, subRun);

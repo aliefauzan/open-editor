@@ -58,7 +58,9 @@ describe('LLM scorer (step 5)', () => {
     const { r, quick } = await clipOne(kit, fast);
     expect(r.done.status, r.done.summary).toBe('completed');
     expect(quick.scorer).toBe('heuristic');
-    expect(r.done.summary).toMatch(/The LLM scorer failed \(.+\); the heuristic scorer picked the moments\./);
+    expect(r.done.summary).toMatch(
+      /The LLM scorer failed \(.+\); the heuristic scorer picked the moments\./,
+    );
   }, 120_000);
 
   test('the score weights hook first', () => {

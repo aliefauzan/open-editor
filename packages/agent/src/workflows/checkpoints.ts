@@ -19,7 +19,12 @@ export class Checkpoints {
     this.required = required;
   }
 
-  #mark(checkpoint: Checkpoint, sequenceId: string, status: CheckpointMark['status'], note: string) {
+  #mark(
+    checkpoint: Checkpoint,
+    sequenceId: string,
+    status: CheckpointMark['status'],
+    note: string,
+  ) {
     if (!this.required.includes(checkpoint)) return;
     const done = this.marks.filter((m) => m.sequenceId === sequenceId).map((m) => m.checkpoint);
     const order = this.required.indexOf(checkpoint);
@@ -47,7 +52,9 @@ export class Checkpoints {
     const out: CheckpointMark[] = [];
     for (const sequenceId of sequenceIds) {
       for (const checkpoint of this.required) {
-        const m = this.marks.filter((x) => x.sequenceId === sequenceId && x.checkpoint === checkpoint);
+        const m = this.marks.filter(
+          (x) => x.sequenceId === sequenceId && x.checkpoint === checkpoint,
+        );
         const last = m.at(-1);
         if (!last) out.push({ checkpoint, sequenceId, status: 'missed', note: 'not reached' });
         else if (last.status === 'missed') out.push(last);

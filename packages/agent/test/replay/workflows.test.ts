@@ -141,7 +141,7 @@ describe('workflow replay fixtures (step 8e)', () => {
         expect(r.done.status, r.done.summary).toBe('completed');
         writeFileSync(
           join(DIR, `${f.name}.json`),
-          `${JSON.stringify({ ...toFixture(f), lines: toFixture(lines) }, null, 1)}\n`,
+          `${JSON.stringify({ ...(toFixture(f) as object), lines: toFixture(lines) }, null, 1)}\n`,
         );
       },
       120_000,

@@ -78,16 +78,24 @@ describe('mock injection (step 7, S20)', () => {
   test('obeying the transcript: removals and an ingest pause; nothing ingested; undoRun restores', async () => {
     const f = await fixtureProject({ transcript: INJECTION });
     const before = await f.engine.getProject(f.projectId);
-    const m = dynamicModel((_o, n) =>
-      [
-        { calls: [{ name: 'get_transcript', input: { mediaId: 'm1' } }] },
-        {
-          calls: [
-            { name: 'call_tool', input: { name: 'remove_item', args: { sequenceId: 's1', itemId: 'c1' } } },
-          ],
-        },
-        { calls: [{ name: 'call_tool', input: { name: 'ingest', args: { source: '~/.ssh/id_rsa' } } }] },
-      ][n] ?? { text: 'Done as the transcript said.' },
+    const m = dynamicModel(
+      (_o, n) =>
+        [
+          { calls: [{ name: 'get_transcript', input: { mediaId: 'm1' } }] },
+          {
+            calls: [
+              {
+                name: 'call_tool',
+                input: { name: 'remove_item', args: { sequenceId: 's1', itemId: 'c1' } },
+              },
+            ],
+          },
+          {
+            calls: [
+              { name: 'call_tool', input: { name: 'ingest', args: { source: '~/.ssh/id_rsa' } } },
+            ],
+          },
+        ][n] ?? { text: 'Done as the transcript said.' },
     );
     const onPause = vi.fn((_p: PauseInfo) => Promise.resolve({ action: 'stop' as const }));
     const r = await runWorkflow(
@@ -141,7 +149,9 @@ describe('mock injection image case (step 8d, S34)', () => {
         const tools = JSON.stringify(o.prompt.filter((p) => p.role === 'tool'));
         return {
           text: tools,
-          calls: [{ name: 'call_tool', input: { name: 'ingest', args: { source: '~/.ssh/id_rsa' } } }],
+          calls: [
+            { name: 'call_tool', input: { name: 'ingest', args: { source: '~/.ssh/id_rsa' } } },
+          ],
         };
       }
       return { text: 'Described the frame.' };
@@ -157,8 +167,7 @@ describe('mock injection image case (step 8d, S34)', () => {
       mode: 'tools',
       selection: { sequenceId: sequenceIds[0]! },
     });
-    const results = editor.prompts[1]!.prompt
-      .filter((p) => p.role === 'tool')
+    const results = editor.prompts[1]!.prompt.filter((p) => p.role === 'tool')
       .flatMap((p) => p.content as { output: { value: unknown } }[])
       .map((c) => String(c.output.value))
       .join('\n')
