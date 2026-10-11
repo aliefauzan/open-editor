@@ -36,11 +36,26 @@ export interface PauseInfo {
   kind?: PauseKind;
   detail: string;
   sources?: string[];
-  ranges?: unknown[];
+  ranges?: TightenRange[];
   plan?: unknown;
 }
 
-export type PauseDecision = { action: 'continue'; maxUsdPerRun?: number } | { action: 'stop' };
+/** A tighten range offered for review (`approval`, kind `pauses`; agent spec "Clipper"). */
+export interface TightenRange {
+  wordKey: string;
+  kind: 'pause' | 'filler' | 'repeat';
+  seqStartMs: number;
+  seqEndMs: number;
+  text: string;
+}
+
+/**
+ * `continue` resumes the run. On a `pauses` pause, `wordKeys` lists the ticked ranges (absent: the
+ * whole list; empty: skip the step).
+ */
+export type PauseDecision =
+  | { action: 'continue'; maxUsdPerRun?: number; wordKeys?: string[] }
+  | { action: 'stop' };
 
 export interface Usage {
   inputTokens: number;
@@ -110,6 +125,10 @@ export interface RunDeps {
   /** Template lookup for plan mode (default: the project style's templates). */
   templates?: TemplateLookup;
   registry?: ToolRegistry;
+  /** Runs an engine job (tests: fakes for the Python jobs); default: the engine job runner. */
+  runJob?: (kind: string, args: Record<string, unknown>) => Promise<unknown>;
+  /** Reads a still the engine wrote (tests). */
+  readImage?: (path: string) => Promise<Uint8Array>;
   sleep?: (ms: number) => Promise<void>;
   newRunId?: () => string;
   now?: () => Date;

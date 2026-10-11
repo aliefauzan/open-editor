@@ -37,6 +37,7 @@ import { COMPACT_AT, Conversation } from './conversation.ts';
 import { wrapData } from './envelope.ts';
 import { backoffMs, mapProviderError, PROVIDER_RETRIES } from './provider-errors.ts';
 import { buildSystemPrompt } from './prompt.ts';
+import { scrubSoundClaims } from './summary.ts';
 import { RunRecord, truncateJson } from './record.ts';
 import { detectTextToolCall, repairToolJson, TEXT_TOOL_CALL_CORRECTION } from './repair.ts';
 import type {
@@ -114,6 +115,16 @@ interface ModelCall {
   unknownTool?: boolean;
 }
 
+/** One tool call of the run (by the model or by the workflow), args with engine ids. */
+export interface CallLog {
+  tool: string;
+  args: unknown;
+  subRun?: number;
+  by: 'model' | 'workflow';
+  ok: boolean;
+  result?: unknown;
+}
+
 interface TurnState {
   lastKey?: string;
   repeats: number;
@@ -126,6 +137,8 @@ export class AgentRun {
   readonly registry: ToolRegistry;
   readonly record: RunRecord;
   readonly versions: number[] = [];
+  /** Every tool call of the run, in order (checkpoints read it). */
+  readonly calls: CallLog[] = [];
   readonly ctx: ToolContext;
   spentUsd = 0;
   #cap: number;
@@ -170,6 +183,8 @@ export class AgentRun {
       },
       ...(vision && { vision }),
       ...(req.signal && { signal: req.signal }),
+      ...(deps.runJob && { runJob: deps.runJob }),
+      ...(deps.readImage && { readImage: deps.readImage }),
     };
   }
 
@@ -547,7 +562,7 @@ export class AgentRun {
     const state: TurnState = { repeats: 0, argFailures: new Map() };
     const names = surfaceNames(this.registry, this.#req.allowedTools, {
       mode: 'tools',
-      ...(this.#req.question && { question: true }),
+      ...(this.ctx.question && { question: true }),
     });
     const tools = aiToolSet(this.registry, names);
     const toolTokens = estimateTokens(JSON.stringify(toolDefinitionsFor(this.registry, names)));
@@ -713,6 +728,7 @@ export class AgentRun {
     const fail = (e: VoxError | VoxErrorJson, args: unknown) => {
       const j = isVoxError(e) ? toVoxErrorJson(e) : e;
       const err = this.#deps.redactor.redact({ code: j.code, message: j.message, hint: j.hint });
+      this.#logCall(call.toolName, args, opts, false, { error: err });
       this.record.write({
         type: 'tool',
         callId: call.toolCallId,
@@ -866,6 +882,7 @@ export class AgentRun {
       ...(output.changes && { changes: truncateJson(output.changes) }),
       ...(opts.subRun !== undefined && { subRun: opts.subRun }),
     });
+    this.#logCall(call.toolName, args, opts, true, output.result);
     this.emit({
       type: 'agent.tool',
       payload: {
@@ -894,6 +911,75 @@ export class AgentRun {
     return done({ type: 'text', value: text });
   }
 
+  /** Logs a call under the tool it reached (`call_tool` → the named tool), ids resolved. */
+  #logCall(
+    name: string,
+    args: unknown,
+    opts: { subRun?: number | undefined },
+    ok: boolean,
+    result: unknown,
+    by: CallLog['by'] = 'model',
+  ): void {
+    let tool = name;
+    let a = args;
+    const inner = args as { name?: unknown; args?: unknown } | null;
+    if (name === 'call_tool' && typeof inner?.name === 'string') {
+      tool = inner.name;
+      a = inner.args ?? {};
+    }
+    try {
+      a = this.aliases.fromModel(a);
+    } catch {
+      // an unknown alias: keep the model's args
+    }
+    this.calls.push({
+      tool,
+      args: a,
+      ...(opts.subRun !== undefined && { subRun: opts.subRun }),
+      by,
+      ok,
+      result,
+    });
+  }
+
+  /**
+   * Runs a tool for the workflow itself (not the model), under the same rules: aliases, zod, actor
+   * `agent` and `runId`, the ingest source rule with its `approval` pause (S20). Throws RunStopped
+   * when the user stops at a pause; tool errors throw as VoxError.
+   */
+  async workflowCall(name: string, args: unknown, subRun?: number): Promise<ToolOutput> {
+    let output = await invokeTool(this.ctx, this.registry, name, args);
+    for (let i = 0; output.pause && i < MAX_PAUSE_LOOPS; i++) {
+      const d = await this.pause({
+        reason: output.pause.reason,
+        kind: output.pause.kind,
+        detail: output.pause.detail,
+        sources: output.pause.sources,
+      });
+      if (d.action === 'stop') throw new RunStopped();
+      for (const s of output.pause.sources) this.ctx.approvedSources.add(s);
+      output = await invokeTool(this.ctx, this.registry, name, args);
+    }
+    if (output.pause) throw new RunStopped();
+    if (output.versions) this.versions.push(...output.versions);
+    this.record.write({
+      type: 'tool',
+      tool: name,
+      by: 'workflow',
+      args: truncateJson(args),
+      result: truncateJson(output.result),
+      ...(output.versions && { versions: output.versions }),
+      ...(subRun !== undefined && { subRun }),
+    });
+    this.#logCall(name, args, { subRun }, true, output.result, 'workflow');
+    return output;
+  }
+
+  /** Adds a line to the final run summary (after the sub-run summaries so far). */
+  addSummary(text: string): void {
+    this.#summaries.push(text);
+  }
+
   async #argFailure<R extends { part: ToolResultPart }>(
     call: ModelCall,
     state: TurnState,
@@ -915,7 +1001,9 @@ export class AgentRun {
     if (this.#finished)
       throw new VoxError('VALIDATION', 'the run has already ended', 'Start a new run.');
     this.#finished = true;
-    const full = [summary, ...this.#summaries].filter((s) => s.trim() !== '').join('\n');
+    const full = scrubSoundClaims(
+      [summary, ...this.#summaries].filter((s) => s.trim() !== '').join('\n'),
+    );
     const payload = {
       runId: this.runId,
       status,

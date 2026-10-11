@@ -81,6 +81,9 @@ export const ERROR_CODES = [
   'TOOL_UNKNOWN',
   'TOOL_REFUSED',
   'PLAN_INVALID',
+  // agent: workflows (agent spec "Workflows"; phase 12)
+  'CHECKPOINT_MISSED',
+  'ROLE_MISSING',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

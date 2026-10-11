@@ -347,6 +347,7 @@ const PLAN_FORMAT = {
 
 /** One plan-mode (sub-)run. */
 export async function planTurn(run: AgentRun, opts: TurnOptions): Promise<TurnResult> {
+  if (run.ctx.question) return questionTurn(run, opts);
   const kind = run.request.planKind ?? 'ops';
   const schema = kind === 'clip' ? ClipPlanSchema : OpsPlanSchema;
   let step = 0;
@@ -473,6 +474,31 @@ export async function planTurn(run: AgentRun, opts: TurnOptions): Promise<TurnRe
       steps: step,
       error: e,
     });
+  }
+}
+
+const AnswerSchema = z.strictObject({ answer: z.string().min(1).max(4000) });
+
+/** A question turn in plan mode (S35): one structured answer from the view, no writes. */
+async function questionTurn(run: AgentRun, opts: TurnOptions): Promise<TurnResult> {
+  try {
+    const inj = await run.injection(opts.scope);
+    const out = await run.structured({
+      system: `${run.systemPrompt()}\n\nThis turn is a question: answer it from the current state; change nothing. Answer with { answer }.`,
+      messages: [{ role: 'user', content: `${opts.instruction ?? run.request.message}\n\n${inj.text}` }],
+      schema: AnswerSchema,
+    });
+    run.record.write({ type: 'step', step: 1, mode: 'plan', scope: opts.scope, plan: out.value, usage: out.usage });
+    const r = AnswerSchema.safeParse(out.value);
+    const summary = r.success ? r.data.answer : String(typeof out.value === 'string' ? out.value : 'No answer.');
+    return endPlan(run, opts, { status: 'completed', summary, steps: 1 });
+  } catch (err) {
+    if (err instanceof RunStopped)
+      return endPlan(run, opts, { status: 'stopped', summary: 'Stopped by the user.', steps: 1 });
+    const e = run.deps.redactor.redact(
+      toVoxErrorJson(isVoxError(err) ? err : new VoxError('TOOL_FAILED', 'plan mode failed', 'See the run record.', { cause: err })),
+    );
+    return endPlan(run, opts, { status: 'failed', summary: `${e.message}. ${e.hint}`, steps: 1, error: e });
   }
 }
 
