@@ -27,7 +27,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 14d | Local image generation (mflux) | 13 | [~] | 2026-10-12 | | | log/phase-14d.md |
 | 14e | Clip speed + GATE 7 | 13 | [~] | 2026-10-12 05:52 | | | log/phase-14e.md |
 | 14f | Audio ducking | 13 | [x] | 2026-10-12 | 2026-10-12 | `duck` flag on audio tracks, `sidechaincompress` per ducked track keyed by the speech bus (-11.5 dB on real speech), inspector toggle, audio QA passes; D-61 | log/phase-14f.md |
-| 14g | FCPXML export option | 13 | [ ] | | | | log/phase-14g.md |
+| 14g | FCPXML export option | 13 | [x] | 2026-10-12 05:45 | 2026-10-12 | `export-timeline --format fcpxml` + dialog option; DTD-valid and structure-checked, not imported in an NLE (D-64) | log/phase-14g.md |
 | 15 | Styles Part C: style from reference | 13 | [~] | 2026-10-12 | | In progress | log/phase-15.md |
 
 ## Gates and milestones
