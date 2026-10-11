@@ -23,9 +23,9 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
       24.14, pnpm 12.0, Homebrew 7.0, ffmpeg 8.1.2, yt-dlp 2026.07.04, deno 2.9.5, uv 0.11.19.
 - [x] **Xcode licence accepted** (2026-10-10): Swift 6.4, macOS 27.0 SDK; a FoundationModels test
       program compiles and reports the system model `available`.
-- [ ] **Reference reel** `.mp4` at `docs/evidence/phase-07/reference/reel.mp4` (gitignored; phase 07
+- [x] (downloaded by the AI for reference only, owner's permission 2026-10-11) **Reference reel** `.mp4` at `docs/evidence/phase-07/reference/reel.mp4` (gitignored; phase 07
       step 0). The AI never downloads it.
-- [ ] **Second style reference** (given 2026-10-11): <https://www.tiktok.com/@metro.media.house3/video/7695169259369925908>.
+- [x] (downloaded by the AI for reference only, owner's permission 2026-10-11) **Second style reference** (given 2026-10-11): <https://www.tiktok.com/@metro.media.house3/video/7695169259369925908>.
       Phase 07 uses it beside the reel for the style target. Save it as
       `docs/evidence/phase-07/reference/tiktok-2.mp4` (gitignored). The AI never downloads it.
 - [ ] **Reference layout screenshot** of the invideo editor at `docs/reference/invideo-layout.png`

@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | waiting: manual 1 (owner keys + live probe); not merged |
-| Started · Finished | 2026-10-11 17:03 · |
+| Status | [x] merged 2026-10-11 19:22; live probe deferred to phase 13 step 7b (D-44) |
+| Started · Finished | 2026-10-11 17:03 · 2026-10-11 19:22 |
 | Model | Opus 5.5 · high |
 | Machine | M5, macOS 27.0.1, Node 24.14.0, pnpm 12.0.0, Swift 6.4 |
 | Branch | phase/11-agent-core (worktree `.worktrees/phase-11`) |
@@ -265,3 +265,10 @@ with credentials is refused before any request; test added).
   as the plan probe task; config persistence of entries (with `preset`) and probe reports; redactor
   registration of resolved keys; `vox config providers add|roles set|probe` (calls
   `assertRoleAssignable`); the live probe (MANUAL STEP already in the phase plan).
+
+## Merge (orchestrator, 2026-10-11 19:22)
+Owner chose to enter provider keys through the Settings screen (D-44), so MANUAL STEPS 1–2 move to
+phase 13 step 7b. After `git merge main` (10a, D-44): typecheck and lint clean; `pnpm test` 2254
+passed, 1 skipped, and one timing test failed per full run while phase 10b ran in parallel (load
+average ~14): `lock.test.ts` (break marker 10 s) once, `preview.test.ts` (150 ms coalesce) once.
+Each passed 3/3 alone. Flaky under load, not a regression.
