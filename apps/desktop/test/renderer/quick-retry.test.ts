@@ -85,6 +85,17 @@ describe('quick clips retry', () => {
   });
 });
 
+describe('quick clips: which project a retry reuses (GATE 5 finding)', () => {
+  // A retry after a failed import (e.g. LOGIN_REQUIRED) reuses the empty project. Once the media is
+  // in the project (make clips failed: a silent video), the project is the user's to edit, and the
+  // next attempt starts a new one with its own name.
+  it('a failure after the import marks the outcome as imported', async () => {
+    const { run } = setup('failed');
+    const out = await run();
+    expect(out.ok === false && out.imported).toBe(true);
+  });
+});
+
 describe('quick clips drop (GATE 5 finding)', () => {
   // A dropped FileList does not survive Electron's contextBridge (the preload saw no files, the flow
   // read that as "cancelled" and left an empty project with no message). The renderer hands over a
@@ -135,5 +146,6 @@ describe('quick clips drop (GATE 5 finding)', () => {
     expect(out.ok).toBe(false);
     expect(out.ok === false && out.cancelled).toBeFalsy();
     expect(out.ok === false && out.error.message).toMatch(/could not be read/i);
+    expect(out.ok === false && out.imported).toBeFalsy();
   });
 });

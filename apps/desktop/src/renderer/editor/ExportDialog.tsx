@@ -121,6 +121,17 @@ export function ExportDialog() {
     );
   }, [lost, projectId, vox, editor]);
   const live = useJobRows(rows);
+  // Escape closes the dialog like ×; running exports go on in the job list
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      ui.getState().set({ exportOpen: false });
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open, ui]);
 
   if (!open || !project || !seq) return null;
 

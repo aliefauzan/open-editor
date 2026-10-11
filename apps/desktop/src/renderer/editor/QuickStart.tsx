@@ -79,8 +79,9 @@ export function QuickStart(props: QuickStartProps) {
       props.onDone(o);
       return;
     }
-    // keep the project for a second attempt (e.g. choose the file after LOGIN_REQUIRED)
-    retryProject.current = o.projectId;
+    // keep an empty project for a second attempt (e.g. choose the file after LOGIN_REQUIRED); once
+    // the media is in it, it is the user's project and the next attempt makes its own
+    retryProject.current = o.imported ? undefined : o.projectId;
     if (!o.cancelled) setError(o.error);
   };
 

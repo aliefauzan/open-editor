@@ -117,6 +117,13 @@ describe('export dialog (A4)', () => {
     expect(JSON.stringify(s.jobs)).not.toMatch(/"(path|file|dir|target)"/);
   });
 
+  it('Escape closes the dialog (GATE 5 finding)', async () => {
+    const { t } = await setup();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(t.ctx.ui.getState().exportOpen).toBe(false);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Export' })).toBeNull());
+  });
+
   it('subtitles not burned in → captions: none', async () => {
     const { s } = await setup();
     fireEvent.click(screen.getByLabelText('Subtitles burned in'));

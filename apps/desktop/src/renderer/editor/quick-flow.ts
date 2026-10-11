@@ -27,7 +27,14 @@ export type QuickOutcome =
       requested: number;
       note?: string;
     }
-  | { ok: false; projectId?: string; error: ErrorData; cancelled?: boolean };
+  | {
+      ok: false;
+      projectId?: string;
+      error: ErrorData;
+      cancelled?: boolean;
+      /** The media is in the project: the next attempt starts a new project (D-54). */
+      imported?: boolean;
+    };
 
 /**
  * Share of the progress bar for the import (decision "Quick clips speed"). Measured on a 15-min 1080p
@@ -118,6 +125,7 @@ export async function makeQuickClips(
   projectId?: string,
 ): Promise<QuickOutcome> {
   let id = projectId;
+  let imported = false;
   const report = steadyProgress(onProgress);
   const share = importShare(input);
   try {
@@ -152,6 +160,7 @@ export async function makeQuickClips(
         error: ing.error ?? { code: 'JOB_FAILED', message: 'Import failed', hint: '' },
       };
     }
+    imported = true;
     const media =
       (ing.result as { media?: { mediaId: string; kind: string }[] } | undefined)?.media ?? [];
     const video = media.find((m) => m.kind === 'video');
@@ -159,6 +168,7 @@ export async function makeQuickClips(
       return {
         ok: false,
         projectId: id,
+        imported,
         error: {
           code: 'MEDIA_UNSUPPORTED',
           message: 'That is not a video',
@@ -192,6 +202,7 @@ export async function makeQuickClips(
       return {
         ok: false,
         projectId: id,
+        imported,
         cancelled: made.status === 'cancelled',
         error: made.error ?? { code: 'JOB_FAILED', message: 'Make clips failed', hint: '' },
       };
@@ -212,7 +223,7 @@ export async function makeQuickClips(
       ...(r.note ? { note: r.note } : {}),
     };
   } catch (e) {
-    return { ok: false, ...(id ? { projectId: id } : {}), error: asError(e) };
+    return { ok: false, ...(id ? { projectId: id } : {}), imported, error: asError(e) };
   }
 }
 
