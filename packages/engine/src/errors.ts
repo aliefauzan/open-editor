@@ -64,6 +64,23 @@ export const ERROR_CODES = [
   // assets, render and export (phase 05)
   'LICENSE_REFUSED',
   'PROVIDER_MISSING',
+  // agent: keys, prices, Apple helper, probe (phase 11; D-26, D-38)
+  'KEYCHAIN_FAILED',
+  'PRICE_MISSING',
+  'APPLE_UNAVAILABLE',
+  'APPLE_FAILED',
+  'CONTEXT_OVERFLOW',
+  'PROBE_FAILED',
+  // agent: provider errors after redaction (agent spec "Error handling")
+  'PROVIDER_AUTH',
+  'PROVIDER_RATE_LIMITED',
+  'PROVIDER_UNAVAILABLE',
+  'PROVIDER_FAILED',
+  // agent: tool layer and plan mode (agent spec "Tools", "Plan mode"; plan D-15)
+  'UNKNOWN_ALIAS',
+  'TOOL_UNKNOWN',
+  'TOOL_REFUSED',
+  'PLAN_INVALID',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

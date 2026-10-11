@@ -9,7 +9,7 @@ import type { LanguageModelV4, LanguageModelV4CallOptions } from '@ai-sdk/provid
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { wrapLanguageModel } from 'ai';
 import { createOllama } from 'ollama-ai-provider-v2';
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { assertSafeBaseUrl } from '../config/mask.ts';
 import { resolveApiKey, type ResolveDeps } from '../config/keychain.ts';
 import { createAppleLanguageModel, type AppleModelOptions } from './apple.ts';
@@ -27,8 +27,8 @@ export interface ModelFactoryDeps {
   apple?: AppleModelOptions;
 }
 
-const invalid = (message: string, hint: string): UtilError =>
-  new UtilError('CONFIG_INVALID', message, hint);
+const invalid = (message: string, hint: string): VoxError =>
+  new VoxError('CONFIG_INVALID', message, hint);
 
 export type ZenFamily = 'anthropic' | 'openai' | 'google' | 'openai-compatible';
 

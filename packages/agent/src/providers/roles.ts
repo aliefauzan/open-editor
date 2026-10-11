@@ -8,7 +8,7 @@ import type { ProviderEntry } from './presets.ts';
 import { assertRoleModelPriced, priceStatus, type PriceTable } from './prices.ts';
 import type { CheckResult } from './probe.ts';
 import type { ToolListCost } from './tool-cost.ts';
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 
 export const ROLES = ['editor', 'vision', 'fast', 'image', 'embed'] as const;
 export type Role = (typeof ROLES)[number];
@@ -69,7 +69,7 @@ export function selectMode(args: {
 }): AgentMode {
   if (args.provider.type === 'apple') {
     if (args.override === 'tools') {
-      throw new UtilError(
+      throw new VoxError(
         'CONFIG_INVALID',
         'the Apple on-device model cannot run in tools mode',
         'It has no tool calls; use --mode plan or another model for the editor.',
@@ -178,7 +178,7 @@ export function assertRoleAssignable(role: Role, args: RoleCheckArgs): RoleVerdi
   const verdict = roleCheck(role, args);
   if (verdict.assignable) return verdict;
   const checks = [...new Set(verdict.failures.map((f) => f.check))].join(', ');
-  throw new UtilError(
+  throw new VoxError(
     'PROBE_FAILED',
     `${args.model} cannot be the ${role} model: ${checks} failed`,
     'Run `vox config probe` for the reasons, or choose another model for this role.',

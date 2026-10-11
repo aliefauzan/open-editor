@@ -2,7 +2,7 @@
 // Prices are USD per million tokens. No price data is bundled here: the table is user-editable
 // config plus OpenRouter's models endpoint (see `parseOpenRouterPricing`).
 import { z } from 'zod';
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 
 const nonNegative = z.number().finite().nonnegative();
 
@@ -160,7 +160,7 @@ export function assertRoleModelPriced(
   ...tables: ReadonlyArray<PriceTable | undefined>
 ): void {
   if (priceStatus(provider, model, ...tables).status !== 'unpriced') return;
-  throw new UtilError(
+  throw new VoxError(
     'PRICE_MISSING',
     `${model} has no known price, so it cannot be the ${role} model`,
     'Enter its prices in the price table or mark the model free, then assign the role again.',

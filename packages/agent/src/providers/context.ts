@@ -3,7 +3,7 @@
 // sends, Apple `--status`; every other provider uses the entry's `options.contextTokens` (D-38).
 import { z } from 'zod';
 import { assertSafeBaseUrl } from '../config/mask.ts';
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { parseOpenRouterPricing, type PriceEntry } from './prices.ts';
 import { appleStatus, type AppleModelOptions } from './apple.ts';
 import type { FetchFunction } from './capture.ts';
@@ -26,8 +26,8 @@ export interface ContextInfo {
   error?: string;
 }
 
-const probeFailed = (message: string, hint: string): UtilError =>
-  new UtilError('PROBE_FAILED', message, hint);
+const probeFailed = (message: string, hint: string): VoxError =>
+  new VoxError('PROBE_FAILED', message, hint);
 
 const positiveInt = z.int().positive();
 
