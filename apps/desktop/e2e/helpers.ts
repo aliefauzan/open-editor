@@ -210,3 +210,11 @@ export async function exportTo(
   await dlg.getByRole('button', { name: 'Done', exact: true }).click();
   return { audioCheck: audio };
 }
+
+/** Pixels whose grey value differs by more than `threshold` (encoder noise stays below it). */
+export function changedPixels(a: Buffer, b: Buffer, threshold = 40): number {
+  const n = Math.min(a.length, b.length);
+  let count = 0;
+  for (let i = 0; i < n; i++) if (Math.abs(a[i]! - b[i]!) > threshold) count++;
+  return count;
+}

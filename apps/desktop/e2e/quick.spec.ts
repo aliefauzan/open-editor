@@ -13,7 +13,7 @@ import {
   answerDialog,
   exportTo,
   frameAt,
-  frameDiff,
+  changedPixels,
   start,
   tempDir,
   type Session,
@@ -93,7 +93,8 @@ async function quickPath(s: Session): Promise<void> {
     files.find((f) => f.endsWith('.mp4'))!,
   );
   const t = at + 150;
-  expect(frameDiff(frameAt(mp4Before, t), frameAt(mp4After, t))).toBeGreaterThan(0.5);
+  // the burned-in caption changed: a block of pixels differs (encoder noise stays under the threshold)
+  expect(changedPixels(frameAt(mp4Before, t), frameAt(mp4After, t))).toBeGreaterThan(20);
 }
 
 test('quick path (seeded): 3 captioned clips, fix + nudge a word, MP4 + SRT export with the fix', async () => {

@@ -28,7 +28,12 @@ test.afterAll(async () => {
   await s?.app.close();
 });
 
-const history = async () => (await vox<unknown[]>(s.page, 'history.list', pid)).length;
+/** Undo entries: a coalesced op is stored as a new entry that `replaces` the one before (D-15). */
+const history = async () => {
+  const list = await vox<{ version: number; replaces?: number }[]>(s.page, 'history.list', pid);
+  const replaced = new Set(list.map((e) => e.replaces).filter((v) => v !== undefined));
+  return list.filter((e) => !replaced.has(e.version)).length;
+};
 const seq = async () => (await projectState(s.page, pid)).project.sequences[0]!;
 const undo = async () => {
   await s.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -70,7 +75,10 @@ test('Pauses & fillers: find, untick one, apply the rest as one entry; one cmd+Z
   await list.getByRole('checkbox').first().uncheck();
   await box.getByRole('button', { name: 'Apply' }).click();
   const cut = ranges.slice(1).reduce((n, r) => n + (r.endMs - r.startMs), 0);
-  await expect.poll(async () => seqEnd(await seq()), { timeout: 30_000 }).toBe(20_000 - cut);
+  // exactly the ticked ranges (1 ms of frame rounding per cut at most)
+  await expect
+    .poll(async () => Math.abs(seqEnd(await seq()) - (20_000 - cut)), { timeout: 30_000 })
+    .toBeLessThanOrEqual(ranges.length - 1);
   expect(await history()).toBe(h0 + 1);
   // the unticked range is still there; captions stay on their words
   const st2 = await projectState(page, pid);

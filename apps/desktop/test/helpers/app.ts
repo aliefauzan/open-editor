@@ -57,7 +57,8 @@ export async function launchApp(
   const page = await app.firstWindow();
   const consoleErrors: string[] = [];
   page.on('console', (m) => {
-    if (m.type() === 'error') consoleErrors.push(m.text());
+    if (m.type() === 'error')
+      consoleErrors.push(m.location().url ? `${m.text()} (${m.location().url})` : m.text());
   });
   page.on('pageerror', (e) => consoleErrors.push(e.message));
   await page.waitForLoadState('domcontentloaded');

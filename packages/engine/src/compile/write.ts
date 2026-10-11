@@ -1,7 +1,16 @@
 // `writeBuild`: a BuildResult on disk under `build/<sequenceId>/` (replaced each time). Linked files
 // are hard-linked, or copied across devices; vendored files come from the pinned packages.
-import { copyFileSync, existsSync, linkSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import {
+  copyFileSync,
+  existsSync,
+  linkSync,
+  mkdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { VoxError } from '../errors.ts';
 import { moduleRequire, runtimeDir } from '../resources.ts';
 import type { BuildResult } from './compile.ts';
@@ -24,9 +33,31 @@ export function buildDirFor(projectDir: string, sequenceId: string): string {
   return join(projectDir, 'build', sequenceId);
 }
 
-/** Writes `build` to `dir` (the folder is replaced). Returns `dir`. */
+/**
+ * Writes `build` to `dir` (the folder is replaced). Returns `dir`. The new build is written to a
+ * sibling temp folder and swapped in by two renames, so a preview that has the folder open (the
+ * player fetches media lazily) never finds it missing or half written, and a failed write keeps the
+ * previous build.
+ */
 export function writeBuildTo(build: BuildResult, dir: string): string {
-  rmSync(dir, { recursive: true, force: true });
+  const tag = `${process.pid}-${randomBytes(4).toString('hex')}`;
+  const tmp = join(dirname(dir), `.${basename(dir)}.tmp-${tag}`);
+  mkdirSync(tmp, { recursive: true });
+  try {
+    fill(build, tmp);
+  } catch (e) {
+    rmSync(tmp, { recursive: true, force: true });
+    throw e;
+  }
+  const old = join(dirname(dir), `.${basename(dir)}.old-${tag}`);
+  const had = existsSync(dir);
+  if (had) renameSync(dir, old);
+  renameSync(tmp, dir);
+  if (had) rmSync(old, { recursive: true, force: true });
+  return dir;
+}
+
+function fill(build: BuildResult, dir: string): void {
   const put = (rel: string) => {
     const p = join(dir, rel);
     mkdirSync(dirname(p), { recursive: true });
@@ -57,5 +88,4 @@ export function writeBuildTo(build: BuildResult, dir: string): string {
     if (!from) throw new Error(`no vendor source for ${name}`);
     copyFileSync(from, put(`vendor/${name}`));
   }
-  return dir;
 }
