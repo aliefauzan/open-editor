@@ -12,6 +12,9 @@ if (log) {
     'UV_CACHE_DIR',
     'UV_PYTHON_INSTALL_DIR',
     'OPENROUTER_API_KEY',
+    'ORT_DISABLE_TELEMETRY',
+    'HF_HUB_DISABLE_TELEMETRY',
+    'DO_NOT_TRACK',
   ]) {
     env[k] = process.env[k] ?? null;
   }

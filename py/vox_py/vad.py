@@ -31,6 +31,8 @@ class SileroVad:
     def __init__(self, path: Path):
         import onnxruntime as ort
 
+        ort.disable_telemetry_events()
+
         opts = ort.SessionOptions()
         opts.inter_op_num_threads = 1
         opts.intra_op_num_threads = 1
