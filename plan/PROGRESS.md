@@ -17,7 +17,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 09 | App: first-run setup + `.dmg` | 05, 08 | [~] | 2026-10-11 15:07 | | | log/phase-09.md |
 | 10a | App: editor core A (store, preview, timeline, inspector) | 06, 09 | [ ] | | | | log/phase-10a.md |
 | 10b | App: editor core B (quick clips, subtitles, media bin, export, gallery) + GATE 5 | 10a | [ ] | | | | log/phase-10b.md |
-| 11 | Agent core | 05 | [ ] | | | | log/phase-11.md |
+| 11 | Agent core | 05 | [~] | 2026-10-11 17:03 | | | log/phase-11.md |
 | 12 | Agent workflows: clipper + free-form | 07, 11 | [ ] | | | | log/phase-12.md |
 | 13 | App: agent panel + settings + v1.0 | 10b, 12 | [ ] | | | | log/phase-13.md |
 | 14 | v1.1 (done when 14a–14g are all [x]) | 14a–14g | [ ] | | | | log/phase-14.md |

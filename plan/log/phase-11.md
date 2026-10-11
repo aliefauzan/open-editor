@@ -1,6 +1,32 @@
 # Phase 11 — Agent core
 
-Status: not started; early steps done under D-19
+| Field | Value |
+|---|---|
+| Status | in progress |
+| Started · Finished | 2026-10-11 17:03 · |
+| Model | Opus 5.5 · high |
+| Machine | M5, macOS 27.0.1, Node 24.14.0, pnpm 12.0.0, Swift 6.4 |
+| Branch | phase/11-agent-core (worktree `.worktrees/phase-11`) |
+
+## Pre-check
+Prerequisite 05 is [x] (GATE 2 passed, D-39). Early packages N1, G1, G2 (below) are merged; this run
+skips their steps and wires them in. Phase 09 runs in parallel in `.worktrees/phase-09`. No provider
+keys exist yet: live probes are a MANUAL STEP; tests use `MockLanguageModelV4` and the R4 canary key.
+
+## Plan summary
+1. Swap the `UtilError` shim for `VoxError`; append the agent error codes to the engine's `ERROR_CODES`.
+2. `config/store.ts`: provider entries, roles, limits and user prices through `readConfig`/`writeConfig`;
+   Keychain writes via `security -i`; masked = unchanged; keys registered with the redactor.
+3. `tools/`: alias table, tool registry (read, one write tool per op, job tools, `check_audio`,
+   `undo_my_last_edit`, `update_todos`, `describe_tool`, `call_tool`), frame health, transcript pages.
+4. `loop/`: one `streamText` call per model step under our own step loop (fresh view + change note,
+   compaction with version stubs, budget bound, call repair, identical-call guard, error mapping and
+   retries, sub-runs, run record, events, restart), plan mode (`ClipPlan`, op-list plans, executor).
+5. Replay harness; probe runner (`ClipPlan` plan task, largest tool list); `vox config` CLI.
+Test order: 1, 2, 3, 15, 4, 18, 14, 12b, 5, 6, 19, 7, 8, 16, 13, 17, 9, 10, 11, 12, 20, CLI.
+
+## Checklist
+- [ ] Steps 1–20 (+12b) tests first; CLI; Verify; review (self-review, token budget); merge.
 
 ## Early steps (D-19) — n1-apple-llm
 
