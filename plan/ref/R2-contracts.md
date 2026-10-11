@@ -15,23 +15,23 @@ commit, and every consumer updated in that commit.
 | Load safety: `SCHEMA_TOO_NEW`, `snapshots/auto-pre-migrate-v<N>.json` (D-15) | engine "Write order, crash recovery, locking" | `engine/src/history/` | 02 | 02, frozen 2026-10-11 |
 | Path rule | engine "Project folder" | `engine/src/paths.ts` (subpath export `@vox/engine/paths`) | 02 | 02, frozen 2026-10-11 |
 | `VoxError { code, message, hint, cause? }` + codes | engine "Error handling", all specs | `engine/src/errors.ts` | 02 | grows; codes never renamed |
-| Engine library API (`openEngine`, `Engine`) | engine "Library API" | `engine/src/api.ts` | 02 (grows 03–05) | 05 |
-| Engine events (`project.changed`, `job.*`) | engine "Library API" | `engine/src/api.ts` | 02/04 | 05 |
+| Engine library API (`openEngine`, `Engine`) | engine "Library API" | `engine/src/api.ts` | 02 (grows 03–05) | 05, frozen 2026-10-11 |
+| Engine events (`project.changed`, `job.*`) | engine "Library API" | `engine/src/api.ts` | 02/04 | 05, frozen 2026-10-11 |
 | `style.json`, `template.json`, tokens `--tok-*` (incl. `sfx` object form `{path, type, source, licence}` and `sfxCues` with `name` and `type`, D-14; `minEntranceMs` and the reserved `skipEntrance` variable, D-15) | styles "Part A", "SFX rules" | `engine/src/styles/` | 03 | 06, frozen 2026-10-11 |
 | Caption preset `captions/<preset>.json` (`case`, `stripPunctuation`, `safeArea`, `position`) the read/active/unread word-state contract (D-15) and word `data-key` (D-34) | styles "Caption presets" | `engine/src/styles/`, `engine/src/compile/` | 03 | 06, frozen 2026-10-11 |
 | `CaptionChunk` / `CaptionWord` (lines, word times, `emphasis`; D-15) | engine "Captions" | `engine/src/model/` (`deriveCaptions`) | 03 | 03 |
-| Cue list `build/<seq>/audio/cues.json` (kept and dropped cues with reasons) | engine "Sound cues" | `engine/src/audio/cues.ts` | 03 | 05 |
-| Audio QA output (`qa.json`, `qa.png`, `LISTEN.md`; thresholds in `audioqa_thresholds.json`) | engine "Audio QA" | `py/vox_py/audioqa.py`, job `audioQa` | 05 | 05 (thresholds never loosened, R3) |
+| Cue list `build/<seq>/audio/cues.json` (kept and dropped cues with reasons) | engine "Sound cues" | `engine/src/audio/cues.ts` | 03 | 05, frozen 2026-10-11 |
+| Audio QA output (`qa.json`, `qa.png`, `LISTEN.md`; thresholds in `audioqa_thresholds.json`) | engine "Audio QA" | `py/vox_py/audioqa.py`, job `audioQa` | 05 | 05, frozen 2026-10-11 (thresholds never loosened, R3) |
 | Export target (`{file}` or `{dir}`; app `targetId` from `exports.chooseTarget`) | engine "Export targets"; app "Engine-host API" | `engine/src/export/target.ts`, `apps/desktop/src/main/` | 05 | 10b |
-| Ingest URL classes (`youtube`, `instagram`, `tiktok`, `other`, `invalid`) | engine "Ingest sources" | `engine/src/stages/sources.ts` | 04 | 05 |
-| Shot list `shots/<id>.json` (`{ startMs, endMs }[]`), facetrack detections and crop keyframes `{ atMs, x, y, scale }` with cache key (D-15) | engine "Shots and framing" | `engine/src/stages/shots.ts`, `engine/src/stages/facetrack.ts`, `py/vox_py/facetrack.py` | 04 | 05 |
-| Job results: `baseVersion` at start, one `batch` with `jobId`, `JOB_CONFLICT` (D-15) | engine "Library API" (Job results), "Write order" | `engine/src/history/` (`jobId` check), `engine/src/jobs.ts` | 02 (`applyOp` side), 04 (runner) | 05 |
+| Ingest URL classes (`youtube`, `instagram`, `tiktok`, `other`, `invalid`) | engine "Ingest sources" | `engine/src/stages/sources.ts` | 04 | 05, frozen 2026-10-11 |
+| Shot list `shots/<id>.json` (`{ startMs, endMs }[]`), facetrack detections and crop keyframes `{ atMs, x, y, scale }` with cache key (D-15) | engine "Shots and framing" | `engine/src/stages/shots.ts`, `engine/src/stages/facetrack.ts`, `py/vox_py/facetrack.py` | 04 | 05, frozen 2026-10-11 |
+| Job results: `baseVersion` at start, one `batch` with `jobId`, `JOB_CONFLICT` (D-15) | engine "Library API" (Job results), "Write order" | `engine/src/history/` (`jobId` check), `engine/src/jobs.ts` | 02 (`applyOp` side), 04 (runner) | 05, frozen 2026-10-11 |
 | `vox.vars(el)` / `vox-runtime.js`, `data-vox-vars` | engine "Compile" | `engine/src/compile/` | 03 | 03 (styles add helpers in their own assets, e.g. `styles/vox/assets/motion.js`, never here) |
-| Compile `BuildResult`, layer order | engine "Compile" | `engine/src/compile/` | 03 | 05 |
-| `ImageProvider` | engine "Image generation provider" | `engine/src/api.ts` | 05 | 05 |
-| Quick clips scorer (`engine.quickClips.registerScorer(id, fn)`: candidates with text and times, plus `prompt?` (D-15) → one score each) | engine "Quick clips" | `engine/src/stages/quickClips.ts` | 05 | 05 |
+| Compile `BuildResult`, layer order | engine "Compile" | `engine/src/compile/` | 03 | 05, frozen 2026-10-11 |
+| `ImageProvider` | engine "Image generation provider" | `engine/src/api.ts` | 05 | 05, frozen 2026-10-11 |
+| Quick clips scorer (`engine.quickClips.registerScorer(id, fn)`: candidates with text and times, plus `prompt?` (D-15) → one score each) | engine "Quick clips" | `engine/src/stages/quickClips.ts` | 05 | 05, frozen 2026-10-11 |
 | Python tool request/response (stdin/stdout JSON, stderr progress) | engine "Repository layout" (Python bridge) | `engine/src/py.ts`, `py/vox_py/*` | 04 | per tool |
-| CLI commands and `--json` output | engine "Stages"; styles "Style registry"; agent "CLI" | `packages/cli` | 02–05, 06, 12 | 05 (engine), 12 (agent) |
+| CLI commands and `--json` output | engine "Stages"; styles "Style registry"; agent "CLI" | `packages/cli` | 02–05, 06, 12 | 05 (engine, frozen 2026-10-11), 12 (agent) |
 | `~/.vox/config.json` schema and file I/O | engine "Library API" (Config); agent "Configuration and keys" | `engine/src/config.ts`; key refs in `agent/src/config/` | 04 (`contact`, `projectsDir`, `ingest.cookiesFromBrowser`), 11 (providers, roles, limits) | 11 |
 | Secret redactor (`engine.redactor`) | engine "Library API" (Redactor); agent "Secret redactor" | `engine/src/redact.ts` | 04 | 11 |
 | Agent tools (generated) | agent "Tools" | `agent/src/tools/` | 11 | follows ops |

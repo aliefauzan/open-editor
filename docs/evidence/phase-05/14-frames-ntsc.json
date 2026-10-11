@@ -1,12 +1,12 @@
 {
-  "projectId": "p_mv30jfzraisp",
+  "projectId": "p_mv3gn1s8el23",
   "pass": true,
   "clips": [
     {
-      "sequenceId": "seq_mv30jo17dn2b",
+      "sequenceId": "seq_mv3gn8mv5e44",
       "fps": "30000/1001",
       "inMs": 8175,
-      "reference": "media/m_mv30jg0cb579.mp4",
+      "reference": "media/m_mv3gn1su29l3.mp4",
       "firstSourceFrame": 245,
       "frames": 131,
       "checked": 131,
@@ -14,10 +14,10 @@
       "minMargin": 116
     },
     {
-      "sequenceId": "seq_mv30jo17dn2c",
+      "sequenceId": "seq_mv3gn8mv5e45",
       "fps": "30000/1001",
       "inMs": 0,
-      "reference": "media/m_mv30jg0cb579.mp4",
+      "reference": "media/m_mv3gn1su29l3.mp4",
       "firstSourceFrame": 0,
       "frames": 169,
       "checked": 169,
@@ -25,10 +25,10 @@
       "minMargin": 116
     },
     {
-      "sequenceId": "seq_mv30jo17dn2d",
+      "sequenceId": "seq_mv3gn8mv5e46",
       "fps": "30000/1001",
       "inMs": 12913,
-      "reference": "media/m_mv30jg0cb579.mp4",
+      "reference": "media/m_mv3gn1su29l3.mp4",
       "firstSourceFrame": 387,
       "frames": 132,
       "checked": 132,

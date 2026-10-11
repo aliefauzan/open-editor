@@ -1,6 +1,83 @@
 {
-  "yt_dlp": "2026.07.04",
+  "yt_dlp": "2026.08.19",
   "sections": [
+    {
+      "section": "youtube edit (done-when 4)",
+      "pass": true,
+      "detail": {
+        "probe": {
+          "video": {
+            "codec_name": "h264",
+            "width": 1080,
+            "height": 1920,
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1"
+          },
+          "audio": {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2
+          },
+          "duration": 12.000000
+        },
+        "otio": "~/dumpProject/videoeditor/docs/evidence/phase-05/reference/GATE2 YouTube-Main (3).otio"
+      }
+    },
+    {
+      "section": "quick url: 3 clips with MP4 + SRT (done-when 7)",
+      "pass": true,
+      "detail": {
+        "clips": 3
+      }
+    },
+    {
+      "section": "14-quick-url caption edit",
+      "pass": true,
+      "detail": {
+        "wordKey": "m_mv3g5tq4b20d:8457833ad6c10b19:2122",
+        "text": "GATETWO",
+        "frameAtSec": 2.183,
+        "frame": "14-quick-url-edit-frame.jpg (check the word on screen)"
+      }
+    },
+    {
+      "section": "ingest instagram (done-when 8)",
+      "pass": true,
+      "detail": {
+        "video": {
+          "codec_name": "vp9",
+          "width": 1080,
+          "height": 1920,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1"
+        },
+        "audio": {
+          "codec_name": "aac",
+          "sample_rate": "44100",
+          "channels": 2
+        },
+        "duration": 38.543991
+      }
+    },
+    {
+      "section": "ingest tiktok (done-when 8)",
+      "pass": true,
+      "detail": {
+        "video": {
+          "codec_name": "hevc",
+          "width": 720,
+          "height": 1280,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1"
+        },
+        "audio": {
+          "codec_name": "aac",
+          "sample_rate": "44100",
+          "channels": 2
+        },
+        "duration": 110.942993
+      }
+    },
     {
       "section": "quick local file --render --out-dir (done-when 8)",
       "pass": true,
@@ -44,19 +121,19 @@
         "clips": [
           {
             "fps": "30000/1001",
-            "reference": "m_mv30jg0cb579.mp4",
+            "reference": "m_mv3gn1su29l3.mp4",
             "frames": 131,
             "mismatches": 0
           },
           {
             "fps": "30000/1001",
-            "reference": "m_mv30jg0cb579.mp4",
+            "reference": "m_mv3gn1su29l3.mp4",
             "frames": 169,
             "mismatches": 0
           },
           {
             "fps": "30000/1001",
-            "reference": "m_mv30jg0cb579.mp4",
+            "reference": "m_mv3gn1su29l3.mp4",
             "frames": 132,
             "mismatches": 0
           }
@@ -70,13 +147,13 @@
         "clips": [
           {
             "fps": "30000/1001",
-            "reference": "m_mv30kgrwehix.cfr.mp4",
+            "reference": "m_mv3gnzf90dwf.cfr.mp4",
             "frames": 167,
             "mismatches": 0
           },
           {
             "fps": "30000/1001",
-            "reference": "m_mv30kgrwehix.cfr.mp4",
+            "reference": "m_mv3gnzf90dwf.cfr.mp4",
             "frames": 171,
             "mismatches": 0
           }
@@ -87,7 +164,7 @@
       "section": "removePauses = one undo entry (done-when 10)",
       "pass": true,
       "detail": {
-        "sequenceId": "seq_mv30kr9e5mfu",
+        "sequenceId": "seq_mv3go8i35sgn",
         "historyEntriesAdded": 1,
         "removePausesChangedSequence": true,
         "v1ItemsBefore": 1,
@@ -101,9 +178,62 @@
       "detail": {
         "code": "SCHEMA_TOO_NEW",
         "hint": "Update Vox Studio to open it; nothing was changed",
-        "treeSha256Before": "c6b5f4964fca9527",
-        "treeSha256After": "c6b5f4964fca9527",
+        "treeSha256Before": "05c6f50c5b8a1d43",
+        "treeSha256After": "05c6f50c5b8a1d43",
         "unchanged": true
+      }
+    },
+    {
+      "section": "otio check: media + alpha layers (done-when 5, Resolve not tested)",
+      "pass": true,
+      "detail": {
+        "tracks": [
+          {
+            "name": "V1",
+            "kind": "Video",
+            "clips": 2
+          },
+          {
+            "name": "Transitions V1",
+            "kind": "Video",
+            "clips": 1
+          },
+          {
+            "name": "Scenes V2",
+            "kind": "Video",
+            "clips": 1
+          },
+          {
+            "name": "Captions",
+            "kind": "Video",
+            "clips": 1
+          },
+          {
+            "name": "A1",
+            "kind": "Audio",
+            "clips": 2
+          }
+        ],
+        "layers": [
+          {
+            "clip": "it_mv3g2y8p1n8t-tx",
+            "file": "001-it_mv3g2y8p1n8t-tx.mov",
+            "pixFmt": "yuva444p12le",
+            "alpha": true
+          },
+          {
+            "clip": "it_mv3g2ykj24ff",
+            "file": "002-it_mv3g2ykj24ff.mov",
+            "pixFmt": "yuva444p12le",
+            "alpha": true
+          },
+          {
+            "clip": "captions",
+            "file": "003-captions.mov",
+            "pixFmt": "yuva444p12le",
+            "alpha": true
+          }
+        ]
       }
     }
   ],

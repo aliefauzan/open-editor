@@ -1,0 +1,54 @@
+{
+  "file": "GATE2 YouTube-Main (3).otio",
+  "durationS": 12.0,
+  "tracks": [
+    {
+      "name": "V1",
+      "kind": "Video",
+      "clips": 2
+    },
+    {
+      "name": "Transitions V1",
+      "kind": "Video",
+      "clips": 1
+    },
+    {
+      "name": "Scenes V2",
+      "kind": "Video",
+      "clips": 1
+    },
+    {
+      "name": "Captions",
+      "kind": "Video",
+      "clips": 1
+    },
+    {
+      "name": "A1",
+      "kind": "Audio",
+      "clips": 2
+    }
+  ],
+  "layers": [
+    {
+      "clip": "it_mv3g2y8p1n8t-tx",
+      "file": "001-it_mv3g2y8p1n8t-tx.mov",
+      "pixFmt": "yuva444p12le",
+      "alpha": true
+    },
+    {
+      "clip": "it_mv3g2ykj24ff",
+      "file": "002-it_mv3g2ykj24ff.mov",
+      "pixFmt": "yuva444p12le",
+      "alpha": true
+    },
+    {
+      "clip": "captions",
+      "file": "003-captions.mov",
+      "pixFmt": "yuva444p12le",
+      "alpha": true
+    }
+  ],
+  "problems": [],
+  "pass": true,
+  "note": "Automated stand-in; Resolve itself not tested (owner has no Resolve)."
+}

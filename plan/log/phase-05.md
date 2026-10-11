@@ -1,8 +1,8 @@
 # Phase 05 — Engine: assets, render, export, CLI + GATE 2
 
-Status: [~] waiting: GATE 2 (2026-10-11, single agent, worktree `.worktrees/phase-05`, branch
-`phase/05-engine-assets-render-export`, pushed, not merged; owner asked to cut token cost: no subagents,
-self-review)
+Status: [x] done 2026-10-11 15:30 — GATE 2 passed (D-39). Branch `phase/05-engine-assets-render-export`,
+merged to main. Phase run by a single agent (owner asked to cut token cost: no subagents, self-review);
+GATE 2 run, fix and merge by the orchestrator directly.
 
 ## Plan (full phase run)
 
@@ -39,9 +39,9 @@ Early packages (D-19) did 8c core (E3, D-25), 8d0 and the Python part of 8d (P2,
 - [x] 11 A/V sync after the mux on the 90 s spike fixture: max |offset| 0.69 ms, 21 pairs, frame 33.3 ms.
 - [x] 12, 12b `quickClips` job + heuristic (speech, energy, hook, coverage), scorers, one undo entry.
 - [x] 13 Caption edit round trip (SRT + DOM check), `captions: false`, `vox quick --render` 3 MP4 + 3 SRT.
-- [~] 14 `scripts/gate2.sh` written; local sections pass (below). URL sections wait for the owner's URLs.
-- [ ] 15 MANUAL STEP (Resolve), in TODO.
-- [ ] 16 GATE 2: stopped, questions in TODO.
+- [x] 14 `scripts/gate2.sh` with the owner's URLs: 12/12 sections pass ("GATE 2 run" below).
+- [x] 15 Owner has no Resolve: automated `scripts/otio-check.py` instead (owner's choice, D-39).
+- [x] 16 GATE 2 answered and recorded (TODO GATE 2 row, D-39).
 
 ## Files created / changed
 
@@ -80,14 +80,14 @@ Fixtures from `make.sh` first (2026-10-11 07:20):
 - [x] 1 Spike result and pin in the engine spec (01, D-29).
 - [x] 2 `vox doctor` passes on the M5 (04; warnings only).
 - [x] 3 `pnpm test` passes (above).
-- [ ] 4 Real YouTube URL → 9:16 MP4 (face-tracked speaker, `base/title`, crossfade, captions + SRT):
-      `gate2.sh --youtube` ready; waits for the URL.
-- [ ] 5 `.otio` in Resolve: MANUAL STEP 15 (fallback chain ready, below).
+- [x] 4 Real YouTube URL → 9:16 MP4 (face-tracked speaker, `base/title`, crossfade, captions + SRT):
+      1080×1920, AAC (`14-youtube-*`).
+- [~] 5 `.otio`: automated check passes (`15-otio-check.json`: media present, 3 layer MOVs `yuva444p12le`);
+      Resolve itself not tested (owner has no Resolve; owner accepted the stand-in, D-39).
 - [x] 6 Recovery test (02) passes in `pnpm test`.
-- [~] 7 `vox quick` → 3 captioned clips + edited caption word: passes on the fixture
-      (`quick.local.test.ts`, `caption-roundtrip.slow.test.ts`); the URL run waits for the URL.
-- [~] 8 Local file ingest + `--out-dir` outside the project pass (`14-quick-local.json`); Instagram,
-      TikTok and the `LOGIN_REQUIRED` check wait for the URLs.
+- [x] 7 `vox quick` on the YouTube URL → 3 MP4 + SRT, caption edit round trip (`14-quick-url*`).
+- [x] 8 Local file ingest + `--out-dir` (`14-quick-local.json`); Instagram reel and TikTok ingest keep
+      1080×1920 (`14-ingest-*-probe.json`). Login-walled post not given: `LOGIN_REQUIRED` unit-tested only.
 - [x] 9 `vox audio-qa` writes `qa.json`, `qa.png`, `LISTEN.md` (`14-audio-qa-*`); every check fails on
       its bad fixture (`audio-qa.test.ts`, pytest).
 - [x] 10 29.97 fps: 3 clips at 30000/1001, 0 mismatched frames; VFR: 2 clips against the CFR copy,
@@ -97,7 +97,7 @@ Fixtures from `make.sh` first (2026-10-11 07:20):
 - [x] A/V sync < 1 frame on the 90 s fixture (0.69 ms).
 - [x] Facetrack path builder plugged into the compile path provider (9b).
 - [x] S7, S29, S32 tests pass; self-review: no CRITICAL/HIGH.
-- [ ] GATE 2 answered and recorded.
+- [x] GATE 2 answered and recorded (D-39).
 
 ## Review findings
 
@@ -136,7 +136,29 @@ personal paths (`gate2.sh` writes `~`).
   owner tries the `.fcpxml`; (3) if both fail, the agent writes README steps to place the layer MOVs from
   `<name>-layers/` by hand. Any of the three passes done-when 5.
 
+## GATE 2 run (2026-10-11, orchestrator)
+
+- `VOX_TOOLS_DIR=<scratch>/vox-tools bash scripts/gate2.sh --youtube … --instagram … --tiktok … --evidence
+  docs/evidence/phase-05` → exit 0, 12/12 sections pass (with the OTIO section). Tracking query
+  parameters were stripped from the owner's links.
+- First runs failed twice, both real:
+  1. yt-dlp 2026.07.04 on PATH → `HTTP Error 403: Forbidden` on YouTube video data. Latest yt-dlp
+     (2026.08.19 via `uvx --from 'yt-dlp[default,curl-cffi]'`) in `VOX_TOOLS_DIR/bin` fixed it.
+     `gate2.sh` now records the yt-dlp it actually used.
+  2. `vox quick --render` on the URL: hyperframes `--strict-all` aborted on `composition_file_too_large`
+     (461 lines; limit 300): one tween line per facetrack keyframe. Fixed in compile (`voxPath`, one line
+     per clip; test first: 630 → ≤ 300 lines); snapshots changed only by the helper.
+- Verify after `git merge main` (conflicts in `packages/cli/src/main.ts` (05 + 06 commands, kept both) and
+  `tsconfig.json` includes): `pnpm typecheck` clean, `pnpm lint` clean, `pnpm test` 150 files, 2088 passed,
+  1 skipped; pytest 120 passed; compile + slow compile tests 35 passed; desktop security + engine-host slow
+  18 passed (08 handoff).
+- Review: self-review (owner asked to cut token cost); no CRITICAL/HIGH.
+
 ## Handoff notes
+
+- CLI users: keep yt-dlp current (`yt-dlp -U` or `VOX_TOOLS_DIR`); a stale one gets 403 from YouTube.
+- Compile: framed clips use `voxPath('<id>', [[position, x, y, scale, duration], …])` (duration 0 = set);
+  10a's preview patch path must keep that line per clip.
 
 - Job kinds on `engine.jobs` (14, `media-jobs.test.ts`): `assets.cutout`, `assets.fetch`,
   `assets.generate`, `assets.search`, `audioQa`, `exportCaptions`, `exportTimeline`, `facetrack`,

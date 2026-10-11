@@ -13,7 +13,7 @@ spike/out/
 **/cache/
 .venv/
 *.dmg
-docs/evidence/**/reference/*.mp4
+docs/evidence/**/reference/
 docs/reference/
 native/**/.build/
 *.tsbuildinfo

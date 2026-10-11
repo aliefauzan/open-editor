@@ -27,14 +27,15 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
       step 0). The AI never downloads it.
 - [ ] **Reference layout screenshot** of the invideo editor at `docs/reference/invideo-layout.png`
       (gitignored; used by the UI review in PROMPT step 7 from phase 08 on).
-- [ ] **One public YouTube URL** you are allowed to use, for GATE 2 (phase 05) and the agent runs
+- [x] **One public YouTube URL** — given 2026-10-11: <https://youtu.be/BveD4v3YwEQ>. you are allowed to use, for GATE 2 (phase 05) and the agent runs
       (phases 12, 13). If none is here when phase 05 starts, the AI proposes public candidates here (your
       own posts first, else videos with a reuse licence) and you confirm one (D-16).
-- [ ] **One public Instagram reel URL and one public TikTok URL** you are allowed to use, for GATE 2
+- [x] **One public Instagram reel URL and one public TikTok URL** — given 2026-10-11:
+      <https://www.instagram.com/reel/Ddb4orITV_K/>, <https://www.tiktok.com/@ngurahmayun_code/video/7695082402745486593>. you are allowed to use, for GATE 2
       (phase 05) and the quick-clips check at GATE 5 (phase 10b) (D-13). If the Instagram one needs a
       login, say which browser you are logged in with; the cookies opt-in is then tested once. The AI
       proposes candidates the same way if none are given (D-16).
-- [ ] **Commons contact** (an email or URL sent in the Wikimedia User-Agent), for phase 05. Use a
+- [x] **Commons contact** — given 2026-10-11; stored only in the local `~/.vox/config.json`. (an email or URL sent in the Wikimedia User-Agent), for phase 05. Use a
       project address, not a personal one, since it goes to a third party. Without it Commons requests
       are throttled to 10/min, so phase 05 does not wait for it (D-12).
 - [ ] **Your ears** at GATE 3 (phase 07): listen to the five `LISTEN.md` timecodes of the side-by-side
@@ -54,7 +55,7 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 
 ## Machines
 
-- [ ] **DaVinci Resolve 18.5+** (free) installed, for the OTIO check (phase 05, GATE 2).
+- [x] ~~**DaVinci Resolve 18.5+**~~ — not installed; owner chose the automated OTIO check instead (D-39).
 - Not required (D-16): a second macOS user account or a friend's Mac. Install checks run on your own
   account (automated clean-install test in 09, your E2E run with a fresh `VOX_HOME` at GATE 5, your
   install of the `v1.0.0` `.dmg` from the GitHub Release at v1.0). A friend's install is optional.
@@ -64,7 +65,7 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 | Gate | Question | Evidence file | Your answer |
 |---|---|---|---|
 | GATE 1 | Decided by the numbers (D-29): all 9 items pass → whole-sequence render, opaque-sandbox preview, NTSC go, no pre-render cache (fps margin 20.8 %). No answer needed; you may overrule. | `docs/SPIKE_RESULTS.md` | |
-| GATE 2 | Engine done-when (D-16). Local parts pass (done-when 9, 10; quick/ingest on a local file). Please answer: (1) the public YouTube, Instagram reel and TikTok URLs you allow (step 14 below); (2) Resolve: does the `.otio` open with clips and layer MOVs (with alpha) in place? attach the screenshot (step 15); (3) the Commons contact (project email or URL), or "none" to keep the 10/min throttle; (4) a login-walled Instagram post URL and the browser you are logged in with, for the cookies opt-in, or "skip". Then the AI runs `scripts/gate2.sh` with the URLs and records the result. | `plan/log/phase-05.md` "Done when"; `docs/evidence/phase-05/14-gate2-summary.json` | |
+| GATE 2 | Engine done-when (D-16). Local parts pass (done-when 9, 10; quick/ingest on a local file). Please answer: (1) the public YouTube, Instagram reel and TikTok URLs you allow (step 14 below); (2) Resolve: does the `.otio` open with clips and layer MOVs (with alpha) in place? attach the screenshot (step 15); (3) the Commons contact (project email or URL), or "none" to keep the 10/min throttle; (4) a login-walled Instagram post URL and the browser you are logged in with, for the cookies opt-in, or "skip". Then the AI runs `scripts/gate2.sh` with the URLs and records the result. | `plan/log/phase-05.md` "Done when"; `docs/evidence/phase-05/14-gate2-summary.json` || 2026-10-11: (1) URLs given (Inputs); (2) no Resolve — use the automated OTIO check (`15-otio-check.json`; Resolve not tested); (3) contact given (local config only); (4) not given. `gate2.sh` 12/12 pass → GATE 2 passed (D-39). |
 | GATE 3 | | | |
 | GATE 4 | Decided by the numbers (D-35): 119.7 fps drag / 119.7 trim / 119.4 linked in Electron 44.7.0 (bar 50), linked + marquee checks 3/3 → keep `@xzdarcy/react-timeline-editor`. No answer needed; you may overrule. | `docs/evidence/phase-08/A3-timeline-bench-electron.json` | |
 | GATE 5 | | | |
@@ -76,8 +77,8 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 ## Manual steps (filled by the AI)
 
 <!-- format: - [ ] phase NN · step · what to do · where the AI left the instructions -->
-- [ ] phase 04 · step 15 (optional; needed at GATE 2) · run `vox ingest <project> <url>` once each for one real YouTube URL, the Instagram reel URL and the TikTok URL from "Inputs" above; note any `LOGIN_REQUIRED` or impersonation error · `plan/log/phase-04.md` "MANUAL STEPS", `vox doctor` for tool status
-- [ ] phase 05 · step 14 · put the URLs in "Inputs" above: one public YouTube video with a person speaking (your own post first; else one whose YouTube page says "Creative Commons Attribution license (reuse allowed)", e.g. a CC Global Summit 2019 keynote listed at <https://creativecommons.org/2019/08/27/now-you-can-watch-the-keynotes-from-ccs-2019-global-summit/>; the AI has not checked a specific video's licence line), one public Instagram reel and one public TikTok video (your own posts are the safe choice; no reuse-licence candidates exist there), optionally a login-walled Instagram post + your logged-in browser. The AI then runs `bash scripts/gate2.sh --youtube <url> --instagram <url> --tiktok <url> [--walled <url>]` · `plan/log/phase-05.md` "MANUAL STEPS"
-- [ ] phase 05 · step 15 · after the step-14 URL run, open `docs/evidence/phase-05/reference/GATE2 YouTube-Main.otio` (with its `-layers/` folder) in DaVinci Resolve 18.5+ (File → Import → Timeline); check the clips and the layer MOVs (title, transition, captions, with alpha) sit in place; save a screenshot as `docs/evidence/phase-05/15-resolve.jpg` (≤ 500 kB) and say "ok" or what is wrong. If Resolve rejects the file, say so: the AI then adds the FCPXML fallback (D-10) · `plan/log/phase-05.md` "MANUAL STEPS"
-- [ ] phase 05 · GATE 2 · Commons contact: a project email or URL for the Wikimedia User-Agent (`contact` in `~/.vox/config.json`), or "none" · TODO "Inputs" above
+- [x] phase 04 · step 15 (optional; needed at GATE 2) (done by gate2.sh 2026-10-11, D-39) · run `vox ingest <project> <url>` once each for one real YouTube URL, the Instagram reel URL and the TikTok URL from "Inputs" above; note any `LOGIN_REQUIRED` or impersonation error · `plan/log/phase-04.md` "MANUAL STEPS", `vox doctor` for tool status
+- [x] phase 05 · step 14 · (URLs given 2026-10-11; gate2.sh 12/12 pass) put the URLs in "Inputs" above: one public YouTube video with a person speaking (your own post first; else one whose YouTube page says "Creative Commons Attribution license (reuse allowed)", e.g. a CC Global Summit 2019 keynote listed at <https://creativecommons.org/2019/08/27/now-you-can-watch-the-keynotes-from-ccs-2019-global-summit/>; the AI has not checked a specific video's licence line), one public Instagram reel and one public TikTok video (your own posts are the safe choice; no reuse-licence candidates exist there), optionally a login-walled Instagram post + your logged-in browser. The AI then runs `bash scripts/gate2.sh --youtube <url> --instagram <url> --tiktok <url> [--walled <url>]` · `plan/log/phase-05.md` "MANUAL STEPS"
+- [x] phase 05 · step 15 · (no Resolve: replaced by `scripts/otio-check.py`, owner's choice, D-39) after the step-14 URL run, open `docs/evidence/phase-05/reference/GATE2 YouTube-Main.otio` (with its `-layers/` folder) in DaVinci Resolve 18.5+ (File → Import → Timeline); check the clips and the layer MOVs (title, transition, captions, with alpha) sit in place; save a screenshot as `docs/evidence/phase-05/15-resolve.jpg` (≤ 500 kB) and say "ok" or what is wrong. If Resolve rejects the file, say so: the AI then adds the FCPXML fallback (D-10) · `plan/log/phase-05.md` "MANUAL STEPS"
+- [x] phase 05 · GATE 2 · Commons contact (given; local config only): a project email or URL for the Wikimedia User-Agent (`contact` in `~/.vox/config.json`), or "none" · TODO "Inputs" above
 - [ ] phase 08 · step 10 (optional; does not block anything) · open the skeleton app once the Gatekeeper way: copy `apps/desktop/dist/Vox Studio-0.0.0-arm64.dmg` (build it with `pnpm -C apps/desktop dist`) to Downloads, open it, drag Vox Studio to Applications, double-click it; if macOS refuses, use System Settings → Privacy & Security → "Open Anyway"; note any other dialog · `plan/log/phase-08.md` "Manual steps"

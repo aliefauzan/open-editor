@@ -1170,3 +1170,29 @@ http/https/ws is blocked, S10). Test: `test/main/protocol.test.ts` (font CORS ca
 rule that keeps a role from getting a model it cannot use. Measuring the provider's own serialisation
 follows each wire format without a tokenizer per provider. Evidence: `plan/log/phase-11.md`
 "Early steps (D-19) — g2-providers".
+
+## D-39 · 2026-10-11 · phase 05 · GATE 2 outcome; Resolve check replaced by an automated OTIO check
+
+- **GATE 2 passes** (`docs/evidence/phase-05/14-gate2-summary.json`, 12 of 12 sections). Owner URLs (TODO
+  "Inputs"): one YouTube video, one Instagram reel, one TikTok video. YouTube edit (done-when 4), `vox quick`
+  on the URL → 3 MP4 + SRT plus a caption edit (7), Instagram and TikTok ingest at 1080×1920 (8), and the
+  local sections (8, 9, 10) all pass.
+- **Done-when 5 (Resolve):** the owner has no DaVinci Resolve and chose an automated stand-in:
+  `scripts/otio-check.py` reads the `.otio` with OpenTimelineIO, checks every clip's media file exists and
+  every layer MOV carries alpha (`yuva444p12le`), and that video and audio tracks hold clips
+  (`15-otio-check.json`; wired into `gate2.sh`). Resolve's own import is **not tested**; the FCPXML fallback
+  (D-10) is not added. Whoever first opens an export in Resolve records the result here.
+- **Login-walled post** (optional item 4): not given; the `LOGIN_REQUIRED` mapping stays covered by unit
+  tests only.
+- **Commons contact:** given by the owner, stored only in the local `~/.vox/config.json` (never committed).
+- **Fix found by the URL run:** `vox quick` on a real video built a 461-line `index.html` (one GSAP tween
+  line per facetrack keyframe); hyperframes `--strict-all` aborts on `composition_file_too_large` (> 300
+  lines). Compile now writes one `voxPath('<itemId>', [[position, x, y, scale, duration], …])` line per framed
+  clip and a shared `voxPath` helper in the timeline script; tween values and timing are unchanged
+  (`compile.test.ts` "a long tracked path …").
+- **yt-dlp:** the yt-dlp on the owner's PATH (2026.07.04, older than 90 days) got HTTP 403 from YouTube.
+  The run used the latest yt-dlp (2026.08.19, `yt-dlp[default,curl-cffi]` via `uvx`) through
+  `VOX_TOOLS_DIR`. The app installs the latest yt-dlp at setup (phase 09); CLI users keep theirs updated
+  (`vox doctor` hint).
+- Engine library API, events, cue list, audio QA output, URL classes, shot/facetrack files, job results,
+  `BuildResult`, `ImageProvider`, quick-clips scorer and the engine CLI freeze now (R2).

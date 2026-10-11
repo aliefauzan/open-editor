@@ -1,12 +1,12 @@
 {
-  "projectId": "p_mv30kgrbaxw4",
+  "projectId": "p_mv3gnzep8uoi",
   "pass": true,
   "clips": [
     {
-      "sequenceId": "seq_mv30kr9e5mfu",
+      "sequenceId": "seq_mv3go8i35sgn",
       "fps": "30000/1001",
       "inMs": 6106,
-      "reference": "media/m_mv30kgrwehix.cfr.mp4",
+      "reference": "media/m_mv3gnzf90dwf.cfr.mp4",
       "firstSourceFrame": 183,
       "frames": 167,
       "checked": 167,
@@ -14,10 +14,10 @@
       "minMargin": 123
     },
     {
-      "sequenceId": "seq_mv30kr9f3s92",
+      "sequenceId": "seq_mv3go8i35sgo",
       "fps": "30000/1001",
       "inMs": 0,
-      "reference": "media/m_mv30kgrwehix.cfr.mp4",
+      "reference": "media/m_mv3gnzf90dwf.cfr.mp4",
       "firstSourceFrame": 0,
       "frames": 171,
       "checked": 171,

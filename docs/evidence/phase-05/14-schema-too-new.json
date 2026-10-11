@@ -1,7 +1,7 @@
 {
   "code": "SCHEMA_TOO_NEW",
   "hint": "Update Vox Studio to open it; nothing was changed",
-  "treeSha256Before": "c6b5f4964fca9527",
-  "treeSha256After": "c6b5f4964fca9527",
+  "treeSha256Before": "05c6f50c5b8a1d43",
+  "treeSha256After": "05c6f50c5b8a1d43",
   "unchanged": true
 }
