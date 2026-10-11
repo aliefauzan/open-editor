@@ -201,6 +201,14 @@ export async function agentCommand(
       throw new AgentUsageError('--length takes <from>-<to> in seconds, e.g. 30-60');
     length = [a, b];
   }
+  const screenplay = values['screenplay'];
+  if (screenplay !== undefined && typeof screenplay !== 'string')
+    throw new AgentUsageError('--screenplay takes a file path, a link or a media id');
+  const footage = (values['footage'] as string[] | undefined) ?? [];
+  if (workflow === 'screenplay' && !screenplay)
+    throw new AgentUsageError(
+      '--workflow screenplay needs --screenplay <file|mediaId> (the document)',
+    );
   if (workflow === 'stylize' && seqs.length === 0)
     throw new AgentUsageError('--workflow stylize needs --seq <id> (repeatable)');
 
@@ -255,6 +263,12 @@ export async function agentCommand(
       projectId,
       workflow,
       message: instruction,
+      // a screenplay named by path or link counts as a source the user named (the ingest rule)
+      ...(workflow === 'screenplay' &&
+        screenplay &&
+        !/^m_/.test(screenplay) && { attachments: [screenplay] }),
+      ...(workflow === 'screenplay' && screenplay && { screenplay }),
+      ...(workflow === 'screenplay' && footage.length > 0 && { mediaIds: footage }),
       mode: mode ?? 'tools',
       ...(workflow === 'clipper' && {
         count: count ?? countIn(instruction) ?? CLIPPER_DEFAULTS.count,
@@ -280,6 +294,7 @@ export async function agentCommand(
     sequenceIds: r.sequenceIds,
     checkpoints: r.checkpoints,
     clips: r.clips,
+    ...(r.screenplay && { screenplay: r.screenplay }),
     ...(r.done.error && { error: r.done.error }),
   };
   io.stdout(

@@ -53,6 +53,13 @@ export {
   clipSummary,
   speakerShare,
 } from './workflows/stylize.ts';
+export {
+  type ScreenplayReport,
+  type SceneReport,
+  cleanText as cleanScreenplayText,
+} from './workflows/screenplay.ts';
+export { parseScreenplay, estimateMs, type Scene } from './screenplay/parse.ts';
+export { type Embedder, type Footage } from './screenplay/match.ts';
 export { sourceIn } from './workflows/clipper.ts';
 export { classifyIntent, type Intent } from './workflows/intent.ts';
 export { createLlmScorer, llmScorerSlot, LLM_SCORER_ID, withLlmScorer } from './quickScorer.ts';

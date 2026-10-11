@@ -119,11 +119,17 @@ export class AgentHost {
       project.media.some((m) => m.id === id),
     );
     const source = sourceIn(a.message);
+    const mediaOf = (id: string) => project.media.find((m) => m.id === id);
+    // 14b: an attached screenplay document and the footage attached with it
+    const attachedDoc = attachments.find((id) => mediaOf(id)?.kind === 'document');
+    const attachedVideos = attachments.filter((id) => mediaOf(id)?.kind === 'video');
     const workflow: WorkflowName =
       (a.workflow as WorkflowName | undefined) ??
-      (source !== undefined || (attachments.length > 0 && /\bclips?\b/i.test(a.message))
-        ? 'clipper'
-        : 'edit');
+      (attachedDoc !== undefined && /\b(screenplay|script|scenes?)\b/i.test(a.message)
+        ? 'screenplay'
+        : source !== undefined || (attachments.length > 0 && /\bclips?\b/i.test(a.message))
+          ? 'clipper'
+          : 'edit');
     const built = await this.#models();
     if (!built.models.editor) {
       throw new VoxError(
@@ -155,6 +161,10 @@ export class AgentHost {
         tighten: 'ask' as const,
       }),
       ...(workflow === 'stylize' && { sequenceIds: seqIds }),
+      ...(workflow === 'screenplay' && {
+        ...(attachedDoc !== undefined && { screenplay: attachedDoc }),
+        ...(attachedVideos.length > 0 && { mediaIds: attachedVideos }),
+      }),
       ...(workflow === 'edit' &&
         seqIds[0] !== undefined && {
           selection: { sequenceId: seqIds[0], ...(itemIds.length > 0 && { itemIds }) },

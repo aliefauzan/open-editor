@@ -10,6 +10,8 @@ import { Checkpoints, type CheckpointMark } from './checkpoints.ts';
 import { clipperSteps } from './clipper.ts';
 import { classifyIntent, type Intent } from './intent.ts';
 import { loadWorkflow, type WorkflowName } from './load.ts';
+import { screenplaySteps, screenplaySummary, type ScreenplayReport } from './screenplay.ts';
+import type { Embedder } from '../screenplay/match.ts';
 import { stylizeSequences, type ClipReport, type Layout } from './stylize.ts';
 
 export interface Selection {
@@ -39,6 +41,10 @@ export interface WorkflowRequest {
   /** Default: the engine's default style (`vox` when installed). */
   styleId?: string;
   layout?: Layout;
+  /** Screenplay: a document media id, or a file the user named (ingested first); default: the project's first document. */
+  screenplay?: string;
+  /** Screenplay: the footage to match (default: every video in the project). */
+  mediaIds?: string[];
   /** Free-form: the UI selection. */
   selection?: Selection;
   confirmPlan?: boolean;
@@ -47,6 +53,8 @@ export interface WorkflowRequest {
 
 export interface WorkflowDeps extends Omit<RunDeps, 'models'> {
   models: Partial<RunModels>;
+  /** Screenplay match: the `embed` role as a function (texts → vectors); absent: LLM ranking over tags. */
+  embed?: Embedder;
 }
 
 export interface WorkflowResult {
@@ -56,6 +64,7 @@ export interface WorkflowResult {
   checkpoints: CheckpointMark[];
   clips: ClipReport[];
   intent?: Intent;
+  screenplay?: ScreenplayReport;
 }
 
 const ROLE_NOTES: Partial<Record<Role, string>> = {
@@ -94,7 +103,10 @@ export async function runWorkflow(
       { details: { role: 'editor', workflow: w.name } },
     );
   }
-  const models = deps.models as RunModels;
+  const models = { ...deps.models } as RunModels;
+  // frame description in the screenplay workflow: the editor looks itself when no `vision` role is set
+  if (w.name === 'screenplay' && !models.vision && models.editor.vision)
+    models.vision = models.editor;
   const styleId = req.styleId ?? deps.engine.styles.defaultId();
   const style = deps.engine.styles.get(styleId);
   const workflowPrompt =
@@ -123,6 +135,7 @@ export async function runWorkflow(
   let sequenceIds: string[] = [];
   let clips: ClipReport[] = [];
   let intent: Intent | undefined;
+  let screenplay: ScreenplayReport | undefined;
   const result = (done: WorkflowResult['done']): WorkflowResult => ({
     run,
     done,
@@ -130,6 +143,7 @@ export async function runWorkflow(
     checkpoints: cp.marks,
     clips,
     ...(intent && { intent }),
+    ...(screenplay && { screenplay }),
   });
   try {
     const layout = req.layout ?? 'full-collage';
@@ -167,6 +181,16 @@ export async function runWorkflow(
         layout,
         instruction: req.message || 'Add the style beats to these clips.',
       });
+    } else if (w.name === 'screenplay') {
+      screenplay = await screenplaySteps(run, cp, {
+        ...(req.screenplay !== undefined && { screenplay: req.screenplay }),
+        ...(req.mediaIds && { mediaIds: req.mediaIds }),
+        ...(deps.embed && { embed: deps.embed }),
+        styleId: style.id,
+      });
+      sequenceIds = [screenplay.sequenceId];
+      run.addSummary(screenplaySummary(run, screenplay));
+      for (const n of screenplay.notes) run.addSummary(n);
     } else {
       const sel = req.selection;
       if (sel) sequenceIds = [sel.sequenceId];
@@ -194,7 +218,12 @@ export async function runWorkflow(
     }
     const n = sequenceIds.length;
     return result(
-      run.finish('completed', `${w.name === 'clipper' ? 'Made' : 'Styled'} ${String(n)} clip(s).`),
+      run.finish(
+        'completed',
+        w.name === 'screenplay'
+          ? `Matched ${String(screenplay?.matched ?? 0)} of ${String(screenplay?.scenes ?? 0)} scene(s) to clips.`
+          : `${w.name === 'clipper' ? 'Made' : 'Styled'} ${String(n)} clip(s).`,
+      ),
     );
   } catch (err) {
     // a stop is RunStopped, or an abort the Stop caused; any other error is a failure
