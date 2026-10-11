@@ -114,6 +114,24 @@
       "type": "hero",
       "source": "https://commons.wikimedia.org/wiki/File:Dull_thud.ogg",
       "licence": "CC0"
+    },
+    "type-key": {
+      "path": "assets/sfx/type-key.wav",
+      "type": "appear",
+      "source": "https://freesound.org/people/yottasounds/sounds/380138/",
+      "licence": "CC0"
+    },
+    "timpani": {
+      "path": "assets/sfx/timpani.wav",
+      "type": "hero",
+      "source": "https://commons.wikimedia.org/wiki/File:Timpani_64-c-p5.wav",
+      "licence": "CC0"
+    },
+    "snip": {
+      "path": "assets/sfx/snip.wav",
+      "type": "appear",
+      "source": "https://freesound.org/people/mywhats/sounds/175522/",
+      "licence": "CC0"
     }
   }
 }

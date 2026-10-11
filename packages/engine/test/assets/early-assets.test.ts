@@ -165,13 +165,23 @@ describe('paper texture (CC0)', () => {
 });
 
 describe('SFX kit (real recordings, D-14; accepted in phase 07)', () => {
-  const names = ['paper-pop', 'paper-slide', 'whoosh', 'stamp', 'thump-tap'];
+  // GATE 3 round 2 added the accent sounds snip, type-key and timpani
+  const names = [
+    'paper-pop',
+    'paper-slide',
+    'whoosh',
+    'stamp',
+    'thump-tap',
+    'snip',
+    'type-key',
+    'timpani',
+  ];
   // phase 07 re-processing: sample peak -1.2 dBFS; the hero thump 11 dB lower (audio QA
   // sfxUnderSpeech)
   const peakDbfs: Record<string, number> = { 'thump-tap': -12.0 };
   const dir = 'styles/vox/assets/sfx';
 
-  test('the folder holds exactly the five kit files and CREDITS.md (typewriter removed)', () => {
+  test('the folder holds exactly the eight kit files and CREDITS.md (typewriter removed)', () => {
     expect(readdirSync(file(`${dir}/`)).sort()).toEqual(
       [...names.map((n) => `${n}.wav`), 'CREDITS.md'].sort(),
     );
@@ -218,7 +228,11 @@ describe('SFX kit (real recordings, D-14; accepted in phase 07)', () => {
       const credits = text(`${dir}/CREDITS.md`);
       expect(credits).toContain(`\`${name}.wav\``);
       const row = credits.split('\n').find((l) => l.startsWith(`| \`${name}.wav\``))!;
-      expect(row).toMatch(/commons\.wikimedia\.org\/wiki\/File:/);
+      expect(row).toMatch(/commons\.wikimedia\.org\/wiki\/File:|freesound\.org\/people\//);
+      // Freesound files come from the public lossy preview until the owner fetches the original
+      if (row.includes('freesound.org/people/')) {
+        expect(row).toContain('preview-only, original needs Freesound login');
+      }
       expect(row).toMatch(/\| (CC0|Public domain \(`CC0` in style\.json\))\s+\|/);
     },
   );
@@ -227,7 +241,7 @@ describe('SFX kit (real recordings, D-14; accepted in phase 07)', () => {
     const credits = text(`${dir}/CREDITS.md`);
     expect(credits).toMatch(/accepted in phase 07/);
     const rows = credits.split('\n').filter((l) => /^\| `[a-z-]+\.wav`/.test(l));
-    expect(rows).toHaveLength(6);
+    expect(rows).toHaveLength(9);
     for (const r of rows) expect(r).not.toMatch(/CC BY|CC-BY|NonCommercial/i);
   });
 });

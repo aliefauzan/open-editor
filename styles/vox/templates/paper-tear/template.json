@@ -4,12 +4,27 @@
   "kind": "transition",
   "description": "A sheet of torn paper wipes across the cut and covers the frame at the cut itself, so it works on any two shots (no source handles). Use between the speaker and a collage beat.",
   "useWhen": ["from the speaker to a scene or back", "a change of topic"],
-  "durationMs": { "min": 400, "default": 700, "max": 1200 },
+  "durationMs": {
+    "min": 400,
+    "default": 700,
+    "max": 1200
+  },
   "variables": {
     "type": "object",
-    "properties": { "direction": { "enum": ["right", "left"] } },
+    "properties": {
+      "direction": {
+        "enum": ["right", "left"]
+      }
+    },
     "additionalProperties": false
   },
   "slots": {},
-  "sfxCues": [{ "name": "tear", "atMs": 0, "sfx": "paper-slide", "type": "move" }]
+  "sfxCues": [
+    {
+      "name": "tear",
+      "atMs": 0,
+      "sfx": "paper-slide",
+      "type": "move"
+    }
+  ]
 }

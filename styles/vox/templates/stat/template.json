@@ -8,20 +8,49 @@
     "a single striking fact",
     "a comparison that fits in one line"
   ],
-  "durationMs": { "min": 1200, "default": 2500, "max": 5000 },
+  "durationMs": {
+    "min": 1200,
+    "default": 2500,
+    "max": 5000
+  },
   "variables": {
     "type": "object",
     "properties": {
-      "value": { "type": "string", "minLength": 1, "maxLength": 24 },
-      "line2": { "type": "string", "maxLength": 48 },
-      "bgPhoto": { "type": "string", "minLength": 1, "maxLength": 64 },
-      "tag": { "type": "string", "maxLength": 32 },
-      "bg": { "enum": ["paper", "dark", "highlight"] }
+      "value": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 24
+      },
+      "line2": {
+        "type": "string",
+        "maxLength": 48
+      },
+      "bgPhoto": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "tag": {
+        "type": "string",
+        "maxLength": 32
+      },
+      "bg": {
+        "enum": ["paper", "dark", "highlight"]
+      }
     },
     "required": ["value"],
     "additionalProperties": false
   },
-  "slots": { "bgPhoto": "image" },
-  "sfxCues": [{ "name": "reveal", "atMs": "entrance", "sfx": "thump-tap", "type": "hero" }],
+  "slots": {
+    "bgPhoto": "image"
+  },
+  "sfxCues": [
+    {
+      "name": "reveal",
+      "atMs": "entrance",
+      "sfx": "timpani",
+      "type": "hero"
+    }
+  ],
   "minEntranceMs": 1500
 }
