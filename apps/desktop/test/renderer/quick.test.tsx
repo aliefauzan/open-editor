@@ -150,8 +150,9 @@ describe('next-steps bar (A1)', () => {
     const before = (await t.engine.history(t.project.id)).length;
     fireEvent.click(screen.getByRole('button', { name: 'Add style' }));
     const btn = await screen.findByRole('menuitem', { name: 'Captions only: Base' });
+    // no editor model: "Add style beats" (labelled per style since phase 13) is disabled
     expect(
-      (screen.getAllByRole('menuitem', { name: 'Add style beats' })[0] as HTMLButtonElement)
+      (screen.getByRole('menuitem', { name: 'Add style beats: Base' }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
     fireEvent.click(btn);
