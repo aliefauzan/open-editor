@@ -15,7 +15,8 @@ import {
 } from 'electron';
 import { projectDirFor } from '@vox/engine/paths';
 import { type EventName, type Method } from '../shared/api.ts';
-import { handleCall, isAllowedExternal, type FrameLike } from './guard.ts';
+import { handleCall, importPathsError, isAllowedExternal, type FrameLike } from './guard.ts';
+import { ACCELERATORS, type MenuCommand } from '../shared/commands.ts';
 import { EngineHost } from './host.ts';
 import { installCli } from './install-cli.ts';
 import {
@@ -95,6 +96,22 @@ function openExternal(url: string): void {
   else void shell.openExternal(url);
 }
 
+/** Files from the native dialog; `{ paths }` only in test builds (VOX_E2E=1). */
+async function importFiles(args: unknown[]): Promise<unknown> {
+  const bad = importPathsError(args, TEST);
+  if (bad) throw bad;
+  if ((args[1] as { paths?: string[] } | undefined)?.paths)
+    return host.call('media.importFiles', args);
+  const win = BrowserWindow.getFocusedWindow();
+  const opts: Electron.OpenDialogOptions = {
+    title: 'Import media',
+    properties: ['openFile', 'openDirectory', 'multiSelections'],
+  };
+  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (r.canceled || r.filePaths.length === 0) return null;
+  return host.call('media.importFiles', [args[0], { paths: r.filePaths }]);
+}
+
 /** Main-only methods (dialogs, Finder); everything else goes to the engine host. */
 async function forward(method: Method, args: unknown[]): Promise<unknown> {
   if (method === 'projects.reveal') {
@@ -103,6 +120,7 @@ async function forward(method: Method, args: unknown[]): Promise<unknown> {
     shell.showItemInFolder(projectDirFor(roots.projectsDir, args[0] as string));
     return null;
   }
+  if (method === 'media.importFiles') return importFiles(args);
   return host.call(method, args);
 }
 
@@ -233,28 +251,98 @@ async function installVoxCommand(): Promise<void> {
   }
 }
 
+/** A menu item that sends an editor command to the focused window (app spec "Top bar": the native
+ * menu bar has the same commands and shortcuts). Only ⌘ shortcuts register with the menu; plain keys
+ * (space, J/K/L, B, arrows, …) stay with the renderer so typing in a field is never taken over. */
+function commandItem(label: string, command: MenuCommand): Electron.MenuItemConstructorOptions {
+  const acc = ACCELERATORS[command];
+  return {
+    label,
+    ...(acc ? { accelerator: acc, registerAccelerator: acc.includes('CmdOrCtrl') } : {}),
+    click: (_item, win) => {
+      const wc = (win as BrowserWindow | undefined)?.webContents;
+      if (wc && appWindows.has(wc)) wc.send('vox:event', 'menu.command', { command });
+    },
+  };
+}
+
 function setMenu(): void {
+  const sep = { type: 'separator' } as const;
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
         label: app.name,
         submenu: [
           { role: 'about' },
-          { type: 'separator' },
+          sep,
+          commandItem('Settings…', 'settings'),
+          sep,
           {
             label: 'Install vox Command…',
             enabled: app.isPackaged,
             click: () => void installVoxCommand(),
           },
-          { type: 'separator' },
+          sep,
           { role: 'hide' },
           { role: 'hideOthers' },
           { role: 'unhide' },
-          { type: 'separator' },
+          sep,
           { role: 'quit' },
         ],
       },
-      { role: 'editMenu' },
+      {
+        label: 'File',
+        submenu: [
+          commandItem('New Sequence', 'newSequence'),
+          commandItem('Save Snapshot…', 'saveSnapshot'),
+          sep,
+          commandItem('Export…', 'export'),
+          commandItem('Render This Frame', 'renderFrame'),
+        ],
+      },
+      {
+        label: 'Edit',
+        submenu: [
+          commandItem('Undo', 'undo'),
+          commandItem('Redo', 'redo'),
+          sep,
+          // native roles: they work in text fields and fire copy/paste events in the editor
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          commandItem('Duplicate', 'duplicate'),
+          commandItem('Delete', 'delete'),
+          commandItem('Ripple Delete', 'rippleDelete'),
+          sep,
+          { role: 'selectAll' },
+        ],
+      },
+      {
+        label: 'Timeline',
+        submenu: [
+          commandItem('Blade', 'blade'),
+          commandItem('Add Text', 'addText'),
+          sep,
+          commandItem('Zoom In', 'zoomIn'),
+          commandItem('Zoom Out', 'zoomOut'),
+        ],
+      },
+      {
+        label: 'Playback',
+        submenu: [
+          commandItem('Play / Pause', 'playPause'),
+          commandItem('Play Backward', 'shuttleBack'),
+          commandItem('Pause', 'pause'),
+          commandItem('Play Forward', 'shuttleForward'),
+          sep,
+          commandItem('Previous Frame', 'frameBack'),
+          commandItem('Next Frame', 'frameForward'),
+          commandItem('Mark In', 'markIn'),
+          commandItem('Mark Out', 'markOut'),
+          sep,
+          commandItem('Safe Area', 'toggleSafeArea'),
+        ],
+      },
       { role: 'windowMenu' },
     ]),
   );

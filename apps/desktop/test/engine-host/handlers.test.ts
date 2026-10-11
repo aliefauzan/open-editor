@@ -81,7 +81,17 @@ describe('engine host handlers (step 8)', () => {
     const { h } = setup();
     expect(h['agent.run']).toBeUndefined();
     expect(h['projects.reveal']).toBeUndefined();
-    expect(h['media.importFiles']).toBeUndefined();
+    expect(h['exports.chooseTarget']).toBeUndefined();
+  });
+
+  it('media.importFiles starts an ingest job with the paths main chose (phase 10a)', async () => {
+    const { h, engine } = setup();
+    const p = (await h['projects.create']!('Import')) as { id: string };
+    await expect(h['media.importFiles']!(p.id)).rejects.toThrow(/paths/);
+    const r = (await h['media.importFiles']!(p.id, { paths: ['/nonexistent/a.mp4'] })) as {
+      jobId: string;
+    };
+    expect(engine.jobs.get(r.jobId)).toMatchObject({ kind: 'ingest' });
   });
 
   it('forwards project.changed events through the redactor', async () => {

@@ -115,6 +115,8 @@ export const EVENTS = [
   'preview.updated',
   'setup.progress',
   'host.restarted',
+  // a native menu item was chosen: { command } (src/shared/commands.ts)
+  'menu.command',
 ] as const;
 export type EventName = (typeof EVENTS)[number];
 

@@ -18,6 +18,7 @@ import { AppSetup } from './app-setup.ts';
 import { createHandlers, forwardEvents } from './handlers.ts';
 import { serve, type PortLike } from './rpc.ts';
 import { packagedResourceDirs } from './packaged.ts';
+import { PreviewPipeline } from './preview.ts';
 import { chromeDelegate } from './setup/chrome.ts';
 
 export interface HostInit {
@@ -93,7 +94,10 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
     updateRepo: env['VOX_UPDATE_REPO'] ?? UPDATE_REPO,
     currentVersion: init.appVersion,
   });
-  const emit = serve(port, createHandlers(engine, setup), (v) => engine.redactor.redact(v));
+  const preview = new PreviewPipeline(engine, (n, p) => out.emit?.(n, engine.redactor.redact(p)));
+  const emit = serve(port, createHandlers(engine, setup, { preview }), (v) =>
+    engine.redactor.redact(v),
+  );
   out.emit = emit;
   forwardEvents(engine, emit);
   process.once('exit', () => setup.stop());

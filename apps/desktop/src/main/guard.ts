@@ -86,3 +86,16 @@ export function isAllowedExternal(url: string): boolean {
     u.protocol === 'https:' && u.username === '' && u.password === '' && EXTERNAL_HOSTS.has(u.host)
   );
 }
+
+/**
+ * `media.importFiles({ paths })` skips the native dialog; only test builds (`VOX_E2E=1`, unpackaged)
+ * accept it (app spec "Engine-host API"). Returns the error for a release build, else null.
+ */
+export function importPathsError(args: unknown[], testBuild: boolean): ErrorData | null {
+  const o = args[1] as { paths?: unknown } | undefined;
+  if (o?.paths === undefined || testBuild) return null;
+  return appError(
+    'ARGS_INVALID',
+    'media.importFiles takes no paths; files are chosen in the native dialog',
+  );
+}

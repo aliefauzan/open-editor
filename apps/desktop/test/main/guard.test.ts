@@ -1,6 +1,11 @@
 // S11 (sender + zod) and S10 (external link allowlist), pure parts.
 import { describe, expect, it, vi } from 'vitest';
-import { handleCall, isAllowedExternal, isAppSender } from '../../src/main/guard.ts';
+import {
+  handleCall,
+  importPathsError,
+  isAllowedExternal,
+  isAppSender,
+} from '../../src/main/guard.ts';
 
 const mainFrame = { url: 'vox-app://app/index.html', parent: null };
 
@@ -83,5 +88,15 @@ describe('external links (S10)', () => {
     'not a url',
   ])('refuses %s', (u) => {
     expect(isAllowedExternal(u)).toBe(false);
+  });
+});
+
+describe('media.importFiles paths (test builds only)', () => {
+  it('a release build rejects { paths }; a test build and the dialog form pass', () => {
+    expect(importPathsError(['p_a', { paths: ['/tmp/a.mp4'] }], false)).toMatchObject({
+      code: 'ARGS_INVALID',
+    });
+    expect(importPathsError(['p_a', { paths: ['/tmp/a.mp4'] }], true)).toBeNull();
+    expect(importPathsError(['p_a'], false)).toBeNull();
   });
 });
