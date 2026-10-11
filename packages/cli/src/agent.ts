@@ -53,6 +53,9 @@ function pauseText(p: PauseInfo): string {
 
 const yes = (a: string) => /^y(es)?$/i.test(a.trim());
 
+/** Answers to the tighten prompt before an answer without a valid number cuts nothing. */
+const PICK_TRIES = 3;
+
 /** Answers pauses on the terminal (agent spec "CLI"). */
 export function terminalPauses(
   io: AgentIo,
@@ -88,20 +91,33 @@ export function terminalPauses(
           ? { action: 'continue' }
           : { action: 'stop' };
       case 'pauses': {
-        const a = (await ask('Cut which? all, none, or numbers like 1,3 [all] '))
-          .trim()
-          .toLowerCase();
         const ranges = p.ranges ?? [];
-        if (a === '' || a === 'all') return { action: 'continue' };
-        if (a === 'none') return { action: 'continue', wordKeys: [] };
-        const picks = a
-          .split(/[\s,]+/)
-          .map(Number)
-          .filter((n) => Number.isInteger(n) && n >= 1 && n <= ranges.length);
-        return {
-          action: 'continue',
-          wordKeys: [...new Set(picks)].map((n) => ranges[n - 1]!.wordKey),
-        };
+        // an answer with no valid number asks again; after the last try nothing is cut
+        for (let tries = 1; ; tries++) {
+          const a = (await ask('Cut which? all, none, or numbers like 1,3 [all] '))
+            .trim()
+            .toLowerCase();
+          if (a === '' || a === 'all') return { action: 'continue' };
+          if (a === 'none') return { action: 'continue', wordKeys: [] };
+          const tokens = a.split(/[\s,]+/).filter((t) => t !== '');
+          const valid = (t: string) =>
+            /^\d+$/.test(t) && Number(t) >= 1 && Number(t) <= ranges.length;
+          const ignored = tokens.filter((t) => !valid(t));
+          if (ignored.length > 0)
+            io.stderr(
+              clean(`ignored: ${ignored.join(', ')} (pick from 1 to ${String(ranges.length)})\n`),
+            );
+          const picks = tokens.filter(valid).map(Number);
+          if (picks.length > 0)
+            return {
+              action: 'continue',
+              wordKeys: [...new Set(picks)].map((n) => ranges[n - 1]!.wordKey),
+            };
+          if (tries >= PICK_TRIES) {
+            io.stderr('no valid pick: nothing is cut\n');
+            return { action: 'continue', wordKeys: [] };
+          }
+        }
       }
       default: {
         if (p.reason === 'budget') {

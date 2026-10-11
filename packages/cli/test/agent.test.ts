@@ -4,7 +4,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openEngine, writeConfig, type Engine } from '@vox/engine';
+import { createRedactor, openEngine, writeConfig, type Engine } from '@vox/engine';
 import type { OpenRouterModelInfo } from '@vox/agent';
 import { describe, expect, test, vi } from 'vitest';
 import { makeOfflineProject } from '../../../scripts/make-offline-project.ts';
@@ -16,6 +16,7 @@ import {
   toolsStylist,
   type ScriptStep,
 } from '@vox/agent/test-kit';
+import { terminalPauses } from '../src/agent.ts';
 import { run, type Io } from '../src/main.ts';
 
 const CANARY_KEY = 'sk-or-v1-CANARY0000000000000000000000000000000000000000000000000000';
@@ -192,4 +193,53 @@ describe('vox agent (step 8, done-when 8)', () => {
     expect((await t.vox(['agent', t.off.projectId, 'x', '--mode', 'fast'])).code).toBe(2);
     expect((await t.vox(['agent', t.off.projectId, 'x', '--length', '9'])).code).toBe(2);
   }, 60_000);
+});
+
+describe('the tighten prompt: picks', () => {
+  const ranges = [1, 2].map((i) => ({
+    wordKey: `w${String(i)}`,
+    kind: 'pause' as const,
+    seqStartMs: i * 1000,
+    seqEndMs: i * 1000 + 500,
+    text: '(pause 500 ms)',
+  }));
+  const pause = {
+    runId: 'run_x',
+    reason: 'approval' as const,
+    kind: 'pauses' as const,
+    detail: '2 pauses',
+    ranges,
+  };
+  function asker(answers: string[]) {
+    const io = {
+      stdout: () => undefined,
+      stderr: (s: string) => void (io.err += s),
+      err: '',
+      env: {},
+      isTTY: true,
+      prompt: vi.fn((_q: string) => Promise.resolve(answers.shift() ?? '')),
+    };
+    const ask = terminalPauses(io, {
+      json: false,
+      yesSources: false,
+      instruction: '',
+      redactor: createRedactor(),
+    });
+    return { io, ask };
+  }
+
+  test('no valid number asks again; ignored tokens are reported', async () => {
+    const { io, ask } = asker(['x, 9', '2 z']);
+    expect(await ask(pause)).toEqual({ action: 'continue', wordKeys: ['w2'] });
+    expect(io.prompt).toHaveBeenCalledTimes(2);
+    expect(io.err).toContain('ignored: x, 9');
+    expect(io.err).toContain('ignored: z');
+  });
+
+  test('three answers without a valid number: nothing is cut, said so', async () => {
+    const { io, ask } = asker(['x', '0', 'nope']);
+    expect(await ask(pause)).toEqual({ action: 'continue', wordKeys: [] });
+    expect(io.prompt).toHaveBeenCalledTimes(3);
+    expect(io.err).toContain('no valid pick: nothing is cut');
+  });
 });
