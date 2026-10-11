@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import type { SetupProgressData } from '../shared/api.ts';
+import { SetupNotices, SetupScreen } from './Setup.tsx';
+import { useSetup } from './setup-store.ts';
 import { useShell } from './store.ts';
 
 type PlayerEl = HTMLElement & { play(): void; pause(): void; currentTime: number };
@@ -56,8 +59,17 @@ export function App() {
   useEffect(() => {
     // once on mount; store actions come from getState() so the effect has no dependencies
     void useShell.getState().loadProjects();
-    return window.vox.on('host.restarted', () => void useShell.getState().hostRestarted());
+    void useSetup.getState().refresh();
+    const offs = [
+      window.vox.on('host.restarted', () => void useShell.getState().hostRestarted()),
+      window.vox.on('setup.progress', (e) =>
+        useSetup.getState().onProgress(e as SetupProgressData),
+      ),
+    ];
+    return () => offs.forEach((off) => off());
   }, []);
+  const setupOpen = useSetup((x) => x.open);
+  if (setupOpen) return <SetupScreen />;
   return (
     <div className="flex h-full flex-col">
       {s.banner && (
@@ -77,9 +89,20 @@ export function App() {
           {s.error.message} {s.error.hint && <span className="opacity-70">({s.error.hint})</span>}
         </div>
       )}
+      <SetupNotices />
       <div className="flex min-h-0 flex-1">
         <aside className="w-72 shrink-0 overflow-y-auto border-r border-neutral-800 p-4">
-          <h1 className="mb-3 text-lg font-semibold">Projects</h1>
+          <div className="mb-3 flex items-center justify-between">
+            <h1 className="text-lg font-semibold">Projects</h1>
+            <button
+              type="button"
+              data-testid="open-setup"
+              className="text-xs text-neutral-400 underline"
+              onClick={() => useSetup.getState().show(true)}
+            >
+              Setup
+            </button>
+          </div>
           <form
             className="mb-4 flex gap-2"
             onSubmit={(e) => {

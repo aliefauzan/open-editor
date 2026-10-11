@@ -14,10 +14,10 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 06 | Style tooling (Part A rest) | 03 | [x] | 2026-10-11 07:31 | 2026-10-11 08:09 | `vox style validate/new/trust/accept/remove`, migrate, hook checks, safe area, `minEntranceMs`, caption preset and cue checks; base previews; style + caption preset formats frozen (D-34) | log/phase-06.md |
 | 07 | `vox` style v1 + GATE 3 | 05, 06 | [ ] | | | | log/phase-07.md |
 | 08 | App shell + security + GATE 4 | 01, 03 | [x] | 2026-10-11 08:17 | 2026-10-11 09:15 | Electron 44.7.0 shell: hardened schemes + IPC (S1, S10–S15, S28 pass), engine host in utilityProcess, fixture plays in opaque sandbox, skeleton ad-hoc dmg; GATE 4 pass (D-35, D-36, D-37) | log/phase-08.md |
-| 09 | App: first-run setup + `.dmg` | 05, 08 | [~] | 2026-10-11 15:07 | | | log/phase-09.md |
-| 10a | App: editor core A (store, preview, timeline, inspector) | 06, 09 | [ ] | | | | log/phase-10a.md |
+| 09 | App: first-run setup + `.dmg` | 05, 08 | [x] | 2026-10-11 15:07 | 2026-10-11 17:25 | Setup screen + background doctor → Ready, packaged Resources (engine data, HyperFrames, py, pinned uv, `vox` CLI), fuses (S27), S31 unchanged, clean-install test pass, `.dmg` 180.6 MB; optional manual steps 7 and 9b open (D-41) | log/phase-09.md |
+| 10a | App: editor core A (store, preview, timeline, inspector) | 06, 09 | [~] | 2026-10-11 17:29 | | | log/phase-10a.md |
 | 10b | App: editor core B (quick clips, subtitles, media bin, export, gallery) + GATE 5 | 10a | [ ] | | | | log/phase-10b.md |
-| 11 | Agent core | 05 | [ ] | | | | log/phase-11.md |
+| 11 | Agent core | 05 | [~] | 2026-10-11 17:03 | | | log/phase-11.md |
 | 12 | Agent workflows: clipper + free-form | 07, 11 | [ ] | | | | log/phase-12.md |
 | 13 | App: agent panel + settings + v1.0 | 10b, 12 | [ ] | | | | log/phase-13.md |
 | 14 | v1.1 (done when 14a–14g are all [x]) | 14a–14g | [ ] | | | | log/phase-14.md |

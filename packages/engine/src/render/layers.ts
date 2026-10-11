@@ -5,19 +5,19 @@
 // compositor here.
 import { execFile } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import type { BuildResult } from '../compile/compile.ts';
 import { writeBuildTo } from '../compile/write.ts';
 import { VoxError } from '../errors.ts';
+import { moduleRequire } from '../resources.ts';
 import type { Fps } from '../model/fps.ts';
 
 const run = promisify(execFile);
 
 /** The pinned HyperFrames CLI. */
 export function hyperframesBin(): string {
-  const req = createRequire(import.meta.url);
+  const req = moduleRequire();
   return join(dirname(req.resolve('hyperframes/package.json')), 'bin', 'hyperframes.mjs');
 }
 

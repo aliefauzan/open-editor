@@ -66,7 +66,9 @@ describe('syncPyEnv / ensurePyEnv', () => {
     });
     const calls = f.readCalls();
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.argv).toBe(`sync --frozen --no-editable --project ${f.pyDir}`);
+    expect(calls[0]!.argv).toBe(
+      `sync --frozen --no-editable --compile-bytecode --project ${f.pyDir}`,
+    );
     expect(calls[0]!.env).toBe(`${paths.pyEnv}|${paths.uvCache}|${paths.python}`);
     expect(readFileSync(paths.lockHash, 'utf8').trim()).toBe(sha256('lock v1\n'));
     expect(await checkPyEnv({ toolsDir: f.toolsDir, lockPath: f.lockPath })).toMatchObject({

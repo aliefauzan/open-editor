@@ -7,8 +7,8 @@
 
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { z } from 'zod';
+import { pyProjectDir } from './resources.ts';
 import { VoxError, type ErrorCode } from './errors.ts';
 import { redactor as sharedRedactor, type Redactor } from './redact.ts';
 
@@ -35,7 +35,7 @@ export interface PyBridgeOptions {
 
 /** The repo's `py/` folder (development). */
 export function repoPyProject(): string {
-  return fileURLToPath(new URL('../../../py', import.meta.url));
+  return pyProjectDir();
 }
 
 export function pyArgv(

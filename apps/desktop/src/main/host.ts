@@ -2,6 +2,7 @@
 // crashes (app spec "Error handling"); the renderer then shows a banner and reloads the project.
 import { MessageChannelMain, utilityProcess, type UtilityProcess } from 'electron';
 import { createClient, type Client, type PortLike } from '../engine-host/rpc.ts';
+import type { HostInit } from '../engine-host/index.ts';
 import { appError, type EventName, type Method } from '../shared/api.ts';
 
 export interface HostRoots {
@@ -11,7 +12,7 @@ export interface HostRoots {
 
 export interface HostOptions {
   entry: string;
-  init: { builtinStyles: string };
+  init: HostInit;
   onEvent: (name: EventName, payload: unknown) => void;
   onRestart: (info: { code: number; restarts: number }) => void;
   log: (line: string) => void;

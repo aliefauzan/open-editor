@@ -32,7 +32,14 @@ export interface Launched {
   consoleErrors: string[];
 }
 
-export async function launchApp(t: TempHome): Promise<Launched> {
+/**
+ * `setupScreen: true` leaves the first-run setup screen open (phase 09); by default the helper
+ * closes it so the editor tests start in the editor.
+ */
+export async function launchApp(
+  t: TempHome,
+  o: { setupScreen?: boolean; env?: Record<string, string> } = {},
+): Promise<Launched> {
   ensureBuilt();
   const app = await _electron.launch({
     args: [DESKTOP],
@@ -43,6 +50,8 @@ export async function launchApp(t: TempHome): Promise<Launched> {
       VOX_HOME: join(t.home, '.vox'),
       VOX_PROJECTS_DIR: t.projectsDir,
       VOX_TOOLS_DIR: join(t.home, 'tools'),
+      VOX_UPDATE_REPO: '', // no update check against GitHub from tests
+      ...o.env,
     },
   });
   const page = await app.firstWindow();
@@ -56,5 +65,9 @@ export async function launchApp(t: TempHome): Promise<Launched> {
     const t = (globalThis as unknown as { __voxTest: { roots(): unknown } }).__voxTest;
     for (let i = 0; i < 200 && !t.roots(); i++) await new Promise((r) => setTimeout(r, 50));
   });
+  if (o.setupScreen !== true) {
+    // the temp tools folder is empty, so the setup screen opens first
+    await page.getByTestId('setup-close').click({ timeout: 30_000 });
+  }
   return { app, page, consoleErrors };
 }

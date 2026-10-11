@@ -237,7 +237,7 @@ export type {
   FramingProvider,
 } from './compile/compile.ts';
 export { cueList, type Cue, type CueDropReason, type CueList } from './audio/cues.ts';
-export { renderLayerBuild, type LayerRenderOptions } from './render/layers.ts';
+export { hyperframesBin, renderLayerBuild, type LayerRenderOptions } from './render/layers.ts';
 export {
   DENOISE_FILTERS,
   LOUDNESS_TARGETS,
@@ -296,6 +296,8 @@ export type {
   JobStatus,
 } from './jobs.ts';
 export { TOOL_NAMES, resolveToolPaths, which, type ToolName } from './tools.ts';
+export { resourceDirs, setResourceDirs, type ResourceDirs } from './resources.ts';
+export { repoPyProject } from './py.ts';
 export {
   FACE_MODEL,
   FacetrackJobArgsSchema,
@@ -358,6 +360,7 @@ export {
   type SearchResult as AssetSearchResult,
 } from './stages/assets.ts';
 export type { CheckLevel, DoctorCheck, DoctorReport, ProjectDoctorReport } from './doctor.ts';
+export { SILERO_SHA256 } from './doctor.ts';
 export { LOGIN_REQUIRED_HINT } from './stages/ytdlp.ts';
 export { WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
 export type { TrackPath, TrackPathOptions, ShotFraming } from './stages/facetrack.ts';

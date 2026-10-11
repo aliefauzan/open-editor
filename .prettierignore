@@ -12,3 +12,6 @@ packages/engine/data/
 styles/**/vendor/
 styles/**/assets/geo/
 packages/engine/test/fixtures/assets-http/*.json
+apps/desktop/out-resources/
+apps/desktop/cache/
+apps/desktop/dist/

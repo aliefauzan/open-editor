@@ -4,6 +4,7 @@
 // role is set only after its model passes that role's probe (`roles set` exits 1 with the failed
 // capability).
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 type LanguageModelV4 = ReturnType<typeof createLanguageModel>;
 import {
@@ -64,22 +65,30 @@ export interface ConfigIo {
   /** Reads one line without echo (API keys). */
   promptSecret?: (question: string) => Promise<string>;
   agent?: Partial<AgentCliDeps>;
+  /** The app's Resources folder when the CLI runs bundled in Vox Studio. */
+  resources?: string;
 }
 
 export class ConfigUsageError extends Error {}
 
-/** The Apple helper: `VOX_APPLE_LLM`, else the dev build in `native/apple-llm` when it exists. */
-function appleHelper(env: ConfigIo['env']): AppleModelOptions | undefined {
-  const fromEnv = env['VOX_APPLE_LLM'];
+/**
+ * The Apple helper: `VOX_APPLE_LLM`; else `<Resources>/bin/vox-apple-llm` in the app; else the dev
+ * build in `native/apple-llm`. Absent when none exists.
+ */
+function appleHelper(io: ConfigIo): AppleModelOptions | undefined {
+  const fromEnv = io.env['VOX_APPLE_LLM'];
   if (fromEnv !== undefined && fromEnv !== '') return { command: fromEnv };
-  const dev = fileURLToPath(
-    new URL('../../../native/apple-llm/.build/release/vox-apple-llm', import.meta.url),
-  );
-  return existsSync(dev) ? { command: dev } : undefined;
+  const path =
+    io.resources !== undefined
+      ? join(io.resources, 'bin', 'vox-apple-llm')
+      : fileURLToPath(
+          new URL('../../../native/apple-llm/.build/release/vox-apple-llm', import.meta.url),
+        );
+  return existsSync(path) ? { command: path } : undefined;
 }
 
 function depsOf(io: ConfigIo): AgentCliDeps {
-  const apple = io.agent && 'apple' in io.agent ? io.agent.apple : appleHelper(io.env);
+  const apple = io.agent && 'apple' in io.agent ? io.agent.apple : appleHelper(io);
   const fetchFn = io.agent?.fetch;
   return {
     keychain: io.agent?.keychain ?? createSecurityKeychain(),

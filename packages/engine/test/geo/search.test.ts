@@ -106,6 +106,7 @@ describe('module hygiene', () => {
   test('search.ts stays pure: it imports nothing from errors.ts or api.ts (phase 03 wires it)', () => {
     const src = readFileSync(new URL('../../src/geo/search.ts', import.meta.url), 'utf8');
     const imports = [...src.matchAll(/^import .* from '([^']+)'/gm)].map((m) => m[1]);
-    expect(imports).toEqual(['node:fs']);
+    // resources.ts (packaged data folder, phase 09) imports only node builtins
+    expect(imports).toEqual(['node:fs', 'node:path', '../resources.ts']);
   });
 });

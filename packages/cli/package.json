@@ -4,6 +4,10 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "exports": {
+    ".": "./src/main.ts",
+    "./self-test": "./src/self-test.ts"
+  },
   "description": "Vox Studio command line (vox)",
   "bin": {
     "vox": "./bin/vox.js"

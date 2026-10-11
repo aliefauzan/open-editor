@@ -1,19 +1,22 @@
 // Which engine stages need which components. A missing component disables only the stages listed for it
 // (app spec "First-run setup": the editor opens before setup finishes, dependent stages disabled and labelled).
-// Stage ids follow the engine spec stage names; phase 09 reconciles this table with the engine registry.
+// Keys are the engine's job kinds (`jobs.start(kind)`, engine 05) plus two ingest sub-stages the UI
+// offers separately: `ingest.url` (links) and `ingest.document` (PDF/text, Python only).
 
 export const STAGE_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = {
-  'ingest.file': ['ffmpeg'],
+  ingest: ['ffmpeg'],
   'ingest.url': ['ffmpeg', 'yt-dlp', 'deno'],
   'ingest.document': ['python-env'],
   shots: ['ffmpeg'],
   transcribe: ['ffmpeg', 'python-env'],
   facetrack: ['ffmpeg', 'python-env'],
+  'assets.fetch': ['ffmpeg'],
   'assets.cutout': ['ffmpeg', 'python-env'],
-  audioQa: ['ffmpeg', 'python-env'],
   quickClips: ['ffmpeg', 'python-env'],
+  audioQa: ['ffmpeg', 'python-env'],
+  frames: ['ffmpeg', 'chrome'],
   render: ['ffmpeg', 'chrome'],
-  export: ['ffmpeg', 'chrome'],
+  exportTimeline: ['ffmpeg', 'chrome', 'python-env'],
 };
 
 export interface StateLike {

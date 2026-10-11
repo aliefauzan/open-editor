@@ -4,12 +4,12 @@
 // Commons contact. Project checks: caption overrides whose word no longer exists, and the lock.
 import { spawn } from 'node:child_process';
 import { readdir, readFile, stat, unlink } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { LOCK_FILE, type LockInfo } from './history/lock.ts';
 import { FACE_MODEL, sha256File } from './media-api.ts';
 import type { Project, Transcript } from './model/schema.ts';
+import { moduleRequire } from './resources.ts';
 import { WHISPER_DIR, WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
 
 export type CheckLevel = 'ok' | 'warn' | 'error';
@@ -194,6 +194,31 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
   // Python env: the vox_py tools import under `python -I` in the uv project.
   const uv = o.tools['uv'];
   const py = o.tools['py'];
+  // App-installed env (D-12): it must come from the uv.lock this build ships, else it is re-synced.
+  const env = o.tools['pyEnv'];
+  if (env && py) {
+    const want = await sha256File(join(py, 'uv.lock'));
+    const have = (await readFile(join(env, '.vox-lock-hash'), 'utf8').catch(() => '')).trim();
+    add(
+      want !== undefined && have === want
+        ? {
+            name: 'python-env-lock',
+            level: 'ok',
+            detail: "synced from this build's uv.lock",
+            path: env,
+          }
+        : {
+            name: 'python-env-lock',
+            level: 'error',
+            detail:
+              have === ''
+                ? 'the Python env has no lock hash (not synced by setup)'
+                : 'the Python env was synced from a different uv.lock',
+            path: env,
+            fix: 'open Vox Studio (setup re-syncs it on launch) or Setup → Repair "Python env"',
+          },
+    );
+  }
   if (uv && py && !o.quick) {
     const args = [
       'run',
@@ -233,7 +258,7 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
 
   // HyperFrames (pinned in package.json) and the Chrome it renders with.
   try {
-    const req = createRequire(import.meta.url);
+    const req = moduleRequire();
     const pkg = req.resolve('hyperframes/package.json');
     const v = (JSON.parse(await readFile(pkg, 'utf8')) as { version?: string }).version ?? '?';
     const shells = await readdir(join(home, '.cache', 'puppeteer', 'chrome-headless-shell')).catch(

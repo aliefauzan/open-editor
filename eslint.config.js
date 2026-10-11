@@ -65,6 +65,8 @@ export default tseslint.config(
       '**/out/**',
       '**/build/**',
       '**/dist/**',
+      'apps/desktop/out-resources/**',
+      'apps/desktop/cache/**',
       '.worktrees/**',
       'py/**',
       'docs/**',
