@@ -64,6 +64,8 @@ the user only adds a key:
 | `lmstudio` | OpenAI-compatible, `http://localhost:1234/v1` | none |
 | `ollama` | Ollama, `http://localhost:11434` | none |
 | `apple` | Apple on-device | none |
+| `openai` | OpenAI, `https://api.openai.com/v1` (responses API) | OpenAI API key |
+| `gemini` | Google Gemini, `https://generativelanguage.googleapis.com/v1beta` | Gemini API key |
 
 Gateways (OpenRouter, OpenCode Zen, 9router) are treated like any endpoint. Whether a
 subscription may be used through a gateway is set by that service's terms, not by Vox.
@@ -129,9 +131,11 @@ run summary says "visual self-review skipped: no vision model".
 
 - Settings are stored in `~/.vox/config.json` (file mode `0600`), shared by the app and
   the CLI:
-  `{ providers: [{ id, type, baseUrl?, apiKey?, options? }], roles: { editor: {providerId, model}, … },
+  `{ providers: [{ id, type, preset?, baseUrl?, apiKey?, options? }], roles: { editor: {providerId, model}, … },
      limits: { maxUsdPerRun, maxStepsPerRun }, contact?: string, projectsDir?: string }`
-  (`apiKey` is absent for keyless local providers).
+  (`apiKey` is absent for keyless local providers; `preset` is the preset the entry was created
+  from and drives Zen routing and local pricing; `options.numCtx` (Ollama) and
+  `options.contextTokens` (model id to context size, for providers with no context endpoint), D-1).
   `options` holds provider settings such as Ollama `numCtx` (default 32768, sent on every
   request). The file is read and written only through the engine's config module
   (`readConfig`/`writeConfig`, spec 1), which applies mode `0600` from the first write

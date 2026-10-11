@@ -27,11 +27,12 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | `@xzdarcy/react-timeline-editor` | 1.0.0 (exact, `apps/desktop`; candidate until GATE 4 is recorded) | MIT | 08 (early U1, D-19) | dropped if GATE 4 fails; bench `docs/evidence/phase-08/A1-timeline-bench.json` |
 | zod | 4.6.5 (exact, `packages/agent`, `packages/engine`) | MIT | 11 (early N1, D-22); 04 (early E4) | Apple helper protocol schemas; `z.int()` limits are safe integers; engine: detections and shot list schemas |
 | ajv | 8.20.0 (exact, `packages/engine`) | MIT | 04 (early E4) | `ajv/dist/2020.js`; test-only use: zod ↔ Python JSON Schema agreement (`py/tests/schemas/`) |
-| `ai` (Vercel AI SDK) | 7.0.x (exact TBD 11) | Apache-2.0 | 11 | |
-| `@openrouter/ai-sdk-provider` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
-| `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
-| `ollama-ai-provider-v2` | 4.x (exact TBD 11) | Apache-2.0 | 11 | |
-| `@ai-sdk/openai-compatible` | 3.x (exact TBD 11) | Apache-2.0 | 11 | |
+| `ai` (Vercel AI SDK) | 7.0.137 (exact, `packages/agent`) | Apache-2.0 | 11 (early G2) | `MockLanguageModelV4` from `ai/test`; pulls `@ai-sdk/gateway`, `@ai-sdk/provider-utils` 5.0.58, `@vercel/oidc`, `@workflow/serde` (Apache-2.0) |
+| `@openrouter/ai-sdk-provider` | 3.1.0 (exact) | Apache-2.0 | 11 (early G2) | used with `compatibility: "strict"` and usage accounting |
+| `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | 4.0.78, 4.0.91, 4.0.93 (exact) | Apache-2.0 | 11 (early G2) | all share `@ai-sdk/provider` 4.0.26 |
+| `ollama-ai-provider-v2` | 4.0.1 (exact) | Apache-2.0 | 11 (early G2) | `num_ctx` forced by a middleware |
+| `@ai-sdk/openai-compatible` | 3.0.67 (exact) | Apache-2.0 | 11 (early G2) | |
+| `@ai-sdk/provider` | 4.0.26 (exact, direct dep for the `LanguageModelV4` types) | Apache-2.0 | 11 (early G2) | transitive: `json-schema` (AFL-2.1 OR BSD-3-Clause), `eventsource-parser`, `@standard-schema/spec` (MIT) |
 | `d3-geo`, `topojson-client` | `d3-geo@3.1.1` (with `d3-array@3.2.4`, `internmap@2.0.3` inlined), `topojson-client@3.1.0`; bundled with `esbuild@0.25.10` (one file each, not minified) | ISC (d3-geo also carries GeographicLib MIT text) | 07 (vendored early by A1, D-19) | `styles/vox/templates/map-route/vendor/{d3-geo,topojson-client}.mjs` + `LICENSES.md` (tarball and file SHA-256); hooks are self-contained |
 | OpenCode Zen, 9router, LM Studio presets | no package (`@ai-sdk/openai-compatible` with a base URL) | — | 11 | base URLs in the agent spec presets table |
 | Playwright | 1.64.0 (exact, `apps/desktop`; Chromium 156.0.8078.4, browser revision 1248) | Apache-2.0 | 08 (early U1, D-19) | GATE 4 bench driver (headless shell); Electron E2E (first used by the 08 smoke test, D-16) |
