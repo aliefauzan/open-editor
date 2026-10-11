@@ -1,6 +1,6 @@
 // Phase 02 CLI commands (plan step 16): new, op, undo, redo, history, snapshot, paths; --json and
 // --projects-dir on every command; VoxError → exit 1 with the hint; usage errors → exit 2.
-import { mkdtempSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -38,6 +38,38 @@ async function newProject(dir: string, name = 'demo'): Promise<string> {
 }
 
 describe('vox new', () => {
+  test('picks the vox style when one is installed, else base (phase 03 step 4)', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'vox-home-'));
+    const style = join(home, 'styles', 'vox');
+    mkdirSync(style, { recursive: true });
+    writeFileSync(
+      join(style, 'style.json'),
+      JSON.stringify({
+        id: 'vox',
+        name: 'Vox (test stand-in)',
+        version: '0.1.0',
+        description: 'Test-only stand-in for the vox style.',
+        status: 'active',
+        extends: 'base',
+        source: { type: 'extracted', reference: 'fixture.mp4' },
+        trusted: false,
+        tokens: { colors: { accent: '#ff5500' } },
+        templates: [],
+        transitions: [],
+      }),
+    );
+    const styleOf = async (env: Record<string, string>) => {
+      const dir = tmpProjects();
+      const o = await vox(['new', 'demo', '--json', '--projects-dir', dir], env);
+      expect(o.code, o.stderr).toBe(0);
+      const h = await vox(['history', json(o)['id'] as string, '--json', '--projects-dir', dir]);
+      const entries = JSON.parse(h.stdout) as { changes: { after: { styleId?: string } }[] }[];
+      return entries[0]!.changes.find((c) => c.after.styleId)!.after.styleId;
+    };
+    expect(await styleOf({ VOX_HOME: home })).toBe('vox');
+    expect(await styleOf({ VOX_HOME: join(home, 'none') })).toBe('base');
+  });
+
   test('creates a project with a 9:16 sequence added by one cli op', async () => {
     const dir = tmpProjects();
     const o = await vox(['new', 'demo', '--json', '--projects-dir', dir]);

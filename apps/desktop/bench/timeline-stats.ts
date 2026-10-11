@@ -131,8 +131,9 @@ export interface BenchArgs {
    * shell = Chromium headless shell: fixed 60 Hz begin-frames, independent of the display (default).
    * chromium = full Chromium (new headless or --headed): frames follow the macOS display link, which
    * drops to 30 Hz while the display sleeps, so it only measures well on an awake display.
+   * electron = the pinned Electron (the app shell's renderer), a real window on the display (step A3).
    */
-  browser: 'shell' | 'chromium';
+  browser: 'shell' | 'chromium' | 'electron';
 }
 
 export function parseBenchArgs(argv: readonly string[]): BenchArgs {
@@ -171,8 +172,8 @@ export function parseBenchArgs(argv: readonly string[]): BenchArgs {
         break;
       case '--browser': {
         const v = value();
-        if (v !== 'shell' && v !== 'chromium')
-          throw new Error(`--browser must be shell or chromium, got ${v}`);
+        if (v !== 'shell' && v !== 'chromium' && v !== 'electron')
+          throw new Error(`--browser must be shell, chromium or electron, got ${v}`);
         out.browser = v;
         break;
       }

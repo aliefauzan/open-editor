@@ -1,0 +1,38 @@
+{
+  "stackMinFps": 23,
+  "slotMinFps": 30,
+  "minFps": 23,
+  "marginPct": -4.2,
+  "rule": "margin < 20 % -> pre-render cache",
+  "mode": "opaque",
+  "attempt": 1,
+  "electron": "44.7.0",
+  "chrome": "152.0.7977.130",
+  "box": {
+    "w": 450,
+    "h": 800,
+    "scaleFactor": 2
+  },
+  "loadBefore": {
+    "load": [
+      10.96,
+      10.33,
+      12.8
+    ],
+    "cores": 10
+  },
+  "loadAfter": {
+    "load": [
+      13.09,
+      11.46,
+      12.88
+    ],
+    "cores": 10
+  },
+  "note": "other phases were running on this machine during the measurement (load averages above)",
+  "wallS": 138.6,
+  "error": null,
+  "blockedNetworkRequests": 0,
+  "notFound": [],
+  "consoleErrors": []
+}

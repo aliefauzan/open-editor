@@ -721,7 +721,8 @@ shows up in the open editor.
 
 ## Compile: sequence → HyperFrames
 
-`compile(projectId, sequenceId, { mode: 'preview' | 'render', range? }) → BuildResult`
+`compile(projectId, sequenceId, { mode: 'preview' | 'render', range?, captions? }) → BuildResult`
+(`captions: false` leaves out the caption layer; plan D-32)
 builds the composition **in memory** (a map of path → content plus a list of linked
 media files). `writeBuild(result)` writes it to `build/<sequenceId>/`. The desktop app
 uses the in-memory result to patch the player without a full reload (spec 4).
@@ -785,7 +786,8 @@ Final audio never goes through HyperFrames. `src/audio/` builds one ffmpeg filte
 from the model: every audio-track clip (`atrim` at `inMs`, `afftdn` when `denoise` is
 not `off`, a gain-to-target, `adelay` to `startMs`, `volume`, `afade` for fades), SFX
 cues, track mutes, then `amix` with normalisation off and a limiter, then `loudnorm`
-(two-pass) to the export loudness target integrated and −1 dBTP true peak.
+(two-pass) to the export loudness target integrated and −1.5 dBTP true peak (0.5 dB under
+the audio QA ceiling of −1 dBTP, plan D-32).
 
 Per-source level (plan D-15): each clip whose media has `loudness` gets a gain of
 (target − `integratedLufs`) dB before `amix`, so sources recorded at different levels
@@ -957,6 +959,18 @@ Outcome:
   (see "Layer renderer") is built. GATE 1 records the margin.
 
 The pinned HyperFrames version and the measured numbers are written into this spec.
+
+**Measured (GATE 1, phase 01, 2026-10-11, D-29):** HyperFrames 0.8.145, GSAP 3.15.0, Electron
+44.7.0 (Chromium 152). All nine items pass, so HyperFrames renders whole sequences, the preview
+keeps the opaque sandbox, NTSC goes ahead, and no pre-render cache is built. Numbers: cuts 0
+mismatches over 43 cuts; A/V max 0.35 ms; render 0.67× real time (60.5 s); preview min 26.4 fps,
+max stall 83 ms, seek to a cut max 53 ms with 0 wrong frames, audio and picture within 1 frame
+(p95 0 ms and 23.8 ms after seeks); peak RSS 2.07 GB; op → preview 31 ms by scene-only patch,
+757 ms by full reload; all four mechanisms work in render and preview; NTSC 0 mismatches, A/V max
+0.4 ms; heavy-scene fps margin 20.8 % (29 fps); fillers: um and uh both survive with and
+without the filler prompt. Preview builds need the helpers in `spike/templates/vox-preview.js`
+(+1 ms video bias, pre-cue, paused exact-frame sync, playhead after mount, inactive videos kept
+composited). Details and evidence: `docs/SPIKE_RESULTS.md`.
 
 ## Stages
 

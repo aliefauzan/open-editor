@@ -41,31 +41,31 @@ generate previews.
 
 ## Steps
 
-1. [ ] `vox style new` rejects built-in and existing ids; template identity through a chain
+1. [x] `vox style new` rejects built-in and existing ids; template identity through a chain
        (`vox/map-route` inherited stays `vox/map-route`). (`extends`, cycle and collision tests are owned
        by phase 03.)
-2. [ ] `TEMPLATE_VERSION` migration: with `migrate` in a trusted hook, variables migrate across a major;
+2. [x] `TEMPLATE_VERSION` migration: with `migrate` in a trusted hook, variables migrate across a major;
        in an untrusted style it fails with `HOOK_UNTRUSTED` (the plain major-mismatch test is owned by 03).
-3. [ ] Hook purity by determinism: run each hook twice with the same `ctx.seed` and compare the output
+3. [x] Hook purity by determinism: run each hook twice with the same `ctx.seed` and compare the output
        bytes; a static check rejects `Date`, `Math.random`, `performance.now`, `process.hrtime`, `fetch` and
        `node:http(s)`/`node:net` imports in hook source. Hooks load as normal ES modules but must be
        self-contained: libraries are vendored ESM inside the style folder and imported by relative path; a
        bare import (e.g. `d3-geo`) or a path leaving the style folder fails `validate` (styles spec "Compile
        hook", D-10), so hooks work in the packaged app without `node_modules`. Trust (S8) is the security
        boundary, not a sandbox.
-4. [ ] Safe-area check: render longest-text fixture, read text bounding boxes via the composition DOM,
+4. [x] Safe-area check: render longest-text fixture, read text bounding boxes via the composition DOM,
        assert inside 1080×1920 safe area.
-5. [ ] `validate` on `base` passes and writes previews; `new` + `trust` + `remove` round trip.
-5b. [ ] `minEntranceMs` in `validate` (D-15): a fixture template with `minEntranceMs: 2000` rendered at 1500 ms
+5. [x] `validate` on `base` passes and writes previews; `new` + `trust` + `remove` round trip.
+5b. [x] `minEntranceMs` in `validate` (D-15): a fixture template with `minEntranceMs: 2000` rendered at 1500 ms
        shows its resting state at frame 0 (every element the entrance animates has its final opacity and
        transform, read from the DOM); rendered at 3000 ms, frame 0 differs from the 1500 ms frame 0; a
        variables schema declaring `skipEntrance` fails `validate` with the rule named.
-5c. [ ] Caption presets in `validate` (D-15): a preset with no `.json` or a bad `case` fails; the
+5c. [x] Caption presets in `validate` (D-15): a preset with no `.json` or a bad `case` fails; the
        contact sheet holds one frame per preset from the fixture `CaptionChunk[]` (two lines, one emphasis
        word, a 200 ms gap) at a frame inside word 2, so the active-word state shows; the word-state,
        emphasis and safe-area checks (03 step 9c) run for every preset of the style, also with
        `position.yPct` 95; `base/plain` passes.
-6. [ ] Cue timing and credits in `validate` (D-14): a missing `CREDITS.md` entry fails; a fixture whose
+6. [x] Cue timing and credits in `validate` (D-14): a missing `CREDITS.md` entry fails; a fixture whose
        `appear` cue is 4 frames off the measured pop (per-frame pixel difference) fails; a correct test
        style passes.
 

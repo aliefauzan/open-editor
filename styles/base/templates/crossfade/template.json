@@ -1,0 +1,11 @@
+{
+  "name": "crossfade",
+  "version": "1.0.0",
+  "kind": "transition",
+  "description": "A soft dissolve from one shot to the next. Needs source handles: both shots must extend half the transition beyond the cut, so it fails with NO_HANDLES on clips cut at the edge of their source; use dip-to-black there.",
+  "useWhen": ["a calm change of place or time inside one story", "two shots of the same scene"],
+  "durationMs": { "min": 200, "default": 500, "max": 2000 },
+  "variables": { "type": "object", "properties": {}, "additionalProperties": false },
+  "slots": {},
+  "blendsShots": true
+}

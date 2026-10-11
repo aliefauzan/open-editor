@@ -1,0 +1,123 @@
+{
+  "item": 9,
+  "name": "ntsc-30000/1001",
+  "pass": true,
+  "attempt": 1,
+  "cut": {
+    "pass": true,
+    "frames": 540,
+    "expectedFrames": 540,
+    "checked": 540,
+    "cuts": 10,
+    "mismatches": 0,
+    "cutErrors": 0,
+    "flatFrames": 0,
+    "minDecodeMargin": 121
+  },
+  "sync": {
+    "pass": true,
+    "pairs": 7,
+    "maxAbsOffsetMs": 0.4,
+    "meanOffsetMs": -0.13,
+    "frameMs": 33.37,
+    "missingFlash": 0,
+    "missingClick": 0
+  },
+  "renderMs": 15055,
+  "load": {
+    "load": [
+      11.9,
+      9.4,
+      10.58
+    ],
+    "cores": 10
+  },
+  "mismatches": [],
+  "pairs": [
+    {
+      "f": 28,
+      "flashF": 28,
+      "onsetMs": 934.27,
+      "offsetMs": 0,
+      "amp": 0.935
+    },
+    {
+      "f": 100,
+      "flashF": 100,
+      "onsetMs": 3336.42,
+      "offsetMs": -0.25,
+      "amp": 0.951
+    },
+    {
+      "f": 214,
+      "flashF": 214,
+      "onsetMs": 7140.06,
+      "offsetMs": -0.4,
+      "amp": 0.954
+    },
+    {
+      "f": 236,
+      "flashF": 236,
+      "onsetMs": 7874.48,
+      "offsetMs": -0.05,
+      "amp": 0.95
+    },
+    {
+      "f": 289,
+      "flashF": 289,
+      "onsetMs": 9642.69,
+      "offsetMs": -0.28,
+      "amp": 0.941
+    },
+    {
+      "f": 360,
+      "flashF": 360,
+      "onsetMs": 12011.96,
+      "offsetMs": -0.04,
+      "amp": 0.939
+    },
+    {
+      "f": 442,
+      "flashF": 442,
+      "onsetMs": 14748.19,
+      "offsetMs": 0.12,
+      "amp": 0.92
+    }
+  ],
+  "render": {
+    "ok": true,
+    "ms": 15055,
+    "peakRssBytes": 1643446272,
+    "samples": 53,
+    "loadBefore": {
+      "load": [
+        11.9,
+        9.4,
+        10.58
+      ],
+      "cores": 10
+    },
+    "loadAfter": {
+      "load": [
+        12.65,
+        9.68,
+        10.66
+      ],
+      "cores": 10
+    },
+    "args": [
+      "render",
+      "out/project-ntsc",
+      "-o",
+      "out/renders/ntsc.mp4",
+      "--quality",
+      "draft",
+      "--fps",
+      "30000/1001",
+      "--strict-all",
+      "--frames-cache-dir",
+      "off"
+    ],
+    "stderrTail": ""
+  }
+}

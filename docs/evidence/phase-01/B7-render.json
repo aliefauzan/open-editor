@@ -1,0 +1,53 @@
+{
+  "item": 3,
+  "name": "render-speed",
+  "pass": true,
+  "attempt": 1,
+  "renderMs": 60480,
+  "xRealtime": 0.67,
+  "barMs": 450000,
+  "load": {
+    "load": [
+      5.67,
+      7.31,
+      9.95
+    ],
+    "cores": 10
+  },
+  "render": {
+    "ok": true,
+    "ms": 60480,
+    "peakRssBytes": 2220621824,
+    "samples": 211,
+    "loadBefore": {
+      "load": [
+        5.67,
+        7.31,
+        9.95
+      ],
+      "cores": 10
+    },
+    "loadAfter": {
+      "load": [
+        12.32,
+        9.44,
+        10.6
+      ],
+      "cores": 10
+    },
+    "args": [
+      "render",
+      "out/project",
+      "-o",
+      "out/renders/main.mp4",
+      "--quality",
+      "draft",
+      "--fps",
+      "30",
+      "--strict-all",
+      "--frames-cache-dir",
+      "off"
+    ],
+    "stderrTail": ""
+  }
+}

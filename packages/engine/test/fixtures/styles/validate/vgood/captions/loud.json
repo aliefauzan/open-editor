@@ -1,0 +1,7 @@
+{
+  "name": "loud",
+  "description": "Test preset: base/plain markup, upper case, no punctuation.",
+  "case": "upper",
+  "stripPunctuation": true,
+  "position": { "yPct": 70 }
+}

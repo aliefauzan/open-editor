@@ -1,6 +1,6 @@
 // GATE 4 timeline benchmark (phase 08 steps A1–A3; R7 "Measurements").
 // Usage: node bench/timeline.ts [--attempts 3] [--evidence-dir <dir>] [--gesture-ms 3000]
-//                               [--browser shell|chromium] [--headed]
+//                               [--browser shell|chromium|electron] [--headed]
 // Prints the JSON report, then a one-line summary. Exit 0 = pass, 2 = fail, 1 = error.
 // Run timed measurements under the bench lock: lockf -t 3600 <repo>/.git/vox-bench.lock pnpm …
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -11,7 +11,9 @@ import { VIEWPORT, runTimelineBench } from './timeline-runner.ts';
 import { parseBenchArgs, summarize } from './timeline-stats.ts';
 
 const BAR_FPS = 50;
-const EVIDENCE_NAME = 'A1-timeline-bench.json';
+/** A1 = Chromium (early U1); A3 = the re-run inside Electron (phase 08). */
+const evidenceName = (browser: string) =>
+  browser === 'electron' ? 'A3-timeline-bench-electron.json' : 'A1-timeline-bench.json';
 
 function pins(): Record<string, string> {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
@@ -47,7 +49,7 @@ async function main(): Promise<number> {
       loadAvg1mStart: r1(loadStart[0]!),
     },
     browser: {
-      name: 'Playwright Chromium',
+      name: args.browser === 'electron' ? 'Electron' : 'Playwright Chromium',
       version: run.browserVersion,
       mode: run.mode,
       gpuRenderer: run.gpuRenderer,
@@ -71,14 +73,14 @@ async function main(): Promise<number> {
   const m = summary.median;
   const line =
     `timeline: drag ${r1(m.dragFps)} fps, trim ${r1(m.trimFps)} fps, linked drag ${r1(m.linkedDragFps)} fps ` +
-    `(median of ${args.attempts}, 1,000 items / 8 tracks, Chromium ${run.mode}); ` +
+    `(median of ${args.attempts}, 1,000 items / 8 tracks, ${run.browserVersion}, ${run.mode}); ` +
     `linked startMs equal ${summary.checks.linked}; marquee 50 of 50 ${summary.checks.marquee}; gestures moved ${summary.checks.gestures}; ` +
     `bar ${BAR_FPS} fps -> ${summary.pass ? 'PASS' : 'FAIL'} (${summary.outcome})` +
     `${summary.nearBar ? '; within 10 % of the bar, re-run under the bench lock' : ''}`;
   if (args.evidenceDir) {
     mkdirSync(args.evidenceDir, { recursive: true });
     writeFileSync(
-      path.join(args.evidenceDir, EVIDENCE_NAME),
+      path.join(args.evidenceDir, evidenceName(args.browser)),
       `${JSON.stringify({ ...report, summary: line }, null, 2)}\n`,
     );
   }

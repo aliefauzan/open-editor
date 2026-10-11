@@ -1,0 +1,15 @@
+{
+  "name": "note",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "Untrusted test template with a hook.",
+  "useWhen": ["tests"],
+  "durationMs": { "min": 500, "default": 3000, "max": 10000 },
+  "variables": {
+    "type": "object",
+    "properties": { "label": { "type": "string" } },
+    "required": ["label"],
+    "additionalProperties": false
+  },
+  "slots": {}
+}

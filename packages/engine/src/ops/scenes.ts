@@ -9,6 +9,7 @@ import {
   type Project,
   type SceneClip,
 } from '../model/schema.ts';
+import { blendHalf } from '../model/fps.ts';
 import { endOf, fail, findItem, findSeq, findTrack, snapT, type OpContext } from './core.ts';
 import { OnOverlapSchema } from './items.ts';
 import { placeItems } from './timeline.ts';
@@ -159,13 +160,14 @@ export function setTransition(
     );
   }
   if (t.blendsShots) {
-    const half = Math.ceil(d / 2);
+    const { before, after } = blendHalf(item.startMs, d, s.canvas.fps);
+    const half = Math.max(before, after);
     const prev = track.items.find((i) => endOf(i) === item.startMs);
     const media = (id: string) => p.media.find((m) => m.id === id);
     const short: string[] = [];
     if (item.type === 'media') {
       const m = media(item.mediaId);
-      if (m && m.kind !== 'image' && item.inMs < half) short.push(item.id);
+      if (m && m.kind !== 'image' && item.inMs < before) short.push(item.id);
     }
     if (prev?.type === 'media') {
       const m = media(prev.mediaId);
@@ -173,7 +175,7 @@ export function setTransition(
         m &&
         m.kind !== 'image' &&
         m.durationMs !== undefined &&
-        prev.inMs + prev.durationMs + half > m.durationMs
+        prev.inMs + prev.durationMs + after > m.durationMs
       ) {
         short.push(prev.id);
       }

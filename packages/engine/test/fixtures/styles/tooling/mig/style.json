@@ -1,0 +1,12 @@
+{
+  "id": "mig",
+  "name": "Mig",
+  "version": "0.1.0",
+  "description": "Test style: templates at major version 2, one with a migrate export.",
+  "status": "active",
+  "extends": "base",
+  "source": { "type": "user" },
+  "trusted": false,
+  "templates": ["note", "nomig"],
+  "transitions": []
+}

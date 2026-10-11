@@ -1,0 +1,451 @@
+{
+  "language": "en",
+  "words": [
+    {
+      "text": "Hello,",
+      "startMs": 34,
+      "endMs": 260,
+      "kind": "word"
+    },
+    {
+      "text": "",
+      "startMs": 260,
+      "endMs": 674,
+      "kind": "pause"
+    },
+    {
+      "text": "and",
+      "startMs": 674,
+      "endMs": 800,
+      "kind": "word"
+    },
+    {
+      "text": "welcome",
+      "startMs": 800,
+      "endMs": 1120,
+      "kind": "word"
+    },
+    {
+      "text": "to",
+      "startMs": 1120,
+      "endMs": 1300,
+      "kind": "word"
+    },
+    {
+      "text": "the",
+      "startMs": 1300,
+      "endMs": 1420,
+      "kind": "word"
+    },
+    {
+      "text": "Vox",
+      "startMs": 1420,
+      "endMs": 1700,
+      "kind": "word"
+    },
+    {
+      "text": "Studio",
+      "startMs": 1700,
+      "endMs": 2040,
+      "kind": "word"
+    },
+    {
+      "text": "demo.",
+      "startMs": 2040,
+      "endMs": 2460,
+      "kind": "word"
+    },
+    {
+      "text": "",
+      "startMs": 2460,
+      "endMs": 3042,
+      "kind": "pause"
+    },
+    {
+      "text": "Today",
+      "startMs": 3042,
+      "endMs": 3300,
+      "kind": "word"
+    },
+    {
+      "text": "we",
+      "startMs": 3300,
+      "endMs": 3480,
+      "kind": "word"
+    },
+    {
+      "text": "turn",
+      "startMs": 3480,
+      "endMs": 3700,
+      "kind": "word"
+    },
+    {
+      "text": "a",
+      "startMs": 3700,
+      "endMs": 3860,
+      "kind": "word"
+    },
+    {
+      "text": "long",
+      "startMs": 3860,
+      "endMs": 4020,
+      "kind": "word"
+    },
+    {
+      "text": "video",
+      "startMs": 4020,
+      "endMs": 4340,
+      "kind": "word"
+    },
+    {
+      "text": "into",
+      "startMs": 4340,
+      "endMs": 4600,
+      "kind": "word"
+    },
+    {
+      "text": "a",
+      "startMs": 4600,
+      "endMs": 4800,
+      "kind": "word"
+    },
+    {
+      "text": "short",
+      "startMs": 4800,
+      "endMs": 5060,
+      "kind": "word"
+    },
+    {
+      "text": "clip.",
+      "startMs": 5060,
+      "endMs": 5420,
+      "kind": "word"
+    },
+    {
+      "text": "",
+      "startMs": 5420,
+      "endMs": 5954,
+      "kind": "pause"
+    },
+    {
+      "text": "First,",
+      "startMs": 5954,
+      "endMs": 6260,
+      "kind": "word"
+    },
+    {
+      "text": "we",
+      "startMs": 6500,
+      "endMs": 6700,
+      "kind": "word"
+    },
+    {
+      "text": "find",
+      "startMs": 6700,
+      "endMs": 6980,
+      "kind": "word"
+    },
+    {
+      "text": "the",
+      "startMs": 6980,
+      "endMs": 7120,
+      "kind": "word"
+    },
+    {
+      "text": "best",
+      "startMs": 7120,
+      "endMs": 7360,
+      "kind": "word"
+    },
+    {
+      "text": "moments",
+      "startMs": 7360,
+      "endMs": 7740,
+      "kind": "word"
+    },
+    {
+      "text": "in",
+      "startMs": 7740,
+      "endMs": 7920,
+      "kind": "word"
+    },
+    {
+      "text": "the",
+      "startMs": 7920,
+      "endMs": 8020,
+      "kind": "word"
+    },
+    {
+      "text": "footage.",
+      "startMs": 8020,
+      "endMs": 8420,
+      "kind": "word"
+    },
+    {
+      "text": "",
+      "startMs": 8420,
+      "endMs": 8930,
+      "kind": "pause"
+    },
+    {
+      "text": "Then",
+      "startMs": 8930,
+      "endMs": 9080,
+      "kind": "word"
+    },
+    {
+      "text": "we",
+      "startMs": 9080,
+      "endMs": 9240,
+      "kind": "word"
+    },
+    {
+      "text": "add",
+      "startMs": 9240,
+      "endMs": 9460,
+      "kind": "word"
+    },
+    {
+      "text": "captions",
+      "startMs": 9460,
+      "endMs": 9900,
+      "kind": "word"
+    },
+    {
+      "text": "and",
+      "startMs": 9900,
+      "endMs": 10100,
+      "kind": "word"
+    },
+    {
+      "text": "a",
+      "startMs": 10100,
+      "endMs": 10260,
+      "kind": "word"
+    },
+    {
+      "text": "few",
+      "startMs": 10260,
+      "endMs": 10380,
+      "kind": "word"
+    },
+    {
+      "text": "sound",
+      "startMs": 10380,
+      "endMs": 10720,
+      "kind": "word"
+    },
+    {
+      "text": "effects.",
+      "startMs": 10720,
+      "endMs": 11180,
+      "kind": "word"
+    },
+    {
+      "text": "",
+      "startMs": 11180,
+      "endMs": 11810,
+      "kind": "pause"
+    },
+    {
+      "text": "Every",
+      "startMs": 11810,
+      "endMs": 12040,
+      "kind": "word"
+    },
+    {
+      "text": "change",
+      "startMs": 12040,
+      "endMs": 12360,
+      "kind": "word"
+    },
+    {
+      "text": "can",
+      "startMs": 12360,
+      "endMs": 12600,
+      "kind": "word"
+    },
+    {
+      "text": "be",
+      "startMs": 12600,
+      "endMs": 12740,
+      "kind": "word"
+    },
+    {
+      "text": "undone",
+      "startMs": 12740,
+      "endMs": 13060,
+      "kind": "word"
+    },
+    {
+      "text": "at",
+      "startMs": 13060,
+      "endMs": 13220,
+      "kind": "word"
+    },
+    {
+      "text": "any",
+      "startMs": 13220,
+      "endMs": 13360,
+      "kind": "word"
+    },
+    {
+      "text": "time.",
+      "startMs": 13360,
+      "endMs": 13800,
+      "kind": "word"
+    },
+    {
+      "text": "",
+      "startMs": 13800,
+      "endMs": 14370,
+      "kind": "pause"
+    },
+    {
+      "text": "Finally,",
+      "startMs": 14370,
+      "endMs": 14740,
+      "kind": "word"
+    },
+    {
+      "text": "",
+      "startMs": 14740,
+      "endMs": 15106,
+      "kind": "pause"
+    },
+    {
+      "text": "we",
+      "startMs": 15106,
+      "endMs": 15240,
+      "kind": "word"
+    },
+    {
+      "text": "export",
+      "startMs": 15240,
+      "endMs": 15620,
+      "kind": "word"
+    },
+    {
+      "text": "a",
+      "startMs": 15620,
+      "endMs": 15760,
+      "kind": "word"
+    },
+    {
+      "text": "vertical",
+      "startMs": 15760,
+      "endMs": 16060,
+      "kind": "word"
+    },
+    {
+      "text": "video",
+      "startMs": 16060,
+      "endMs": 16420,
+      "kind": "word"
+    },
+    {
+      "text": "for",
+      "startMs": 16420,
+      "endMs": 16660,
+      "kind": "word"
+    },
+    {
+      "text": "your",
+      "startMs": 16660,
+      "endMs": 16840,
+      "kind": "word"
+    },
+    {
+      "text": "phone.",
+      "startMs": 16840,
+      "endMs": 17180,
+      "kind": "word"
+    },
+    {
+      "text": "",
+      "startMs": 17180,
+      "endMs": 17698,
+      "kind": "pause"
+    },
+    {
+      "text": "That",
+      "startMs": 17698,
+      "endMs": 17860,
+      "kind": "word"
+    },
+    {
+      "text": "is",
+      "startMs": 17860,
+      "endMs": 17980,
+      "kind": "word"
+    },
+    {
+      "text": "all",
+      "startMs": 17980,
+      "endMs": 18140,
+      "kind": "word"
+    },
+    {
+      "text": "for",
+      "startMs": 18140,
+      "endMs": 18300,
+      "kind": "word"
+    },
+    {
+      "text": "this",
+      "startMs": 18300,
+      "endMs": 18480,
+      "kind": "word"
+    },
+    {
+      "text": "quick",
+      "startMs": 18480,
+      "endMs": 18700,
+      "kind": "word"
+    },
+    {
+      "text": "test.",
+      "startMs": 18700,
+      "endMs": 19100,
+      "kind": "word"
+    }
+  ],
+  "speechRegions": [
+    {
+      "startMs": 34,
+      "endMs": 574
+    },
+    {
+      "startMs": 674,
+      "endMs": 2686
+    },
+    {
+      "startMs": 3042,
+      "endMs": 5534
+    },
+    {
+      "startMs": 5954,
+      "endMs": 8606
+    },
+    {
+      "startMs": 8930,
+      "endMs": 11454
+    },
+    {
+      "startMs": 11810,
+      "endMs": 13950
+    },
+    {
+      "startMs": 14370,
+      "endMs": 15006
+    },
+    {
+      "startMs": 15106,
+      "endMs": 17342
+    },
+    {
+      "startMs": 17698,
+      "endMs": 19294
+    }
+  ]
+}

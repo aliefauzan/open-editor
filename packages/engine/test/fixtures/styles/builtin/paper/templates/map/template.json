@@ -1,0 +1,32 @@
+{
+  "name": "map",
+  "version": "2.0.0",
+  "kind": "scene",
+  "description": "A map with a route.",
+  "useWhen": ["a place is mentioned"],
+  "durationMs": { "min": 2000, "default": 4000, "max": 10000 },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "places": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "maxLength": 40 },
+            "lat": { "type": "number" },
+            "lon": { "type": "number" }
+          },
+          "required": ["name", "lat", "lon"]
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["places"]
+  },
+  "slots": { "places/*": "geo" },
+  "sfxCues": [
+    { "name": "land", "atMs": 400, "sfx": "pop", "type": "land" },
+    { "name": "tick", "atMs": 0, "sfx": "tap", "type": "cut" }
+  ]
+}

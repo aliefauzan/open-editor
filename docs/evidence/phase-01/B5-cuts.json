@@ -1,0 +1,16 @@
+{
+  "item": 1,
+  "name": "cut-accuracy",
+  "pass": true,
+  "attempt": 1,
+  "frames": 2700,
+  "expectedFrames": 2700,
+  "checked": 2145,
+  "cuts": 43,
+  "mismatches": 0,
+  "cutErrors": 0,
+  "flatFrames": 0,
+  "minDecodeMargin": 121,
+  "mismatchList": [],
+  "flatList": []
+}
