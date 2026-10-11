@@ -1734,3 +1734,15 @@ must not ship an unsigned or missing helper; E2E must run without a provider or 
 
 **Alternatives**: decisions in the renderer (lost on reload); bundled prices (D-43 rejected them);
 signing the helper after the app seal (breaks the seal).
+
+## D-60 — Phase 13 merges before the v1.0 install check (orchestrator, 2026-10-12)
+**Context**: Phase 13 code passed Verify (2482 tests, E2E 10/10, fresh-clone check PASS, packaged self-test
+10/10). Left: publish the draft Release v1.0.0, step 10 (install from the Release page with the README
+only and export one clip) and the agent panel run at the screen. The owner asked to run phases in
+parallel for speed (2026-10-12 01:45); 14a–14g and 15 need 13 on main.
+**Decision**: Merge phase 13 into main now and start 14a–14g and 15 in parallel. The orchestrator does
+the Release publish, step 10 and the screen run under the owner delegation (D-58) while they run;
+anything found is fixed on a follow-up branch from main. PROGRESS row 13 stays [~] until those checks
+are recorded; the v1.0 milestone row is set only after them.
+**Why**: The checks left are release and install checks of a build that already passed Verify; waiting
+would hold eight phases behind them.
