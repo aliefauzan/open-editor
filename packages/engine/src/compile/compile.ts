@@ -213,16 +213,14 @@ function mediaOf(ctx: Ctx, id: string, itemId?: string): MediaItem {
   return m;
 }
 
-/** Build path of the picture file of a media item for this mode. */
+/**
+ * Build path of the picture file of a media item for this mode. A VFR video never plays from its
+ * original (D-15): render uses the CFR copy, preview the proxy (made from the CFR copy) or the copy.
+ */
 function pictureFile(ctx: Ctx, m: MediaItem): string {
+  const cfrOrPath = m.vfr && m.cfrPath ? m.cfrPath : m.path;
   const rel =
-    m.kind === 'video'
-      ? ctx.mode === 'render'
-        ? m.vfr && m.cfrPath
-          ? m.cfrPath
-          : m.path
-        : (m.proxyPath ?? m.path)
-      : m.path;
+    m.kind === 'video' ? (ctx.mode === 'render' ? cfrOrPath : (m.proxyPath ?? cfrOrPath)) : m.path;
   return link(ctx, `media/${m.id}${safeExt(rel)}`, projectFile(ctx, rel));
 }
 

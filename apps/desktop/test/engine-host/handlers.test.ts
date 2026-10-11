@@ -81,7 +81,17 @@ describe('engine host handlers (step 8)', () => {
     const { h } = setup();
     expect(h['agent.run']).toBeUndefined();
     expect(h['projects.reveal']).toBeUndefined();
-    expect(h['media.importFiles']).toBeUndefined();
+    expect(h['exports.chooseTarget']).toBeUndefined();
+  });
+
+  it('media.importFiles starts an ingest job with the paths main chose (phase 10a)', async () => {
+    const { h, engine } = setup();
+    const p = (await h['projects.create']!('Import')) as { id: string };
+    await expect(h['media.importFiles']!(p.id)).rejects.toThrow(/paths/);
+    const r = (await h['media.importFiles']!(p.id, { paths: ['/nonexistent/a.mp4'] })) as {
+      jobId: string;
+    };
+    expect(engine.jobs.get(r.jobId)).toMatchObject({ kind: 'ingest' });
   });
 
   it('forwards project.changed events through the redactor', async () => {
@@ -155,5 +165,43 @@ describe('MessagePort RPC', () => {
     c.close(Object.assign(new Error('host exited'), { code: 'HOST_UNAVAILABLE' }));
     await expect(pending).rejects.toMatchObject({ code: 'HOST_UNAVAILABLE' });
     port1.close();
+  });
+});
+
+describe('media.peaks (phase 10a)', () => {
+  it('returns the peaks file of a media item through the path rule, null without one', async () => {
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    const { h, engine } = setup();
+    const p = (await h['projects.create']!('Peaks')) as { id: string };
+    const dir = join(engine.projectsDir, p.id);
+    mkdirSync(join(dir, 'peaks'), { recursive: true });
+    writeFileSync(
+      join(dir, 'peaks', 'm_a.json'),
+      '{"version":1,"peaksPerSecond":100,"peaks":[0.5]}',
+    );
+    const media = (id: string, extra: object) => ({
+      media: {
+        id,
+        kind: 'audio',
+        path: `media/${id}.m4a`,
+        origin: { type: 'upload' },
+        tags: [],
+        ...extra,
+      },
+    });
+    await engine.applyOp(
+      p.id,
+      { op: 'addMedia', args: media('m_a', { peaksPath: 'peaks/m_a.json' }) } as never,
+      { actor: 'user' },
+    );
+    await engine.applyOp(p.id, { op: 'addMedia', args: media('m_b', {}) } as never, {
+      actor: 'user',
+    });
+    expect(await h['media.peaks']!(p.id, 'm_a')).toEqual({
+      version: 1,
+      peaksPerSecond: 100,
+      peaks: [0.5],
+    });
+    expect(await h['media.peaks']!(p.id, 'm_b')).toBeNull();
   });
 });

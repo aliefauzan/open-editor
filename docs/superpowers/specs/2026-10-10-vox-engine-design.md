@@ -645,6 +645,8 @@ the call returns `UNDO_CONFLICT` with those keys (and the item ids inside them) 
 changes nothing. With no conflict, it applies the oldest `before` per key as one
 `undo` entry whose `targets` lists the run's versions; it goes on the redo stack like any
 undo.
+`undoRun(projectId, runId, { last: true })` does the same for the run's newest un-undone
+entry only (the agent's `undo_my_last_edit`; plan D-43).
 
 ### Write order, crash recovery, locking
 

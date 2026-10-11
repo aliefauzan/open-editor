@@ -23,7 +23,8 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | Zustand | 5.0.15 (exact) | MIT | 08 | renderer store (D-36) |
 | Tailwind CSS, `@tailwindcss/vite` | 4.3.3, 4.3.3 (exact) | MIT | 08 | |
 | `@playwright/test` | 1.64.0 (exact, same as `playwright`) | Apache-2.0 | 08 | Electron E2E runner (D-36) |
-| shadcn/ui | TBD (10a) | MIT | 10a | not needed by the 08 minimal UI (D-36) |
+| shadcn/ui | not used | MIT | 10a | the editor uses plain Tailwind components (D-42) |
+| `@testing-library/react`, `@testing-library/dom`, jsdom | 16.3.3, 10.4.2, 30.1.2 (exact, `apps/desktop` devDependencies) | MIT | 10a | component tests (`// @vitest-environment jsdom` per file) |
 | `@xzdarcy/react-timeline-editor` | 1.0.0 (exact, `apps/desktop`; candidate until GATE 4 is recorded) | MIT | 08 (early U1, D-19) | dropped if GATE 4 fails; bench `docs/evidence/phase-08/A1-timeline-bench.json` |
 | zod | 4.6.5 (exact, `packages/agent`, `packages/engine`) | MIT | 11 (early N1, D-22); 04 (early E4) | Apple helper protocol schemas; `z.int()` limits are safe integers; engine: detections and shot list schemas |
 | ajv | 8.20.0 (exact, `packages/engine`) | MIT | 04 (early E4) | `ajv/dist/2020.js`; test-only use: zod ↔ Python JSON Schema agreement (`py/tests/schemas/`) |

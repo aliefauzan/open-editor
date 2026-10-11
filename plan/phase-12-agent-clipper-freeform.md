@@ -128,11 +128,11 @@ followed by the new Stylize workflow, which also runs alone on clips the user al
         un-approved ingest runs without a pause (S34).
 8e. [ ] Replay fixtures (D-15): record the mock runs of steps 1, 2, 5 and 8b; commit them; they replay
         green in CI.
-9. [ ] MANUAL STEP (owner keys): `pnpm eval --provider <id>` live on both fixture inputs for every provider
+9. [ ] (deferred to phase 13 step 7b, D-44) MANUAL STEP (owner keys): `pnpm eval --provider <id>` live on both fixture inputs for every provider
        the owner configured (at least OpenRouter and Ollama), incl. the injection image case; paste
        scorecards in the log. `vox config probe` reports the tool-list cost for the Ollama model of
        done-when 3 (≤ 25 % of its context with the clipper's `allowedTools`; D-15).
-10. [ ] MANUAL STEP (owner gives the URL): real URL, OpenRouter tools mode → 3 sequences + cost + audio
+10. [ ] (deferred to phase 13 step 7b, D-44) MANUAL STEP (owner gives the URL): real URL, OpenRouter tools mode → 3 sequences + cost + audio
         numbers and timecodes; Ollama plan mode → checkpoints pass. Both runs use one sub-run per
         sequence, each within `maxStepsPerRun` (D-15).
 
@@ -156,10 +156,10 @@ pnpm -C packages/cli exec vox config probe --json      # tool-list cost per role
 
 ## Done when (= agent done-when 1–4, 6–8)
 
-- [ ] 1 probe reports capabilities for an OpenRouter and an Ollama model (from 11).
-- [ ] 2 `vox agent … "make 3 vox clips from <url>"` → 3 sequences meeting checkpoints, cost reported,
+- [ ] 1 probe reports capabilities for an OpenRouter and an Ollama model (from 11). — live part deferred to phase 13 step 7b (D-44)
+- [ ] 2 `vox agent … "make 3 vox clips from <url>"` → 3 sequences meeting checkpoints, cost reported, — live part deferred to phase 13 step 7b (D-44)
       OpenRouter tools mode.
-- [ ] 3 same command in plan mode with the Ollama model from `evals/models.json`; checkpoints pass.
+- [ ] 3 same command in plan mode with the Ollama model from `evals/models.json`; checkpoints pass. — live part deferred to phase 13 step 7b (D-44)
 - [ ] 4 undo-run restores or reports conflicts correctly.
 - [ ] 6 if Apple Intelligence is on: a clipper run with `fast` = `apple` passes the checkpoints; else the
       skip reason is logged.

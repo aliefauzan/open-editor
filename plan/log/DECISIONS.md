@@ -1238,3 +1238,101 @@ Decisions:
 - **Tests of the built app:** the Node inspect fuse is off (S27), so tests start the app with
   `--remote-debugging-port=0` and connect over CDP (`test/helpers/packaged.ts`).
 - **Size:** `.dmg` 189,359,198 bytes (180.6 MB; bar 300 MB); `.app` ~496 MB unpacked.
+
+## D-42 — Editor core A: preview updates, window.vox additions, UI choices (phase 10a, 2026-10-11)
+
+Phase 10a built the store, the preview pipeline, the editor layout, timeline and inspector. Decisions:
+- **`preview.updated` payload** (R2, frozen in 10a): `{ projectId, sequenceId, version, kind: 'patch',
+  patches: [{ id, start, duration, html }] }` or `{ …, kind: 'reload', url }` (`url` carries `?v=<n>` so
+  the player sees a new `src`). A patch carries **one** scene: the player delivers runtime data per
+  channel, and a second `vox-patch` sent before the first lands could replace it. A change to several
+  scenes, or one that changes the build outside the scene instances (SFX `<audio>`, duration), reloads.
+- **`window.vox` grows additively:** `media.peaks(projectId, mediaId)` (waveforms; the renderer CSP has
+  `connect-src 'self'`, so it cannot fetch `peaks/<id>.json` from `vox-media://`) and the event
+  `menu.command { command }` (native menu bar → the same command runner as the keyboard).
+  `media.importFiles` is built: main opens the native dialog; `{ paths }` only in test builds (`VOX_E2E=1`).
+- **Preview:** whole-sequence build as GATE 1 chose (D-29); in-memory compile per change, 150 ms
+  coalescing only for keyed ops (`coalesceKey`); the engine host watches the open project's folder for
+  external `project.json` writes. A VFR clip without a proxy now previews from its CFR copy (compile
+  fix; proxies are already made from the CFR copy). **No pre-render cache:** 10a did not re-measure the
+  heavy-scene fps margin (the `vox` style is not merged yet); D-29's 20.8 % stands until phase 07 or
+  10b measures the real styles.
+- **Renderer model:** the renderer keeps its own copy of the engine's entity map (normalise / apply
+  change records / denormalise), since it may not import the engine (R1); a test applies real engine
+  change records with it and compares with the engine's project. Optimistic local changes exist only
+  for ops whose result is easy to predict (move, trim, update clip/scene/track/captions/sequence,
+  transition); the engine's change records always replace them. `STALE` re-reads the project and re-runs
+  the intent once.
+- **Keyboard and menus:** one command table (`src/shared/commands.ts`). Only ⌘ shortcuts register with
+  the native menu; plain keys stay with the renderer so typing in a field is never taken. Cut / copy /
+  paste keep the native Edit roles (they work in text fields; in the editor the copy and paste DOM events
+  run the timeline commands). The player cannot run backwards: **J** pauses and steps back 1 s; **L**
+  plays and doubles the speed per press up to 4×.
+- **"Pin frame here"** stores the crop at the playhead from the nearest pin, else the static crop, else
+  the centre (the renderer has no tracked path); the crop handle on the preview then pans it (one
+  coalesced undo entry per gesture, `frame:<itemId>`). The 10b E2E checks the pinned frame in the render.
+- **UI kit:** shadcn/ui is not added; the editor uses plain Tailwind components (R5). Component tests use
+  `@testing-library/react` + jsdom per file.
+- **Scenes from the style panel** start with valid variables (defaults, else the field name for
+  required text); "Add" in a form array copies the last entry.
+
+**Why**: The specs fix the behaviour but not these shapes and limits; each is the simplest choice that
+keeps the 10a done-when (latency < 1 s, one undo entry per gesture, one op per drop). Evidence:
+`plan/log/phase-10a.md`, `docs/evidence/phase-10a/`.
+
+## D-43 — Agent core: loop, tools, plan mode, `vox config` (phase 11, 2026-10-11)
+
+Phase 11 built the agent core in `packages/agent` and the `vox config` commands. Decisions:
+- **Loop:** our own step loop, one `streamText` call per model step (no SDK multi-step); tools have
+  no `execute`, so invalid calls (bad JSON, unknown tool) come back as `invalid` tool calls that the
+  loop repairs or answers itself. Plan mode has no tool loop: the view, one transcript page (sequence
+  ms) and the scene templates are put into the prompt, then one structured answer is validated
+  (2 retries) and run as one `batch` by the agent.
+- **Engine API (additive, frozen contract):** `undoRun(projectId, runId, { last: true })` undoes only
+  the run's newest un-undone entry (`undo_my_last_edit`). New error codes in `ERROR_CODES`:
+  `KEYCHAIN_FAILED`, `PRICE_MISSING`, `APPLE_UNAVAILABLE`, `APPLE_FAILED`, `CONTEXT_OVERFLOW`,
+  `PROBE_FAILED`, `PROVIDER_AUTH|RATE_LIMITED|UNAVAILABLE|FAILED`, `UNKNOWN_ALIAS`, `TOOL_UNKNOWN`,
+  `TOOL_REFUSED`, `PLAN_INVALID`.
+- **Keys and config:** `env:NAME` references must match `^[A-Z][A-Z0-9_]*_API_KEY$`; a base URL that
+  is `http:` and not loopback is refused for a keyed entry. The user's price table is config
+  `prices` (model id to `{inPerMTok, outPerMTok}` or `{free: true}`); no bundled price list.
+- **Tools:** `get_transcript` pages by `cursor` (about 4k tokens a page, no gaps); a `STALE` write or
+  `JOB_CONFLICT` job is re-read and retried once; `ingest` takes a source only when it appears
+  verbatim (bounded) in the user's messages or attachments, else the run pauses for approval;
+  `update_todos` is not offered in plan mode or question turns; a question turn gets read tools only.
+- **Loop guards:** the second identical call gets a note, the third pauses; after 2 failed argument
+  repairs of one call the run pauses. Untrusted text goes in as the trailing user message inside
+  `<data>`. Compaction is budget-driven (stub old tool results at 70 % of the context, keep the last
+  8 steps; a stub older than the newest write is marked stale; on context overflow compact once and
+  retry). A capped turn ends the run `stopped`.
+- **Run record:** `runs/<runId>.jsonl` (mode 0600, redacted), lines `started|step|tool|paused|resumed|
+  done`; on restart, a record without `done` gets `done: stopped` (`closeUnfinishedRuns`). The replay
+  harness compares tool results with link and job ids (`ln_`, `job_`) numbered by first appearance.
+- **Probe:** the editor's largest tool list defaults to the clipper core set plus the always-present
+  tools. Apple entries run only `--status` and the plan check. A `ClipPlan` speaker beat may carry an
+  empty `template` (guided generation fills every field; the real Apple model did so on the M5); a
+  scene beat still needs one.
+- **`vox config`:** `providers add <preset> [--key env:NAME] [--id] [--base-url] [--context
+  <model>=<tokens>]... [--num-ctx n]`, `providers list|remove`, `roles set <role> <provider>:<model>
+  [--mode tools|plan]` (probes first; exit 1 with `PROBE_FAILED` naming the failed check, or
+  `PRICE_MISSING`), `prices set <model> --in --out | --free`, `probe [<provider>:<model>...]`
+  (default: the role models). A key is never accepted on the command line: without `--key env:NAME`
+  it is typed at a hidden prompt and stored in the Keychain. The Apple helper is `VOX_APPLE_LLM`, else
+  `<Resources>/bin/vox-apple-llm` in the app, else the dev build in `native/apple-llm`.
+- **Open for phase 12:** job writes by the agent carry `actor: agent` but no `runId`, so `undoRun`
+  does not undo them; the change note leaves them out by the run's own versions.
+
+## D-44 — Live provider checks wait for the Settings screen (2026-10-11)
+
+The owner asked to enter provider keys (OpenRouter, Ollama, Claude, OpenCode Zen, 9router) through
+the app's Settings screen once it exists, so any user can add theirs the same way later, instead of
+through the CLI now.
+Decision: every step that needs a real provider key or a live model moves to phase 13, after step 7
+(Settings with an OpenRouter key + an Ollama model, "Test" probe, roles):
+- phase 11 MANUAL STEP 1 (`vox config probe --json openrouter:<id> ollama:<model>`) and MANUAL STEP 2
+  (optional other providers);
+- phase 12 steps 9 (live `pnpm eval` per provider, incl. the injection image case, Ollama tool-list
+  cost) and 10 (real URL, OpenRouter tools mode + Ollama plan mode), and phase 12 done-when 1–3.
+Phases 11 and 12 merge on mock-model, replay and Apple on-device evidence; their logs mark these
+items "deferred to 13 (D-44)". Phase 13 step 7b runs them and records the results in the phase 11 and
+12 logs. Nothing else changes: keys still go only to the Keychain (S18), never through argv.

@@ -102,6 +102,10 @@ install from the README, or build from a GitHub clone (D-16).
        3 sequence tabs, each previewable, editable by hand and exportable (app done-when 2).
 7. [ ] MANUAL STEP (owner): Settings with an OpenRouter key + an Ollama model, probe, assign roles
        (app done-when 3).
+   7b. [ ] Deferred live checks (D-44), right after step 7 with the keys entered there: phase 11 MANUAL
+       STEPS 1–2 (`vox config probe --json openrouter:<id> ollama:<model>`, other providers optional) and
+       phase 12 steps 9–10 (live `pnpm eval` per provider; real URL in OpenRouter tools mode and Ollama
+       plan mode). Record the results in the phase 11 and 12 logs.
 8. [ ] Version `1.0.0`; `pnpm dist`; release notes with the Gatekeeper steps.
 8b. [ ] Fresh-clone check (automated, D-16): `bash scripts/fresh-clone-check.sh` passes; summary in the log.
 9. [ ] MANUAL STEP (owner): publish the GitHub Release `v1.0.0` with the `.dmg` (repo in TODO).
@@ -123,6 +127,7 @@ bash scripts/fresh-clone-check.sh   # clone → install → dist → self-test (
 
 - [ ] 2 "make 3 vox clips" from the agent panel → 3 tabs, previewable, editable, exportable.
 - [ ] 3 OpenRouter key + Ollama model added, probed, roles assigned; key only in the Keychain.
+- [ ] Deferred live checks of phases 11 and 12 (step 7b) pass (D-44).
 - [ ] 4 all main / engine-host security tests pass; full R4 table green (incl. S32, S33 and the D-15
       rows).
 - [ ] D-15 agent panel E2E (step 3b) passes: plan card, tighten card, sequence-tab marker, todo list.
