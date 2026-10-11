@@ -168,19 +168,21 @@ export async function workflowKit(over: Partial<WorkflowDeps> = {}): Promise<Kit
 }
 
 /** A scripted model whose next step is computed from the request (`dyn`) or taken from a list. */
-export function dynamicModel(next: (o: LanguageModelV4CallOptions, n: number) => ScriptStep) {
+export function dynamicModel(
+  next: (o: LanguageModelV4CallOptions, n: number) => ScriptStep | Promise<ScriptStep>,
+) {
   const prompts: LanguageModelV4CallOptions[] = [];
   const usage = {
     inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
     outputTokens: { total: 20, text: 20, reasoning: 0 },
   };
-  const step = (o: LanguageModelV4CallOptions) => {
+  const step = async (o: LanguageModelV4CallOptions) => {
     prompts.push(o);
     return next(o, prompts.length - 1);
   };
   const model = new MockLanguageModelV4({
     doStream: async (o) => {
-      const s = step(o);
+      const s = await step(o);
       if (s.error !== undefined) throw s.error;
       const chunks: unknown[] = [];
       const text = s.json !== undefined ? JSON.stringify(s.json) : s.text;
@@ -206,7 +208,7 @@ export function dynamicModel(next: (o: LanguageModelV4CallOptions, n: number) =>
       return { stream: simulateReadableStream({ chunks: chunks as never[] }) };
     },
     doGenerate: async (o) => {
-      const s = step(o);
+      const s = await step(o);
       if (s.error !== undefined) throw s.error;
       const text = s.json !== undefined ? JSON.stringify(s.json) : (s.text ?? '');
       return {
@@ -254,3 +256,35 @@ export function viewIn(o: LanguageModelV4CallOptions): { seq: string; items: Vie
 /** Tool-result messages in a request (the step within a fresh sub-run). */
 export const toolTurns = (o: LanguageModelV4CallOptions) =>
   o.prompt.filter((m) => m.role === 'tool').length;
+
+/** The fixture video ingested and analysed as the user, then `count` quick clips (4–8 s). */
+export async function quickClipsProject(
+  kit: Kit,
+  count = 1,
+): Promise<{ mediaId: string; sequenceIds: string[] }> {
+  const job = kit.deps.runJob!;
+  const ing = (await job('ingest', {
+    projectId: kit.projectId,
+    inputs: [FIXTURE_VIDEO],
+    actor: 'user',
+  })) as { media: { mediaId: string }[] };
+  const mediaId = ing.media[0]!.mediaId;
+  for (const kind of ['shots', 'transcribe', 'facetrack'])
+    await job(kind, { projectId: kit.projectId, mediaId, actor: 'user' });
+  const q = (await job('quickClips', {
+    projectId: kit.projectId,
+    mediaId,
+    count,
+    minMs: 4000,
+    maxMs: 8000,
+    actor: 'user',
+  })) as { sequenceIds: string[] };
+  kit.jobs.length = 0;
+  return { mediaId, sequenceIds: q.sequenceIds };
+}
+
+/** project.json without the fields every write changes (version, updatedAt). */
+export async function normalisedProject(kit: Kit): Promise<unknown> {
+  const p = await kit.engine.getProject(kit.projectId);
+  return { media: p.media, sequences: p.sequences, name: p.name };
+}
