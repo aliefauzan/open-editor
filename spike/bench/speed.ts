@@ -48,7 +48,8 @@ export const SPEED_CLIPS: readonly (SpeedClip & { sound: boolean })[] = [
 export const ATEMPO_PREROLL_SAMPLES = 1024;
 const ms = (f: number) => Math.round((f * 1000) / 30);
 
-function project(withSpeed: boolean): Project {
+/** The spike project: the five clips on V1, the sound ones linked on A1 (schemaVersion 2, migrated on open). */
+export function speedProject(withSpeed: boolean): Project {
   const v: Item[] = [];
   const a: Item[] = [];
   for (const c of SPEED_CLIPS) {
@@ -110,7 +111,7 @@ function project(withSpeed: boolean): Project {
       updatedAt: '2026-10-12T00:00:00.000Z',
       sourceUrls: [],
     },
-  } as Project;
+  } as unknown as Project; // a v2 file on purpose: the store migrates it on open
 }
 
 /** The hand-built mix: each clip's source range, time-stretched, delayed to its start. */
@@ -145,7 +146,7 @@ async function main(): Promise<void> {
   const dir = join(projectsDir, 'p_speed');
   mkdirSync(join(dir, 'media'), { recursive: true });
   symlinkSync(SPEED_SRC, join(dir, 'media', 'spike-source-1080p.mp4'));
-  writeFileSync(join(dir, 'project.json'), JSON.stringify(project(false), null, 2));
+  writeFileSync(join(dir, 'project.json'), JSON.stringify(speedProject(false), null, 2));
   writeFileSync(join(dir, 'history.jsonl'), '');
 
   const e = openEngine({
