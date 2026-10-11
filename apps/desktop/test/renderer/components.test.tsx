@@ -454,6 +454,26 @@ describe('inspector', () => {
     expect((seq(t).videoTracks[0]!.items[1] as MediaClip).frame!.keyframes).toBeUndefined();
   });
 
+  it('video clip: Speed sends one setClipSpeed (ripple); Out point shows the source span (D-62)', async () => {
+    const t = await testEditor();
+    const clip = seq(t).videoTracks[0]!.items[1]! as MediaClip; // 4000–8000
+    t.ctx.editor.getState().select(clip.id, { alt: true });
+    mount(t, <Inspector />);
+    const speed = (await screen.findByLabelText('Speed')) as HTMLInputElement;
+    expect(speed.value).toBe('1');
+    const n = await history(t);
+    fireEvent.change(speed, { target: { value: '2' } });
+    fireEvent.blur(speed);
+    await act(() => idle(t));
+    const now = seq(t).videoTracks[0]!.items[1] as MediaClip;
+    expect(now).toMatchObject({ startMs: 4000, durationMs: 2000, inMs: clip.inMs, speed: 2 });
+    expect(await history(t)).toBe(n + 1);
+    // Out point is source time: in + 2000 ms × 2
+    expect((screen.getByLabelText('Out point') as HTMLInputElement).value).toBe(
+      String(clip.inMs + 4000),
+    );
+  });
+
   it('audio clip: denoise, volume slider is one undo entry', async () => {
     const t = await testEditor();
     const a = seq(t).audioTracks[0]!.items[0]!;
