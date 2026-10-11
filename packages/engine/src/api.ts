@@ -268,6 +268,32 @@ export type {
 export { openTrustStore, styleCodeHash, type TrustStore } from './styles/manage.ts';
 export type { ValidateProblem, ValidateReport } from './styles/validate.ts';
 export {
+  closestFont,
+  loadFontCatalogue,
+  type FontCatalogue,
+  type FontEntry,
+} from './styles/extract/catalogue.ts';
+export { StyleDescriptionSchema, type StyleDescription } from './styles/extract/description.ts';
+export {
+  mapDraftStyle,
+  plainText,
+  type DraftStyle,
+  type MapInput,
+  type StyleSource,
+} from './styles/extract/map.ts';
+export {
+  MeasurementsSchema,
+  measureReference,
+  type Measurements,
+  type MeasureOptions,
+} from './styles/extract/measure.ts';
+export {
+  reportHtml,
+  writeDraftStyle,
+  writeStyleReport,
+  type ReportInput,
+} from './styles/extract/write.ts';
+export {
   checkRelativePath,
   ensureProjectsDir,
   isProjectId,

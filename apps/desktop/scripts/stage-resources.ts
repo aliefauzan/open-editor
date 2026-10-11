@@ -1,7 +1,7 @@
 // Stages the packaged app's Resources (plan R1 "Packaged app") into out-resources/, which
 // electron-builder copies to `Vox Studio.app/Contents/Resources/` as extraResources:
 //   styles/                 built-in styles
-//   engine-data/            places.json + NOTICE.md; runtime/ = vox-runtime.js, vox-preview.js
+//   engine-data/            places.json + NOTICE.md; fonts/ (OFL catalogue); runtime/ = vox-runtime.js, vox-preview.js
 //   hyperframes/node_modules/  the pinned HyperFrames CLI + GSAP with their dependency tree
 //   py/                     pyproject.toml, uv.lock, .python-version, vox_py (incl. the vendored
 //                           Silero VAD model, D-15); setup syncs it into <tools>/py-env (S31)
@@ -183,6 +183,8 @@ export async function stageResources(opts: StageOptions = {}): Promise<void> {
   const data = join(STAGE, 'engine-data');
   mkdirSync(join(data, 'runtime'), { recursive: true });
   for (const f of ['places.json', 'NOTICE.md']) cpSync(join(ENGINE, 'data', f), join(data, f));
+  // the free-font catalogue for style extraction (phase 15)
+  cpSync(join(ENGINE, 'data', 'fonts'), join(data, 'fonts'), { recursive: true, filter: noJunk });
   for (const f of ['vox-runtime.js', 'vox-preview.js'])
     cpSync(join(ENGINE, 'src', 'compile', 'runtime', f), join(data, 'runtime', f));
   const n = copyModules(join(STAGE, 'hyperframes'));

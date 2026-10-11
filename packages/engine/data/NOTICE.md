@@ -13,3 +13,8 @@
   `name, aliases ("|"-joined: Natural Earth namepar, namealt, nameascii), country, iso2, admin1, lat, lon (4 decimals), population (pop_max), capital (1 = country capital)`.
   Rows are sorted by population, largest first.
 - SHA-256 of `places.json`: `dfb4767af7fed2ca2a2c26e1bbc119f76cbcc17e4ebdee0b909a7bedf9d4d650`.
+
+## `fonts/` (style extraction font catalogue, `src/styles/extract/catalogue.ts`)
+
+- 39 families from the Google Fonts repository, SIL Open Font License 1.1; sources, commit and file
+  hashes in `fonts/SOURCES.md` and `fonts/catalogue.json`; each family's licence is `fonts/OFL-*.txt`.

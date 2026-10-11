@@ -1,5 +1,6 @@
 // `vox style validate <styleId>` (styles spec "Template rules", "Style registry", "Testing"; phase 06).
-// Checks the style's own templates, caption presets, overlays and SFX credits:
+// Checks the style's own templates (a pure re-skin with none renders its inherited ones, phase 15),
+// caption presets, overlays and SFX credits:
 // - static: schema (the registry load), text variables declare `maxLength`, fixtures match the
 //   variables schema, hook source + imports + determinism, file references, SFX credits;
 // - render: every fixture back to back in one sequence (overlays off), `hyperframes lint` on the
@@ -364,6 +365,16 @@ export async function validateStyle(o: ValidateOptions): Promise<ValidateReport>
     .filter((t) => t.styleId === style.id)
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const fixtures = new Map<string, Fixture[]>();
+  // A pure re-skin (no own templates: a `vox style new` child or an extracted draft, styles Part C)
+  // renders every inherited template's fixtures in its own tokens; the static template checks stay
+  // with the declaring style. Trusted parents' hooks run through the untrusted child (S8).
+  const rendered =
+    own.length > 0 ? own : Object.values(style.templates).sort((a, b) => (a.id < b.id ? -1 : 1));
+  if (own.length === 0) {
+    for (const def of rendered) fixtures.set(def.id, readFixtures(def));
+    if (rendered.length > 0)
+      report.notes.push(`re-skin: renders the ${String(rendered.length)} inherited templates`);
+  }
 
   // static checks
   for (const def of own) {
@@ -479,7 +490,7 @@ export async function validateStyle(o: ValidateOptions): Promise<ValidateReport>
       await renderPass({
         o,
         style,
-        own,
+        own: rendered,
         fixtures,
         media,
         work,
@@ -495,7 +506,7 @@ export async function validateStyle(o: ValidateOptions): Promise<ValidateReport>
     if (wantDom) {
       await domPass({
         style,
-        own,
+        own: rendered,
         fixtures,
         media,
         work,
