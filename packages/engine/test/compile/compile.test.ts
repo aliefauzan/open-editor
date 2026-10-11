@@ -114,6 +114,11 @@ describe('layers and tracks (step 9)', () => {
     expect(r.links.get('media/m_b.mp4')).toMatch(/cfr\/m_b\.mp4$/);
     const pv = await build(mainProject(), { mode: 'preview' });
     expect(pv.links.get('media/m_b.mp4')).toMatch(/proxies\/m_b\.mp4$/);
+    // no proxy: the player still never loads the VFR original (D-15)
+    const noProxy = mainProject();
+    delete noProxy.media.find((m) => m.id === 'm_b')!.proxyPath;
+    const pv2 = await build(noProxy, { mode: 'preview' });
+    expect(pv2.links.get('media/m_b.mp4')).toMatch(/cfr\/m_b\.mp4$/);
   });
 });
 

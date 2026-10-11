@@ -1,73 +1,83 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { SetupProgressData } from '../shared/api.ts';
+import { createEditorContext, EditorProvider } from './editor/context.tsx';
+import { Editor } from './editor/Editor.tsx';
 import { SetupNotices, SetupScreen } from './Setup.tsx';
 import { useSetup } from './setup-store.ts';
 import { useShell } from './store.ts';
+import { useStore } from 'zustand';
 
-type PlayerEl = HTMLElement & { play(): void; pause(): void; currentTime: number };
-
-function Preview({ url }: { url: string }) {
-  const ref = useRef<PlayerEl | null>(null);
-  const [time, setTime] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const tick = () => setTime(el.currentTime ?? 0);
-    el.addEventListener('timeupdate', tick);
-    return () => el.removeEventListener('timeupdate', tick);
-  }, [url]);
-  const toggle = () => {
-    const el = ref.current;
-    if (!el) return;
-    if (playing) el.pause();
-    else el.play();
-    setPlaying(!playing);
-  };
+function Projects(props: { onOpen: (id: string) => void }) {
+  const s = useShell();
+  const [name, setName] = useState('');
   return (
-    <div className="flex h-full flex-col items-center gap-2 p-4">
-      <hyperframes-player
-        ref={ref}
-        key={url}
-        src={url}
-        width="1080"
-        height="1920"
-        sandbox-origin="opaque"
-        data-testid="player"
-        style={{ height: 'calc(100% - 48px)', aspectRatio: '9 / 16' }}
-      />
-      <div className="flex items-center gap-3 text-sm">
+    <main className="mx-auto flex h-full w-full max-w-xl flex-col gap-4 overflow-y-auto p-8">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Projects</h1>
         <button
           type="button"
-          data-testid="play"
-          className="rounded bg-neutral-800 px-3 py-1 hover:bg-neutral-700"
-          onClick={toggle}
+          data-testid="open-setup"
+          className="text-xs text-neutral-400 underline"
+          onClick={() => useSetup.getState().show(true)}
         >
-          {playing ? 'Pause' : 'Play'}
+          Setup
         </button>
-        <span data-testid="time" className="font-mono tabular-nums">
-          {time.toFixed(2)} s
-        </span>
       </div>
-    </div>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) void s.createProject(name.trim()).then(() => setName(''));
+        }}
+      >
+        <input
+          aria-label="New project name"
+          className="min-w-0 flex-1 rounded bg-neutral-900 px-2 py-1 text-sm"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="New project"
+        />
+        <button type="submit" className="rounded bg-neutral-800 px-3 py-1 text-sm">
+          Create
+        </button>
+      </form>
+      <ul className="space-y-1" data-testid="projects">
+        {s.projects.map((p) => (
+          <li key={p.id}>
+            <button
+              type="button"
+              data-project-id={p.id}
+              className="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-800"
+              onClick={() => props.onOpen(p.id)}
+            >
+              {p.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </main>
   );
 }
 
 export function App() {
   const s = useShell();
-  const [name, setName] = useState('');
+  const ctx = useMemo(() => createEditorContext(window.vox), []);
+  const openId = useStore(ctx.editor, (x) => x.projectId);
   useEffect(() => {
     // once on mount; store actions come from getState() so the effect has no dependencies
     void useShell.getState().loadProjects();
     void useSetup.getState().refresh();
     const offs = [
-      window.vox.on('host.restarted', () => void useShell.getState().hostRestarted()),
+      window.vox.on('host.restarted', () => {
+        void useShell.getState().hostRestarted();
+        void ctx.editor.getState().reload();
+      }),
       window.vox.on('setup.progress', (e) =>
         useSetup.getState().onProgress(e as SetupProgressData),
       ),
     ];
     return () => offs.forEach((off) => off());
-  }, []);
+  }, [ctx]);
   const setupOpen = useSetup((x) => x.open);
   if (setupOpen) return <SetupScreen />;
   return (
@@ -90,63 +100,20 @@ export function App() {
         </div>
       )}
       <SetupNotices />
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-72 shrink-0 overflow-y-auto border-r border-neutral-800 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h1 className="text-lg font-semibold">Projects</h1>
-            <button
-              type="button"
-              data-testid="open-setup"
-              className="text-xs text-neutral-400 underline"
-              onClick={() => useSetup.getState().show(true)}
-            >
-              Setup
-            </button>
-          </div>
-          <form
-            className="mb-4 flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (name.trim()) void s.createProject(name.trim()).then(() => setName(''));
-            }}
-          >
-            <input
-              aria-label="New project name"
-              className="min-w-0 flex-1 rounded bg-neutral-900 px-2 py-1 text-sm"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="New project"
+      <div className="min-h-0 flex-1">
+        <EditorProvider value={ctx}>
+          {openId ? (
+            <Editor
+              onClose={() => {
+                ctx.editor.getState().close();
+                void useShell.getState().loadProjects();
+              }}
+              onOpenSetup={() => useSetup.getState().show(true)}
             />
-            <button type="submit" className="rounded bg-neutral-800 px-2 py-1 text-sm">
-              Create
-            </button>
-          </form>
-          <ul className="space-y-1" data-testid="projects">
-            {s.projects.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  data-project-id={p.id}
-                  className={`w-full rounded px-2 py-1 text-left text-sm hover:bg-neutral-800 ${
-                    s.open?.project.id === p.id ? 'bg-neutral-800' : ''
-                  }`}
-                  onClick={() => void s.openProject(p.id)}
-                >
-                  {p.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
-        <main className="min-w-0 flex-1">
-          {s.previewUrl ? (
-            <Preview url={s.previewUrl} />
           ) : (
-            <p className="p-8 text-sm text-neutral-400">
-              {s.open ? 'This project has no sequence yet.' : 'Open a project to preview it.'}
-            </p>
+            <Projects onOpen={(id) => void ctx.editor.getState().open(id)} />
           )}
-        </main>
+        </EditorProvider>
       </div>
     </div>
   );
