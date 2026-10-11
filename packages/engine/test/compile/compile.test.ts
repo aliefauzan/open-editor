@@ -224,6 +224,54 @@ describe('stack panels and token scoping (step 9)', () => {
   });
 });
 
+describe('token scoping with the real vox style (phase 07 step 9)', () => {
+  test('base/text-overlay in a vox sequence carries vox tokens; a vox template in a base sequence keeps them', async () => {
+    const overlay = scene('it_o', 'base/text-overlay', '1.0.0', 0, 2000, { text: 'Rotterdam' });
+    const kinetic = scene('it_k', 'vox/kinetic-serif', '1.0.0', 2000, 2000, { text: 'a b c' });
+    const inVox = await build(sceneProject('vox', [overlay, kinetic]), { mode: 'render' });
+    expect(instance(inVox, 'it_o')).toContain('--tok-color-accent: #D7261E;');
+    expect(instance(inVox, 'it_o')).toContain('--tok-font-display: "DM Serif Display";');
+    const inBase = await build(sceneProject('base', [overlay, kinetic]), { mode: 'render' });
+    expect(instance(inBase, 'it_o')).toContain('--tok-color-accent: #2f6fed;');
+    expect(instance(inBase, 'it_k')).toContain('--tok-color-accent: #D7261E;');
+    expect(instance(inBase, 'it_k')).toContain('--tok-motion-frame-hold: 2;');
+  });
+});
+
+describe('a sequence mixing vox and base templates (phase 07 step 10)', () => {
+  test.each(['render', 'preview'] as const)(
+    'compiles in %s mode with the vox overlay',
+    async (mode) => {
+      const p = sceneProject('vox', [
+        scene('it_1', 'base/title', '1.0.0', 0, 2000, { title: 'Ports' }),
+        {
+          ...scene('it_2', 'vox/stat', '1.0.0', 2000, 2500, { value: '78%', line2: 'by sea' }),
+          transitionIn: { template: 'vox/paper-tear', durationMs: 600 },
+        },
+        scene('it_3', 'vox/map-route', '1.0.0', 4500, 3000, {
+          places: [
+            { name: 'Rotterdam', lat: 51.92, lon: 4.48 },
+            { name: 'Mumbai', lat: 19.08, lon: 72.88 },
+          ],
+          route: true,
+        }),
+        {
+          ...scene('it_4', 'vox/paper-collage', '1.0.0', 7500, 2500, {
+            items: [{ media: 'm_img', x: 50, y: 40 }],
+          }),
+          transitionIn: { template: 'base/dip-to-black', durationMs: 400 },
+        },
+      ]);
+      const b = await build(p, { mode });
+      const html = index(b);
+      expect(html).toContain('id="overlay-paper-grain"');
+      for (const id of ['it_1', 'it_2', 'it_3', 'it_4']) expect(html).toContain(`id="${id}"`);
+      // the map hook ran (trusted built-in style) and wrote its file
+      expect([...b.files.keys()].some((f) => f.endsWith('/map.svg'))).toBe(true);
+    },
+  );
+});
+
 describe('D-15 compile details (step 9b)', () => {
   test('skipEntrance is injected when a scene is shorter than minEntranceMs', async () => {
     const p = sceneProject('base', [

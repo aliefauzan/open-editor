@@ -3,21 +3,24 @@
 // `skipEntrance` (step 5b), and the cue-timing measurement on synthetic frame differences (step 6).
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { cueTimingFindings, frameDiffs } from '../../src/styles/cue-timing.ts';
+import { cueTimingFindings, frameDiffs, windowDiffs } from '../../src/styles/cue-timing.ts';
 import { loadStyleRegistry } from '../../src/styles/registry.ts';
 import {
   fileRefProblems,
   textLength,
   textWithoutMaxLength,
   validateStyle,
+  windowCueFrames,
 } from '../../src/styles/validate.ts';
 import { REPO_STYLES } from '../compile/fixture.ts';
 
 const VALIDATE_STYLES = join(import.meta.dirname, '..', 'fixtures', 'styles', 'validate');
 
 const registry = () => loadStyleRegistry({ stylesDirs: [REPO_STYLES, VALIDATE_STYLES] });
+// The test styles' SFX are generated tones (not real recordings), so the kit check (phase 07, tested
+// in styles/vox/kit.test.ts) stays off here; these tests cover the static checks.
 const staticOnly = (styleId: string) =>
-  validateStyle({ registry: registry(), styleId, render: false, dom: false });
+  validateStyle({ registry: registry(), styleId, render: false, dom: false, kit: false });
 const rules = (r: { problems: { rule: string }[] }) => [...new Set(r.problems.map((p) => p.rule))];
 
 describe('validate: static checks', () => {
@@ -119,5 +122,31 @@ describe('cue timing on frame differences (step 6)', () => {
     expect(cueTimingFindings(diffs, [{ name: 'm', type: 'move', frame: 31 }])).toEqual([]);
     expect(cueTimingFindings(diffs, [{ name: 'm', type: 'move', frame: 60 }])).toHaveLength(1);
     expect(cueTimingFindings(diffs, [{ name: 'h', type: 'hero', frame: 60 }])).toEqual([]);
+  });
+});
+
+describe('cue window at the start of the render (phase 07)', () => {
+  test('a scene at frame 0 is compared with the black canvas, so an appear cue at 0 is measured', () => {
+    const gray = Array.from({ length: 10 }, () => new Uint8Array(64).fill(26));
+    const diffs = windowDiffs(gray, 0, 10);
+    expect(diffs[0]).toBe(26);
+    expect(cueTimingFindings(diffs, [{ name: 'in', type: 'appear', frame: 0 }])).toEqual([]);
+    // later windows keep comparing with the frame before them
+    expect(windowDiffs(gray, 3, 10)[0]).toBe(0);
+  });
+});
+
+describe('cue frames per window (phase 07)', () => {
+  test('scene cues count from the scene start, transition cues from the cut', () => {
+    const cues = [
+      { name: 'a', type: 'appear' as const, atMs: 'entrance' as const },
+      { name: 'b', type: 'move' as const, atMs: 100 },
+    ];
+    expect(windowCueFrames({ kind: 'scene', startMs: 3000 }, cues).map((c) => c.frame)).toEqual([
+      0, 3,
+    ]);
+    // window 1000 ms before the cut at 5000: the cut is frame 30 of the window (30 fps)
+    const tx = windowCueFrames({ kind: 'transition', startMs: 4000, cutMs: 5000 }, cues);
+    expect(tx.map((c) => c.frame)).toEqual([30, 33]);
   });
 });

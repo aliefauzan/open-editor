@@ -37,6 +37,17 @@ export function frameDiffs(frames: readonly Uint8Array[], before?: Uint8Array): 
   return out;
 }
 
+/**
+ * Differences of render frames [s, e). A window that starts at frame 0 is compared with the black
+ * canvas the render starts from (compile's root background), so a cue at a scene's first frame is
+ * measurable there too.
+ */
+export function windowDiffs(gray: readonly Uint8Array[], s: number, e: number): number[] {
+  const frames = gray.slice(s, e);
+  const before = s > 0 ? gray[s - 1] : frames[0] && new Uint8Array(frames[0].length);
+  return frameDiffs(frames, before);
+}
+
 function median(xs: readonly number[]): number {
   if (xs.length === 0) return 0;
   const s = [...xs].sort((a, b) => a - b);

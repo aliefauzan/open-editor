@@ -1,0 +1,5 @@
+{
+  "places": [{ "name": "Bengaluru", "lat": 12.97, "lon": 77.59 }],
+  "zoom": "city",
+  "palette": "paper"
+}

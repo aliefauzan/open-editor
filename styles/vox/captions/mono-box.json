@@ -1,0 +1,7 @@
+{
+  "name": "mono-box",
+  "description": "Mono uppercase captions on a black box at mid height, cut on the word with no fade: unread and read words white, the active word yellow, emphasis words on a red box.",
+  "case": "upper",
+  "stripPunctuation": true,
+  "position": { "yPct": 50 }
+}

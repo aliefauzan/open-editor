@@ -1,0 +1,8 @@
+{
+  "items": [
+    { "media": "m_cutout", "x": 35, "y": 38, "scale": 1.1, "rotate": -6 },
+    { "media": "m_cutout", "x": 66, "y": 55, "scale": 0.9, "rotate": 8 }
+  ],
+  "label": "M.G. Road",
+  "labelPos": "bottom"
+}

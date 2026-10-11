@@ -1,0 +1,9 @@
+{
+  "name": "word-reveal",
+  "description": "Box-free word-by-word captions at mid height, as in documentary explainer edits: each word appears when it is spoken (unread words hidden), the active word full white, read words at 80 %. Words are an italic serif; emphasis words switch to a larger bold grotesk (mixed-family emphasis).",
+  "case": "asis",
+  "stripPunctuation": false,
+  "position": {
+    "yPct": 50
+  }
+}
