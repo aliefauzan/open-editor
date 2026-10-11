@@ -177,8 +177,8 @@ describe('SFX kit (real recordings, D-14; accepted in phase 07)', () => {
     'timpani',
   ];
   // phase 07 re-processing: sample peak -1.2 dBFS; the hero thump 11 dB lower (audio QA
-  // sfxUnderSpeech)
-  const peakDbfs: Record<string, number> = { 'thump-tap': -12.0 };
+  // sfxUnderSpeech); the timpani hero (GATE 3 round 2) 14 dB lower for the same reason
+  const peakDbfs: Record<string, number> = { 'thump-tap': -12.0, timpani: -15.2 };
   const dir = 'styles/vox/assets/sfx';
 
   test('the folder holds exactly the eight kit files and CREDITS.md (typewriter removed)', () => {

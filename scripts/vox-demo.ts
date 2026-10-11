@@ -1,9 +1,13 @@
 // GATE 3 demo (phase 07 step 12): the offline talking-head project re-styled as `vox`, with all four
-// v1 templates on V2 over the speaker, both vox transitions, a `base/title` end card (a mixed
-// sequence, styles done-when 2), `vox/mono-box` captions with emphasis, and the SFX cues. Renders the
-// MP4 and runs the audio QA (`qa.json`, `qa.png`, `LISTEN.md`) into the evidence folder.
+// v1 templates on V2 over the speaker (the collage as a black-and-white newspaper clipping with a
+// highlighter, GATE 3 round 2), hard cuts as in the documentary references, a `base/title` end card
+// (a mixed sequence, styles done-when 2), captions with emphasis, and accent SFX on about one cut in
+// three (the stat number and the kinetic reveal; the other scene cues are switched off with
+// `sfxOff`). Renders the MP4 and runs the audio QA (`qa.json`, `qa.png`, `LISTEN.md`) into the
+// evidence folder.
 //
 //   node scripts/vox-demo.ts --projects-dir <dir> --evidence-dir <dir> [--preset vox/mono-box]
+//     [--overlays film-look,...] (default: the style's default overlays)
 //
 // The cutouts are generated from the checked-in test faces (an ellipse alpha), never from the
 // reference reel.
@@ -47,6 +51,7 @@ async function main(argv: string[]): Promise<void> {
       'projects-dir': { type: 'string' },
       'evidence-dir': { type: 'string' },
       preset: { type: 'string' },
+      overlays: { type: 'string' },
     },
     strict: true,
   });
@@ -69,30 +74,26 @@ async function main(argv: string[]): Promise<void> {
     return r;
   };
 
-  // pictures: two face cutouts and a test-pattern cutout, plus a photo for the stat background
+  // pictures: two face cutouts, plus a photo for the stat background
   const work = join(dir, 'demo-src');
   await mkdir(work, { recursive: true });
   cutout(join(FACES, 'face-a.jpg'), join(work, 'cut-a.png'), 'crop=min(iw\\,ih):min(iw\\,ih)');
   cutout(join(FACES, 'face-b.jpg'), join(work, 'cut-b.png'), 'crop=min(iw\\,ih):min(iw\\,ih)');
-  execFileSync('ffmpeg', [
-    ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=600x600:duration=1'],
-    ...['-frames:v', '1', join(work, 'pattern.png')],
-  ]);
-  cutout(join(work, 'pattern.png'), join(work, 'cut-c.png'), 'null');
   await copyFile(join(FACES, 'face-a.jpg'), join(work, 'photo.jpg'));
   const ing = await job<{ media: { mediaId: string; path?: string }[] }>(e, 'ingest', {
     projectId,
-    inputs: ['cut-a.png', 'cut-b.png', 'cut-c.png', 'photo.jpg'].map((f) => join(work, f)),
+    inputs: ['cut-a.png', 'cut-b.png', 'photo.jpg'].map((f) => join(work, f)),
     actor: 'cli',
   });
-  const [cutA, cutB, cutC, photo] = ing.media.map((m) => m.mediaId) as [
-    string,
-    string,
-    string,
-    string,
-  ];
+  const [cutA, cutB, photo] = ing.media.map((m) => m.mediaId) as [string, string, string];
 
   await op({ op: 'updateSequence', args: { sequenceId, styleId: 'vox' } });
+  if (values.overlays) {
+    await op({
+      op: 'updateSequence',
+      args: { sequenceId, overlays: values.overlays.split(',').filter(Boolean) },
+    });
+  }
   await op({
     op: 'setCaptions',
     args: {
@@ -107,8 +108,9 @@ async function main(argv: string[]): Promise<void> {
   const track = 'V2';
 
   // 20 s: speaker hook, then a scene every few seconds (speaker share inside 15–35 % is not the aim
-  // here; the demo shows every template and transition once)
-  const scenes: [number, number, string, Record<string, unknown>, string | null][] = [
+  // here; the demo shows every template once). Each row: start, duration, template, variables, the
+  // scene's cues kept on (accent rule: about one cut in three to five gets a sound).
+  const scenes: [number, number, string, Record<string, unknown>, boolean][] = [
     [
       2000,
       3200,
@@ -121,7 +123,7 @@ async function main(argv: string[]): Promise<void> {
         route: true,
         zoom: 'world',
       },
-      'vox/paper-tear',
+      false,
     ],
     [
       6200,
@@ -133,7 +135,7 @@ async function main(argv: string[]): Promise<void> {
         tag: "The world's coffee habit",
         bgPhoto: photo,
       },
-      'vox/slide-paper',
+      true,
     ],
     [
       10000,
@@ -141,42 +143,55 @@ async function main(argv: string[]): Promise<void> {
       'vox/paper-collage',
       {
         items: [
-          { media: cutA, x: 30, y: 30, scale: 0.9, rotate: -8 },
-          { media: cutC, x: 70, y: 42, scale: 0.8, rotate: 7 },
-          { media: cutB, x: 40, y: 62, scale: 0.85, rotate: 4 },
+          { media: cutA, x: 28, y: 70, scale: 0.75, rotate: -8 },
+          { media: cutB, x: 72, y: 66, scale: 0.7, rotate: 6 },
         ],
-        label: 'The footage',
-        labelPos: 'top',
+        clipping: {
+          kicker: 'The Daily Ledger, 1952',
+          headline: 'City council bans coffee carts from the old market',
+          body: 'The vote came late on Tuesday after three hours of debate. Vendors say the rule will end a trade their families have run for decades.',
+          highlight: 'bans coffee carts',
+          y: 32,
+        },
+        grade: 'bw',
       },
-      'vox/paper-tear',
+      false,
     ],
     [
       14000,
       2600,
       'vox/kinetic-serif',
       { text: 'without animating a single frame', emphasis: ['single', 'frame'] },
-      'vox/slide-paper',
+      true,
     ],
     [
       17600,
       2400,
       'base/title',
       { title: 'Vox Studio', subtitle: 'paper collage, by agent' },
-      'vox/paper-tear',
+      false,
     ],
   ];
-  for (const [startMs, durationMs, template, variables, tx] of scenes) {
-    const r = await op({
+  const cueNames: Record<string, string[]> = {
+    'vox/map-route': ['map-in'],
+    'vox/stat': ['reveal'],
+    'vox/paper-collage': ['first-pop'],
+    'vox/kinetic-serif': ['reveal'],
+  };
+  for (const [startMs, durationMs, template, variables, sound] of scenes) {
+    const off = sound ? [] : (cueNames[template] ?? []);
+    await op({
       op: 'addScene',
-      args: { sequenceId, trackId: track, startMs, durationMs, template, variables },
+      args: {
+        sequenceId,
+        trackId: track,
+        startMs,
+        durationMs,
+        template,
+        variables,
+        ...(off.length ? { sfxOff: off } : {}),
+      },
     });
-    const itemId = r.results[0]?.items?.find((i) => i.type === 'scene')?.id;
-    if (tx && itemId) {
-      await op({
-        op: 'setTransition',
-        args: { sequenceId, itemId, transition: { template: tx, durationMs: 600 } },
-      });
-    }
   }
 
   await mkdir(evidence, { recursive: true });
