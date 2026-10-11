@@ -65,8 +65,7 @@ const n = (x: number | undefined) => (typeof x === 'number' && x >= 0 ? x : 0);
 export function createLlmScorer(host: ScorerHost, fast: RoleModel): QuickClipScorer {
   return async (input: ScorerInput, ctx) => {
     const scores = new Array<number>(input.candidates.length).fill(Number.NaN);
-    for (let i = 0; i < input.candidates.length; i += SCORE_BATCH) {
-      const batch = input.candidates.slice(i, i + SCORE_BATCH);
+    const ask = async (batch: ScorerInput['candidates']) => {
       const text = batch
         .map((c) => `#${String(c.index)} (${String(c.endMs - c.startMs)} ms): ${c.text}`)
         .join('\n');
@@ -90,11 +89,22 @@ export function createLlmScorer(host: ScorerHost, fast: RoleModel): QuickClipSco
       };
       const usd = host.addCost(fast, usage, r.providerMetadata);
       host.record.write({ type: 'scorer', candidates: batch.length, usage, costUsd: usd });
-      for (const s of r.output.scores) {
-        const k = input.candidates.findIndex((c) => c.index === s.index);
-        if (k >= i && k < i + batch.length) scores[k] = scoreOf(s);
-      }
-    }
+      const wanted = new Set(batch.map((c) => c.index));
+      const got = r.output.scores;
+      // some small models renumber the list from 0: with no index matching and one score per
+      // candidate, the answer is taken in order
+      const inOrder = got.length === batch.length && got.every((s) => !wanted.has(s.index));
+      got.forEach((s, k) => {
+        const index = inOrder ? batch[k]!.index : s.index;
+        if (!wanted.has(index)) return;
+        scores[input.candidates.findIndex((c) => c.index === index)] = scoreOf(s);
+      });
+    };
+    for (let i = 0; i < input.candidates.length; i += SCORE_BATCH)
+      await ask(input.candidates.slice(i, i + SCORE_BATCH));
+    // small models sometimes leave a candidate out: ask once more for those alone
+    const left = input.candidates.filter((_c, k) => Number.isNaN(scores[k]));
+    for (let i = 0; i < left.length; i += SCORE_BATCH) await ask(left.slice(i, i + SCORE_BATCH));
     const missing = scores.filter((x) => Number.isNaN(x)).length;
     if (missing > 0)
       throw new Error(`the fast model left ${String(missing)} candidate(s) unscored`);

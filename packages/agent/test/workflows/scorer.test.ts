@@ -2,7 +2,7 @@
 // scorer error falls back to the heuristic and the run summary says so.
 import { describe, expect, test } from 'vitest';
 import { readRunRecord } from '../../src/loop/record.ts';
-import { scoreOf } from '../../src/quickScorer.ts';
+import { createLlmScorer, scoreOf } from '../../src/quickScorer.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { toolsStylist } from '../helpers/stylists.ts';
 import { dynamicModel, FIXTURE_VIDEO, role, workflowKit, type Kit } from '../helpers/workflow.ts';
@@ -66,5 +66,67 @@ describe('LLM scorer (step 5)', () => {
   test('the score weights hook first', () => {
     expect(scoreOf({ hook: 10, selfContained: 0, ending: 0 })).toBe(4);
     expect(scoreOf({ hook: 0, selfContained: 10, ending: 10 })).toBe(6);
+  });
+});
+
+describe('LLM scorer: missing scores', () => {
+  const candidates = [0, 1, 2].map((index) => ({
+    index,
+    startMs: index * 5000,
+    endMs: index * 5000 + 4000,
+    text: `sentence ${String(index)}.`,
+  }));
+  const host = {
+    ensureBudget: () => Promise.resolve(),
+    addCost: () => 0,
+    record: { write: () => undefined },
+  };
+
+  test('a candidate left out is asked for once more, alone', async () => {
+    const fast = dynamicModel((_o, n) =>
+      n === 0
+        ? {
+            json: {
+              scores: [0, 2].map((index) => ({ index, hook: 5, selfContained: 5, ending: 5 })),
+            },
+          }
+        : { json: { scores: [{ index: 1, hook: 10, selfContained: 10, ending: 10 }] } },
+    );
+    const fn = createLlmScorer(host, role(fast.model));
+    const s = await fn({ mediaId: 'm_x', candidates }, { signal: new AbortController().signal });
+    expect(s).toEqual([5, 10, 5]);
+    expect(fast.prompts).toHaveLength(2);
+    expect(JSON.stringify(fast.prompts[1]!.prompt)).toContain('#1 (4000 ms)');
+    expect(JSON.stringify(fast.prompts[1]!.prompt)).not.toContain('#0 (4000 ms)');
+  });
+
+  test('still missing after the follow-up: the scorer fails (the engine falls back)', async () => {
+    const fast = dynamicModel(() => ({ json: { scores: [] } }));
+    const fn = createLlmScorer(host, role(fast.model));
+    await expect(
+      fn({ mediaId: 'm_x', candidates }, { signal: new AbortController().signal }),
+    ).rejects.toThrow(/left 3 candidate\(s\) unscored/);
+  });
+});
+
+describe('LLM scorer: renumbered answers', () => {
+  test('an answer that renumbers from 0 (no index matches, same count) is taken in order', async () => {
+    const candidates = [4, 7].map((index) => ({ index, startMs: 0, endMs: 4000, text: 'x.' }));
+    const fast = dynamicModel(() => ({
+      json: {
+        scores: [
+          { index: 0, hook: 10, selfContained: 0, ending: 0 },
+          { index: 1, hook: 0, selfContained: 10, ending: 0 },
+        ],
+      },
+    }));
+    const host = {
+      ensureBudget: () => Promise.resolve(),
+      addCost: () => 0,
+      record: { write: () => undefined },
+    };
+    const fn = createLlmScorer(host, role(fast.model));
+    const s = await fn({ mediaId: 'm_x', candidates }, { signal: new AbortController().signal });
+    expect(s).toEqual([4, 3.5]);
   });
 });
