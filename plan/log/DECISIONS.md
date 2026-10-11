@@ -1430,3 +1430,16 @@ conflict slightly with the frozen Part A checks.
 **Why**: Smallest choices that keep the frozen contracts unchanged, make every template pass
 `vox style validate vox` and the demo pass audio QA, and look right in a real render, not only in the
 validate harness.
+
+## D-47 — `vox/word-reveal` caption preset from the documentary references (phase 07, 2026-10-11)
+
+**Context**: Before GATE 3 the owner added ten more style references (latest five videos each of
+tiktok.com/@metro.media.house3 and tiktok.com/@attentioncompound; gitignored, list in
+`docs/evidence/phase-07/reference/REFERENCES.md`). Their clearest shared trait that `vox` lacked: box-free
+captions revealed one word at a time at mid frame, with single words set larger in an italic serif.
+**Decision**: one bounded iteration: a third caption preset `vox/word-reveal` (`case: asis`, punctuation
+kept, `position.yPct` 50, default safe area). Unread words are hidden, the active word is full white, read
+words stay at 80 %, emphasis words use the display serif in italic at 1.4x. `vox/mono-box` stays the
+default; `guide.md` says when to pick it. No contract change (a preset is style data).
+**Why**: The gap shows in every new reference; a preset is the smallest change that closes it without
+touching the templates the owner is about to review.

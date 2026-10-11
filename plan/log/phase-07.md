@@ -107,11 +107,33 @@ are single short hits; cue 5 (`00:17.609`, `paper-tear` into the end card) is th
 | self (visual) | MEDIUM | `serif-lower` is hard to read over bright footage even with the stronger shadow | open note for GATE 3 |
 
 ## GATE 3 — round 1 (2026-10-11)
-Evidence: `side-by-side.jpg` (rows: collage + map, kinetic + stat, mono-box + serif-lower; each pair is
-[reference | ours]), `demo-mono-box.mp4`, `demo-serif-lower.mp4`, `LISTEN.md`, `sfx-sheet.png`.
+Evidence: `side-by-side.jpg` (rows: collage + map, kinetic + stat, mono-box + serif-lower, and from the later
+references word-reveal x2, inset card vs stat and framed inset vs collage; each pair is [reference | ours]), `demo-mono-box.mp4`, `demo-serif-lower.mp4`, `LISTEN.md`, `sfx-sheet.png`.
 Recommendation: approve the four templates and `mono-box`; known gaps the owner may name: full-frame scenes vs the reel's
 split screen (v1.1 `stack`), `serif-lower` legibility on bright footage, no typewriter sound, test faces and test
 pattern as stand-in pictures (no archive photos in the demo). Not accepted on the owner's behalf.
+
+## Later references (added by the owner before GATE 3, 2026-10-11)
+
+Ten more videos (gitignored): the latest five of `@metro.media.house3` (one is `tiktok-2.mp4`) and of `@attentioncompound`.
+Frames: `ref-frames/metro-*.jpg`, `ref-frames/att-*.jpg` (10 frames, 640 px).
+
+- **Share with reel / tiktok-2**: fast cuts (a new picture every 1–3 s), archive and news footage as the picture,
+  photos placed as framed insets with a shadow (`metro-3060-012.2s`, white card; `att-4270-009.9s`, a TV set), pinned
+  photo collages and paper documents (metro strips), one bold title word now and then ("THE REAL WOLF", "$40", "They Said").
+- **Add**: (1) captions with no box, one word at a time, small, centred near the subject; read words stay, emphasis
+  words larger, often an italic serif (`att-6223-068.9s`, `att-4270-029.0s`); (2) darker, cinematic grading and black
+  letterbox space around 16:9 footage in 9:16; (3) waveform and light-leak overlays (`att-2782-033.5s`).
+- **Motion**: hard cuts, slow push-ins on photos, inset cards sliding in; little stop-motion (unlike the reel).
+- **Sound**: a continuous music bed under the voice (integrated −21.3 and −20.0 LUFS on two files), dense broadband
+  hits and whooshes at cuts (spectrogram). A music bed is the user's audio track, not a style asset; our SFX cover the hits.
+
+**Iteration (one, bounded; D-47)**: new caption preset `vox/word-reveal` (box-free, word by word, emphasis in italic
+display serif). `vox style validate vox`: ok, 0 problems (caption checks 3 presets). One run under load (load avg ~30)
+failed `caption-seek` on the unchanged `vox/mono-box` (screenshot bytes differ); the rerun passed: a harness flake, not the
+preset. `pnpm -C packages/engine test -- styles/vox`: 22 passed; styles + compile + assets: 302 passed. Demo with
+`--preset vox/word-reveal`: audio QA pass, `LISTEN.md` timecodes unchanged. Evidence: `demo-word-reveal.mp4`, sheet rows 4–5.
+Not done (open notes for the owner): darker grading, letterboxed 16:9 inserts, waveform overlay.
 
 ## MANUAL STEPS
 1. GATE 3 (required): see `plan/TODO.md`.
