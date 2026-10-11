@@ -21,6 +21,7 @@ import type {
 } from './history/types.ts';
 import { newId } from './model/ids.ts';
 import { SCHEMA_VERSION, type Project } from './model/schema.ts';
+import { spanMs, speedOf } from './model/speed.ts';
 import { findSeq, tracksOf } from './ops/core.ts';
 import type { OpCall } from './ops/index.ts';
 import type { TemplateLookup } from './ops/templates.ts';
@@ -431,6 +432,8 @@ export interface SequenceViewItem {
   template?: string;
   /** First string variable of a scene, if any. */
   text?: string;
+  /** Media clips with a speed other than 1 (v1.1, plan D-62). */
+  speed?: number;
 }
 
 /** Compact read of one sequence for the agent (plan D-15). */
@@ -563,7 +566,8 @@ export function sequenceView(
         });
       } else {
         const kind = audio ? 'audio' : media.get(it.mediaId)?.kind === 'image' ? 'image' : 'video';
-        items.push({ ...base, kind, mediaId: it.mediaId, order });
+        const speed = it.speed !== undefined && it.speed !== 1 ? { speed: it.speed } : {};
+        items.push({ ...base, kind, mediaId: it.mediaId, ...speed, order });
       }
     }
   });
@@ -769,11 +773,19 @@ export function openEngine(opts: EngineOptions): Engine {
         if (!area || !m.width || !m.height) return undefined;
         path = staticTrackPath({ width: m.width, height: m.height }, o.aspect, area, clip.frame);
       }
-      return applyClipFraming(path, {
+      // the tracked path is in source time: frame the source span, then bring the keyframe times
+      // back to item-relative timeline time (clip speed, plan D-62)
+      const sp = speedOf(clip);
+      const kfs = applyClipFraming(path, {
         inMs: clip.inMs,
-        durationMs: clip.durationMs,
-        ...(clip.frame.keyframes ? { keyframes: clip.frame.keyframes } : {}),
+        durationMs: spanMs(clip),
+        ...(clip.frame.keyframes
+          ? {
+              keyframes: clip.frame.keyframes.map((k) => ({ ...k, atMs: Math.round(k.atMs * sp) })),
+            }
+          : {}),
       });
+      return sp === 1 ? kfs : kfs.map((k) => ({ ...k, atMs: Math.round(k.atMs / sp) }));
     };
   }
 

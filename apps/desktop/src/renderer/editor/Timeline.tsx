@@ -22,6 +22,7 @@ import type {
   Sequence,
   Track,
 } from '../../shared/project.ts';
+import { sourceSpanMs } from '../../shared/project.ts';
 import { CaptionLane } from './CaptionLane.tsx';
 import { useCtx, useEditor, useEditorShallow, useUi } from './context.tsx';
 import { mediaName } from './MediaBin.tsx';
@@ -127,6 +128,7 @@ function Thumbs(props: {
   projectId: string;
   m: MediaItem;
   inMs: number;
+  /** Source ms the clip shows (timeline length × speed). */
   durationMs: number;
   widthPx: number;
 }) {
@@ -296,12 +298,12 @@ function ClipView(props: { itemId: string; rowId: string; follow: Follow }) {
           projectId={projectId}
           m={media}
           inMs={it.inMs}
-          durationMs={it.durationMs}
+          durationMs={sourceSpanMs(it)}
           widthPx={widthPx}
         />
       )}
       {audio && peaks && it.type === 'media' && (
-        <Waveform peaks={peaks} fromMs={it.inMs} toMs={it.inMs + it.durationMs} />
+        <Waveform peaks={peaks} fromMs={it.inMs} toMs={it.inMs + sourceSpanMs(it)} />
       )}
       <div className="relative flex items-center gap-1 px-1.5 pt-0.5">
         {it.linkId && (

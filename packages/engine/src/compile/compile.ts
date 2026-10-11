@@ -21,6 +21,7 @@ import {
   type TranscriptOf,
 } from '../model/captions.ts';
 import { blendHalf, frame, type Fps } from '../model/fps.ts';
+import { speedOf } from '../model/speed.ts';
 import type {
   Item,
   Keyframe,
@@ -447,6 +448,10 @@ async function sceneHost(ctx: Ctx, s: SceneClip, trackIndex: number): Promise<st
   return `<div id="${s.id}" class="clip host" data-composition-id="${s.id}"${src} data-start="${secOf(ctx, s.startMs)}" data-duration="${secOf(ctx, s.durationMs)}" data-track-index="${trackIndex}" data-width="${ctx.seq.canvas.width}" data-height="${ctx.seq.canvas.height}"></div>`;
 }
 
+/** `data-playback-rate` of a clip with a speed (engine spec "Clip speed", plan D-62); none at 1×. */
+const rateAttr = (it: MediaClip): string =>
+  it.speed !== undefined && it.speed !== 1 ? ` data-playback-rate="${num(it.speed)}"` : '';
+
 /** Media seconds of a source offset on the source's grid (sequence grid for media with no fps). */
 function mediaStart(ctx: Ctx, m: MediaItem, inMs: number, bias: number): string {
   const fps = m.fps ?? ctx.fps;
@@ -525,7 +530,7 @@ function framing(ctx: Ctx, m: MediaItem, p: Placed): string {
 function videoTag(ctx: Ctx, m: MediaItem, p: Placed, trackIndex: number): string {
   const src = pictureFile(ctx, m);
   const bias = ctx.mode === 'preview' ? PREVIEW_VIDEO_BIAS_S : 0;
-  return `<video id="${p.item.id}" src="${attr(src)}" style="${framing(ctx, m, p)}" data-start="${secOf(ctx, p.startMs)}" data-duration="${secOf(ctx, p.durationMs)}" data-media-start="${mediaStart(ctx, m, p.inMs, bias)}" data-track-index="${trackIndex}" muted playsinline></video>`;
+  return `<video id="${p.item.id}" src="${attr(src)}" style="${framing(ctx, m, p)}" data-start="${secOf(ctx, p.startMs)}" data-duration="${secOf(ctx, p.durationMs)}" data-media-start="${mediaStart(ctx, m, p.inMs, bias)}"${rateAttr(p.item)} data-track-index="${trackIndex}" muted playsinline></video>`;
 }
 
 function imageTag(ctx: Ctx, m: MediaItem, p: Placed, trackIndex: number): string {
@@ -571,9 +576,11 @@ function placements(ctx: Ctx, items: readonly Item[]): Map<string, Placed> {
     const { before, after } = blendHalf(it.startMs, tr.durationMs, ctx.seq.canvas.fps);
     const inc = out.get(it.id);
     if (inc) {
-      const shift = Math.min(before, inc.inMs, inc.startMs);
+      // the early start shows source before inMs at the clip's speed (plan D-62)
+      const sp = speedOf(inc.item);
+      const shift = Math.min(before, Math.floor(inc.inMs / sp), inc.startMs);
       inc.startMs -= shift;
-      inc.inMs -= shift;
+      inc.inMs -= Math.round(shift * sp);
       inc.durationMs += shift;
     }
     const prev = items.find((x) => endOf(x) === it.startMs);
@@ -732,7 +739,7 @@ function audioLayer(ctx: Ctx, cues: CueList, durMs: number): string[] {
       const src = audioFile(ctx, m);
       const vol = Math.min(1, Math.max(0, it.volume ?? 1));
       out.push(
-        `<audio id="${it.id}" src="${attr(src)}" data-start="${secOf(ctx, it.startMs)}" data-duration="${secOf(ctx, it.durationMs)}" data-media-start="${mediaStart(ctx, m, it.inMs, 0)}" data-volume="${num(vol)}" data-track-index="${100 + k}"></audio>`,
+        `<audio id="${it.id}" src="${attr(src)}" data-start="${secOf(ctx, it.startMs)}" data-duration="${secOf(ctx, it.durationMs)}" data-media-start="${mediaStart(ctx, m, it.inMs, 0)}"${rateAttr(it)} data-volume="${num(vol)}" data-track-index="${100 + k}"></audio>`,
       );
       if (it.fadeInMs) {
         ctx.script.push(
@@ -794,7 +801,7 @@ export function applyRange(
         startMs: it.startMs + head - a,
         durationMs: Math.min(e, b) - it.startMs - head,
       };
-      if (next.type === 'media') next.inMs += head;
+      if (next.type === 'media') next.inMs += Math.round(head * speedOf(next));
       if (
         next.transitionIn &&
         (head > 0 ||

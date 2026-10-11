@@ -3,7 +3,7 @@
 import { cpSync, existsSync, statSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { openEngine, version, type ProjectChangedEvent } from '../src/api.ts';
+import { openEngine, SCHEMA_VERSION, version, type ProjectChangedEvent } from '../src/api.ts';
 import { tempDir } from './helpers/store.ts';
 import { templates } from './helpers/templates.ts';
 
@@ -25,7 +25,7 @@ describe('engine api', () => {
       version: 0,
       sequences: [],
       media: [],
-      schemaVersion: 2,
+      schemaVersion: SCHEMA_VERSION,
     });
     expect(p.id).toMatch(/^p_[a-z0-9]+$/);
     const dir = join(e.projectsDir, p.id);

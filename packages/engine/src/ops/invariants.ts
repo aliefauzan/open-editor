@@ -3,6 +3,7 @@
 import type { Change } from '../model/diff.ts';
 import { splitSeqKey } from '../model/normalise.ts';
 import { parseProject, type Item, type Project, type Sequence } from '../model/schema.ts';
+import { SOUND_SPEED_MAX, SOUND_SPEED_MIN, spanMs } from '../model/speed.ts';
 import { endOf, fail, isVideoTrack, onGrid, overlapError, sourceFps, tracksOf } from './core.ts';
 import type { TemplateLookup } from './templates.ts';
 
@@ -88,11 +89,27 @@ function checkItem(
       { itemId: it.id },
     );
   }
+  if (it.speed !== undefined) {
+    if (media.kind === 'image') {
+      fail('VALIDATION', `Image clip ${it.id} has no speed`, 'Remove speed from the image clip', {
+        itemId: it.id,
+      });
+    }
+    if (!video && (it.speed < SOUND_SPEED_MIN || it.speed > SOUND_SPEED_MAX)) {
+      fail(
+        'VALIDATION',
+        `Sound clip ${it.id} plays at ${it.speed}×; sound stays in sync only from ${SOUND_SPEED_MIN}× to ${SOUND_SPEED_MAX}×`,
+        `Pick ${SOUND_SPEED_MIN}–${SOUND_SPEED_MAX}×, or set the speed with unlinked: true and remove or mute the sound clip`,
+        { itemId: it.id, trackId },
+      );
+    }
+  }
   if ((media.kind === 'video' || media.kind === 'audio') && media.durationMs !== undefined) {
-    if (it.inMs + it.durationMs > media.durationMs) {
+    // the clip uses the source range [inMs, inMs + durationMs × speed) (plan D-62)
+    if (it.inMs + spanMs(it) > media.durationMs) {
       fail(
         'MEDIA_BOUNDS',
-        `Item ${it.id} runs past the end of ${media.id} (${it.inMs + it.durationMs} > ${media.durationMs} ms)`,
+        `Item ${it.id} runs past the end of ${media.id} (${it.inMs + spanMs(it)} > ${media.durationMs} ms)`,
         'Shorten the clip or start earlier in the source',
         { itemId: it.id, mediaId: media.id },
       );

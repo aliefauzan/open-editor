@@ -3,6 +3,7 @@ import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'n
 import { join, relative } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { ProjectStore } from '../../src/history/store.ts';
+import { SCHEMA_VERSION } from '../../src/model/schema.ts';
 import { richProject } from '../helpers/project.ts';
 import { tempDir } from '../helpers/store.ts';
 
@@ -29,7 +30,7 @@ function tree(dir: string): Record<string, string> {
 
 describe('schema safety', () => {
   test('a newer schemaVersion fails SCHEMA_TOO_NEW and the folder is byte-identical (no lock, log or snapshot)', async () => {
-    const raw = { ...richProject(), schemaVersion: 3, futureField: { x: 1 } };
+    const raw = { ...richProject(), schemaVersion: SCHEMA_VERSION + 1, futureField: { x: 1 } };
     const dir = writeProject(raw, '{"torn');
     const before = tree(dir);
     await expect(ProjectStore.open(dir)).rejects.toMatchObject({
@@ -39,7 +40,7 @@ describe('schema safety', () => {
     expect(tree(dir)).toEqual(before);
   });
 
-  test('a load-time migration writes snapshots/auto-pre-migrate-v1.json first, then migrates and logs', async () => {
+  test('a load-time migration writes snapshots/auto-pre-migrate-v1.json first, then migrates (1 → 2 → 3) and logs', async () => {
     const v2 = richProject();
     const v1 = { ...v2, schemaVersion: 1, name: undefined, title: v2.name };
     const dir = writeProject(v1);
@@ -57,9 +58,11 @@ describe('schema safety', () => {
     expect(sawSnapshot).toBe(true);
     expect(readFileSync(join(dir, 'snapshots/auto-pre-migrate-v1.json'), 'utf8')).toBe(original);
     expect(store.project.name).toBe(v2.name);
-    expect(JSON.parse(readFileSync(join(dir, 'project.json'), 'utf8')).schemaVersion).toBe(2);
+    expect(JSON.parse(readFileSync(join(dir, 'project.json'), 'utf8')).schemaVersion).toBe(
+      SCHEMA_VERSION,
+    );
     expect(readFileSync(join(dir, 'logs/engine.log'), 'utf8')).toMatch(
-      /migrated project.json from schemaVersion 1 to 2/,
+      /migrated project.json from schemaVersion 1 to 3/,
     );
   });
 

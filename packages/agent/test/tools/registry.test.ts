@@ -68,6 +68,7 @@ describe('tool generation (step 3, S22, S32)', () => {
         "search_places",
         "search_transcript",
         "set_captions",
+        "set_clip_speed",
         "set_transition",
         "shots",
         "split_item",

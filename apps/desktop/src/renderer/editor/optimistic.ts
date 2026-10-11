@@ -15,6 +15,7 @@ type ItemEntity = Entity & {
   startMs: number;
   durationMs: number;
   inMs?: number;
+  speed?: number;
   linkId?: string;
 };
 
@@ -87,7 +88,8 @@ export function optimisticChanges(m: EntityMap, call: OpCall): Change[] {
             patch(e, {
               startMs: e.startMs + delta,
               durationMs: e.durationMs - delta,
-              inMs: e.inMs === undefined ? SKIP : e.inMs + delta,
+              // source moves by the trimmed time × speed (plan D-62)
+              inMs: e.inMs === undefined ? SKIP : e.inMs + Math.round(delta * (e.speed ?? 1)),
             }),
           ),
         );

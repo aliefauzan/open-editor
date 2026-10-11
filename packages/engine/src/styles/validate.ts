@@ -29,7 +29,14 @@ import { compileSequence, presetText, type CompileOptions } from '../compile/com
 import { writeBuildTo } from '../compile/write.ts';
 import { isVoxError } from '../errors.ts';
 import { repoPyProject, runPyTool, type PyBridgeOptions } from '../py.ts';
-import type { MediaItem, Project, Sequence, Track, Transcript } from '../model/schema.ts';
+import {
+  SCHEMA_VERSION,
+  type MediaItem,
+  type Project,
+  type Sequence,
+  type Track,
+  type Transcript,
+} from '../model/schema.ts';
 import { CAPTION_DEFAULTS } from '../ops/captions.ts';
 import { hyperframesBin } from '../render/layers.ts';
 import { cueTimingFindings, windowDiffs, type CueAt } from './cue-timing.ts';
@@ -291,7 +298,7 @@ function project(styleId: string, seq: Partial<Sequence>, media: MediaItem[]): P
     ...seq,
   };
   return {
-    schemaVersion: 2,
+    schemaVersion: SCHEMA_VERSION,
     id: 'p_validate',
     name: 'validate',
     version: 0,
