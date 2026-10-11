@@ -1599,3 +1599,29 @@ HyperFrames moves inside the host, so caption words land inside the element that
 tokens; title scripts read tokens from the same root. New test `caption-style.slow.test.ts` mounts
 through HyperFrames itself.
 **Why**: Both were silent failures a user hits on the main path. Commits 02fb821, 75e1494 (merged fde7e9e).
+
+## D-55 — Phase 12 review fixes: stop, scorer, checkpoints, CLI (phase 12 follow-up, 2026-10-12)
+**Context**: Phase 12 merged before its reviews finished. typescript-reviewer: BLOCK on one HIGH (a Stop
+at the LLM scorer's budget prompt was swallowed by the quick-clips job's heuristic fallback, and the run
+went on writing sequences) plus 9 MEDIUM; security-reviewer: S19 MEDIUM ×2 (eval runs redacted without
+the registered keys; the top-level error printed unredacted), S20/S34 PASS, S35 PASS with LOW.
+**Decision** (branch `phase/12-review-fixes`, 17 commits, merged here):
+1. A Stop at the scorer's budget prompt cancels the quick-clips job; no sequences are written.
+2. A cancelled engine job throws `CANCELLED` (was `JOB_FAILED`); a run ends as stopped only for
+   `RunStopped` or an abort error.
+3. The `llm` scorer scores only jobs whose `runId` (now passed as `ScorerInput.runId`) matches the run
+   holding it; any other job falls back to the heuristic. The scorer queue wait honours the abort signal.
+4. Workflow jobs retry once on `JOB_CONFLICT` and bump `seenVersion` only when the version was unchanged
+   (as `writingJob`).
+5. Stylize, tools mode: when the clip-edge transitions change the project, the workflow runs
+   `view_frames` and `check_audio` itself; only checks after the edges count for the review and sound
+   checkpoints. One failing `set_transition` adds a note instead of failing the workflow.
+6. The sound-claim scrub keeps any sentence with a negation, a "fail" word or a digit.
+7. `vox agent`: a tighten pick with no valid number asks again (3 times), reporting ignored tokens, then
+   cuts nothing; Ctrl-C stops the run (a second exits); the runId and the undo command go to stderr when
+   the run starts, in every output mode; one redactor (with the keys) is shared with the engine.
+8. Evals pass `main()`'s redactor to the workflow deps and redact the top-level error (S19).
+9. LOWs: ranges without word keys are dropped; `workflowCall` checks the signal; `loadWorkflow`'s `dir`
+   is test-only. Three tools-mode replay fixtures re-recorded (one extra `view_frames` and `check_audio`
+   per clip).
+**Why**: Fix every CRITICAL/HIGH and the MEDIUMs (PROMPT step 7). Self-reviewed by the fixing agent.
