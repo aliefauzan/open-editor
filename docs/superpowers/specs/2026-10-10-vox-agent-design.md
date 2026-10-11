@@ -543,8 +543,9 @@ self-review.
 ```
 vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit|screenplay|style-extract]
           [--seq id]... [--style id] [--layout full-collage|hybrid] [--mode tools|plan]
-          [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan]
-# the instruction is required unless --workflow is given; --seq may repeat (stylize)
+          [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan] [--count n] [--length 30-60]
+# the instruction is required unless --workflow is given; --seq may repeat (stylize);
+# without --workflow: clipper when the instruction names a link or file, else edit (plan D-51)
 vox agent undo <project> <runId>
 vox config providers add openrouter --key env:OPENROUTER_API_KEY
 vox config providers add claude            # prompts for the key, stores it in the Keychain
