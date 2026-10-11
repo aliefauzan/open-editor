@@ -6,9 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { isVoxError } from '../../src/errors.ts';
 import { pyArgv, pyEnv, repoPyProject, runPyTool, type PyBridgeOptions } from '../../src/py.ts';
-
-const NO_TELEMETRY = { ORT_DISABLE_TELEMETRY: '1', HF_HUB_DISABLE_TELEMETRY: '1', DO_NOT_TRACK: '1' };
 import { createRedactor, REDACTED } from '../../src/redact.ts';
+
+const NO_TELEMETRY = {
+  ORT_DISABLE_TELEMETRY: '1',
+  HF_HUB_DISABLE_TELEMETRY: '1',
+  DO_NOT_TRACK: '1',
+};
 
 const CANARY = 'sk-or-v1-CANARY0000000000000000000000000000000000000000000000000000';
 const FAKE_UV = fileURLToPath(new URL('./fake-uv.mjs', import.meta.url));
