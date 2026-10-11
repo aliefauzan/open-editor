@@ -126,7 +126,7 @@ typed calls.
 | Projects | `projects.list`, `projects.create`, `projects.open(id)` → project + version, `projects.reveal(id)` |
 | Edits | `ops.apply({ projectId, op, args, baseVersion, coalesceKey? })` → `{ version, changes, results }` or `STALE`; with `dryRun: true` in `args` (`removePauses`, `removeWords`) → the ranges, nothing applied; `history.undo`, `history.redo`, `history.list(since)` |
 | Snapshots | `snapshots.list`, `snapshots.create(name)`, restore via `ops.apply('restoreSnapshot')` |
-| Media | `media.importFiles()` (native file dialog, files/folders; video files MP4/MOV/M4V/WebM/MKV, audio, images, documents; test builds started with `VOX_E2E=1` also accept `{ paths }` and skip the dialog, release builds reject it), `media.importUrl(url)` (YouTube, Instagram, TikTok or any yt-dlp URL; `media.classifyUrl(url)` → `youtube \| instagram \| tiktok \| other \| invalid` for the badge), `media.replace` (op) |
+| Media | `media.importFiles()` (native file dialog, files/folders; video files MP4/MOV/M4V/WebM/MKV, audio, images, documents; test builds started with `VOX_E2E=1` also accept `{ paths }` and skip the dialog, release builds reject it), `media.importUrl(url)` (YouTube, Instagram, TikTok or any yt-dlp URL; `media.classifyUrl(url)` → `youtube \| instagram \| tiktok \| other \| invalid` for the badge), `media.replace` (op), `media.peaks(projectId, mediaId)` → the waveform peaks of `peaks/<mediaId>.json` or `null` (the renderer CSP allows no fetch; plan D-42) |
 | Captions | `captions.get(projectId, seqId)` → `CaptionChunk[]` (lines of words with keys, times and `emphasis`), for the caption lane and the Subtitles panel (edits go through `ops.apply('setCaptions')`) |
 | Jobs | `jobs.start(kind, args)` (incl. `quickClips`, `audioQa`, and `render`/`exportCaptions`/`exportTimeline` with `captions: 'burn' \| 'none'` and an optional `targetId`; `render` and `audioQa` take `loudness: 'youtube' \| 'tiktok' \| 'broadcast'`; a raw path in `args` is rejected), `jobs.get(id)` (status, progress, result), `jobs.cancel(id)` |
 | Preview | `preview.url(projectId, seqId)` → `vox-media://` build URL |
@@ -136,7 +136,7 @@ typed calls.
 | Styles | `styles.list`, `styles.get(id)`, `styles.accept(id)`, `styles.remove(id)` |
 | Exports | `exports.chooseTarget({ mode: 'file' \| 'folder', suggestedName?, format })` opens the native save dialog (file) or folder picker (folder, with "New Folder") in main and returns `{ targetId, displayPath }` or `null` on cancel; the engine host keeps `targetId → path` for this session only (plan D-13). `exports.lastFolder(projectId)` → the folder last used for this project, shown as the default. `exports.reveal(path)` (accepts the project's `renders/` or a path the engine host recorded from this session's dialog) |
 | Setup | `setup.status()`, `setup.install(component)`, `setup.updateYtDlp()` |
-| Events | `on('project.changed' \| 'job.*' \| 'agent.*' \| 'preview.updated' \| 'setup.progress', handler)` |
+| Events | `on('project.changed' \| 'job.*' \| 'agent.*' \| 'preview.updated' \| 'setup.progress' \| 'host.restarted' \| 'menu.command', handler)`; `preview.updated` is `{ projectId, sequenceId, version, kind: 'patch', patches: [{ id, start, duration, html }] }` or `{ …, kind: 'reload', url }`; `menu.command` is `{ command }` from the native menu bar (plan D-42) |
 
 All event payloads pass the secret redactor (spec 3).
 
@@ -167,7 +167,7 @@ or one typed word is one undo entry, and the 500-entry undo window does not fill
   150 ms coalescing while a slider moves or text is typed).
 - If only scene items changed, it writes the changed scene instance files and emits
   `preview.updated` with `kind: 'patch'`; the renderer tells the player to remount those
-  sub-compositions at the current time.
+  sub-compositions at the current time. One scene per patch: a change to several scenes at once, or one that changes anything outside the scene instances (SFX `<audio>`, the sequence duration), reloads (plan D-42).
 - Structural changes (media clips, tracks, captions, canvas) write the full build and
   emit `kind: 'reload'`; the player reloads and seeks to the saved playhead.
 - The patch mechanism and latency come from engine spike step 6. Target: op → visible

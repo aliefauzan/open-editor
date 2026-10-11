@@ -1238,3 +1238,44 @@ Decisions:
 - **Tests of the built app:** the Node inspect fuse is off (S27), so tests start the app with
   `--remote-debugging-port=0` and connect over CDP (`test/helpers/packaged.ts`).
 - **Size:** `.dmg` 189,359,198 bytes (180.6 MB; bar 300 MB); `.app` ~496 MB unpacked.
+
+## D-42 — Editor core A: preview updates, window.vox additions, UI choices (phase 10a, 2026-10-11)
+
+Phase 10a built the store, the preview pipeline, the editor layout, timeline and inspector. Decisions:
+- **`preview.updated` payload** (R2, frozen in 10a): `{ projectId, sequenceId, version, kind: 'patch',
+  patches: [{ id, start, duration, html }] }` or `{ …, kind: 'reload', url }` (`url` carries `?v=<n>` so
+  the player sees a new `src`). A patch carries **one** scene: the player delivers runtime data per
+  channel, and a second `vox-patch` sent before the first lands could replace it. A change to several
+  scenes, or one that changes the build outside the scene instances (SFX `<audio>`, duration), reloads.
+- **`window.vox` grows additively:** `media.peaks(projectId, mediaId)` (waveforms; the renderer CSP has
+  `connect-src 'self'`, so it cannot fetch `peaks/<id>.json` from `vox-media://`) and the event
+  `menu.command { command }` (native menu bar → the same command runner as the keyboard).
+  `media.importFiles` is built: main opens the native dialog; `{ paths }` only in test builds (`VOX_E2E=1`).
+- **Preview:** whole-sequence build as GATE 1 chose (D-29); in-memory compile per change, 150 ms
+  coalescing only for keyed ops (`coalesceKey`); the engine host watches the open project's folder for
+  external `project.json` writes. A VFR clip without a proxy now previews from its CFR copy (compile
+  fix; proxies are already made from the CFR copy). **No pre-render cache:** 10a did not re-measure the
+  heavy-scene fps margin (the `vox` style is not merged yet); D-29's 20.8 % stands until phase 07 or
+  10b measures the real styles.
+- **Renderer model:** the renderer keeps its own copy of the engine's entity map (normalise / apply
+  change records / denormalise), since it may not import the engine (R1); a test applies real engine
+  change records with it and compares with the engine's project. Optimistic local changes exist only
+  for ops whose result is easy to predict (move, trim, update clip/scene/track/captions/sequence,
+  transition); the engine's change records always replace them. `STALE` re-reads the project and re-runs
+  the intent once.
+- **Keyboard and menus:** one command table (`src/shared/commands.ts`). Only ⌘ shortcuts register with
+  the native menu; plain keys stay with the renderer so typing in a field is never taken. Cut / copy /
+  paste keep the native Edit roles (they work in text fields; in the editor the copy and paste DOM events
+  run the timeline commands). The player cannot run backwards: **J** pauses and steps back 1 s; **L**
+  plays and doubles the speed per press up to 4×.
+- **"Pin frame here"** stores the crop at the playhead from the nearest pin, else the static crop, else
+  the centre (the renderer has no tracked path); the crop handle on the preview then pans it (one
+  coalesced undo entry per gesture, `frame:<itemId>`). The 10b E2E checks the pinned frame in the render.
+- **UI kit:** shadcn/ui is not added; the editor uses plain Tailwind components (R5). Component tests use
+  `@testing-library/react` + jsdom per file.
+- **Scenes from the style panel** start with valid variables (defaults, else the field name for
+  required text); "Add" in a form array copies the last entry.
+
+**Why**: The specs fix the behaviour but not these shapes and limits; each is the simplest choice that
+keeps the 10a done-when (latency < 1 s, one undo entry per gesture, one op per drop). Evidence:
+`plan/log/phase-10a.md`, `docs/evidence/phase-10a/`.
