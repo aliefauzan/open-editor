@@ -41,12 +41,14 @@ export async function workflowJob<T>(
   const full = { projectId: run.ctx.projectId, ...args, actor: 'agent', runId: run.runId };
   const signals = [run.ctx.signal, stop].filter((s): s is AbortSignal => s !== undefined);
   const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
+  const versionNow = async () => (await run.ctx.engine.getProject(run.ctx.projectId)).version;
+  const before = await versionNow();
   const result = (await job(run.ctx, kind, full, signal)) as T;
-  const version = (await run.ctx.engine.getProject(run.ctx.projectId)).version;
-  if (version > run.ctx.seenVersion) {
-    run.ctx.seenVersion = version;
-    run.versions.push(version);
-  }
+  const after = await versionNow();
+  // as writingJob: a user edit before the job keeps seenVersion where it was, so the run's next
+  // op meets it (stale base) instead of writing over it unseen
+  if (after > run.ctx.seenVersion && before === run.ctx.seenVersion) run.ctx.seenVersion = after;
+  if (after > before) run.versions.push(after);
   run.record.write({ type: 'tool', tool: kind, by: 'workflow', args: full, result });
   return result;
 }

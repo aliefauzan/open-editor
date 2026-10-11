@@ -117,4 +117,19 @@ describe('workflow jobs (job tools’ rules)', () => {
     await expect(workflowJob(run as never, 'quickClips', {})).resolves.toEqual({ ok: true });
     expect(calls).toBe(2);
   });
+
+  test('a user edit before the job: seenVersion is not moved past it', async () => {
+    // seen 5; the user wrote 6 before the job started; the job wrote 7
+    const run = fakeRun([6, 7], () => Promise.resolve({ ok: true }));
+    await workflowJob(run as never, 'quickClips', {});
+    expect(run.ctx.seenVersion).toBe(5);
+    expect(run.versions).toEqual([7]);
+  });
+
+  test('no user edit: seenVersion moves to the job version', async () => {
+    const run = fakeRun([5, 7], () => Promise.resolve({ ok: true }));
+    await workflowJob(run as never, 'quickClips', {});
+    expect(run.ctx.seenVersion).toBe(7);
+    expect(run.versions).toEqual([7]);
+  });
 });
