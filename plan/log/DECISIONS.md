@@ -1447,3 +1447,30 @@ words stay at 80 %, emphasis words use the display serif in italic at 1.4x. `vox
 default; `guide.md` says when to pick it. No contract change (a preset is style data).
 **Why**: The gap shows in every new reference; a preset is the smallest change that closes it without
 touching the templates the owner is about to review.
+
+## D-48 — GATE 3 round 2: more `vox` assets inside the frozen token contract (phase 07, 2026-10-11)
+
+**Context**: The owner asked for more assets to make `vox` closer to the documentary references
+(`docs/research/2026-10-11-vox-asset-sourcing.md`, proposals 1–5). The token contract (`style.json` fonts
+`display`/`body`/`caption`, texture `paper`/`grain`) and the edit operations are frozen; transition cues
+cannot be switched off per item.
+**Decision**:
+1. Mixed-family emphasis in `vox/word-reveal`: words in the body family's italic (a same-prefix sibling file,
+   `LibreCaslonText-Italic.ttf`, so the compiler adds the face), emphasis words in a bold grotesk (an OFL Inter
+   subset, instanced at wght 800, declared as `Vox Grotesk`). Assets that no token can carry are inlined as data
+   URLs by `scripts/sync-vox-inline.mjs` (marker `/* vox:inline <path> */`; a test checks the bytes), like the
+   motion helpers. No contract change. Fonts are OFL (the styles spec allows OFL fonts); "only CC0/PD" was read
+   as applying to media (textures, sound).
+2. `vox/film-look` overlay (not default): real Tri-X 400 grain scan (CC0), per-held-frame flicker, heavy vignette.
+3. `paper-collage` 1.1.0: optional `clipping` (kicker, headline, body, highlighted phrase drawn on in yellow)
+   and `grade` (`none`, `bw`, `sepia`, `faded`, `vhs`) on the cutouts. Grading the speaker or runtime footage is
+   not done (needs an engine filter; backlog).
+4. Kit: `snip` (appear, Freesound 175522), `type-key` (appear, Freesound 380138), `timpani` (hero, Commons, 14 dB
+   under the other files so a hero stays 6 LU under speech). Cues: `paper-collage` → `snip`, `kinetic-serif` →
+   `type-key`, `stat` → `timpani`. Camera shutters and a crumple failed the kit check (`oneEvent`) and were not
+   added; thresholds unchanged. Freesound files are cut from the public HQ previews and marked "preview-only,
+   original needs Freesound login" until the owner fetches the originals (TODO).
+5. Accent rule: about one cut in three to five gets a sound (reveals, `stat` numbers, collage drops). Scene cues
+   are switched off with `sfxOff`; because transition cues cannot be, the agent prefers hard cuts and uses a
+   transition only where its sound is the accent (written in `styles/vox/guide.md` "Sound"; the demo applies it).
+**Consequence**: GATE 3 round 2 evidence regenerated; validate, kit check and demo audio QA pass.

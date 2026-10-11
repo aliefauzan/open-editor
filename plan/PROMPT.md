@@ -79,6 +79,9 @@ Reports to the owner in English, terse. Code, file names and comments in English
      `$ROOT/docs/evidence/phase-<NN>/` (an `--evidence-dir` argument) and read gitignored owner files
      (reference reel, layout screenshot) by root path; the worktree itself stays clean, so
      `git worktree remove` works.
+   - Videos (reference reels, exported renders): run `uv run --project py python scripts/vidprep.py
+     <file> [...]` and read `<stem>.prep/summary.md` (then `sheet.jpg` / `hook.jpg` if needed)
+     instead of reading frames one by one.
    - Phase 00 creates the repo and works on main directly (no worktree).
 
 4. PLAN. Turn the phase's "Steps" into a todo list (TodoWrite or the session's todo tool). Write a

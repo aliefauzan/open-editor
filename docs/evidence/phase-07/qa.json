@@ -16,38 +16,17 @@
       "cues": [
         {
           "cue": 1,
-          "atMs": 2000,
-          "onsetMs": 2007,
-          "deltaMs": 7,
-          "deltaFrames": 0.21
-        },
-        {
-          "cue": 2,
           "atMs": 6200,
           "onsetMs": 6225,
           "deltaMs": 25,
           "deltaFrames": 0.75
         },
         {
-          "cue": 3,
-          "atMs": 10000,
-          "onsetMs": 10007,
-          "deltaMs": 7,
-          "deltaFrames": 0.21
-        },
-        {
-          "cue": 4,
+          "cue": 2,
           "atMs": 14000,
-          "onsetMs": 14007,
-          "deltaMs": 7,
-          "deltaFrames": 0.21
-        },
-        {
-          "cue": 5,
-          "atMs": 17600,
-          "onsetMs": 17609,
-          "deltaMs": 9,
-          "deltaFrames": 0.27
+          "onsetMs": 14012,
+          "deltaMs": 12,
+          "deltaFrames": 0.36
         }
       ],
       "failures": []
@@ -56,7 +35,7 @@
       "id": "oneEventPerCue",
       "rule": "every SFX onset belongs to a cue (no second event inside a cue's sample)",
       "status": "pass",
-      "onsets": 5,
+      "onsets": 2,
       "extraOnsets": 0,
       "failures": []
     },
@@ -64,7 +43,7 @@
       "id": "spacing",
       "rule": "no two SFX onsets closer than 120 ms",
       "status": "pass",
-      "minGapMs": 3602,
+      "minGapMs": 7787,
       "limitMs": 120,
       "failures": []
     },
@@ -74,32 +53,17 @@
       "status": "pass",
       "limitLu": 6,
       "windowMs": 200,
-      "minMarginLu": 7.31,
+      "minMarginLu": 6.75,
       "onsets": [
-        {
-          "onsetMs": 2007,
-          "speechActive": true,
-          "marginLu": 11.0
-        },
         {
           "onsetMs": 6225,
           "speechActive": true,
-          "marginLu": 7.31
+          "marginLu": 6.75
         },
         {
-          "onsetMs": 10007,
-          "speechActive": true,
-          "marginLu": 10.43
-        },
-        {
-          "onsetMs": 14007,
+          "onsetMs": 14012,
           "speechActive": false,
           "marginLu": null
-        },
-        {
-          "onsetMs": 17609,
-          "speechActive": true,
-          "marginLu": 12.38
         }
       ],
       "failures": []
@@ -108,11 +72,11 @@
       "id": "loudness",
       "rule": "integrated loudness at the target +-1 LU, true peak <= -1 dBTP, no clipped samples",
       "status": "pass",
-      "integratedLufs": -13.97,
+      "integratedLufs": -13.8,
       "targetLufs": -14.0,
-      "deltaLu": 0.03,
+      "deltaLu": 0.2,
       "toleranceLu": 1,
-      "truePeakDbtp": -1.5,
+      "truePeakDbtp": -1.65,
       "maxTruePeakDbtp": -1,
       "clippedSamples": 0,
       "parts": {
@@ -126,92 +90,41 @@
   "cues": [
     {
       "index": 1,
-      "atMs": 2000,
-      "type": "appear",
-      "hero": false
-    },
-    {
-      "index": 2,
       "atMs": 6200,
       "type": "hero",
       "hero": true
     },
     {
-      "index": 3,
-      "atMs": 10000,
-      "type": "appear",
-      "hero": false
-    },
-    {
-      "index": 4,
+      "index": 2,
       "atMs": 14000,
       "type": "appear",
-      "hero": false
-    },
-    {
-      "index": 5,
-      "atMs": 17600,
-      "type": "move",
       "hero": false
     }
   ],
   "onsets": [
     {
-      "ms": 2007,
-      "peakDbfs": -1.2,
+      "ms": 6225,
+      "peakDbfs": -15.9,
       "cue": 1
     },
     {
-      "ms": 6225,
-      "peakDbfs": -49.1,
+      "ms": 14012,
+      "peakDbfs": -1.2,
       "cue": 2
-    },
-    {
-      "ms": 10007,
-      "peakDbfs": -1.2,
-      "cue": 3
-    },
-    {
-      "ms": 14007,
-      "peakDbfs": -1.2,
-      "cue": 4
-    },
-    {
-      "ms": 17609,
-      "peakDbfs": -1.2,
-      "cue": 5
     }
   ],
   "listen": [
     {
       "atMs": 6200,
       "kind": "hero cue",
-      "listenFor": "cue 2 (hero): one clean hit that lands with the picture",
+      "listenFor": "cue 1 (hero): one clean hit that lands with the picture",
       "timecode": "00:06.200"
     },
     {
-      "atMs": 2007,
+      "atMs": 14012,
       "kind": "loud SFX",
       "listenFor": "peak -1.2 dBFS: harshness, or a hit that covers the voice",
-      "timecode": "00:02.007"
-    },
-    {
-      "atMs": 14007,
-      "kind": "loud SFX",
-      "listenFor": "peak -1.2 dBFS: harshness, or a hit that covers the voice",
-      "timecode": "00:14.007"
-    },
-    {
-      "atMs": 17609,
-      "kind": "loud SFX",
-      "listenFor": "peak -1.2 dBFS: harshness, or a hit that covers the voice",
-      "timecode": "00:17.609"
-    },
-    {
-      "atMs": 10007,
-      "kind": "speech overlap",
-      "listenFor": "SFX 10.4 LU under the voice: can you still follow the words",
-      "timecode": "00:10.007"
+      "timecode": "00:14.012"
     }
   ],
   "png": {
@@ -240,27 +153,12 @@
     "markers": [
       {
         "cue": 1,
-        "x": 160,
-        "hero": false
-      },
-      {
-        "cue": 2,
         "x": 496,
         "hero": true
       },
       {
-        "cue": 3,
-        "x": 800,
-        "hero": false
-      },
-      {
-        "cue": 4,
+        "cue": 2,
         "x": 1119,
-        "hero": false
-      },
-      {
-        "cue": 5,
-        "x": 1407,
         "hero": false
       }
     ]

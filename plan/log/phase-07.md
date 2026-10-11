@@ -55,7 +55,7 @@ The reel is a split screen (scene on top, speaker below); v1 scenes are full fra
 - [x] 8 transitions `paper-tear`, `slide-paper`; overlay `paper-grain`; presets `mono-box`, `serif-lower` (06 caption checks pass)
 - [x] 8b kit check in validate (`sfx-kit`, `previews/sfx-sheet.png`; sine-beep style fails naming `notSynthesised`); kit reviewed; cues on every template and transition, timing measured (transitions too)
 - [x] 9 vox in the token-scoping tests · [x] 10 mixed vox + base compiles (test) and renders (demo) · [x] 11 safe area on longest fixtures, no network (test + validate file refs + hook check)
-- [~] 12 GATE 3 material ready; **waiting for the owner** (round 1)
+- [~] 12 GATE 3 material ready; **waiting for the owner** (round 2: mixed emphasis, film-look, clipping + highlighter, archive grades, accent SFX)
 
 ## Files created / changed
 - `styles/vox/`: `style.json`, `guide.md`, `assets/motion.js`, 4 templates (+ `map-route/build.mjs`), 2 transitions,
@@ -135,9 +135,52 @@ preset. `pnpm -C packages/engine test -- styles/vox`: 22 passed; styles + compil
 `--preset vox/word-reveal`: audio QA pass, `LISTEN.md` timecodes unchanged. Evidence: `demo-word-reveal.mp4`, sheet rows 4–5.
 Not done (open notes for the owner): darker grading, letterboxed 16:9 inserts, waveform overlay.
 
+## GATE 3 — round 2 (2026-10-11, owner asked for more assets)
+
+Self-review (token budget); no subagents in this run. Main merged into the branch first (no conflicts). Inputs:
+`docs/research/2026-10-11-vox-asset-sourcing.md` (proposals 1–5, Freesound addendum), `asset-candidates/MANIFEST.json`
+(rejected entries skipped), two reference sheets looked at (`attentioncompound-7690319707785776415`,
+`attentioncompound-7683579797921877261`). Decision: D-48.
+
+Done, smallest first (all five):
+1. `vox/word-reveal`: words in Libre Caslon Text italic (new sibling file `LibreCaslonText-Italic.ttf`), emphasis in
+   a bold grotesk (`Inter-ExtraBold-subset.woff2`, 12 kB, OFL, inlined as a data URL by `scripts/sync-vox-inline.mjs`;
+   test `test/styles/vox/inline.test.ts`).
+2. `overlays/film-look.html` (not default): Tri-X 400 grain scan (CC0, `assets/textures/grain-trix400.jpg`, 42 kB,
+   inlined), seeded jump per held frame, 0–9 % exposure flicker, heavy vignette.
+3. `paper-collage` 1.1.0: `clipping` (kicker, headline, body, `highlight` phrase with a yellow marker drawn on in
+   0.5 s on held frames, torn bottom edge) — fixtures `clipping`, `longest` (max lengths, safe area ok).
+4. `grade` on the collage cutouts: `bw`, `sepia`, `faded`, `vhs` (scanlines, RGB fringe) — fixtures `clipping`,
+   `dark-single`, `longest`, `vhs`. Not done: grading the speaker or runtime footage (engine filter; backlog).
+5. Kit 5 → 8: `snip` (Freesound 175522, preview), `type-key` (Freesound 380138, preview), `timpani` (Commons, CC0,
+   peak -15.2 dBFS). Kit check rejected (`oneEvent`): Holga shutter, Freesound shutters 170229 and 431588, crumple
+   151231, Commons scissors. Cues rewired (collage `snip`, kinetic `type-key`, stat `timpani`). Accent rule in
+   `guide.md` "Sound"; the demo uses hard cuts and `sfxOff` so 2 of 5 cuts carry a sound. Freesound files are
+   marked "preview-only, original needs Freesound login" in `assets/sfx/CREDITS.md`; owner TODO line added.
+
+Verify (other phases' agents running; load avg 8–28):
+
+| Command | Result |
+|---|---|
+| `vox style validate vox --json` | ok, 0 problems; 17 fixtures rendered, cue-timing 17, sfx-kit 1 (8 files), caption checks 3 presets. One run failed `caption-seek` on the unchanged `vox/mono-box` (known harness flake under load, round 1); reruns passed twice |
+| demo audio QA (`mono-box`, `serif-lower`, `word-reveal` + `film-look`) | pass ×3. First run failed `sfxUnderSpeech` at 00:06.224 (timpani, margin -7.35 LU); fixed by 14 dB less gain on the file, never by a threshold |
+| `pnpm lint`, `tsc --noEmit` | clean |
+| full fast suite | 2291 passed, 1 failed (`stages/ytdlp.test.ts`, `npm_config_noproxy`, unrelated, as in round 1), 1 skipped |
+
+Evidence (refreshed): `side-by-side.jpg` (6 rows; row 6 new: mixed emphasis on grainy black vs `word-reveal` +
+`film-look`, web headline vs clipping), `demo-{mono-box,serif-lower,word-reveal}.mp4` (720x1280; word-reveal with
+`film-look`), `qa.json`, `qa.png`, `LISTEN.md` (2 cues: `00:06.200` timpani hero, `00:14.012` type-key), `sfx-sheet.png`,
+`vox-contact.jpg`, `ref-frames/att-7683-tile08.jpg`, `ref-frames/att-7690-tile03.jpg`.
+
+Review (self): no HIGH open. MEDIUM: grade/film look do not reach the speaker footage (backlog); the highlighter is a
+clean band, not a rough marker edge. LOW: `type-key` peaks at -1.2 dBFS (flagged as loud in `LISTEN.md` for the ear check).
+
+Recommendation: approve, or name per-look changes. Not accepted on the owner's behalf. Round count: 2 of 3 (D-16).
+
 ## MANUAL STEPS
 1. GATE 3 (required): see `plan/TODO.md`.
-2. Optional — does not block merge: record a typewriter key strike (licence `project`) for `typewriter` (appear).
+2. Required before release (does not block GATE 3): fetch the Freesound originals of `snip` and `type-key` (login), see `plan/TODO.md`.
+3. Optional — does not block merge: record a typewriter key strike (licence `project`) for `typewriter` (appear).
 
 ## Handoff notes
 - `vox` is the default style of new projects (engine `defaultId`); tests that assumed `base` were updated.
