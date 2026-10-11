@@ -15,6 +15,7 @@ import { newId } from '../model/ids.ts';
 import type { MediaItem } from '../model/schema.ts';
 import type { Resolver } from '../net/address.ts';
 import type { Dial } from '../net/proxy.ts';
+import { detectActiveArea, type PixelRect } from './media/activeArea.ts';
 import { analyzeMedia, type MediaAnalysis } from './media/analyze.ts';
 import { copyFileSafe, listFolderFiles, type SkippedEntry } from './media/copy.ts';
 import { audioArgs, computePeaks, peaksArgs, thumbsArgs } from './media/derive.ts';
@@ -295,8 +296,13 @@ async function ingestFile(
       return { media: reuse, reused: true };
     }
     const sniffed = sniffBytes(await readHead(staging), basename(src));
-    const media = await buildMedia(env, id, staging, sniffed, o, ro, created);
-    await writeAtomic(join(dir, 'cache', 'media', `${id}.json`), JSON.stringify({ sha256 }));
+    const extra: BuildExtra = {};
+    const media = await buildMedia(env, id, staging, sniffed, o, ro, created, extra);
+    // The active picture area lives in the per-media cache, never in project.json (frozen model).
+    await writeAtomic(
+      join(dir, 'cache', 'media', `${id}.json`),
+      JSON.stringify({ sha256, ...(extra.activeArea ? { activeArea: extra.activeArea } : {}) }),
+    );
     await writeAtomic(index, JSON.stringify({ mediaId: id } satisfies IndexEntry));
     o.known.set(id, media);
     return { media, reused: false };
@@ -304,6 +310,12 @@ async function ingestFile(
     for (const f of created) await unlink(f).catch(() => undefined);
     throw e;
   }
+}
+
+/** Ingest results kept outside the media item (they go to `cache/media/<id>.json`). */
+interface BuildExtra {
+  /** Video only: the picture inside baked-in black bars, source pixels (full frame when none). */
+  activeArea?: PixelRect;
 }
 
 async function buildMedia(
@@ -314,6 +326,7 @@ async function buildMedia(
   o: { origin: MediaItem['origin']; proxies: boolean },
   ro: RunOptions,
   created: string[],
+  extra: BuildExtra = {},
 ): Promise<MediaItem> {
   const dir = env.projectDir;
   const rel = (p: string) => p.slice(dir.length + 1);
@@ -466,7 +479,19 @@ async function buildMedia(
       peaksPath = peaks;
     }
   };
-  const settled = await Promise.allSettled([picture(), sound()]);
+  // Black bars baked into the picture (a few 1 s cropdetect samples of the source). Best effort: a
+  // failed detection leaves no area, which frames the media as the full frame.
+  const bars = async (): Promise<void> => {
+    if (!isVideo || !a.width || !a.height || !a.durationMs) return;
+    const frame = { width: a.width, height: a.height, durationMs: a.durationMs };
+    try {
+      const format = sniffed.format as SniffedMedia['format'];
+      extra.activeArea = await detectActiveArea(path, format, frame, ro);
+    } catch (e) {
+      if (env.signal?.aborted) throw e;
+    }
+  };
+  const settled = await Promise.allSettled([picture(), sound(), bars()]);
   const failed = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
   if (failed) throw failed.reason;
   return {
