@@ -36,3 +36,14 @@ def test_built_wheel_ships_the_vendored_vad_model_and_licence(tmp_path):
     assert "vox_py/models/silero_vad.onnx" in names
     assert "vox_py/models/LICENSE.silero" in names
     assert "vox_py/models/placeholder.onnx" not in names
+
+
+def test_importing_the_package_switches_off_library_telemetry():
+    # onnxruntime uploads usage events to Microsoft and its upload thread can abort the process at
+    # exit (exit 134); the engine sets these too, this covers direct `python -m vox_py.<tool>` runs.
+    env = {"PATH": "/usr/bin:/bin"}
+    code = "import os, vox_py; print(os.environ.get('ORT_DISABLE_TELEMETRY'), os.environ.get('HF_HUB_DISABLE_TELEMETRY'))"
+    out = subprocess.run(
+        [sys.executable, "-I", "-c", code], capture_output=True, text=True, check=True, env=env
+    )
+    assert out.stdout.split() == ["1", "1"]

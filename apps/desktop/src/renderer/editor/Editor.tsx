@@ -4,9 +4,14 @@
 import { useCtx, useEditor, useUi } from './context.tsx';
 import { AgentPanel } from './AgentPanel.tsx';
 import { Inspector } from './Inspector.tsx';
+import { JobsPanel } from './JobsPanel.tsx';
 import { useKeyboard } from './keyboard.ts';
+import { NextSteps } from './NextSteps.tsx';
 import { PreviewPanel } from './PreviewPanel.tsx';
+import { MediaBin } from './MediaBin.tsx';
+import { StyleGallery } from './StyleGallery.tsx';
 import { StylePanel } from './StylePanel.tsx';
+import { SubtitlesPanel } from './SubtitlesPanel.tsx';
 import { Timeline } from './Timeline.tsx';
 import { TopBar } from './TopBar.tsx';
 
@@ -68,6 +73,15 @@ function LeftTabs() {
         <button
           type="button"
           role="tab"
+          aria-selected={tab === 'subtitles'}
+          className={b(tab === 'subtitles')}
+          onClick={() => ui.getState().set({ leftTab: 'subtitles' })}
+        >
+          Subtitles
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={tab === 'styles'}
           className={b(tab === 'styles')}
           onClick={() => ui.getState().set({ leftTab: 'styles' })}
@@ -78,8 +92,10 @@ function LeftTabs() {
       <div role="tabpanel" className="min-h-0 flex-1">
         {tab === 'styles' ? (
           <StylePanel />
+        ) : tab === 'subtitles' ? (
+          <SubtitlesPanel />
         ) : (
-          <p className="p-3 text-xs text-neutral-500">The media bin comes in the next build.</p>
+          <MediaBin />
         )}
       </div>
     </section>
@@ -94,11 +110,17 @@ export function Editor(props: { onClose?: () => void; onOpenSetup?: () => void }
     <div className="flex h-full flex-col bg-neutral-950 text-neutral-100" data-testid="editor">
       <TopBar {...props} />
       <div className="flex min-h-0 flex-[3]">
-        <div className="w-60 shrink-0 border-r border-neutral-800">
-          <AgentPanel />
+        <div className="flex w-60 shrink-0 flex-col border-r border-neutral-800">
+          <div className="min-h-0 flex-1">
+            <AgentPanel />
+          </div>
+          <JobsPanel />
         </div>
-        <div className="min-w-0 flex-1">
-          <PreviewPanel />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <NextSteps />
+          <div className="min-h-0 flex-1">
+            <PreviewPanel />
+          </div>
         </div>
         {inspectorOpen ? (
           <div className="relative w-80 shrink-0 border-l border-neutral-800">
@@ -131,6 +153,7 @@ export function Editor(props: { onClose?: () => void; onOpenSetup?: () => void }
           <Timeline />
         </div>
       </div>
+      <StyleGallery />
       <Toasts />
     </div>
   );

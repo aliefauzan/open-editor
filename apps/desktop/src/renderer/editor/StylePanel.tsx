@@ -65,7 +65,7 @@ const GROUPS: { kind: Entry['kind']; title: string }[] = [
 ];
 
 export function StylePanel() {
-  const { editor } = useCtx();
+  const { editor, ui } = useCtx();
   const s = useEditor((x) => seqOf(x.project, x.sequenceId));
   const own = useResolvedStyle(s?.styleId);
   const base = useResolvedStyle(s && s.styleId !== 'base' ? 'base' : undefined);
@@ -82,7 +82,14 @@ export function StylePanel() {
     <div className="h-full space-y-3 overflow-y-auto p-2" data-testid="style-panel">
       <p className="text-[11px] text-neutral-400">
         Style: <span className="text-neutral-200">{own?.style.name ?? s.styleId}</span> · drag onto
-        the timeline
+        the timeline{' '}
+        <button
+          type="button"
+          className="ml-1 rounded bg-neutral-800 px-1.5 text-[11px] text-neutral-200 hover:bg-neutral-700"
+          onClick={() => ui.getState().set({ galleryOpen: true })}
+        >
+          All styles…
+        </button>
       </p>
       {GROUPS.map((g) => {
         const list = entries.filter((x) => x.kind === g.kind);

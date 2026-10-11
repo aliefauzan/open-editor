@@ -1,68 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { SetupProgressData } from '../shared/api.ts';
 import { createEditorContext, EditorProvider } from './editor/context.tsx';
 import { Editor } from './editor/Editor.tsx';
+import { fewerNote } from './editor/quick-flow.ts';
+import { QuickStart } from './editor/QuickStart.tsx';
 import { SetupNotices, SetupScreen } from './Setup.tsx';
 import { useSetup } from './setup-store.ts';
 import { useShell } from './store.ts';
 import { useStore } from 'zustand';
 
-function Projects(props: { onOpen: (id: string) => void }) {
-  const s = useShell();
-  const [name, setName] = useState('');
-  return (
-    <main className="mx-auto flex h-full w-full max-w-xl flex-col gap-4 overflow-y-auto p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Projects</h1>
-        <button
-          type="button"
-          data-testid="open-setup"
-          className="text-xs text-neutral-400 underline"
-          onClick={() => useSetup.getState().show(true)}
-        >
-          Setup
-        </button>
-      </div>
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim()) void s.createProject(name.trim()).then(() => setName(''));
-        }}
-      >
-        <input
-          aria-label="New project name"
-          className="min-w-0 flex-1 rounded bg-neutral-900 px-2 py-1 text-sm"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="New project"
-        />
-        <button type="submit" className="rounded bg-neutral-800 px-3 py-1 text-sm">
-          Create
-        </button>
-      </form>
-      <ul className="space-y-1" data-testid="projects">
-        {s.projects.map((p) => (
-          <li key={p.id}>
-            <button
-              type="button"
-              data-project-id={p.id}
-              className="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-800"
-              onClick={() => props.onOpen(p.id)}
-            >
-              {p.name}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </main>
-  );
-}
-
 export function App() {
   const s = useShell();
   const ctx = useMemo(() => createEditorContext(window.vox), []);
   const openId = useStore(ctx.editor, (x) => x.projectId);
+  const openError = useStore(ctx.editor, (x) => x.openError);
   useEffect(() => {
     // once on mount; store actions come from getState() so the effect has no dependencies
     void useShell.getState().loadProjects();
@@ -106,12 +57,40 @@ export function App() {
             <Editor
               onClose={() => {
                 ctx.editor.getState().close();
+                // the next-steps bar belongs to the quick-clips project that was open
+                ctx.ui.getState().set({ nextSteps: false, quickNote: null, exportOpen: false });
                 void useShell.getState().loadProjects();
               }}
               onOpenSetup={() => useSetup.getState().show(true)}
             />
           ) : (
-            <Projects onOpen={(id) => void ctx.editor.getState().open(id)} />
+            <>
+              {openError?.code === 'SCHEMA_TOO_NEW' && (
+                <div
+                  role="alert"
+                  data-testid="schema-too-new"
+                  className="bg-red-900 px-4 py-2 text-sm"
+                >
+                  This project was made with a newer version of Vox Studio. Update the app to open
+                  it.
+                </div>
+              )}
+              <QuickStart
+                projects={s.projects}
+                onOpen={(id) => void ctx.editor.getState().open(id)}
+                onCreate={(name) => void s.createProject(name)}
+                onOpenSetup={() => useSetup.getState().show(true)}
+                onDone={(o) => {
+                  void ctx.editor
+                    .getState()
+                    .open(o.projectId)
+                    .then(() => {
+                      if (o.sequenceIds[0]) ctx.editor.getState().setSequence(o.sequenceIds[0]);
+                      ctx.ui.getState().set({ nextSteps: true, quickNote: fewerNote(o) });
+                    });
+                }}
+              />
+            </>
           )}
         </EditorProvider>
       </div>

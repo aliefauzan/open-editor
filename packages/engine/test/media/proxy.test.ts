@@ -100,7 +100,7 @@ describe('argv snapshots', () => {
     ]);
   });
 
-  test('cfrCopyArgs: libx264 crf 18 at a constant rate, first audio copied', () => {
+  test('cfrCopyArgs: libx264 veryfast crf 18 at a constant rate, first audio copied', () => {
     expect(
       cfrCopyArgs({
         input: '/p/media/m_1.mp4',
@@ -123,7 +123,7 @@ describe('argv snapshots', () => {
       '-c:v',
       'libx264',
       '-preset',
-      'medium',
+      'veryfast',
       '-crf',
       '18',
       '-pix_fmt',
@@ -155,6 +155,30 @@ describe('argv snapshots', () => {
     });
     const i = argv.indexOf('-c:a');
     expect(argv.slice(i, i + want.length)).toEqual(want);
+  });
+
+  test('cfrCopyArgs with the hardware encoder: h264_videotoolbox -q:v 65, same rate and muxing', () => {
+    const o = { input: '/a.webm', format: 'matroska' as const, output: '/b.mp4', fps: r(24) };
+    const sw = cfrCopyArgs(o);
+    const hw = cfrCopyArgs({ ...o, encoder: 'videotoolbox' });
+    const i = hw.indexOf('-c:v');
+    expect(hw.slice(i, i + 4)).toEqual(['-c:v', 'h264_videotoolbox', '-q:v', '65']);
+    expect(hw).not.toContain('libx264');
+    // Everything but the encoder flags is the same as the libx264 copy.
+    const strip = (a: string[]) => {
+      const at = a.indexOf('-c:v');
+      return [...a.slice(0, at), ...a.slice(a.indexOf('-pix_fmt'))];
+    };
+    expect(strip(hw)).toEqual(strip(sw));
+    expect(hw.slice(hw.indexOf('-pix_fmt'), hw.indexOf('-pix_fmt') + 6)).toEqual([
+      '-pix_fmt',
+      'yuv420p',
+      '-fps_mode',
+      'cfr',
+      '-r',
+      '24/1',
+    ]);
+    expect(cfrCopyArgs({ ...o, encoder: 'libx264' })).toEqual(sw);
   });
 
   test('the CFR rate is a parameter (GATE 1 integer fallback → 30/1)', () => {

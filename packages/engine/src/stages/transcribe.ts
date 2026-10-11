@@ -101,8 +101,8 @@ export async function transcribeMedia(
   if (media.hasAudio === false) {
     throw new VoxError(
       'VALIDATION',
-      `Media ${media.id} has no audio.`,
-      'Pick a media item with sound.',
+      `This ${media.kind} has no sound.`,
+      'Quick clips and captions follow the speech: pick a video with sound, or edit this one by hand.',
       {
         details: { mediaId: media.id },
       },
@@ -125,8 +125,9 @@ export async function transcribeMedia(
     if (sniffed.kind === 'document' || sniffed.kind === 'image') {
       throw new VoxError(
         'MEDIA_UNSUPPORTED',
-        `Media ${media.id} has no audio stream to transcribe.`,
-        'Pick a media item with sound.',
+        `This ${media.kind} has no sound to transcribe.`,
+        'Quick clips and captions follow the speech: pick a video with sound, or edit this one by hand.',
+        { details: { mediaId: media.id } },
       );
     }
     const models = env.tools['models'];

@@ -19,6 +19,7 @@ import { createHandlers, forwardEvents } from './handlers.ts';
 import { serve, type PortLike } from './rpc.ts';
 import { packagedResourceDirs } from './packaged.ts';
 import { PreviewPipeline } from './preview.ts';
+import { AppJobs } from './quick.ts';
 import { chromeDelegate } from './setup/chrome.ts';
 
 export interface HostInit {
@@ -95,7 +96,26 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
     currentVersion: init.appVersion,
   });
   const preview = new PreviewPipeline(engine, (n, p) => out.emit?.(n, engine.redactor.redact(p)));
-  const emit = serve(port, createHandlers(engine, setup, { preview }), (v) =>
+  // test builds (VOX_E2E=1, unpackaged) seed the quick path from the checked-in fixtures (D-16);
+  // VOX_E2E_NO_SEED=1 runs it unseeded (the M5-only `local` E2E)
+  const seeds =
+    res === undefined && env['VOX_E2E'] === '1' && env['VOX_E2E_NO_SEED'] !== '1'
+      ? {
+          dir: join(
+            import.meta.dirname,
+            '..',
+            '..',
+            '..',
+            '..',
+            'packages',
+            'engine',
+            'test',
+            'fixtures',
+          ),
+        }
+      : undefined;
+  const appJobs = new AppJobs(engine, (n, p) => out.emit?.(n, engine.redactor.redact(p)), seeds);
+  const emit = serve(port, createHandlers(engine, setup, { preview, appJobs }), (v) =>
     engine.redactor.redact(v),
   );
   out.emit = emit;

@@ -53,4 +53,20 @@ jobs:
       - name: Install ffmpeg
         run: brew install ffmpeg
       - run: pnpm install --frozen-lockfile
+      - name: Generate fixtures
+        run: bash packages/engine/test/fixtures/make.sh
       - run: pnpm test:slow
+      - name: E2E (manual-edit path, quick path seeded, editing tools; no model)
+        run: pnpm -C apps/desktop e2e
+      - name: Latency bench (op → visible update, 90 s fixture; warning only above 1 s, D-16)
+        # CI hardware differs from the M5, whose number is the gate (plan 10b); exit 2 = above the bar
+        run: |
+          set +e
+          pnpm -C apps/desktop bench:latency --runs 5 > latency.log
+          code=$?
+          tail -n 1 latency.log
+          if [ "$code" -eq 2 ]; then
+            echo "::warning title=Latency above 1 s::$(tail -n 1 latency.log)"
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi

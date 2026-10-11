@@ -1,6 +1,8 @@
 // Electron main: the window and its security flags, the two schemes, IPC routing to the engine
 // host (app spec "Architecture", "Window security", "Untrusted HTML"; R4 S1, S10–S15, S28).
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
 import {
   BrowserWindow,
   Menu,
@@ -14,8 +16,15 @@ import {
   type WebFrameMain,
 } from 'electron';
 import { projectDirFor } from '@vox/engine/paths';
-import { type EventName, type Method } from '../shared/api.ts';
-import { handleCall, importPathsError, isAllowedExternal, type FrameLike } from './guard.ts';
+import { appError, type EventName, type Method, type MethodArgs } from '../shared/api.ts';
+import { ExportTargets, stubAnswer, type TargetMode } from './exports.ts';
+import {
+  handleCall,
+  importPathsError,
+  isAllowedExternal,
+  isAppSender,
+  type FrameLike,
+} from './guard.ts';
 import { ACCELERATORS, type MenuCommand } from '../shared/commands.ts';
 import { EngineHost } from './host.ts';
 import { installCli } from './install-cli.ts';
@@ -96,20 +105,92 @@ function openExternal(url: string): void {
   else void shell.openExternal(url);
 }
 
+/**
+ * Test builds (VOX_E2E=1) answer the next native dialogs from this queue (`__voxTest.answerDialog`):
+ * a folder for save/folder pickers, a list of files for the open dialog. Release builds have no queue.
+ */
+const dialogAnswers: (string | string[] | null)[] = [];
+
+const VOX_HOME = process.env['VOX_HOME'] || join(homedir(), '.vox');
+const exportTargets = new ExportTargets({
+  stateFile: join(VOX_HOME, 'export-folders.json'),
+  defaultFolder: join(homedir(), 'Movies'),
+  home: homedir(),
+});
+
 /** Files from the native dialog; `{ paths }` only in test builds (VOX_E2E=1). */
 async function importFiles(args: unknown[]): Promise<unknown> {
   const bad = importPathsError(args, TEST);
   if (bad) throw bad;
   if ((args[1] as { paths?: string[] } | undefined)?.paths)
     return host.call('media.importFiles', args);
-  const win = BrowserWindow.getFocusedWindow();
-  const opts: Electron.OpenDialogOptions = {
-    title: 'Import media',
-    properties: ['openFile', 'openDirectory', 'multiSelections'],
-  };
-  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
-  if (r.canceled || r.filePaths.length === 0) return null;
-  return host.call('media.importFiles', [args[0], { paths: r.filePaths }]);
+  let paths: string[];
+  if (TEST && dialogAnswers.length > 0) {
+    const a = dialogAnswers.shift();
+    paths = a === null || a === undefined ? [] : Array.isArray(a) ? a : [a];
+  } else {
+    const win = BrowserWindow.getFocusedWindow();
+    const opts: Electron.OpenDialogOptions = {
+      title: 'Import media',
+      properties: ['openFile', 'openDirectory', 'multiSelections'],
+    };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    paths = r.canceled ? [] : r.filePaths;
+  }
+  if (paths.length === 0) return null;
+  return host.call('media.importFiles', [args[0], { paths }]);
+}
+
+/** `exports.chooseTarget`: save dialog (one file) or folder picker (several); null on cancel. */
+async function chooseTarget(
+  a: MethodArgs<'exports.chooseTarget'>[0],
+  projectId?: string,
+): Promise<unknown> {
+  const mode: TargetMode = a.mode;
+  const start =
+    (projectId && exportTargets.folderOf(exportTargets.lastFolder(projectId).targetId)) ||
+    join(homedir(), 'Movies');
+  let path: string | undefined;
+  if (TEST && dialogAnswers.length > 0) {
+    const ans = dialogAnswers.shift();
+    path = typeof ans === 'string' ? stubAnswer(mode, ans, a.suggestedName) : undefined;
+  } else {
+    const win = BrowserWindow.getFocusedWindow();
+    if (mode === 'file') {
+      const opts: Electron.SaveDialogOptions = {
+        title: 'Export',
+        defaultPath: join(start, a.suggestedName ?? `export.${a.format}`),
+        filters: [{ name: a.format.toUpperCase(), extensions: [a.format] }],
+      };
+      const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
+      path = r.canceled ? undefined : r.filePath;
+    } else {
+      const opts: Electron.OpenDialogOptions = {
+        title: 'Export to folder',
+        defaultPath: start,
+        properties: ['openDirectory', 'createDirectory'],
+      };
+      const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+      path = r.canceled ? undefined : r.filePaths[0];
+    }
+  }
+  if (!path) return null;
+  return exportTargets.register(mode, path);
+}
+
+/** Finder drops: the preload turns real dropped `File`s into paths (`webUtils.getPathForFile`). */
+async function importDropped(projectId: unknown, paths: unknown): Promise<unknown> {
+  const ok =
+    typeof projectId === 'string' &&
+    /^p_[a-z0-9]+$/.test(projectId) &&
+    Array.isArray(paths) &&
+    paths.length > 0 &&
+    paths.length <= 1000 &&
+    paths.every(
+      (p) => typeof p === 'string' && isAbsolute(p) && !p.includes('\0') && existsSync(p),
+    );
+  if (!ok) throw appError('ARGS_INVALID', 'Dropped items must be existing files or folders');
+  return host.call('media.importFiles', [projectId, { paths }]);
 }
 
 /** Main-only methods (dialogs, Finder); everything else goes to the engine host. */
@@ -121,6 +202,26 @@ async function forward(method: Method, args: unknown[]): Promise<unknown> {
     return null;
   }
   if (method === 'media.importFiles') return importFiles(args);
+  if (method === 'exports.chooseTarget') {
+    const a = args[0] as MethodArgs<'exports.chooseTarget'>[0] & { projectId?: string };
+    return chooseTarget(a, a.projectId);
+  }
+  if (method === 'exports.lastFolder') return exportTargets.lastFolder(args[0] as string);
+  if (method === 'exports.reveal') {
+    const roots = host.roots;
+    const path = args[0] as string;
+    if (!roots || !exportTargets.revealAllowed(path, roots.projectsDir)) {
+      throw appError('ARGS_INVALID', 'Only exported files can be shown in Finder');
+    }
+    shell.showItemInFolder(path);
+    return null;
+  }
+  if (method === 'jobs.start') {
+    return host.call(method, [
+      args[0],
+      exportTargets.mapJobArgs(args[1] as Record<string, unknown>),
+    ]);
+  }
   return host.call(method, args);
 }
 
@@ -189,6 +290,17 @@ function createWindow(): BrowserWindow {
 ipcMain.handle('vox:call', (e, method: unknown, args: unknown) =>
   call(e.senderFrame, e.sender, method, args),
 );
+// Finder drops (preload only; same sender check as every call)
+ipcMain.handle('vox:drop', async (e, projectId: unknown, paths: unknown) => {
+  if (!isAppSender(e.senderFrame as FrameLike | null, appWindows.has(e.sender))) {
+    return { ok: false, error: appError('IPC_REJECTED', 'Drop rejected') };
+  }
+  try {
+    return { ok: true, value: await importDropped(projectId, paths) };
+  } catch (err) {
+    return { ok: false, error: err };
+  }
+});
 
 if (TEST) {
   Object.assign(globalThis, {
@@ -197,6 +309,10 @@ if (TEST) {
       hostPid: () => host.pid,
       restarts: () => host.restarts,
       roots: () => host.roots,
+      /** The next native dialog's answer: a folder (save / folder picker), files (open), or null. */
+      answerDialog: (a: string | string[] | null) => void dialogAnswers.push(a),
+      revealAllowed: (path: string) =>
+        host.roots ? exportTargets.revealAllowed(path, host.roots.projectsDir) : false,
       // the effective preferences Chromium got (not in Electron 44's typings, present at runtime)
       webPreferences: () =>
         BrowserWindow.getAllWindows().map((w) =>

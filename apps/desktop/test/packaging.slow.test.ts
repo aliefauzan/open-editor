@@ -144,4 +144,58 @@ describe('packaged app', () => {
     );
     expect(changed).toEqual([]);
   });
+
+  test('S32 in the release build: test hooks off even with VOX_E2E=1; raw paths, unknown targets and other reveals rejected', async () => {
+    const home = temp('vox-s32-');
+    const app = await launchPackaged(APP, {
+      userData: join(home, 'user-data'),
+      env: {
+        HOME: home,
+        PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+        VOX_HOME: join(home, '.vox'),
+        VOX_PROJECTS_DIR: join(home, 'Projects'),
+        VOX_TOOLS_DIR: join(home, 'tools'),
+        VOX_UPDATE_REPO: '',
+        VOX_E2E: '1', // ignored by a packaged app: no { paths } import, no dialog stub
+      },
+    });
+    try {
+      const r = await app.page.evaluate(async () => {
+        const code = async (p: Promise<unknown>) => {
+          try {
+            await p;
+            return 'ok';
+          } catch (e) {
+            return (e as { code?: string }).code ?? 'ERR';
+          }
+        };
+        const v = window.vox;
+        const p = (await v.projects.create('S32')) as { id: string };
+        return {
+          importPaths: await code(v.media.importFiles(p.id, { paths: ['/etc/hosts'] })),
+          rawPath: await code(v.jobs.start('render', { projectId: p.id, file: '/tmp/x.mp4' })),
+          rawTarget: await code(
+            v.jobs.start('render', { projectId: p.id, target: { dir: '/tmp' } }),
+          ),
+          unknownTarget: await code(
+            v.jobs.start('render', { projectId: p.id, targetId: 't_00000000' }),
+          ),
+          reveal: await code(v.exports.reveal('/etc/hosts')),
+          revealProject: await code(v.exports.reveal(`${'/'}tmp/../etc/hosts`)),
+          hooks: typeof (globalThis as { __voxTest?: unknown }).__voxTest,
+        };
+      });
+      expect(r).toEqual({
+        importPaths: 'ARGS_INVALID',
+        rawPath: 'ARGS_INVALID',
+        rawTarget: 'ARGS_INVALID',
+        unknownTarget: 'EXPORT_TARGET',
+        reveal: 'ARGS_INVALID',
+        revealProject: 'ARGS_INVALID',
+        hooks: 'undefined',
+      });
+    } finally {
+      await app.close();
+    }
+  });
 });

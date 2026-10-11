@@ -56,11 +56,20 @@ export interface EditorState {
   /** itemId → runId of the agent run that last changed it (the "agent" badge, phase 13). */
   agentItems: Record<string, string>;
   toasts: Toast[];
+  /** Media ids whose file is missing on disk (offline block + relink, 10b). */
+  offline: string[];
+  /** Why the last `open` failed (`SCHEMA_TOO_NEW` shows its own message and opens nothing). */
+  openError: ErrorData | null;
   open(projectId: string): Promise<void>;
   close(): void;
   /** Re-reads the project from the engine (external edit, version gap, host restart). */
   reload(): Promise<void>;
   apply(call: OpCall, opts?: ApplyOptions): Promise<void>;
+  /**
+   * One op at an exact `baseVersion` with no STALE retry (the "Pauses & fillers" apply after a dry
+   * run; D-15): resolves with the op's report, or its error (`STALE` → the caller finds again).
+   */
+  applyAt(call: OpCall, baseVersion: number): Promise<{ report?: unknown; error?: ErrorData }>;
   /**
    * A slider or text field change: one op per change with coalesceKey `<field>:<itemId>`. A change
    * that has not been sent yet is replaced by the newer one.
@@ -125,7 +134,7 @@ export function createEditorStore(vox: VoxApi): EditorStore {
       const opened = await vox.projects.open(id);
       const project = opened.project as unknown as Project;
       base = { map: normalise(project), frame: projectFrame(project) };
-      set({ projectId: id, version: project.version });
+      set({ projectId: id, version: project.version, offline: opened.offline ?? [] });
     };
 
     const drop = (p: Pending) => {
@@ -268,6 +277,8 @@ export function createEditorStore(vox: VoxApi): EditorStore {
       playheadMs: 0,
       agentItems: {},
       toasts: [],
+      offline: [],
+      openError: null,
       async open(projectId) {
         base = null;
         set({
@@ -277,12 +288,16 @@ export function createEditorStore(vox: VoxApi): EditorStore {
           selection: [],
           agentItems: {},
           playheadMs: 0,
+          openError: null,
         });
         try {
           await loadBase(projectId);
           publish({ sequenceId: null });
         } catch (e) {
-          get().toast(e);
+          const err = asError(e);
+          if (err.code === 'SCHEMA_TOO_NEW')
+            set({ projectId: null, project: null, openError: err });
+          else get().toast(err);
         }
       },
       close() {
@@ -314,6 +329,28 @@ export function createEditorStore(vox: VoxApi): EditorStore {
           return last.done;
         }
         return get().apply(call, { coalesceKey: key });
+      },
+      applyAt(call, baseVersion) {
+        return new Promise((resolve) => {
+          void enqueue(async () => {
+            const id = get().projectId;
+            if (!id)
+              return resolve({ error: { code: 'NO_PROJECT', message: 'No project', hint: '' } });
+            try {
+              const r = await vox.ops.apply({
+                projectId: id,
+                op: call.op,
+                args: call.args,
+                baseVersion,
+              });
+              const error = await take(r);
+              publish();
+              resolve(error ? { error } : { report: r.results[0]?.report });
+            } catch (e) {
+              resolve({ error: asError(e) });
+            }
+          });
+        });
       },
       undo: () => history('undo'),
       redo: () => history('redo'),

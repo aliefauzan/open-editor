@@ -23,12 +23,14 @@ import {
   installComponent,
 } from '../../src/engine-host/setup/install.ts';
 import { loadManifest } from '../../src/engine-host/setup/manifest.ts';
-import { syncArgs, syncEnv } from '../../src/engine-host/setup/pyenv.ts';
+import { sourceHashOf, syncArgs, syncEnv } from '../../src/engine-host/setup/pyenv.ts';
 import { DESKTOP, REPO } from './app.ts';
 
 export const DIST = join(DESKTOP, 'dist');
 export const APP = join(DIST, 'mac-arm64', 'Vox Studio.app');
-export const EVIDENCE = join(REPO, 'docs', 'evidence', 'phase-09');
+/** Phase 09 by default; a rerun at a later gate passes its own folder (10b: GATE 5). */
+export const EVIDENCE =
+  process.env['VOX_EVIDENCE_DIR'] ?? join(REPO, 'docs', 'evidence', 'phase-09');
 /** Pinned components downloaded once (hash-checked) and cloned into each test's tools folder. */
 const CACHE_TOOLS = join(DESKTOP, 'cache', 'tools');
 
@@ -119,6 +121,7 @@ export async function seedTools(o: {
     .update(readFileSync(join(o.pyDir, 'uv.lock')))
     .digest('hex');
   writeFileSync(join(o.toolsDir, 'py-env', '.vox-lock-hash'), `${lock}\n`);
+  writeFileSync(join(o.toolsDir, 'py-env', '.vox-src-hash'), `${await sourceHashOf(o.pyDir)}\n`);
   linkPuppeteerCache(o.home);
 }
 

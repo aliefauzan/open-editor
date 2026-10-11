@@ -3,12 +3,17 @@
 // ad-hoc signed, hence the README's "Open Anyway"); the app then runs with temp VOX_HOME /
 // VOX_TOOLS_DIR / HOME and a PATH without Homebrew: the setup screen shows the ffmpeg-missing view
 // with its copy commands. With fixture components and a fake `brew` on PATH, setup reaches "Ready".
-// Evidence: docs/evidence/phase-09/ (spctl output, screenshots).
+// Then the full editor (phase 10b, GATE 5 render part of the packaging smoke test, D-12): the offline
+// fixture project opens in the editor and the app renders it to MP4, SRT and OTIO.
+// Evidence: docs/evidence/phase-09/ (spctl output, screenshots), or VOX_EVIDENCE_DIR.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
+import { openEngine } from '@vox/engine';
+import { makeOfflineProject } from '../../../scripts/make-offline-project.ts';
+import { STYLES } from './helpers/app.ts';
 import { EVIDENCE, builtDmg, fakeBrew, launchPackaged, seedTools } from './helpers/packaged.ts';
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'vox-clean-')));
@@ -124,6 +129,57 @@ describe('clean install from the quarantined .dmg (D-16)', () => {
         );
       await a.page.screenshot({ path: join(EVIDENCE, 'setup-ready.png') });
       rec('setup screen', 'Ready (components ready, doctor without errors)');
+    } finally {
+      await a.close();
+    }
+  }, 900_000);
+
+  test('the full editor: the offline fixture opens and renders to MP4, SRT and OTIO (10b)', async () => {
+    const e = openEngine({ projectsDir: join(home, 'Projects'), stylesDirs: [STYLES] });
+    const off = await makeOfflineProject(e, 'Clean install fixture');
+    const brew = join(root, 'brew', 'brew-bin'); // the fake brew of the setup test above
+    const a = await launchPackaged(app, {
+      env: baseEnv(`${brew}:${NO_BREW_PATH}`),
+      userData: join(home, 'ud'),
+    });
+    try {
+      await a.page
+        .getByRole('button', { name: 'Clean install fixture' })
+        .click({ timeout: 120_000 });
+      await a.page.getByTestId('player').waitFor({ timeout: 120_000 });
+      await a.page.screenshot({ path: join(EVIDENCE, 'clean-install-editor.png') });
+      const r = await a.page.evaluate(
+        async ({ pid, seq }) => {
+          const wait = async (id: string) => {
+            for (;;) {
+              const j = (await window.vox.jobs.get(id)) as {
+                status: string;
+                result?: { files?: { path: string; durationMs: number }[]; path?: string };
+                error?: unknown;
+              };
+              if (j.status !== 'queued' && j.status !== 'running') return j;
+              await new Promise((x) => setTimeout(x, 500));
+            }
+          };
+          const start = (kind: string, args: Record<string, unknown>) =>
+            window.vox.jobs.start(kind, {
+              projectId: pid,
+              sequenceId: seq,
+              ...args,
+            }) as Promise<string>;
+          const mp4 = await wait(await start('render', { quality: 'draft' }));
+          const srt = await wait(await start('exportCaptions', { format: 'srt' }));
+          const otio = await wait(await start('exportTimeline', {}));
+          return { mp4, srt, otio };
+        },
+        { pid: off.projectId, seq: off.sequenceId },
+      );
+      rec('render from the installed app', JSON.stringify(r, null, 2).replaceAll(home, '<home>'));
+      expect(r.mp4.status, JSON.stringify(r.mp4.error)).toBe('done');
+      expect(r.srt.status).toBe('done');
+      expect(r.otio.status).toBe('done');
+      const file = r.mp4.result!.files![0]!;
+      expect(Math.abs(file.durationMs - 20_000)).toBeLessThan(200);
     } finally {
       await a.close();
     }

@@ -88,6 +88,15 @@ const ENV_NAMES = new Set([
 ]);
 const ENV_PREFIXES = ['LC_', 'UV_', 'HF_', 'VOX_'];
 
+// Always set, never taken from the caller: the tools must not phone home. onnxruntime ≥ 1.2x
+// uploads usage events to mobile.events.data.microsoft.com from a background thread, and that
+// thread can abort the process at exit (SIGABRT, exit 134: a failed transcribe in GATE 5).
+const NO_TELEMETRY = {
+  ORT_DISABLE_TELEMETRY: '1',
+  HF_HUB_DISABLE_TELEMETRY: '1',
+  DO_NOT_TRACK: '1',
+} as const;
+
 export function pyEnv(
   opts: Partial<Pick<PyBridgeOptions, 'pyProject' | 'toolsDir'>>,
   base: NodeJS.ProcessEnv = process.env,
@@ -98,6 +107,7 @@ export function pyEnv(
       env[k] = v;
     }
   }
+  Object.assign(env, NO_TELEMETRY);
   if (opts.toolsDir === undefined) return env;
   return {
     ...env,

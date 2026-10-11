@@ -42,12 +42,14 @@ import { TranscriptSchema, type Transcript } from './model/schema.ts';
 import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
-import { registerMediaJobs, type MediaApi } from './media-api.ts';
+import { activeAreaOf, registerMediaJobs, type MediaApi } from './media-api.ts';
 import { registerQuickClipJobs } from './quick-api.ts';
 import type { QuickClipScorer } from './stages/quickClips.ts';
 import {
   applyClipFraming,
+  staticTrackPath,
   trackOptionsFromFrame,
+  type Area,
   type TrackPath,
   type TrackPathOptions,
 } from './stages/facetrack.ts';
@@ -726,7 +728,8 @@ export function openEngine(opts: EngineOptions): Engine {
    * The facetrack path provider (phase 05, replacing 03's stub): for each `facetrack`/`auto` clip
    * whose media has shots and a facetrack, the tracked path is built (cached) before compile; the
    * synchronous provider then cuts it to the clip it is given (after any range) with the user's pins.
-   * A clip without them keeps its static crop.
+   * A clip without them keeps its static crop, pulled inside the media's active area when ingest
+   * found black bars in the picture (`cache/media/<id>.json`); the tracked path stays inside it too.
    */
   async function trackedFraming(
     projectId: string,
@@ -735,6 +738,7 @@ export function openEngine(opts: EngineOptions): Engine {
   ): Promise<FramingProvider> {
     const s = p.sequences.find((x) => x.id === sequenceId);
     const paths = new Map<string, TrackPath>();
+    const areas = new Map<string, Area | undefined>();
     const keyOf = (mediaId: string, o: TrackPathOptions) => `${mediaId}|${JSON.stringify(o)}`;
     if (s) {
       const aspect = { width: s.canvas.width, height: s.canvas.height };
@@ -743,7 +747,9 @@ export function openEngine(opts: EngineOptions): Engine {
           if (it.type !== 'media' || (it.frame?.mode !== 'facetrack' && it.frame?.mode !== 'auto'))
             continue;
           const m = p.media.find((x) => x.id === it.mediaId);
-          if (!m?.facetrackPath || !m.shotsPath) continue;
+          if (!m) continue;
+          if (!areas.has(m.id)) areas.set(m.id, await activeAreaOf(dirOf(projectId), m));
+          if (!m.facetrackPath || !m.shotsPath) continue;
           const o = trackOptionsFromFrame(it.frame, aspect);
           const k = keyOf(m.id, o);
           if (!paths.has(k)) paths.set(k, await media.facetrackPath(projectId, m.id, o));
@@ -757,8 +763,12 @@ export function openEngine(opts: EngineOptions): Engine {
         width: seq.canvas.width,
         height: seq.canvas.height,
       });
-      const path = paths.get(keyOf(m.id, o));
-      if (!path) return undefined;
+      let path = paths.get(keyOf(m.id, o));
+      if (!path) {
+        const area = areas.get(m.id);
+        if (!area || !m.width || !m.height) return undefined;
+        path = staticTrackPath({ width: m.width, height: m.height }, o.aspect, area, clip.frame);
+      }
       return applyClipFraming(path, {
         inMs: clip.inMs,
         durationMs: clip.durationMs,
@@ -950,7 +960,8 @@ export function openEngine(opts: EngineOptions): Engine {
           durationMs: o.range ? o.range.endMs - o.range.startMs : Math.max(0, ...ends),
           preset: o.preset ?? 'youtube',
         },
-        o,
+        // the live tool map: setup may find ffmpeg after the engine opened (D-45)
+        { ...o, ...(opts.tools?.['ffmpeg'] ? { ffmpeg: opts.tools['ffmpeg'] } : {}) },
       );
     },
 

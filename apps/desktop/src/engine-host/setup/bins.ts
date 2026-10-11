@@ -1,6 +1,7 @@
 // `<tools>/bin/<tool>` links. The engine (and the `vox` CLI) look for tools in `<tools>/bin` first
 // (engine `resolveToolPaths`); setup installs each pinned tool in its own versioned folder, so a
 // relative symlink per ready tool connects the two. Links of tools that are not ready are removed.
+import { randomBytes } from 'node:crypto';
 import { access, mkdir, readlink, rename, rm, symlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -35,8 +36,8 @@ export async function linkToolBins(
     out[c.id] = target;
     if ((await readlink(link).catch(() => undefined)) === rel) continue;
     await mkdir(binDir, { recursive: true });
-    const tmp = `${link}.${process.pid}.tmp`;
-    await rm(tmp, { force: true });
+    // unique per call: two checks in one host (launch + status) may link at the same time
+    const tmp = `${link}.${process.pid}-${randomBytes(4).toString('hex')}.tmp`;
     await symlink(rel, tmp);
     await rename(tmp, link);
   }

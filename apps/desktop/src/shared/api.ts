@@ -10,7 +10,19 @@ const Loudness = z.enum(['youtube', 'tiktok', 'broadcast']);
 const Captions = z.enum(['burn', 'none']);
 
 /** Keys that would carry a raw file system path; jobs take an export `targetId` instead (D-13). */
-export const RAW_PATH_KEYS = ['path', 'file', 'dir', 'out', 'outPath', 'output', 'paths'] as const;
+export const RAW_PATH_KEYS = [
+  'path',
+  'file',
+  'dir',
+  'out',
+  'outPath',
+  'output',
+  'paths',
+  'outDir',
+  'input',
+  'inputs',
+  'target',
+] as const;
 
 const JobArgs = z
   .record(z.string(), z.unknown())
@@ -47,6 +59,8 @@ const AgentDecision = z.union([
 ]);
 
 const ChooseTarget = z.strictObject({
+  // the dialog opens in the folder last used for this project (plan D-13)
+  projectId: ProjectId.optional(),
   mode: z.enum(['file', 'folder']),
   suggestedName: z.string().min(1).max(255).optional(),
   format: z.string().min(1).max(20),
@@ -74,8 +88,10 @@ export const METHOD_ARGS = {
   'media.classifyUrl': t(z.string().max(4096)),
   // waveform peaks of a media item (`peaks/<mediaId>.json`; the renderer CSP allows no fetch), 10a
   'media.peaks': t(ProjectId, z.string().regex(/^m_[A-Za-z0-9_-]+$/, 'media id')),
+  // media bin search over names, tags, descriptions and transcript text → media ids (10b)
+  'media.search': t(ProjectId, z.string().max(200)),
   'captions.get': t(ProjectId, SequenceId),
-  'jobs.start': t(z.string().regex(/^[a-zA-Z]+$/), JobArgs),
+  'jobs.start': t(z.string().regex(/^[a-zA-Z]+(\.[a-zA-Z]+)?$/), JobArgs),
   'jobs.get': t(z.string().min(1).max(100)),
   'jobs.cancel': t(z.string().min(1).max(100)),
   'preview.url': t(ProjectId, SequenceId),
@@ -178,6 +194,8 @@ export interface ProjectSummary {
 export interface OpenedProject {
   project: { id: string; name: string; sequences: { id: string; name: string }[] };
   version: number;
+  /** Media ids whose file is missing on disk (10b: offline block + relink). */
+  offline?: string[];
 }
 export interface ApplyResultData {
   version: number;
@@ -265,4 +283,6 @@ export type VoxApi = {
   };
 } & {
   on(event: EventName, handler: (payload: unknown) => void): () => void;
+  /** Finder drop onto the window: imports the dropped files (preload resolves their paths). */
+  dropFiles?(projectId: string, files: ArrayLike<File>): Promise<unknown>;
 };

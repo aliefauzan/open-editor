@@ -26,6 +26,7 @@ import {
   DetectionsSchema,
   buildTrackPath,
   facetrackCacheKey,
+  type Area,
   type Detections,
   type TrackPath,
   type TrackPathOptions,
@@ -36,6 +37,7 @@ import {
   ingest,
   type IngestResult,
 } from './stages/ingest.ts';
+import { normaliseArea } from './stages/media/activeArea.ts';
 import { frameArgs } from './stages/media/derive.ts';
 import { FORMAT_WHITELIST } from './stages/media/ffargs.ts';
 import { runTool, type RunOptions } from './stages/media/run.ts';
@@ -158,6 +160,25 @@ export async function sha256File(path: string): Promise<string | undefined> {
     const h = createHash('sha256');
     for await (const chunk of createReadStream(path)) h.update(chunk as Buffer);
     return h.digest('hex');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The media's active picture area (ingest's `cache/media/<id>.json` `activeArea`, source pixels)
+ * normalised to its frame; undefined for the full frame, a missing or damaged entry, or no size.
+ */
+export async function activeAreaOf(
+  projectDir: string,
+  media: MediaItem,
+): Promise<Area | undefined> {
+  if (media.kind !== 'video' || !media.width || !media.height) return undefined;
+  try {
+    const raw = JSON.parse(
+      await readFile(join(projectDir, 'cache', 'media', `${media.id}.json`), 'utf8'),
+    ) as { activeArea?: unknown };
+    return normaliseArea(raw.activeArea, media.width, media.height);
   } catch {
     return undefined;
   }
@@ -628,6 +649,7 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
       }
       const detText = await readFile(await resolveProjectPath(dir, media.facetrackPath), 'utf8');
       const shotText = await readFile(await resolveProjectPath(dir, media.shotsPath), 'utf8');
+      const area = await activeAreaOf(dir, media);
       const key = facetrackCacheKey({
         mediaHash: await mediaHashOf(dir, media),
         aspect: opts.aspect,
@@ -636,6 +658,7 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         ...(opts.trackSpeed ? { trackSpeed: opts.trackSpeed } : {}),
         ...(opts.faceIndex !== undefined ? { faceIndex: opts.faceIndex } : {}),
         inputsHash: sha256Hex(`${detText}\n${shotText}`),
+        ...(area ? { area } : {}),
       });
       const cacheFile = join(dir, 'cache', 'facetrack', `${key}.json`);
       try {
@@ -649,6 +672,7 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         DetectionsSchema.parse(JSON.parse(detText)),
         ShotListSchema.parse(JSON.parse(shotText)),
         opts,
+        area,
       );
       await mkdir(join(dir, 'cache', 'facetrack'), { recursive: true, mode: 0o700 });
       await writeAtomic(cacheFile, JSON.stringify(path));

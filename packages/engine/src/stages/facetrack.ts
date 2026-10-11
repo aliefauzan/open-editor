@@ -9,6 +9,12 @@
 // top-left); `scale` is the zoom relative to the cover crop of the sequence aspect (1 = the largest
 // crop of that aspect that fits the source). The tracked path pans at scale 1; pins may zoom.
 //
+// Active area: a source with black bars baked into the picture (letterbox, pillarbox) has an
+// active area (ingest's `cache/media/<id>.json`, normalised here). The area replaces the frame as
+// the crop bounds: the path pans at the zoom that fits the cover crop inside the area
+// (`areaCoverScale`), and every crop centre, pin included, keeps the crop inside the area.
+// No area means the full frame (the paths are exactly the ones built before areas existed).
+//
 // The `frame.*` types come from phase 02's model (`MediaClip.frame`). Phase 05 plugs this builder
 // into 03's compile path-provider interface.
 
@@ -110,10 +116,20 @@ export interface ShotFraming {
   faceIndexMissing?: true;
 }
 
+/** Active picture area, normalised to the source frame (0..1, origin top-left). */
+export interface Area {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface TrackPath {
   /** Source frame size (the detections' sample size) and the sequence aspect the path was built for. */
   source: Aspect;
   aspect: Aspect;
+  /** The active area the crop stays in (absent: the full frame). */
+  area?: Area;
   /** Source-media time; linear between keyframes; each shot has a keyframe at its start and at `endMs - 1`. */
   keyframes: FrameKeyframe[];
   shots: ShotFraming[];
@@ -157,6 +173,58 @@ export function cropSize(source: Aspect, aspect: Aspect, scale = 1): { w: number
   const a = aspect.width * source.height;
   const s = aspect.height * source.width;
   return a < s ? { w: a / s / scale, h: 1 / scale } : { w: 1 / scale, h: s / a / scale };
+}
+
+const FULL_AREA: Area = { x: 0, y: 0, w: 1, h: 1 };
+
+/** The area if it is a real sub-rectangle of the frame, else undefined (the full frame). */
+function checkArea(area: Area | undefined): Area | undefined {
+  if (area === undefined) return undefined;
+  const { x, y, w, h } = area;
+  if (
+    ![x, y, w, h].every(Number.isFinite) ||
+    x < 0 ||
+    y < 0 ||
+    w <= 0 ||
+    h <= 0 ||
+    x + w > 1 + 1e-9 ||
+    y + h > 1 + 1e-9
+  ) {
+    throw invalid('active area must lie inside the frame', { area });
+  }
+  return x === 0 && y === 0 && w === 1 && h === 1 ? undefined : { x, y, w, h };
+}
+
+/**
+ * Zoom (against the full-frame cover crop) of the largest crop of `aspect` inside `area`; 1 without
+ * an area. Rounded up to 1e-4 (the keyframe precision), so the crop is never larger than the area.
+ */
+export function areaCoverScale(source: Aspect, aspect: Aspect, area: Area | undefined): number {
+  const a = checkArea(area);
+  if (a === undefined) return 1;
+  const full = cropSize(source, aspect);
+  const inner = cropSize({ width: a.w * source.width, height: a.h * source.height }, aspect);
+  const s = Math.max(full.w / (inner.w * a.w), full.h / (inner.h * a.h));
+  return Math.max(1, Math.ceil(s * 1e4 - 1e-6) / 1e4);
+}
+
+/**
+ * A crop pulled into the path's bounds: scale at least the area's cover zoom (pins: at most
+ * `MAX_PIN_SCALE`, or that zoom if larger), centre so the crop stays inside the area.
+ */
+export function fitCrop(
+  path: Pick<TrackPath, 'source' | 'aspect' | 'area'>,
+  v: { x: number; y: number; scale: number },
+): { x: number; y: number; scale: number } {
+  const a = path.area ?? FULL_AREA;
+  const lo = areaCoverScale(path.source, path.aspect, path.area);
+  const scale = clamp(v.scale, lo, Math.max(lo, MAX_PIN_SCALE));
+  const c = cropSize(path.source, path.aspect, scale);
+  return {
+    x: clamp(v.x, a.x + c.w / 2, a.x + a.w - c.w / 2),
+    y: clamp(v.y, a.y + c.h / 2, a.y + a.h - c.h / 2),
+    scale,
+  };
 }
 
 /** The crop at `atMs` by linear interpolation; holds the first/last keyframe outside the range. */
@@ -354,6 +422,7 @@ export function buildTrackPath(
   detections: Detections,
   shots: readonly ShotRange[],
   options: TrackPathOptions,
+  activeArea?: Area,
 ): TrackPath {
   const parsed = DetectionsSchema.safeParse(detections);
   if (!parsed.success) {
@@ -369,9 +438,14 @@ export function buildTrackPath(
 
   const stability: Stability = options.stability ?? 'smooth';
   const speed = TRACK_SPEED[options.trackSpeed ?? 'normal'];
-  const crop = cropSize({ width: det.width, height: det.height }, options.aspect);
-  const xr: [number, number] = [crop.w / 2, 1 - crop.w / 2];
-  const yr: [number, number] = [crop.h / 2, 1 - crop.h / 2];
+  const source = { width: det.width, height: det.height };
+  checkAspect(options.aspect);
+  const area = checkArea(activeArea);
+  const a = area ?? FULL_AREA;
+  const base = areaCoverScale(source, options.aspect, area);
+  const crop = cropSize(source, options.aspect, base);
+  const xr: [number, number] = [a.x + crop.w / 2, a.x + a.w - crop.w / 2];
+  const yr: [number, number] = [a.y + crop.h / 2, a.y + a.h - crop.h / 2];
   // sorted by time; a repeated atMs keeps the last sample
   const byTime = new Map<number, DetectionSample>();
   for (const s of det.samples) byTime.set(s.atMs, s);
@@ -425,7 +499,13 @@ export function buildTrackPath(
 
     let path: { atMs: number; x: number; y: number }[];
     if (targets.length === 0) {
-      path = [{ atMs: shot.startMs, x: 0.5, y: 0.5 }];
+      path = [
+        {
+          atMs: shot.startMs,
+          x: clamp(a.x + a.w / 2, xr[0], xr[1]),
+          y: clamp(a.y + a.h / 2, yr[0], yr[1]),
+        },
+      ];
     } else if (
       stability === 'locked' &&
       halfRange(targets, 'x') <= DEAD_ZONE * crop.w + 1e-9 &&
@@ -452,14 +532,53 @@ export function buildTrackPath(
     }
     const lastP = path.at(-1) as { atMs: number; x: number; y: number };
     if (shot.endMs - 1 > lastP.atMs) path.push({ atMs: shot.endMs - 1, x: lastP.x, y: lastP.y });
-    keyframes.push(...prune(path.map((p) => ({ atMs: p.atMs, x: r4(p.x), y: r4(p.y), scale: 1 }))));
+    keyframes.push(
+      ...prune(path.map((p) => ({ atMs: p.atMs, x: r4(p.x), y: r4(p.y), scale: base }))),
+    );
     infos.push(info);
   }
   return {
-    source: { width: det.width, height: det.height },
+    source,
     aspect: { width: options.aspect.width, height: options.aspect.height },
+    ...(area === undefined ? {} : { area }),
     keyframes,
     shots: infos,
+  };
+}
+
+/**
+ * A path that holds one crop over the whole media, for a tracked clip whose media has an active
+ * area but no shots or facetrack yet: the frame's own `x`, `y`, `scale` (default: the area's
+ * centre at its cover zoom), pulled inside the area. `applyClipFraming` then adds the pins.
+ */
+export function staticTrackPath(
+  source: Aspect,
+  aspect: Aspect,
+  activeArea: Area | undefined,
+  frame: { x?: number; y?: number; scale?: number },
+): TrackPath {
+  checkAspect(source);
+  checkAspect(aspect);
+  const area = checkArea(activeArea);
+  const a = area ?? FULL_AREA;
+  const bounds = { source, aspect, ...(area === undefined ? {} : { area }) };
+  const v = fitCrop(bounds, {
+    x: frame.x ?? a.x + a.w / 2,
+    y: frame.y ?? a.y + a.h / 2,
+    scale: frame.scale ?? 1,
+  });
+  return {
+    ...bounds,
+    keyframes: [{ atMs: 0, x: r4(v.x), y: r4(v.y), scale: v.scale }],
+    shots: [
+      {
+        startMs: 0,
+        endMs: Number.MAX_SAFE_INTEGER,
+        subject: 'centre',
+        stability: 'locked',
+        switchesAtMs: [],
+      },
+    ],
   };
 }
 
@@ -505,16 +624,7 @@ export function applyClipFraming(path: TrackPath, clip: ClipWindow): FrameKeyfra
     return i === -1 ? (t < (shots[0]?.startMs ?? 0) ? 0 : shots.length - 1) : i;
   };
   const pins = (clip.keyframes ?? [])
-    .map((k) => {
-      const scale = clamp(k.scale, 1, MAX_PIN_SCALE);
-      const c = cropSize(path.source, path.aspect, scale);
-      return {
-        src: a + k.atMs,
-        x: clamp(k.x, c.w / 2, 1 - c.w / 2),
-        y: clamp(k.y, c.h / 2, 1 - c.h / 2),
-        scale,
-      };
-    })
+    .map((k) => ({ src: a + k.atMs, ...fitCrop(path, k) }))
     .filter((p) => p.src >= a && p.src <= b)
     .sort((p, q) => p.src - q.src)
     .map((p) => ({ ...p, shot: shotIndex(p.src) }));
@@ -591,6 +701,8 @@ export interface FacetrackCacheKeyInput {
   faceIndex?: number;
   /** Optional hash of the inputs (shots + detections files), so re-detection misses the cache. */
   inputsHash?: string;
+  /** The media's active area (absent: the full frame; the key is then the one built before areas). */
+  area?: Area | undefined;
 }
 
 const gcd = (p: number, q: number): number => (q === 0 ? p : gcd(q, p % q));
@@ -614,5 +726,6 @@ export function facetrackCacheKey(k: FacetrackCacheKeyInput): string {
     k.faceIndex ?? null,
     k.inputsHash ?? null,
   ];
+  if (k.area !== undefined) parts.push(JSON.stringify(k.area));
   return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }

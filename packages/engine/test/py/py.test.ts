@@ -8,6 +8,12 @@ import { isVoxError } from '../../src/errors.ts';
 import { pyArgv, pyEnv, repoPyProject, runPyTool, type PyBridgeOptions } from '../../src/py.ts';
 import { createRedactor, REDACTED } from '../../src/redact.ts';
 
+const NO_TELEMETRY = {
+  ORT_DISABLE_TELEMETRY: '1',
+  HF_HUB_DISABLE_TELEMETRY: '1',
+  DO_NOT_TRACK: '1',
+};
+
 const CANARY = 'sk-or-v1-CANARY0000000000000000000000000000000000000000000000000000';
 const FAKE_UV = fileURLToPath(new URL('./fake-uv.mjs', import.meta.url));
 const Echo = z.object({ echo: z.unknown() });
@@ -90,6 +96,7 @@ describe('argv and env', () => {
     ]);
     expect(pyEnv(opts, { PATH: '/usr/bin' })).toEqual({
       PATH: '/usr/bin',
+      ...NO_TELEMETRY,
       UV_PROJECT_ENVIRONMENT: join('/tools', 'py-env'),
       UV_CACHE_DIR: join('/tools', 'uv-cache'),
       UV_PYTHON_INSTALL_DIR: join('/tools', 'python'),
@@ -116,11 +123,21 @@ describe('argv and env', () => {
     expect(log.argv).toEqual(pyArgv('echo_tool', { pyProject: '/opt/vox/py', toolsDir: tools }));
     expect(log.argv).toContain('--frozen');
     expect(log.env).toEqual({
+      ...NO_TELEMETRY,
       UV_PROJECT_ENVIRONMENT: join(tools, 'py-env'),
       UV_CACHE_DIR: join(tools, 'uv-cache'),
       UV_PYTHON_INSTALL_DIR: join(tools, 'python'),
       OPENROUTER_API_KEY: null,
     });
+  });
+
+  it('pyEnv always switches off library telemetry (onnxruntime uploads to Microsoft and can abort at exit)', () => {
+    for (const opts of [{}, { pyProject: '/r/py', toolsDir: '/tools' }]) {
+      const env = pyEnv(opts, { ORT_DISABLE_TELEMETRY: '0', HF_HUB_DISABLE_TELEMETRY: '0' });
+      expect(env['ORT_DISABLE_TELEMETRY']).toBe('1');
+      expect(env['HF_HUB_DISABLE_TELEMETRY']).toBe('1');
+      expect(env['DO_NOT_TRACK']).toBe('1');
+    }
   });
 
   it('pyEnv passes only allow-listed variables', () => {
@@ -135,7 +152,7 @@ describe('argv and env', () => {
         OPENAI_API_KEY: 'y',
       },
     );
-    expect(env).toEqual({ PATH: '/bin', HOME: '/h', LC_ALL: 'C', HF_HOME: '/hf' });
+    expect(env).toEqual({ PATH: '/bin', HOME: '/h', LC_ALL: 'C', HF_HOME: '/hf', ...NO_TELEMETRY });
   });
 });
 

@@ -24,6 +24,7 @@ import type {
 } from '../../shared/project.ts';
 import { CaptionLane } from './CaptionLane.tsx';
 import { useCtx, useEditor, useEditorShallow, useUi } from './context.tsx';
+import { mediaName } from './MediaBin.tsx';
 import { endOf, seqOf } from './editing.ts';
 import { findItem } from './entities.ts';
 import { SequenceTabs } from './SequenceTabs.tsx';
@@ -61,7 +62,7 @@ function ruler(pxPerSec: number): { scale: number; scaleWidth: number; split: nu
   return { scale, scaleWidth: scale * pxPerSec, split: scale >= 5 ? 5 : 10 };
 }
 
-function useCaptions(): CaptionChunk[] {
+export function useCaptions(): CaptionChunk[] {
   const { vox } = useCtx();
   const projectId = useEditor((s) => s.projectId);
   const sequenceId = useEditor((s) => s.sequenceId);
@@ -253,11 +254,13 @@ function ClipView(props: { itemId: string; rowId: string; follow: Follow }) {
   const styleId = useEditor((s) => seqOf(s.project, s.sequenceId)?.styleId);
   const style = useResolvedStyle(styleId);
   const pxPerSec = useUi((s) => s.pxPerSec);
+  const offlineIds = useEditor((s) => s.offline);
   const peaks = usePeaks(projectId, found?.kind === 'audio' ? media : undefined);
   if (!found) return null;
   const it = found.item;
   const audio = found.kind === 'audio';
-  const offline = it.type === 'media' && !media;
+  // the media entry is gone, or its file is missing on disk (moved or deleted)
+  const offline = it.type === 'media' && (!media || offlineIds.includes(it.mediaId));
   const widthPx = (it.durationMs / 1000) * pxPerSec;
   const shift = offs
     ? { left: (offs[0] / 1000) * pxPerSec, right: -(offs[1] / 1000) * pxPerSec }
@@ -265,7 +268,9 @@ function ClipView(props: { itemId: string; rowId: string; follow: Follow }) {
   const label =
     it.type === 'scene'
       ? templateName(style?.templates[it.template], it.template)
-      : (media?.path.split('/').pop() ?? it.mediaId);
+      : media
+        ? mediaName(media)
+        : it.mediaId;
   const bg = offline
     ? 'bg-red-700'
     : it.type === 'scene'

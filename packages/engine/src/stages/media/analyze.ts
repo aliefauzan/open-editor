@@ -76,11 +76,26 @@ export interface VfrInput {
 }
 
 /**
- * D-15: VFR when `r_frame_rate` ≠ `avg_frame_rate`, or when the pts deltas spread over more than
- * one frame (one frame at the average rate, else `r_frame_rate`).
+ * VFR tolerance (refines D-15): `r_frame_rate` and `avg_frame_rate` within 0.1 % of each other count
+ * as the same rate. The average comes from frame count ÷ duration, so container duration rounding
+ * alone (e.g. YouTube 24/1 vs 21781000/907541) makes them differ slightly without any variable timing.
+ */
+export const RATE_TOLERANCE = 0.001;
+
+/** True when the two rates differ by more than `RATE_TOLERANCE` (relative to `r_frame_rate`). */
+export function rateMismatch(r: Fps | undefined, avg: Fps | undefined): boolean {
+  if (!r || !avg) return false;
+  if (fpsEqual(r, avg)) return false;
+  return Math.abs(fpsValue(avg) - fpsValue(r)) > RATE_TOLERANCE * fpsValue(r);
+}
+
+/**
+ * D-15 with the VFR tolerance: VFR when `r_frame_rate` and `avg_frame_rate` differ by more than
+ * 0.1 %, or when the pts deltas spread over more than one frame (one frame at the average rate,
+ * else `r_frame_rate`). Rates within the tolerance are decided by the pts check alone.
  */
 export function detectVfr({ rFrameRate, avgFrameRate, pts }: VfrInput): boolean {
-  if (rFrameRate && avgFrameRate && !fpsEqual(rFrameRate, avgFrameRate)) return true;
+  if (rateMismatch(rFrameRate, avgFrameRate)) return true;
   const rate = avgFrameRate ?? rFrameRate;
   const spread = pts ? ptsDeltaSpread(pts) : undefined;
   if (rate === undefined || spread === undefined) return false;
@@ -372,11 +387,11 @@ export async function analyzeMedia(
   let plan: FrameRatePlan | undefined;
   if (isVideo && probe.video) {
     const { rFrameRate, avgFrameRate } = probe.video;
-    // The pts scan is needed only when the two rates agree (unequal rates are VFR already).
-    const pts =
-      rFrameRate && avgFrameRate && !fpsEqual(rFrameRate, avgFrameRate)
-        ? undefined
-        : await readVideoPts(path, sniffed.format, opts);
+    // The pts scan is needed only when the two rates agree within the VFR tolerance (rates
+    // further apart are VFR already).
+    const pts = rateMismatch(rFrameRate, avgFrameRate)
+      ? undefined
+      : await readVideoPts(path, sniffed.format, opts);
     plan = planFrameRate({ rFrameRate, avgFrameRate, pts }, opts.cfrRates ?? 'all');
     if (!plan) {
       throw new VoxError(

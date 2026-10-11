@@ -27,25 +27,36 @@
   // HyperFrames bundler may rename composition ids, e.g. `s3-p1__hf1` for nested mounts, so a
   // `[data-composition-id="<id>"]` lookup is not reliable), and `register(tl)` under the id the
   // runtime waits for.
+  //
+  // `root` is the scene's authored root as mounted. HyperFrames flattens a template root below its
+  // host: the root loses data-composition-id and id and gets data-hf-inner-root, and the scene's
+  // `#root { ... }` rules (style tokens, box) are scoped to that inner root. Content a scene script
+  // appends must go inside it, or `var(--tok-*)` is undefined there (GATE 5: captions rendered in
+  // the default serif with no stroke). Unflattened, the root is the composition element itself.
   var claimed = new WeakSet();
+  function contentRoot(marker) {
+    return marker.closest('[data-hf-inner-root], [data-composition-id]');
+  }
   function mount(id) {
     var markers = document.querySelectorAll(
       'script[data-vox-vars][data-vox-instance="' + id + '"]',
     );
     // Claim markers, not roots: the runtime strips data-composition-id from a mounted inner root,
     // so rootOf() is the host, which stays the same element when vox-preview.js remounts a scene.
+    var host = null;
     var root = null;
-    for (var i = 0; i < markers.length && !root; i++) {
+    for (var i = 0; i < markers.length && !host; i++) {
       var r = rootOf(markers[i]);
       if (r && !claimed.has(markers[i])) {
-        root = r;
+        host = r;
+        root = contentRoot(markers[i]);
         claimed.add(markers[i]);
       }
     }
-    if (!root) throw new Error('vox.mount: no mounted instance ' + id);
+    if (!host) throw new Error('vox.mount: no mounted instance ' + id);
     var chain = [];
     for (
-      var el = root;
+      var el = host;
       el;
       el = el.parentElement && el.parentElement.closest('[data-composition-id]')
     ) {
@@ -58,7 +69,7 @@
     // sees the registration (inlined preview templates are not exempt from its static check).
     return {
       root: root,
-      vars: vars(root),
+      vars: vars(host),
       keys: keys,
       key: keys[0],
       register: function (tl) {

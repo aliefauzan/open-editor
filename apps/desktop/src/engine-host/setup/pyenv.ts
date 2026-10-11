@@ -1,9 +1,13 @@
 // Python environment (app spec "First-run setup", D-12). `uv sync --frozen --no-editable` of the bundled
 // py/ project into <tools>/py-env. After a sync the SHA-256 of the bundled uv.lock is stored in
-// <tools>/py-env/.vox-lock-hash; a different hash on launch (an app update that adds packages) triggers a
-// re-sync. Nothing is written into the bundle: the env, uv cache and Python all live in the tools folder.
+// <tools>/py-env/.vox-lock-hash and a hash of the project's own files (pyproject.toml, vox_py/) in
+// .vox-src-hash; a different hash on launch (an app update that adds packages or changes a tool) triggers
+// a re-sync. The sync reinstalls vox_py: its version never changes, so uv would keep the wheel it built
+// first (GATE 5: an installed app ran the phase-04 facetrack after many rebuilds). Nothing is written
+// into the bundle: the env, uv cache and Python all live in the tools folder.
 
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { SetupError } from './errors.ts';
 import { sha256File } from './hash.ts';
@@ -23,6 +27,45 @@ export async function lockHashOf(lockPath: string): Promise<string> {
   }
 }
 
+/** The package the bundled project builds (pyproject.toml `name`). */
+export const PY_PACKAGE = 'vox_py';
+
+/**
+ * SHA-256 over the bundled project's own files: pyproject.toml and every file under vox_py/ (path and
+ * bytes, sorted; bytecode left out). The lock hash misses these: a tool fix changes no package pin.
+ */
+export async function sourceHashOf(pyDir: string): Promise<string> {
+  const files: string[] = ['pyproject.toml'];
+  const walk = async (rel: string): Promise<void> => {
+    let entries;
+    try {
+      entries = await readdir(join(pyDir, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.name === '__pycache__' || e.name.endsWith('.pyc')) continue;
+      const r = `${rel}/${e.name}`;
+      if (e.isDirectory()) await walk(r);
+      else if (e.isFile()) files.push(r);
+    }
+  };
+  await walk(PY_PACKAGE);
+  files.sort();
+  const h = createHash('sha256');
+  for (const f of files) {
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(join(pyDir, f));
+    } catch {
+      continue;
+    }
+    h.update(`${f}\0${String(bytes.length)}\0`);
+    h.update(bytes);
+  }
+  return h.digest('hex');
+}
+
 export type PyEnvState = 'missing' | 'stale' | 'current';
 
 export interface PyEnvCheck {
@@ -31,6 +74,8 @@ export interface PyEnvCheck {
   expected: string;
   /** Hash stored by the last sync, if any */
   actual?: string;
+  /** What is stale: the package pins (uv.lock) or the project's own files */
+  stale?: 'lock' | 'sources';
 }
 
 export async function checkPyEnv(opts: {
@@ -44,13 +89,20 @@ export async function checkPyEnv(opts: {
   } catch {
     return { state: 'missing', expected };
   }
-  if (actual !== expected) return { state: 'stale', expected, actual };
+  if (actual !== expected) return { state: 'stale', expected, actual, stale: 'lock' };
   // A deleted python/ folder or a dangling interpreter link leaves the hash file behind: not usable.
   try {
     await stat(join(toolPaths(opts.toolsDir).pyEnv, 'bin', 'python'));
   } catch {
     return { state: 'missing', expected, actual };
   }
+  // An env from before the source hash has no file: stale too, so it is rebuilt once.
+  const sources = await sourceHashOf(dirname(opts.lockPath));
+  const built = await readFile(toolPaths(opts.toolsDir).srcHash, 'utf8').then(
+    (t) => t.trim(),
+    () => undefined,
+  );
+  if (built !== sources) return { state: 'stale', expected, actual, stale: 'sources' };
   return { state: 'current', expected, actual };
 }
 
@@ -69,9 +121,20 @@ export interface SyncOptions {
 /**
  * The exact arguments of the sync, in one place. `--compile-bytecode` (phase 09): the setup pays the
  * one-time bytecode compile, so the first doctor run and the first job do not (minutes otherwise).
+ * `--reinstall-package vox_py` rebuilds the project itself from the bundle (uv keys its cached build on
+ * pyproject.toml, not on the tool files); the pinned packages stay as they are.
  */
 export function syncArgs(pyDir: string): string[] {
-  return ['sync', '--frozen', '--no-editable', '--compile-bytecode', '--project', pyDir];
+  return [
+    'sync',
+    '--frozen',
+    '--no-editable',
+    '--compile-bytecode',
+    '--reinstall-package',
+    PY_PACKAGE,
+    '--project',
+    pyDir,
+  ];
 }
 
 /** Variables that could redirect the frozen sync to another index, mirror, config or interpreter. */
@@ -101,8 +164,10 @@ export function syncPyEnv(opts: SyncOptions): Promise<void> {
 async function syncPyEnvLocked(opts: SyncOptions): Promise<void> {
   const paths = toolPaths(opts.toolsDir);
   const expected = await lockHashOf(join(opts.pyDir, 'uv.lock'));
+  const sources = await sourceHashOf(opts.pyDir);
   await mkdir(paths.root, { recursive: true });
   await rm(paths.lockHash, { force: true });
+  await rm(paths.srcHash, { force: true });
   progress(opts.onProgress, PY_ENV_ID, 'sync', { message: 'uv sync --frozen --no-editable' });
   const r = await runCommand(opts.uvPath, syncArgs(opts.pyDir), {
     signal: opts.signal,
@@ -119,9 +184,14 @@ async function syncPyEnvLocked(opts: SyncOptions): Promise<void> {
     throw new SetupError('COMMAND_FAILED', msg);
   }
   await mkdir(dirname(paths.lockHash), { recursive: true });
-  const tmp = `${paths.lockHash}.tmp`;
-  await writeFile(tmp, expected);
-  await rename(tmp, paths.lockHash);
+  for (const [file, value] of [
+    [paths.srcHash, sources],
+    [paths.lockHash, expected],
+  ] as const) {
+    const tmp = `${file}.tmp`;
+    await writeFile(tmp, value);
+    await rename(tmp, file);
+  }
   progress(opts.onProgress, PY_ENV_ID, 'done');
 }
 
@@ -168,14 +238,16 @@ export async function doctorPyEnv(opts: {
       return {
         ok: true,
         state: 'current',
-        message: 'Python environment matches the bundled uv.lock.',
+        message: 'Python environment matches the bundled uv.lock and Python tools.',
       };
     case 'stale':
       return {
         ok: false,
         state: 'stale',
         message:
-          'The Python environment was built from an older uv.lock than this app version ships.',
+          c.stale === 'sources'
+            ? 'The Python environment was built from older Python tools than this app version ships.'
+            : 'The Python environment was built from an older uv.lock than this app version ships.',
         fix: FIX,
       };
     case 'missing':

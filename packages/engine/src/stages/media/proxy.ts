@@ -97,7 +97,23 @@ export interface CfrCopyArgsOptions {
   fps: Fps;
   /** `MediaAnalysis.audioCodec`: copied when MP4 can hold it, else re-encoded to AAC. */
   audioCodec?: string | undefined;
+  /** H.264 encoder (encoders.ts picks it once per ffmpeg); default `libx264`. */
+  encoder?: H264Encoder | undefined;
 }
+
+/**
+ * H.264 encoders for the CFR copy (decision "CFR copy speed"): the macOS hardware encoder when the
+ * ffmpeg build has it, else libx264. The caller falls back to libx264 when a hardware encode fails.
+ */
+export type H264Encoder = 'videotoolbox' | 'libx264';
+
+/** Constant-quality value for `h264_videotoolbox` (`-q:v`, 1–100): visually near `-crf 18`. */
+export const VT_QUALITY = 65;
+
+const CFR_VIDEO: Readonly<Record<H264Encoder, readonly string[]>> = {
+  videotoolbox: ['-c:v', 'h264_videotoolbox', '-q:v', String(VT_QUALITY)],
+  libx264: ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18'],
+};
 
 /** Audio codecs the MP4 muxer holds as they are; anything else (PCM, Vorbis …) becomes AAC. */
 export const MP4_COPY_AUDIO: ReadonlySet<string> = new Set([
@@ -111,7 +127,9 @@ export const MP4_COPY_AUDIO: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * `media/<mediaId>.cfr.mp4`: libx264 `-crf 18` at a constant `fps`. The first audio stream is
+ * `media/<mediaId>.cfr.mp4` at a constant `fps`: `h264_videotoolbox -q:v 65`, or libx264
+ * `-preset veryfast -crf 18` (decision "CFR copy speed"; the spec's `-preset medium` took 7 min for a
+ * 15-min 1080p source). The first audio stream is
  * copied when MP4 can hold it; otherwise (e.g. PCM from a MOV, Vorbis from a WebM) it is AAC 256k.
  */
 export function cfrCopyArgs(o: CfrCopyArgsOptions): string[] {
@@ -128,12 +146,7 @@ export function cfrCopyArgs(o: CfrCopyArgsOptions): string[] {
     '0:V:0',
     '-map',
     '0:a:0?',
-    '-c:v',
-    'libx264',
-    '-preset',
-    'medium',
-    '-crf',
-    '18',
+    ...CFR_VIDEO[o.encoder ?? 'libx264'],
     '-pix_fmt',
     'yuv420p',
     '-fps_mode',

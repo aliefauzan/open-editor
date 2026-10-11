@@ -16,6 +16,7 @@ import {
   parseRational,
   planFrameRate,
   ptsDeltaSpread,
+  rateMismatch,
 } from '../../src/stages/media/analyze.ts';
 import { sniffFile, type SniffedMedia } from '../../src/stages/media/sniff.ts';
 import { codeOf, codeOfAsync, fixture, removeDir, tempDir } from './helpers.ts';
@@ -84,6 +85,38 @@ describe('VFR rule (D-15)', () => {
     for (let i = 1; i + 1 < pts.length; i += 3)
       [pts[i], pts[i + 1]] = [pts[i + 1] as number, pts[i] as number];
     expect(detectVfr({ rFrameRate: r(30), avgFrameRate: r(30), pts })).toBe(false);
+  });
+  // VFR tolerance (refines D-15): rates within 0.1 % are decided by the pts check alone.
+  test('YouTube 24 fps whose avg differs only by duration rounding (21781000/907541) → not VFR', () => {
+    const rFrameRate = r(24);
+    const avgFrameRate = parseRational('21781000/907541');
+    expect(rateMismatch(rFrameRate, avgFrameRate)).toBe(false);
+    // WebM pts are whole milliseconds: 41/42 ms deltas.
+    const pts = cfrPts(24, 2400).map((t) => Math.round(t * 1000) / 1000);
+    expect(detectVfr({ rFrameRate, avgFrameRate, pts })).toBe(false);
+    expect(planFrameRate({ rFrameRate, avgFrameRate, pts })).toEqual({ fps: r(24), vfr: false });
+  });
+  test('rates within 0.1 % but pts deltas spread over 2 frames → VFR (still gets the copy)', () => {
+    const rFrameRate = r(30);
+    const avgFrameRate = r(29990, 1000);
+    expect(rateMismatch(rFrameRate, avgFrameRate)).toBe(false);
+    const pts = cfrPts(30, 300);
+    pts.splice(100, 2); // a 3-frame gap
+    expect(detectVfr({ rFrameRate, avgFrameRate, pts })).toBe(true);
+    expect(planFrameRate({ rFrameRate, avgFrameRate, pts })?.cfr).toEqual({
+      fps: r(30),
+      reason: 'vfr',
+    });
+  });
+  test('phone VFR (r 30, avg 29.5, jittery pts) → VFR', () => {
+    const rFrameRate = r(30);
+    const avgFrameRate = r(59, 2);
+    expect(rateMismatch(rFrameRate, avgFrameRate)).toBe(true);
+    expect(detectVfr({ rFrameRate, avgFrameRate })).toBe(true);
+  });
+  test('rates just over 0.1 % apart → VFR without pts', () => {
+    expect(detectVfr({ rFrameRate: r(1000), avgFrameRate: r(998) })).toBe(true);
+    expect(detectVfr({ rFrameRate: r(1000), avgFrameRate: r(9991, 10) })).toBe(false);
   });
   test('ptsDeltaSpread needs 3 pts', () => {
     expect(ptsDeltaSpread([0, 1])).toBeUndefined();
@@ -284,6 +317,25 @@ describe('analyzeMedia refuses what it cannot handle (fake ffprobe)', () => {
     )) as VoxError;
     expect(err.code).toBe('MEDIA_UNSUPPORTED');
     expect(err.details).toMatchObject({ detected: '9000x9000' });
+  });
+
+  test('YouTube rates 24/1 vs 21781000/907541 → no CFR copy (VFR tolerance)', async () => {
+    const ffprobe = fakeProbe(
+      JSON.stringify({
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2', duration: '907.541' },
+        streams: [
+          {
+            codec_type: 'video',
+            width: 1920,
+            height: 1080,
+            r_frame_rate: '24/1',
+            avg_frame_rate: '21781000/907541',
+          },
+        ],
+      }),
+    );
+    const a = await analyzeMedia('/x/a.mp4', video, { tools: { ffprobe } });
+    expect(a).toMatchObject({ fps: r(24), vfr: false, cfr: undefined });
   });
 
   test('a video with no readable frame rate → MEDIA_UNSUPPORTED', async () => {

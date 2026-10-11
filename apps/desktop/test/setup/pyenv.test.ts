@@ -1,6 +1,8 @@
-// D-12 py-env resync: a changed bundled uv.lock triggers exactly one `uv sync --frozen --no-editable`;
-// an unchanged one does not; S31: nothing is written into the bundled py/ folder.
+// D-12 py-env resync: a changed bundled uv.lock or a changed Python tool triggers exactly one
+// `uv sync --frozen --no-editable` that reinstalls vox_py; an unchanged bundle does not; S31: nothing is
+// written into the bundled py/ folder.
 import { describe, expect, test } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -8,6 +10,7 @@ import {
   doctorPyEnv,
   ensurePyEnv,
   lockHashOf,
+  sourceHashOf,
   syncPyEnv,
 } from '../../src/engine-host/setup/pyenv.ts';
 import { toolPaths } from '../../src/engine-host/setup/paths.ts';
@@ -67,7 +70,7 @@ describe('syncPyEnv / ensurePyEnv', () => {
     const calls = f.readCalls();
     expect(calls).toHaveLength(1);
     expect(calls[0]!.argv).toBe(
-      `sync --frozen --no-editable --compile-bytecode --project ${f.pyDir}`,
+      `sync --frozen --no-editable --compile-bytecode --reinstall-package vox_py --project ${f.pyDir}`,
     );
     expect(calls[0]!.env).toBe(`${paths.pyEnv}|${paths.uvCache}|${paths.python}`);
     expect(readFileSync(paths.lockHash, 'utf8').trim()).toBe(sha256('lock v1\n'));
@@ -104,6 +107,58 @@ describe('syncPyEnv / ensurePyEnv', () => {
     expect((await checkPyEnv({ toolsDir: f.toolsDir, lockPath: f.lockPath })).state).toBe(
       'current',
     );
+  });
+
+  test('changed Python tool, same lock (GATE 5): exactly one more sync that reinstalls vox_py', async () => {
+    const f = fixture();
+    mkdirSync(join(f.pyDir, 'vox_py'));
+    writeFileSync(join(f.pyDir, 'vox_py', 'facetrack.py'), 'v1\n');
+    const args = { uvPath: f.uv, pyDir: f.pyDir, toolsDir: f.toolsDir, signal: noSignal() };
+    await ensurePyEnv(args);
+    expect((await ensurePyEnv(args)).synced).toBe(false);
+    writeFileSync(join(f.pyDir, 'vox_py', 'facetrack.py'), 'v2, faster\n');
+    expect(await checkPyEnv({ toolsDir: f.toolsDir, lockPath: f.lockPath })).toMatchObject({
+      state: 'stale',
+      stale: 'sources',
+    });
+    expect((await ensurePyEnv(args)).synced).toBe(true);
+    const calls = f.readCalls();
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.argv).toContain('--reinstall-package vox_py');
+    expect(readFileSync(toolPaths(f.toolsDir).srcHash, 'utf8').trim()).toBe(
+      await sourceHashOf(f.pyDir),
+    );
+    expect((await ensurePyEnv(args)).synced).toBe(false);
+  });
+
+  test('an env synced before the source hash existed is rebuilt once', async () => {
+    const f = fixture();
+    const args = { uvPath: f.uv, pyDir: f.pyDir, toolsDir: f.toolsDir, signal: noSignal() };
+    await ensurePyEnv(args);
+    execFileSync('/bin/rm', [toolPaths(f.toolsDir).srcHash]);
+    expect(await checkPyEnv({ toolsDir: f.toolsDir, lockPath: f.lockPath })).toMatchObject({
+      state: 'stale',
+      stale: 'sources',
+    });
+    expect((await ensurePyEnv(args)).synced).toBe(true);
+    expect((await ensurePyEnv(args)).synced).toBe(false);
+    expect(f.readCalls()).toHaveLength(2);
+  });
+
+  test('the source hash covers pyproject.toml and vox_py/ files, not bytecode', async () => {
+    const f = fixture();
+    mkdirSync(join(f.pyDir, 'vox_py', 'models'), { recursive: true });
+    writeFileSync(join(f.pyDir, 'vox_py', 'models', 'face.onnx'), 'model v1');
+    const a = await sourceHashOf(f.pyDir);
+    mkdirSync(join(f.pyDir, 'vox_py', '__pycache__'));
+    writeFileSync(join(f.pyDir, 'vox_py', '__pycache__', 'x.cpython-312.pyc'), 'bytecode');
+    writeFileSync(join(f.pyDir, 'notes.txt'), 'outside the package');
+    expect(await sourceHashOf(f.pyDir)).toBe(a);
+    writeFileSync(join(f.pyDir, 'vox_py', 'models', 'face.onnx'), 'model v2');
+    const b = await sourceHashOf(f.pyDir);
+    expect(b).not.toBe(a);
+    writeFileSync(join(f.pyDir, 'pyproject.toml'), '[project]\nname="y"\n');
+    expect(await sourceHashOf(f.pyDir)).not.toBe(b);
   });
 
   test('concurrent ensure calls share one sync', async () => {
@@ -174,5 +229,10 @@ describe('doctorPyEnv', () => {
     expect(stale).toMatchObject({ ok: false, state: 'stale' });
     expect(stale.message).toMatch(/lock/i);
     expect(stale.fix).toContain('uv sync --frozen --no-editable');
+    await ensurePyEnv({ uvPath: f.uv, pyDir: f.pyDir, toolsDir: f.toolsDir, signal: noSignal() });
+    writeFileSync(join(f.pyDir, 'pyproject.toml'), '[project]\nname="x"\n# changed\n');
+    const tools = await doctorPyEnv(base);
+    expect(tools).toMatchObject({ ok: false, state: 'stale' });
+    expect(tools.message).toMatch(/older Python tools/);
   });
 });
