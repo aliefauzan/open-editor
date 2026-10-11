@@ -89,6 +89,7 @@ Run in the worktree (branch head 8c7fe0f; `git merge main` happens after GATE 5)
 | `pnpm -C packages/engine test` | pass | 104 files, 1302 tests (a `.local` framing test failed once under load; re-run passed) |
 | `VOX_SLOW=1` engine `test/audio/mix.slow.test.ts` | pass | 7/7 |
 | `pnpm lint`, `pnpm typecheck` | pass | 0 errors |
+| Re-verify after `git merge main` (5a65423, 2026-10-12) | pass | typecheck + lint 0 errors; engine `pnpm test` 111 files / 1381; desktop 38 / 341; agent 41 / 685 (1 skipped); cli 9 / 54; py 144 |
 
 ## Done when
 
