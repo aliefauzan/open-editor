@@ -42,10 +42,10 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 
 | Tool | Pin | Licence | Hash source |
 |---|---|---|---|
-| uv | TBD (09) | MIT / Apache-2.0 | bundled |
+| uv | 0.11.19 (matches the dev lockfile writer); arm64 archive <https://github.com/astral-sh/uv/releases/download/0.11.19/uv-aarch64-apple-darwin.tar.gz> SHA-256 `d8f59c38e8c4168ee468d423cd63184be12fa6995a4283d41ee1a14d003c9453` (20810636 bytes) | MIT / Apache-2.0 | bundled; pins in `apps/desktop/src/engine-host/setup/manifest.json` (S1, D-19) |
 | ffmpeg / ffprobe | Homebrew's current version (D-05); `vox doctor` records the version it ran with | LGPL/GPL (external binary, not redistributed) | Homebrew's own checks; the app never downloads it |
 | yt-dlp + `yt-dlp-ejs` | latest at install; `yt-dlp -U` | Unlicense | yt-dlp verifies its own releases; the build must support `--impersonate` (TikTok, D-13; `vox doctor` checks it) |
-| deno | TBD (09) | MIT | SHA-256 |
+| deno | 2.9.5; arm64 archive <https://github.com/denoland/deno/releases/download/v2.9.5/deno-aarch64-apple-darwin.zip> SHA-256 `b796aadd131f6930560c1ee040cf0d6f53933fbb987464e9ff46bd7ea4830615` (38511993 bytes) | MIT | SHA-256 (manifest.json) |
 | Chrome for HyperFrames | the one the pinned HyperFrames CLI installs (0.8.145: chrome-headless-shell 152.0.7977.30) | BSD + others | HyperFrames' installer |
 
 ## Native (Swift)
