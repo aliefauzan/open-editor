@@ -1083,3 +1083,22 @@ pass on the tiktok preset; the rest are the simplest options that meet phase 05'
 **Why**: These are the simplest choices that make every phase 06 check measurable and deterministic,
 keep trust outside the style folder (a copied folder cannot trust itself), and freeze the style and
 caption preset formats (R2) with the one field validate needs.
+
+## D-35 · 2026-10-11 · phase 08 · GATE 4: pass, the timeline keeps `@xzdarcy/react-timeline-editor`
+
+**Decision**: GATE 4 is decided by its numbers (README §5, D-10). Re-run inside the app's pinned
+Electron 44.7.0 (Chromium 152.0.7977.130) as D-19 asked, under the bench lock, with
+`node bench/timeline.ts --browser electron --attempts 3 --gesture-ms 3000`: 1,000 items on 8 tracks,
+a real 1920x1080 window at DPR 2 on the M5 display (ANGLE Metal), production React build.
+Medians: drag 119.7 fps, trim 119.7 fps, linked V1/A1 drag 119.4 fps (p95 frame ≤ 9.6 ms, at most
+1 frame over 20 ms per gesture); linked check 3/3 (equal `startMs` after the drop), marquee exactly
+50 of 50 3/3, every gesture moved the clip (library updates = mouse moves, 344–360). Bar 50 fps:
+the result is 139 % above it, not within 10 %, so no owner stop. The early U1 run in the Playwright
+headless shell (fixed 60 Hz) gave 60.0 fps on all three gestures (D-19 evidence, `A1-`).
+Outcome: phase 10a builds the timeline on `@xzdarcy/react-timeline-editor` 1.0.0 through its public
+props and events only, with the app's own marquee, linked follow (`getActionRender` offsets, one
+store update per move) and multi-select, as the U1 prototype shows. No custom canvas.
+
+**Why**: The app spec "Timeline implementation" pass rule (fps ≥ 50 and both prototype checks) holds
+in the shell the app ships. Evidence: `docs/evidence/phase-08/A3-timeline-bench-electron.json`,
+`A1-timeline-bench.json`; log `plan/log/phase-08.md`.

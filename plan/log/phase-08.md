@@ -26,6 +26,25 @@ unmerged branch: not used. Electron 44.7.0 (zip in the electron cache), Playwrig
    `e2e/smoke.spec.ts`. 7. Skeleton `.dmg` (electron-builder, ad-hoc, arm64).
 Test order: protocol → ipc guard → api schema → links → rpc → (build) → security.slow → host.slow → smoke.
 
+## GATE 4 (step A3) — decided: PASS, keep the library (D-35)
+
+Re-run inside Electron 44.7.0 (Chromium 152.0.7977.130), 2026-10-11 08:3x, under
+`lockf -t 1800 .git/vox-bench.lock`; load average 2.6–2.8 (no other phase agent running).
+`node bench/timeline.ts --browser electron --attempts 3 --gesture-ms 3000 --evidence-dir …`:
+real 1920x1080 window (`enableLargerThanScreen`), DPR 2, ANGLE Metal on the M5, display awake at 120 Hz.
+
+| Gesture | Median fps | Attempts | p95 frame | Frames > 20 ms |
+|---|---|---|---|---|
+| Drag | 119.7 | 119.6 / 119.7 / 119.7 | ≤ 9.6 ms | 0 / 0 / 0 |
+| Trim right edge | 119.7 | 119.7 / 119.7 / 119.3 | ≤ 9.0 ms | 0 / 0 / 1 |
+| Linked V1/A1 drag | 119.4 | 119.3 / 119.7 / 119.4 | ≤ 9.3 ms | 1 / 0 / 1 |
+
+Linked 3/3, marquee 50 of 50 3/3, gestures moved 3/3 (updates = moves, 344–360). Bar 50 fps; not
+within 10 % → decided by the numbers, no stop. Evidence `docs/evidence/phase-08/A3-timeline-bench-electron.json`.
+Bench changes: `--browser electron` (Playwright `_electron`, CommonJS bench main
+`bench/timeline-electron-main.cjs`; an ESM main made `_electron.launch` time out). A first try at the
+laptop's work-area size (1512x835) put the trim clip off-screen (0 updates), hence the fixed 1920x1080 window.
+
 ## Early steps (D-19) — u1-timeline-bench
 
 Package U1 (GATE 4 timeline library benchmark). Branch `early/u1-timeline-bench`, merged to main

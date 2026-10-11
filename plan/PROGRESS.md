@@ -43,7 +43,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | GATE 2 — engine done-when (URL → MP4 by CLI, `vox quick`, Instagram/TikTok/file ingest, export folder, audio QA, OTIO in Resolve) | 05 | [~] | | waiting for the owner: URLs, Resolve screenshot, Commons contact (TODO) |
 | Contracts frozen: Engine API + events, engine CLI | 05 | [ ] | | R2 rows "frozen after 05" |
 | GATE 3 — `vox` side-by-side sheet approved + ear check of `LISTEN.md` | 07 | [ ] | | |
-| GATE 4 — timeline library benchmark | 08 | [ ] | | |
+| GATE 4 — timeline library benchmark | 08 | [x] | 2026-10-11, D-35 | decided by numbers: 119.7 fps in Electron 44.7.0, linked + marquee 3/3; keep the library |
 | Contract frozen: `window.vox` API | 08 and 05 | [ ] | | freezes when both are done (it wraps the engine API) |
 | GATE 5 — 4-core done (`.dmg` clean-install test + owner's run with a fresh `VOX_HOME`, manual editing, quick clips, latency; D-16) | 10b | [ ] | | |
 | v1.0 — fresh-clone check + owner installs the Release `.dmg` from the README and exports a clip (friend optional, D-16) | 13 | [ ] | | |
