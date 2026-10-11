@@ -1383,6 +1383,10 @@ the style gallery, the error states and the E2E suites. Decisions:
   404s) and a preview build skips a missing media file (offline media no longer breaks the preview;
   render still fails with `MEDIA_MISSING`).
 
+- **Two more fixes from the clean-install rerun:** the audio mix runs the engine's resolved ffmpeg (an
+  installed app's PATH has no Homebrew; export tools are read at use, so an ffmpeg setup finds later
+  counts), and setup's `<tools>/bin` links use a unique temp name (two checks in one host collided).
+
 **Why**: The specs fix the behaviour, not these shapes; each is the simplest choice that keeps the 10b
 done-when (S32 raw paths never reach the engine, one undo entry per edit, quick clips with no model,
 E2E on the offline fixture). Evidence: `plan/log/phase-10b.md`, `docs/evidence/phase-10b/`.
