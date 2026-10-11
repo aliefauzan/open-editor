@@ -73,7 +73,7 @@ const seqEnd = async (t: TestEditor) => {
 };
 
 /** Runs `act`, expects exactly one new history entry, then one undo restores `snapshot`. */
-async function oneUndo<T>(t: TestEditor, snapshot: () => Promise<T>, action: () => void | Promise<void>) {
+async function oneUndo<T>(t: TestEditor, snapshot: () => Promise<T>, action: () => unknown) {
   const before = await snapshot();
   const n = await history(t);
   await act(async () => {
