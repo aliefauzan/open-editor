@@ -1504,3 +1504,45 @@ field, as for D-43.
 **Consequence**: "Undo this run" after a clipper run removes the quick-clip sequences and the ingested
 media too (the entries undo newest first); a user edit to any of them after the run is reported as
 `UNDO_CONFLICT` as before.
+
+## D-51 — Agent workflows: clip edges, CLI defaults, scorer and checkpoint details (phase 12, 2026-10-11)
+
+**Context**: Phase 12 built the clipper, Stylize and free-form workflows (`packages/agent/workflows/`,
+`src/workflows/`), the LLM scorer, `vox agent` and the eval harness. The specs leave these points open.
+**Decision**:
+- **Clip edges** (D-15): the workflow (code, after each Stylize sub-run) gives the first and the last scene of
+  each clip a cover-style transition (the style's first transition without `blendsShots`; `vox/paper-tear`)
+  when it has none, and swaps any shot-blending transition on those scenes or on a `V1` clip for it. Other
+  cuts follow the guide (hard cuts preferred, D-48).
+- **Checkpoints** are checked from the project and the run's call log, per sequence and in order:
+  `ranges` (sourceRange saved, captions on; a miss fails the run at once, before Stylize), `tighten` (list
+  applied or skipped by the user), `storyboard` (pair, sourceRange and caption edits unchanged, at least one
+  scene), `fill` (every slot names a project media item; placeholders count), `review` (`view_frames` on the
+  sequence in its sub-run), `sound` (`check_audio` likewise). In plan mode the workflow runs `view_frames` (scene
+  midpoints) and `check_audio` itself. A miss fails the run at the end with `CHECKPOINT_MISSED`.
+- **Error codes** (additive, engine `ERROR_CODES`): `CHECKPOINT_MISSED`, `ROLE_MISSING` (no editor model).
+- **Tighten list**: one entry per merged `remove_pauses` range (`wordKey` = its first key, `text` = "(pause N ms)");
+  a ticked subset applies all keys of the ticked ranges. Without a terminal, a `pauses` pause stops the run
+  (no silent cut): `--yes` cuts the whole list.
+- **Clipper input**: a link or path in the message or attachments; else the project's first video (no ingest).
+  A job-chain step whose output the media already has (shots, transcript, facetracks) is not run again.
+- **`vox agent`**: without `--workflow`, clipper when the instruction names a link or file, else edit (`--seq`
+  is the selection). Added `--count n` and `--length a-b` (seconds) for the clipper; the count is also read from
+  "make N clips". Role models come from the config roles; the editor's mode follows `selectMode` (local
+  providers plan, others tools; `--mode` wins). Without a terminal every pause stops the run.
+- **Intent gate**: a failed classification counts as an edit (recorded). A question in plan mode is one
+  structured `{ answer }` from the view, no writes.
+- **LLM scorer** (`llm`, registered once per engine): runs on one engine take turns on the scorer slot; a
+  candidate the `fast` model leaves out is asked for once more, alone; an answer that renumbers from 0 (no
+  index matches, one score per candidate) is taken in order (the Apple on-device model does both; found by the
+  local done-when 6 test). Still missing → the engine's heuristic, reported in the summary.
+- **Summary**: sentences that judge the sound as good are dropped from model text (D-14); each clip line gives
+  the audio QA numbers, the failing checks and the five listen timecodes.
+- **Evals**: `pnpm run eval [--provider id] [--model id] [--mode]` (pnpm 12 does not run a script named
+  `eval` without `run`). `evals/models.json` lists candidates with `verified: false` until phase 13 step 7b.
+  The injection image case renders the orders as on-image text (a `kinetic-serif` scene) and adds an
+  archive-like image item carrying them.
+- **Test kit**: `@vox/agent/test-kit` (package subpath) shares the scripted models and job stand-ins with the
+  CLI tests (R1 allows package-name imports only).
+**Why**: The smallest rules that keep the phase-12 done-when testable offline and every run undoable as one
+run (D-50).
