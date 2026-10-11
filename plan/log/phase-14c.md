@@ -68,7 +68,7 @@ with `--seq`; `--out-dir` must exist; `vox frames` returns only paths (no health
 | `pnpm lint` | pass | eslint + prettier clean |
 | `pnpm -C packages/agent typecheck` | pass | |
 | `pnpm test` (before merging main) | 2491 passed, 1 skipped | first run 4 failed: 3 local-model tests killed with exit 143 and `framing-provider.local` under load average 28; re-run alone: 4 of 4 passed |
-| `pnpm test` (after merging main) | see PROGRESS | filled below |
+| `pnpm test` (after merging main) | 2498 passed, 1 skipped, 1 failed | `history/cursor.test.ts` "undo depth is 500 entries" timed out at 60 s under load average 15 to 28; re-run alone: 7 of 7 passed. `pnpm lint` clean |
 | MANUAL STEP | stand-in done (above) | |
 
 ## Done when
