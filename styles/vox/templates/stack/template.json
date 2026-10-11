@@ -1,0 +1,58 @@
+{
+  "name": "stack",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "Two or three mini-scenes stacked vertically on a paper board, each panel any other scene template of the style (year-card, stat, framed-portrait, newspaper, paper-collage, kinetic-serif), sliding in from alternate sides. Like the split screen in the reference reel where a year card, a stat and a framed portrait share one frame. Panels run for the whole duration of the stack and are one level deep: a panel cannot be a stack.",
+  "useWhen": [
+    "the speaker names two or three parallel things (a comparison, a before and after, a list of events)",
+    "several short facts belong to one sentence",
+    "a year, a number and a person are mentioned together"
+  ],
+  "durationMs": {
+    "min": 1200,
+    "default": 3200,
+    "max": 5000
+  },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "panels": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "properties": {
+            "template": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "variables": {
+              "type": "object"
+            }
+          },
+          "required": ["template", "variables"],
+          "additionalProperties": false
+        }
+      },
+      "bg": {
+        "enum": ["paper", "dark", "highlight"]
+      }
+    },
+    "required": ["panels"],
+    "additionalProperties": false
+  },
+  "slots": {
+    "panels/*": "template"
+  },
+  "sfxCues": [
+    {
+      "name": "panels-in",
+      "atMs": "entrance",
+      "sfx": "paper-pop",
+      "type": "appear"
+    }
+  ],
+  "minEntranceMs": 1500
+}

@@ -1840,3 +1840,34 @@ copying the workflow prompts into the skill (would drift from `packages/agent/wo
 - **Import check (owner-delegated manual step, honest result)**: `scripts/fcpxml-check.py` validates the file against Apple's FCPXML 1.8 DTD (`xmllint --dtdvalid`; the DTD is Apple's, not committed: `--fetch-dtd` caches it in `~/.cache/vox-studio/`, or `--dtd`/`VOX_FCPXML_DTD`) and checks the structure: asset files exist, every `ref`/`format` resolves, the spine is gap-free and ends at the sequence duration, lane clips lie inside their parent clip, no clip reads past its asset. Tests skip only the DTD part when the DTD is not cached. This is recorded as **"not imported in an NLE"**: DTD validity and structure do not prove that Final Cut Pro or Resolve opens the file. A real import stays an optional owner item in TODO.
 **Known limits** (adapter output left as is): the adapter does not write transitions, speed effects or effects (the layer MOVs carry the look anyway); audio lane clips wrap a `gap` whose duration is the asset length, longer than the parent clip.
 **Consequences**: spec edits with this entry: engine spec (`export-timeline` row, Stages note), app spec (Export dialog), R5 pin. A real FCP or Resolve import, when someone has one, replaces the stand-in; if it rejects the file, fix `_write_fcpxml` or the structure and keep the checker.
+
+## D-65 — vox v1.1 templates; GATE 6 by owner delegation (phase 14a, 2026-10-12)
+**Context**: 14a builds `year-card`, `framed-portrait`, `newspaper`, `stack`. The styles spec lists only their
+main variables. GATE 6 (side-by-side sheet against the reference reel) falls under the owner delegation of
+D-49 and D-58 (the AI reviews the evidence itself, up to 3 rounds).
+**Decision**:
+- Variables beyond the spec table (spec edited together with this entry): `framed-portrait` gets an optional
+  `tag` (the reel's yellow tag above the frame); `year-card.blueprint` is an `image` slot (a line drawing; absent =
+  a generic technical drawing that draws itself); `newspaper.language` is optional (default `en`, a BCP 47 language
+  tag that sets `lang` on the clipping so hyphenation follows the headline's language); `stack` has `bg` like every
+  scene. `year-card` and `framed-portrait` default to the dark board of the reel, `newspaper` to a paper board.
+- `stack` panels are scenes of the same style rendered full size and scaled into bands by the template: each band
+  shows the upper half of its panel (where v1 scenes keep their content), 2 panels fill the width, 3 panels are
+  centred and narrower (about 65 % of the width). Panels slide in from alternate sides; each panel keeps its own
+  entrance. The stack's own cue is `appear` at the entrance (nested panels move at different times, so a `move` cue
+  cannot be pinned to one peak).
+- Cues (one each, all measured by `vox style validate`): `year-card` `paper-pop` appear at the entrance;
+  `framed-portrait` `stamp` land at 2000 ms, the frame lifts and thuds down (the "GONE" stamp, when set, slams on
+  the same beat), so the cue is true with or without a `stamp`; `newspaper` `paper-slide` move at 120 ms; `stack`
+  `paper-pop` appear. No new sound files.
+- GATE 6: round 1 against `reel-007.5s`, `reel-008.6s`, `reel-009.6s` (the reel's three-panel split screen)
+  found: tag of `framed-portrait` pushed off screen (transform clash), frame cropped in a `stack` band, stack cue
+  peaks, newspaper too brown and landscape, blueprint too bright and too small, a tilted card hiding the year.
+  Fixed; round 2 passes by owner delegation. Open notes (backlog, not blockers): stand-in test pattern instead of
+  archive photos; the gold frame is a flat bevelled frame with a bead ring and corner bosses, not the reel's rococo
+  carving; a 3-panel `stack` is narrower than the reel's full-width landscape panels (v1 scenes are 9:16).
+- The contact sheet JPEG is written at quality 6 (was 3) so `styles/vox/previews/` stays under the 8 MB limit with
+  ten more cells.
+**Why**: the simplest option that keeps the done-when (validate passes with cue timing; the sheet matches the reel).
+**Alternatives**: a landscape-layout stack (would need panel-specific templates); a `move` cue on the stack (fails
+the timing check); a `hero` cue for the stamp (unmeasured, and a dud sound when no stamp is set).
