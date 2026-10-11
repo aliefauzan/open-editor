@@ -70,15 +70,16 @@ async function setup(next: Parameters<typeof dynamicModel>[0]) {
       stderr: (s) => (stderr += s),
       env,
       cwd: home,
+      prompt,
+      ...extra,
       agent: {
         apple: undefined,
         createModel: () => model.model,
         probe: { context: { openRouterModels: MODELS } },
         runJob: jobs.runJob,
         wrapEngine: (e) => (engine = fakeRender(e)),
+        ...extra.agent,
       },
-      prompt,
-      ...extra,
     });
     return { code, stdout, stderr };
   };
@@ -242,4 +243,28 @@ describe('the tighten prompt: picks', () => {
     expect(io.prompt).toHaveBeenCalledTimes(3);
     expect(io.err).toContain('no valid pick: nothing is cut');
   });
+});
+
+describe('vox agent: Ctrl-C', () => {
+  test('SIGINT stops the run; the runId is printed at the start; the handler is removed', async () => {
+    let interrupt: (() => void) | undefined;
+    let removed = 0;
+    const t = await setup((o) => {
+      interrupt?.();
+      return toolsStylist()(o);
+    });
+    const r = await t.vox(['agent', t.off.projectId, 'add a title', '--seq', t.off.sequenceId], {
+      agent: {
+        onInterrupt: (handler) => {
+          interrupt = handler;
+          return () => void removed++;
+        },
+      },
+    });
+    expect(r.stderr).toMatch(/^run run_\S+ started/m);
+    const runId = /^run (run_\S+) started/m.exec(r.stderr)![1]!;
+    expect(r.stdout).toContain(`run ${runId}: stopped`);
+    expect(r.code).toBe(1);
+    expect(removed).toBe(1);
+  }, 60_000);
 });

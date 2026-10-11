@@ -135,6 +135,15 @@ export function terminalPauses(
 
 function progress(io: AgentIo, json: boolean, redactor: Redactor) {
   return (e: AgentEvent) => {
+    // the runId first, on stderr in every mode: a stopped or killed run can still be undone
+    if (e.type === 'agent.started')
+      io.stderr(
+        clean(
+          redactor.redact(
+            `run ${e.payload.runId} started (Ctrl-C stops it; undo: vox agent undo ${e.payload.projectId} ${e.payload.runId})\n`,
+          ),
+        ),
+      );
     if (json || io.isTTY !== true) return;
     if (e.type === 'agent.tool' && e.payload.status !== 'started')
       io.stderr(clean(redactor.redact(`  ${e.payload.tool}: ${e.payload.status}\n`)));
@@ -214,6 +223,18 @@ export async function agentCommand(
   let mode = built.mode;
   if (modeFlag !== undefined) mode = modeFlag;
   const e = deps.wrapEngine ? deps.wrapEngine(engine) : engine;
+  // Ctrl-C stops the run (the edits so far stay; the run can be undone)
+  const stop = new AbortController();
+  const onInterrupt =
+    deps.onInterrupt ??
+    ((handler: () => void) => {
+      process.once('SIGINT', handler);
+      return () => void process.off('SIGINT', handler);
+    });
+  const removeInterrupt = onInterrupt(() => {
+    io.stderr('stopping the run…\n');
+    stop.abort();
+  });
   const r = await runWorkflow(
     {
       engine: e,
@@ -244,8 +265,9 @@ export async function agentCommand(
       ...(typeof values['style'] === 'string' && { styleId: values['style'] }),
       ...(layout !== undefined && { layout: layout as WorkflowRequest['layout'] & string }),
       ...(values['confirm-plan'] === true && { confirmPlan: true }),
+      signal: stop.signal,
     },
-  );
+  ).finally(removeInterrupt);
   const out = {
     runId: r.done.runId,
     status: r.done.status,
