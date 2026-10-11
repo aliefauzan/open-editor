@@ -18,6 +18,7 @@ dependencies = [
   "rembg==2.0.85",
   "opentimelineio==0.18.1",
   "mflux==0.22.0",  # 14d: local image generation (Z-Image-Turbo default); pulls torch, transformers
+  "otio-fcpx-xml-adapter==1.0.0",
 ]
 
 [dependency-groups]

@@ -2,11 +2,13 @@
 
 Run as `python -I -m vox_py.timeline`.
 
-Write request: `{ mode?: "write", output, name, rate: { num, den }, tracks }`. Each track is
+Write request: `{ mode?: "write", format?: "otio" | "fcpxml", width?, height? (FCPXML format size), output, name, rate: { num, den }, tracks }`. Each track is
 `{ kind: "video" | "audio", name, clips }`; each clip is `{ name, path, startFrame, durationFrames,
-sourceFrame, sourceDurationFrames?, mediaRate?: { num, den } }` in frames of `rate` (record side) and
+sourceFrame, sourceDurationFrames?, mediaRate?: { num, den }, mediaDurationFrames? }` in frames of `rate` (record side) and
 of `mediaRate` (source side, default `rate`). Paths are absolute; clips on a track must not overlap;
-gaps are filled. The file is written as OTIO JSON. Result: `{ output, tracks, clips }`.
+gaps are filled. The file is written as OTIO JSON (`format` otio, output `.otio`) or as FCPXML 1.8 through
+`otio-fcpx-xml-adapter` (`format` fcpxml, output `.fcpxml`; `mediaDurationFrames` is the whole source
+file length in `mediaRate` frames, default: the used part). Result: `{ output, tracks, clips }`.
 
 Check request: `{ mode: "check", path }` reads an `.otio` and returns
 `{ name, tracks, clips: [{ track, name, targetUrl, exists }] }` (a file URL that names an existing
@@ -22,6 +24,9 @@ from . import _tool
 
 WRITE: _tool.Spec = {
     "mode": (str, False),
+    "format": (str, False),
+    "width": (int, False),
+    "height": (int, False),
     "output": (str, True),
     "name": (str, True),
     "rate": (dict, True),
@@ -30,6 +35,7 @@ WRITE: _tool.Spec = {
 CHECK: _tool.Spec = {"mode": (str, True), "path": (str, True)}
 
 MAX_CLIPS = 20_000
+FORMATS = ("otio", "fcpxml")
 
 
 def _rate(raw: object, what: str) -> float:
@@ -55,14 +61,51 @@ def _file_url(path: str) -> str:
     return p.as_uri()
 
 
+def _write_fcpxml(tl, out: Path, width: object, height: object) -> None:
+    """FCPXML 1.8 through otio-fcpx-xml-adapter, then three fixes the adapter leaves open.
+
+    The adapter repeats every asset as a loose `asset-clip` at the document root, writes an empty
+    project `uid`, and gives the format no size. Final Cut Pro wants the project inside an event, a
+    uid that is absent rather than empty, and a sized format, so those are fixed here.
+    """
+    import xml.etree.ElementTree as ET
+
+    import opentimelineio as otio
+
+    xml = otio.adapters.write_to_string(tl, adapter_name="fcpx_xml")
+    root = ET.fromstring(xml)
+    for el in list(root.findall("asset-clip")):
+        root.remove(el)
+    if isinstance(width, int) and isinstance(height, int) and not isinstance(width, bool):
+        for fmt in root.findall("./resources/format"):
+            fmt.set("width", str(width))
+            fmt.set("height", str(height))
+            fmt.set("name", f"Vox {width}x{height}")
+    for project in root.findall("project"):
+        if project.get("uid") == "":
+            del project.attrib["uid"]
+        event = ET.Element("event", {"name": project.get("name", "Vox Studio")})
+        root.remove(project)
+        event.append(project)
+        root.append(event)
+    ET.indent(root, space="  ")
+    body = ET.tostring(root, encoding="unicode")
+    out.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n\n' + body + "\n")
+
+
 def write(raw: dict) -> dict:
     req = _tool.check_request(raw, WRITE)
     import opentimelineio as otio
 
     rate = _rate(req["rate"], "rate")
+    fmt = req.get("format", "otio")
+    if fmt not in FORMATS:
+        raise _tool.ToolError("INVALID_REQUEST", "format must be otio or fcpxml")
     out = Path(req["output"])
-    if out.suffix != ".otio" or not out.parent.is_dir():
-        raise _tool.ToolError("INVALID_REQUEST", "output must be an .otio file in an existing folder")
+    if out.suffix != "." + fmt or not out.parent.is_dir():
+        raise _tool.ToolError(
+            "INVALID_REQUEST", f"output must be a .{fmt} file in an existing folder"
+        )
     tl = otio.schema.Timeline(name=req["name"])
     tl.global_start_time = otio.opentime.RationalTime(0, rate)
     n_clips = 0
@@ -98,6 +141,17 @@ def write(raw: dict) -> dict:
             src = _int(c, "sourceFrame")
             src_dur = _int(c, "sourceDurationFrames", 1) if "sourceDurationFrames" in c else dur
             ref = otio.schema.ExternalReference(target_url=_file_url(str(c.get("path", ""))))
+            if fmt == "fcpxml":
+                # FCPXML assets carry the whole file length; the adapter reads it from here.
+                media_dur = (
+                    _int(c, "mediaDurationFrames", 1)
+                    if "mediaDurationFrames" in c
+                    else src + src_dur
+                )
+                ref.available_range = otio.opentime.TimeRange(
+                    otio.opentime.RationalTime(0, m_rate),
+                    otio.opentime.RationalTime(max(media_dur, src + src_dur), m_rate),
+                )
             clip = otio.schema.Clip(
                 name=str(c.get("name", "")),
                 media_reference=ref,
@@ -109,7 +163,10 @@ def write(raw: dict) -> dict:
             track.append(clip)
             cursor = start + dur
         tl.tracks.append(track)
-    otio.adapters.write_to_file(tl, str(out))
+    if fmt == "fcpxml":
+        _write_fcpxml(tl, out, req.get("width"), req.get("height"))
+    else:
+        otio.adapters.write_to_file(tl, str(out), adapter_name="otio_json")
     _tool.progress(1.0, "written")
     return {"output": str(out), "tracks": len(tl.tracks), "clips": n_clips}
 
@@ -121,7 +178,7 @@ def check(raw: dict) -> dict:
 
     try:
         tl = otio.adapters.read_from_file(str(path))
-    except Exception as exc:  # noqa: BLE001 - any parse failure is an unreadable file
+    except Exception as exc:
         raise _tool.ToolError("MEDIA_UNREADABLE", f"cannot read the timeline: {exc}") from exc
     clips = []
     for ti, track in enumerate(tl.tracks):

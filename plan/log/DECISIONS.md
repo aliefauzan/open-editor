@@ -1746,3 +1746,97 @@ anything found is fixed on a follow-up branch from main. PROGRESS row 13 stays [
 are recorded; the v1.0 milestone row is set only after them.
 **Why**: The checks left are release and install checks of a build that already passed Verify; waiting
 would hold eight phases behind them.
+
+## D-61 — Audio ducking: `duck` flag on audio tracks, one compressor per ducked track (phase 14f, 2026-10-12)
+**Context**: Engine spec "Audio" says ducking (v1.1) adds `sidechaincompress` per track; the plan puts it after
+each clip's gain-to-target and before `amix`, with an inspector toggle (D-15). The spec did not say where the
+switch lives, what drives the compressor, or what is never ducked.
+**Decision**:
+- **Model (additive)**: `AudioTrack.duck?: boolean` (absent = off). `updateTrack` takes `duck` (audio tracks
+  only, else `VALIDATION`; `false` removes the field). No `schemaVersion` bump: an older project loads
+  unchanged, and the field is optional.
+- **Mix graph**: the clips of a ducked track are mixed into one track bus, which goes through
+  `sidechaincompress=threshold=0.04:ratio=5:attack=20:release=400:makeup=1:link=average:detection=rms`,
+  keyed by the speech bus (every clip of the captions source tracks, after its gain-to-target, `volume`
+  and fades), then into the final `amix` and the limiter. So it ducks level-matched sources (D-15).
+- **What ducks**: only non-speech audio tracks with `duck: true`. Speech tracks (captions sources) and
+  SFX are never ducked; with no speech clip in the mix the flag changes nothing. Muted tracks stay out.
+- **Stems**: the `other` stem keeps the duck (the detector clips are read but not added to it), so the stems
+  still match what the mix hears; `speech` and `sfx` stems are unchanged. Audio QA thresholds are unchanged.
+- **Numbers**: real talking-head speech over pink-noise music: the music is 11.5 dB lower while speech is
+  active; 400 ms gaps reopen it partway (release 400 ms); synthetic speech-level noise ducks it 9.6 dB and
+  the music is back within 1 dB after the release.
+- **UI**: audio clip inspector row "Duck under speech" (the clip's whole track; disabled on a speech track).
+  Default off, so existing projects and the clipper output sound the same.
+**Why**: A track-level flag matches "per track"; keying on the captions source tracks needs no new
+setting and no second notion of "speech"; SFX stays under the existing `sfxUnderSpeech` check (its cue gain
+is the lever there, not ducking).
+**Alternatives**: duck each clip separately (many detector copies, same sound); key on the speech stem after
+`loudnorm` (the detector would not be level-matched); ducking SFX (changes the SFX stem the audio QA measures).
+
+## D-62 — Clip speed design, GATE 7 by owner delegation (phase 14e, 2026-10-12)
+**Context**: Engine spec "Non-goals" left clip speed for v1.1 with its own design (a `speed` field, duration
+rule `inMs + durationMs × speed`, audio `atempo`, a spike on HyperFrames `playbackRate`); GATE 7 asks whether
+the design is right before code. The owner delegated gates to the AI (D-49, D-58). The spike
+(`spike/bench/speed.ts`, evidence `docs/evidence/phase-14e/spike-playbackrate.json`, `atempo-timing.json`)
+rendered the 90 s barcode/flash/click fixture at 0.25×, 0.5×, 1×, 2× and 4× with `data-playback-rate`
+(HyperFrames 0.8.145, `--quality draft`, other phase agents running, load average 25).
+**Decision**: GATE 7 passes, after one revision round. The design is the engine spec section "Clip speed":
+- **Model**: `MediaClip.speed?: number` (absent = 1; 0.25–4 in 0.01 steps on video tracks, 0.5–2 on audio
+  tracks; never on images or scenes). Source span `round(durationMs × speed)`; the duration rule is
+  `inMs + durationMs × speed ≤ media duration`; time maps `src = inMs + (t − startMs) × speed`.
+- **Schema**: `schemaVersion` 3 with a load-time migration 2 → 3 that changes only the number (every v1.1
+  field is optional), after the existing `snapshots/auto-pre-migrate-v2.json` copy. Version 3 is the v1.1
+  schema: other optional v1.1 fields (14f `AudioTrack.duck`, D-61) belong to it, with no second bump before
+  v1.1 ships. A v1.0 engine refuses a v3 project with `SCHEMA_TOO_NEW` and writes nothing.
+- **Op**: `setClipSpeed { sequenceId, itemId, speed, unlinked?, onOverlap: 'error' | 'ripple' }` keeps
+  `startMs`, `inMs` and the source span (slower = longer); linked clips follow. Every op that touches
+  source offsets (trim from the start, split, ripple delete, replaceMedia clamp, fps re-snap, `NO_HANDLES`)
+  uses the span and the mapping; captions and word ranges map words through it.
+- **Render**: `<video data-playback-rate>` (and preview `<audio>`); `data-media-start` stays the source
+  offset. **Mix**: `atrim` with a 1024-sample (48 kHz) preroll → resample → denoise → `atempo` → `atrim` to
+  the timeline length → gains, fades, `adelay`. OTIO adds `LinearTimeWarp`. `engine.view` items carry
+  `speed` when it is not 1 (additive).
+- **Numbers**: picture 960/960 frames show the expected source frame at all five speeds. A/V (flash vs
+  click after the mux): plain `atempo` puts the sound early, max 33.31 ms at 0.5× in the render (one frame
+  is 33.33 ms; isolated runs: mean −45 ms at 0.5×, −11 ms at 2×), so the first design failed the bar.
+  Revision: `atempo` drops about 1024 input samples at its start; with that preroll the render measured
+  max 9.35 ms (10 pairs) and isolated runs stay within −14.5…+14.9 ms for 0.5–2×. Below 0.5× (two chained
+  stages) the error reaches 52.9 ms, and at 3–4× short clicks drop out, so sound clips stop at 0.5–2×.
+**Why**: `playbackRate` is frame exact in the pinned HyperFrames, so the risk fallback (ffmpeg pre-processing
+into a cached file) is not needed; sound stays within one frame only with the preroll and in 0.5–2×; an
+identity migration cannot lose data, and the pre-migrate copy is the way back for a v1.0 install.
+**Alternatives**: ffmpeg pre-rendered speed copies (the plan's fallback; cache and disk cost for no gain);
+`rubberband` (not in the Homebrew ffmpeg); allowing 0.25–4× sound (measured out of sync); storing `speed`
+without a version bump like D-61 (a v1.0 engine would fail `VALIDATION` instead of `SCHEMA_TOO_NEW`).
+**Open**: preview playback at speed is not measured (no GUI tool; the HyperFrames runtime sets the
+element's `playbackRate`); listed for the owner's screen check.
+
+## D-63 — Claude Code skill: CLI only, no new command; manual run done as a stand-in (phase 14c, 2026-10-12)
+**Context**: The agent spec says the skill uses `vox ... --json`, the shared workflow prompts and `vox frames`.
+The in-app tools `get_transcript` (sequence-time words) and the frame health flags have no CLI command. The
+MANUAL STEP asked for a run inside Claude Code, but the headless `claude -p` login is expired.
+**Decision**: (1) The skill adds no CLI command and copies no workflow text: it tells Claude to read
+`packages/agent/workflows/clipper.md`, `stylize.md` and `styles/vox/guide.md`, and gives a `jq` recipe that
+maps transcript words to sequence ms from the project files. It runs `vox` as `pnpm -s exec vox` from the repo
+root. (2) `.claude/skills/vox-studio/SKILL.md` is added with `git add -f` because the root checkout lists
+`.claude/` in the local `.git/info/exclude`. (3) The MANUAL STEP was done by the phase agent following SKILL.md
+step by step with the real commands on the owner's test video (3 clips, rendered, `vox audio-qa` pass after one
+fix round); that proves the commands and the steps, not that Claude Code's skill loader drives them. A real
+Claude Code run stays an optional TODO item. (4) `skill.test.ts` checks the skill against `vox --help --json`,
+the engine op names, the style's templates and the files it names.
+**Why**: A new CLI command would be a contract change for a v1.1 sub-phase that only needs a text file; the jq
+recipe works today and is tested by the run. The stand-in follows owner delegation (D-49, D-58).
+**Alternatives**: `vox transcript` and `vox frames --health` commands (listed as handoff for a later phase);
+copying the workflow prompts into the skill (would drift from `packages/agent/workflows/`).
+
+## D-64 — FCPXML export: `export-timeline --format fcpxml`, own layer folder, DTD plus structure check as the import stand-in (phase 14g, 2026-10-12)
+**Context**: Overview step 7 and the plan put FCPXML export (via `otio-fcpx-xml-adapter`) in 14g; GATE 2 did not need it (D-39), so the engine side did not exist. Done-when says "FCPXML imports in Final Cut Pro or Resolve (owner check)". Neither is installed (D-39).
+**Decision**:
+- **Engine**: `exportTimeline` takes `format: 'otio' | 'fcpxml'` (default `otio`, so nothing existing changes). The same tracks, layer MOVs and media references go through `py/vox_py/timeline.py` (`format`, `width`, `height`, per-clip `mediaDurationFrames` in the request), which writes FCPXML 1.8 with `otio-fcpx-xml-adapter==1.0.0` (pinned in `py/pyproject.toml`, `py/uv.lock`; Apache-2.0). Output extension `.fcpxml`; the export-target rules (`-o`, `--out-dir`, ` (2)`, `--overwrite`, S32) are the same.
+- **Layer folder**: `<name>-fcpxml-layers/` for FCPXML (OTIO keeps `<name>-layers/`), so one export of both formats into the same folder does not collide on the layer folder (it renders the layers twice; the cost of the simple rule).
+- **Adapter fixes** (`_write_fcpxml`): the adapter repeats every asset as a loose `asset-clip` at the document root, writes an empty project `uid` and gives the format no size. The writer drops the loose clips, drops the empty `uid`, puts the project inside an `<event>`, and sets the format `width`/`height` (canvas size) and a name. Asset duration is the whole source file (`mediaDurationFrames`), not the used part.
+- **CLI**: `vox export-timeline <project> [--format otio|fcpxml]`. **Dialog**: new checkbox "Final Cut Pro timeline (FCPXML)" next to "Editable timeline (OTIO)"; it starts `exportTimeline` with `format: 'fcpxml'`.
+- **Import check (owner-delegated manual step, honest result)**: `scripts/fcpxml-check.py` validates the file against Apple's FCPXML 1.8 DTD (`xmllint --dtdvalid`; the DTD is Apple's, not committed: `--fetch-dtd` caches it in `~/.cache/vox-studio/`, or `--dtd`/`VOX_FCPXML_DTD`) and checks the structure: asset files exist, every `ref`/`format` resolves, the spine is gap-free and ends at the sequence duration, lane clips lie inside their parent clip, no clip reads past its asset. Tests skip only the DTD part when the DTD is not cached. This is recorded as **"not imported in an NLE"**: DTD validity and structure do not prove that Final Cut Pro or Resolve opens the file. A real import stays an optional owner item in TODO.
+**Known limits** (adapter output left as is): the adapter does not write transitions, speed effects or effects (the layer MOVs carry the look anyway); audio lane clips wrap a `gap` whose duration is the asset length, longer than the parent clip.
+**Consequences**: spec edits with this entry: engine spec (`export-timeline` row, Stages note), app spec (Export dialog), R5 pin. A real FCP or Resolve import, when someone has one, replaces the stand-in; if it rejects the file, fix `_write_fcpxml` or the structure and keep the checker.

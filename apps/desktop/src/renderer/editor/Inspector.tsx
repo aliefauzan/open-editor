@@ -496,9 +496,46 @@ function MediaInspector(props: { s: Sequence; item: MediaClip; kind: 'video' | '
               <option value="strong">Strong</option>
             </select>
           </Row>
+          <DuckRow s={s} item={item} />
         </>
       )}
     </Section>
+  );
+}
+
+/**
+ * Track-level ducking (plan 14f): the clip's whole track is lowered under the speech tracks in the
+ * final mix. A speech track (a captions source) is never ducked, so the box is disabled there.
+ */
+function DuckRow(props: { s: Sequence; item: Item }) {
+  const { editor } = useCtx();
+  const { s, item } = props;
+  const track = s.audioTracks.find((t) => t.items.some((i) => i.id === item.id));
+  if (!track) return null;
+  const speech = s.captions?.sourceTrackIds.includes(track.id) ?? false;
+  return (
+    <label
+      className="flex items-center gap-2 text-xs"
+      title={
+        speech
+          ? 'Speech tracks are never ducked'
+          : `Lowers every clip on ${track.id} while the speech tracks are talking`
+      }
+    >
+      <input
+        type="checkbox"
+        disabled={speech}
+        checked={!speech && track.duck === true}
+        aria-label="Duck under speech"
+        onChange={() =>
+          void editor.getState().apply({
+            op: 'updateTrack',
+            args: { sequenceId: s.id, trackId: track.id, duck: !track.duck },
+          })
+        }
+      />
+      Duck under speech
+    </label>
   );
 }
 

@@ -69,7 +69,7 @@ When a phase fills a row, it also updates the spec if the spec names a version.
 | onnxruntime (Silero VAD speech gate; no torch, D-15) | 1.30.0 | MIT | 04 |
 | Silero VAD `silero_vad.onnx`, vendored at `py/vox_py/models/` with its licence (upstream release URL + SHA-256, D-15) | v6.2.3, commit `5cd7945676eb32225748052e2e6a0580e4686a08`, <https://github.com/snakers4/silero-vad/blob/v6.2.3/src/silero_vad/data/silero_vad.onnx>; SHA-256 `1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3` | MIT | 04 |
 | numpy (audio QA analysis; `qa.png` and the kit sheet drawn with numpy and written with `zlib`, no Pillow, D-27) | 2.5.3 (exact in `py/pyproject.toml`; already in `py/uv.lock` for onnxruntime and mediapipe) | BSD-3-Clause | 05 (set early, p2-audioqa) |
-| `otio-fcpx-xml-adapter` | TBD (05 if GATE 2 needs it, else 14) | Apache-2.0 | 05 / 14 |
+| `otio-fcpx-xml-adapter` | 1.0.0 (exact in `py/pyproject.toml`; writes FCPXML 1.8, plan D-64) | Apache-2.0 | 14g |
 | mflux + Z-Image-Turbo | TBD (14) | MIT + Apache-2.0 | 14 |
 | `pyobjc-framework-Vision` (facetrack body + saliency fallback in v1; Part C OCR reuses it, D-15) | 12.2.2 | MIT | 04 |
 | cryptography (pypdf AES-encrypted PDFs) | 50.0.1 | Apache-2.0 OR BSD-3-Clause | 04 |
