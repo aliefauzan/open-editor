@@ -79,7 +79,7 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 | GATE 4 | Decided by the numbers (D-35): 119.7 fps drag / 119.7 trim / 119.4 linked in Electron 44.7.0 (bar 50), linked + marquee checks 3/3 → keep `@xzdarcy/react-timeline-editor`. No answer needed; you may overrule. | `docs/evidence/phase-08/A3-timeline-bench-electron.json` | |
 | GATE 5 | 4-core done (phase 10b). Automated parts pass (clean-install test incl. a render from the installed app, packaging/S32, E2E manual-edit + quick + editing tools, latency patch max 87 ms / reload max 435 ms). Please do the owner run (Manual steps → "phase 10b · GATE 5"): install the `.dmg`, start it with a fresh `VOX_HOME`, setup to Ready, edit the fixture by hand and export MP4/SRT/OTIO to a folder you choose, then quick clips from the YouTube, Instagram and TikTok links and one dropped file with one subtitle fixed. Answer `GATE 5: pass` or `GATE 5: <what failed>`. | `plan/log/phase-10b.md` "MANUAL STEPS", "GATE 5"; `docs/evidence/phase-10b/` | 2026-10-12: pass by owner delegation (D-58); the AI ran every step in the installed app, fixed what failed (D-52–D-57) and re-ran; evidence `docs/evidence/phase-10b/gate5/` 00–13. |
 | v1.0 | | | |
-| GATE 6 | Approved by owner delegation,  (2 rounds against the reel). Backlog notes in `plan/log/phase-14a.md` "GATE 6". | `docs/evidence/phase-14a/side-by-side.jpg` | 2026-10-12: pass by owner delegation. |
+| GATE 6 | Approved by owner delegation, D-65 (2 rounds against the reel). Backlog notes in `plan/log/phase-14a.md` "GATE 6". | `docs/evidence/phase-14a/side-by-side.jpg` | 2026-10-12: pass by owner delegation. |
 | GATE 7 | | | |
 | GATE 8 | | | |
 
