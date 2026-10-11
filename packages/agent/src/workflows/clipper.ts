@@ -202,7 +202,7 @@ export async function clipperSteps(
           run.ctx.engine,
           createLlmScorer(run, fast, () => stop.abort()),
           quick,
-          run.ctx.signal,
+          { runId: run.runId, ...(run.ctx.signal && { signal: run.ctx.signal }) },
         )
       : await quick();
   } catch (err) {

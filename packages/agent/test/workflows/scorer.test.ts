@@ -215,7 +215,7 @@ describe('LLM scorer slot: abort while waiting', () => {
         ran.push('second');
         return Promise.resolve('second');
       },
-      ac.signal,
+      { signal: ac.signal },
     );
     const third = withLlmScorer(engine as never, (() => [3]) as never, () => {
       ran.push('third');
@@ -229,5 +229,38 @@ describe('LLM scorer slot: abort while waiting', () => {
     await expect(first).resolves.toBe('first');
     await expect(third).resolves.toBe('third');
     expect(ran).toEqual(['first', 'third']);
+  });
+});
+
+describe('LLM scorer slot: run tag', () => {
+  test('a quick-clips job of another run, or of no run, never scores with the holder’s model', async () => {
+    let registered!: (i: never, c: never) => unknown;
+    const engine = {
+      quickClips: {
+        registerScorer: (_id: string, fn: never) => void (registered = fn),
+        scorers: () => [],
+      },
+    };
+    const results: unknown[] = [];
+    const call = async (runId?: string) => {
+      try {
+        results.push(await registered({ ...(runId && { runId }) } as never, {} as never));
+      } catch (e) {
+        results.push((e as Error).message);
+      }
+    };
+    await withLlmScorer(
+      engine as never,
+      (() => [1]) as never,
+      async () => {
+        await call('run_holder01');
+        await call('run_other001');
+        await call();
+      },
+      { runId: 'run_holder01' },
+    );
+    expect(results[0]).toEqual([1]);
+    expect(results[1]).toMatch(/only for the agent run that set it/);
+    expect(results[2]).toMatch(/only for the agent run that set it/);
   });
 });

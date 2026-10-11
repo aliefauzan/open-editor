@@ -18,6 +18,8 @@ export const SCORE_BATCH = 30;
 
 interface Slot {
   current?: QuickClipScorer;
+  /** The run holding the slot: a job must carry its runId to use `current`. */
+  runId?: string;
   /** The run holding the slot finishes before the next one sets it. */
   queue: Promise<unknown>;
 }
@@ -30,6 +32,8 @@ export function llmScorerSlot(engine: Pick<AgentEngine, 'quickClips'>): Slot {
     const s: Slot = { queue: Promise.resolve() };
     engine.quickClips.registerScorer(LLM_SCORER_ID, (input, ctx) => {
       if (!s.current) throw new Error('no fast model in this run');
+      if (s.runId !== undefined && input.runId !== s.runId)
+        throw new Error('the llm scorer is only for the agent run that set it');
       return s.current(input, ctx);
     });
     slots.set(engine.quickClips, s);
@@ -40,14 +44,16 @@ export function llmScorerSlot(engine: Pick<AgentEngine, 'quickClips'>): Slot {
 
 /**
  * Runs `body` (the quick-clips job) with `fn` as the engine's `llm` scorer. Runs on one engine
- * take turns, so a run never scores with another run's model. A run whose `signal` aborts while it
- * waits for its turn throws RunStopped and never runs `body`; the runs after it keep their turns.
+ * take turns, so a run never scores with another run's model; with `runId` set, only a job that
+ * carries that runId scores with `fn` (any other job falls back to the heuristic). A run whose
+ * `signal` aborts while it waits for its turn throws RunStopped and never runs `body`; the runs
+ * after it keep their turns.
  */
 export async function withLlmScorer<T>(
   engine: Pick<AgentEngine, 'quickClips'>,
   fn: QuickClipScorer,
   body: () => Promise<T>,
-  signal?: AbortSignal,
+  opts: { signal?: AbortSignal; runId?: string } = {},
 ): Promise<T> {
   const slot = llmScorerSlot(engine);
   const before = slot.queue;
@@ -56,12 +62,14 @@ export async function withLlmScorer<T>(
   // the next run waits for the run before this one and for this one
   slot.queue = before.then(() => done);
   try {
-    await untilAborted(before, signal);
+    await untilAborted(before, opts.signal);
     slot.current = fn;
+    if (opts.runId !== undefined) slot.runId = opts.runId;
     try {
       return await body();
     } finally {
       delete slot.current;
+      delete slot.runId;
     }
   } finally {
     release();
