@@ -26,6 +26,8 @@ import {
   type JobInfo,
   writeConfig,
 } from '@vox/engine';
+import { configCommand, ConfigUsageError, type AgentCliDeps } from './config.ts';
+import { agentCommand, AgentUsageError } from './agent.ts';
 
 export interface Io {
   stdout: (s: string) => void;
@@ -35,15 +37,46 @@ export interface Io {
   /** Interactive terminal (stdin and stdout); `vox doctor` asks for the contact only then. */
   isTTY?: boolean;
   prompt?: (question: string) => Promise<string>;
+  /** Reads one line without echo (`vox config providers add`: API keys). */
+  promptSecret?: (question: string) => Promise<string>;
   /** Runs a child with the terminal attached and resolves its exit code (`vox preview`). */
   spawn?: (command: string, args: readonly string[], opts: { cwd: string }) => Promise<number>;
   /** Extra engine options (tests: a HyperFrames stand-in). */
   engine?: Partial<EngineOptions>;
+  /** `vox config` seams (tests: a memory Keychain, probe checks, no Apple helper). */
+  agent?: Partial<AgentCliDeps>;
   /**
    * The app's Resources folder when this CLI runs bundled in Vox Studio (plan R1 "Packaged app"):
    * built-in styles, `py/`, the bundled uv and Electron-as-Node come from there.
    */
   resources?: string;
+}
+
+/** One line from a terminal without echo; Ctrl-C or Ctrl-D ends with an empty answer. */
+function readHidden(question: string): Promise<string> {
+  const input = process.stdin;
+  process.stdout.write(question);
+  return new Promise((done) => {
+    let text = '';
+    const finish = (value: string) => {
+      input.off('data', onData);
+      input.setRawMode(false);
+      input.pause();
+      process.stdout.write('\n');
+      done(value);
+    };
+    const onData = (chunk: Buffer) => {
+      for (const ch of chunk.toString('utf8')) {
+        if (ch === '\r' || ch === '\n') return finish(text);
+        if (ch === '\u0003' || ch === '\u0004') return finish('');
+        if (ch === '\u007f' || ch === '\b') text = text.slice(0, -1);
+        else text += ch;
+      }
+    };
+    input.setRawMode(true);
+    input.resume();
+    input.on('data', onData);
+  });
 }
 
 export const defaultIo: Io = {
@@ -60,6 +93,7 @@ export const defaultIo: Io = {
       rl.close();
     }
   },
+  promptSecret: readHidden,
   spawn: (command, args, opts) =>
     new Promise((done, fail) => {
       const child = spawnChild(command, [...args], { cwd: opts.cwd, stdio: 'inherit' });
@@ -103,6 +137,16 @@ const USAGE = `usage:
   vox style new <id> [--extends <style>] [--name <name>]   scaffold a draft user style
   vox style trust <id> [--yes]            allow a user style's build.mjs hook to run
   vox style accept <id> | remove <id>     mark a draft active | delete a user style
+  vox config providers add <preset> [--key env:NAME] [--id id] [--base-url url]
+       [--context <model>=<tokens>]... [--num-ctx n]   (no --key: the key is asked for, hidden)
+  vox config providers list | remove <id>
+  vox config roles set <role> <provider>:<model> [--mode tools|plan]   probes first; refuses a failed role
+  vox config prices set <model> --in <usd> --out <usd> | --free        per million tokens
+  vox config probe [<provider>:<model>...]   probe the role models (or the named ones)
+  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit] [--seq id]... [--style id]
+       [--layout full-collage|hybrid] [--mode tools|plan] [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan]
+       [--count n] [--length 30-60]   (clipper: number of clips, length in seconds)
+  vox agent undo <project> <runId>        undo every edit of an agent run
 common options: --json, --projects-dir <dir>; <project> is an id or a unique name
 `;
 
@@ -193,6 +237,32 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     overwrite: { type: 'boolean' },
   },
   credits: COMMON,
+  agent: {
+    ...COMMON,
+    workflow: { type: 'string' },
+    seq: { type: 'string', multiple: true },
+    style: { type: 'string' },
+    layout: { type: 'string' },
+    mode: { type: 'string' },
+    'max-usd': { type: 'string' },
+    'yes-sources': { type: 'boolean' },
+    yes: { type: 'boolean' },
+    'confirm-plan': { type: 'boolean' },
+    count: { type: 'string' },
+    length: { type: 'string' },
+  },
+  config: {
+    json: { type: 'boolean' },
+    key: { type: 'string' },
+    id: { type: 'string' },
+    'base-url': { type: 'string' },
+    context: { type: 'string', multiple: true },
+    'num-ctx': { type: 'string' },
+    mode: { type: 'string' },
+    in: { type: 'string' },
+    out: { type: 'string' },
+    free: { type: 'boolean' },
+  },
   style: {
     ...COMMON,
     extends: { type: 'string' },
@@ -966,8 +1036,36 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       out({ projectId: p.id, mediaId: media.mediaId, ...q, files }, lines.join(''));
       return 0;
     }
+    case 'agent': {
+      if (positionals[0] === 'undo') {
+        need(positionals, 3, '<project> <runId>');
+        const e = await engineFor(values, io);
+        const id = await resolveProject(e, positionals[1]!);
+        const r = await e.undoRun(id, positionals[2]!, { actor: 'user' });
+        out(r, `undid run ${positionals[2]!} (version ${r.version})\n`);
+        return 0;
+      }
+      need(positionals, 1, '<project>');
+      if (positionals.length > 2)
+        throw new UsageError('agent takes <project> and one quoted instruction');
+      const e = await engineFor(values, io);
+      const id = await resolveProject(e, positionals[0]!);
+      try {
+        return await agentCommand(e, id, positionals[1] ?? '', values, io);
+      } catch (err) {
+        if (err instanceof AgentUsageError) throw new UsageError(err.message);
+        throw err;
+      }
+    }
     case 'style':
       return styleCommand(positionals, values, io, out);
+    case 'config':
+      try {
+        return await configCommand(positionals, values, io);
+      } catch (e) {
+        if (e instanceof ConfigUsageError) throw new UsageError(e.message);
+        throw e;
+      }
     default:
       throw new UsageError(`unknown command ${JSON.stringify(cmd)}`);
   }

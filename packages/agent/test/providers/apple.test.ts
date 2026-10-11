@@ -1,11 +1,11 @@
 // Apple on-device provider against the fake helper (phase 11 step 12, D-22): text, schema output,
 // every `--status` value, crash, timeout, restart. The real helper: apple.local.test.ts.
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateText, Output, streamText, tool } from 'ai';
-import { afterAll, afterEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 import {
   appleStatus,
@@ -242,16 +242,41 @@ describe('Apple LanguageModelV4 over the fake helper', () => {
         VOX_FAKE_APPLE_SCRIPTS: JSON.stringify([[{ hang: true }], [{ text: 'fresh' }]]),
       },
     });
-    const started = Date.now();
-    const err = await generateText({ model: m, prompt: 'x', maxRetries: 0 }).catch(
-      (e: unknown) => e,
-    );
-    expect(Date.now() - started).toBeLessThan(5_000);
-    expect(err).toMatchObject({ code: 'APPLE_FAILED', details: { reason: 'timeout' } });
-    const pid = m.pid();
-    expect(pid === undefined || !isAlive(pid)).toBe(true);
-    expect((await generateText({ model: m, prompt: 'y' })).text).toBe('fresh');
-    expect(readFileSync(spawns, 'utf8')).toBe('2');
+    // Only the request timer is faked: the 400 ms pass when the test says, however long a fresh
+    // helper takes to start on a loaded machine. `until` polls with setImmediate, which stays real.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const until = async (cond: () => boolean, ms = 10_000) => {
+        const t0 = Date.now();
+        while (!cond()) {
+          if (Date.now() - t0 > ms) throw new Error('timed out');
+          await new Promise((r) => setImmediate(r));
+        }
+      };
+      let err: unknown;
+      let settled = false;
+      const first = generateText({ model: m, prompt: 'x', maxRetries: 0 })
+        .catch((e: unknown) => (err = e))
+        .finally(() => (settled = true));
+      // the request is out and the helper is up (it counts its spawn first thing)
+      const spawned = () => (existsSync(spawns) ? readFileSync(spawns, 'utf8') : '');
+      await until(() => vi.getTimerCount() === 1 && m.pid() !== undefined && spawned() === '1');
+      const pid = m.pid()!;
+      vi.advanceTimersByTime(399);
+      for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+      expect(settled).toBe(false);
+      expect(isAlive(pid)).toBe(true);
+      vi.advanceTimersByTime(1);
+      await first;
+      expect(err).toMatchObject({ code: 'APPLE_FAILED', details: { reason: 'timeout' } });
+      expect(m.pid()).toBeUndefined();
+      await until(() => !isAlive(pid));
+      // the next request starts a fresh helper; no time passes, so it cannot time out
+      expect((await generateText({ model: m, prompt: 'y' })).text).toBe('fresh');
+      expect(readFileSync(spawns, 'utf8')).toBe('2');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('an abort kills the helper and rejects', async () => {

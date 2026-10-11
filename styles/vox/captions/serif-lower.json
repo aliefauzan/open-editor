@@ -1,0 +1,7 @@
+{
+  "name": "serif-lower",
+  "description": "White serif captions with a soft shadow at 78 % height, for collage-heavy sequences where the centre is busy: unread words at 60 % opacity, active and read words full white, the active word underlined in red, emphasis words yellow.",
+  "case": "asis",
+  "stripPunctuation": false,
+  "position": { "yPct": 78 }
+}

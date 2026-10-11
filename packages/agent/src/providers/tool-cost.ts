@@ -4,7 +4,7 @@
 // More than 25 % of the role's effective context fails the role.
 import type { JSONSchema7 } from '@ai-sdk/provider';
 import { asSchema, type ToolSet } from 'ai';
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { captureRequest } from './capture.ts';
 import { createLanguageModel } from './factory.ts';
 import type { ProviderEntry } from './presets.ts';
@@ -45,7 +45,7 @@ export async function serializedToolList(
   tools: readonly ToolDefinition[],
 ): Promise<string> {
   if (entry.type === 'apple') {
-    throw new UtilError(
+    throw new VoxError(
       'PROBE_FAILED',
       'the Apple on-device model has no tool calls',
       'Apple runs in plan mode only; no tool list is sent to it.',
@@ -62,7 +62,7 @@ export async function serializedToolList(
   );
   const body = req.body as { tools?: unknown } | null;
   if (body === null || typeof body !== 'object' || body.tools === undefined) {
-    throw new UtilError(
+    throw new VoxError(
       'PROBE_FAILED',
       `the ${entry.type} request has no tools field`,
       'Please report this; the provider package changed its request format.',

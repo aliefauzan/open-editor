@@ -1,7 +1,7 @@
 // Key masking, key references and baseUrl checks (agent spec "Configuration and keys", R4 S17, S18).
 // Config stores a reference (`keychain:<providerId>` or `env:NAME`), never a key. The UI sees the
 // masked form (`sk-or-…a1b2`); a key field that is absent or masked on save means "unchanged".
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 
 const ELLIPSIS = '…';
 const PROVIDER_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
@@ -75,7 +75,7 @@ const decode = (v: string): string => {
 };
 
 const reject = (why: string): never => {
-  throw new UtilError(
+  throw new VoxError(
     'CONFIG_INVALID',
     `baseUrl is not allowed: ${why}`,
     "Remove credentials from the base URL and put the key in the provider's API key field.",

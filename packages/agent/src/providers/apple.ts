@@ -15,7 +15,7 @@ import {
   type LanguageModelV4Usage,
   type SharedV4Warning,
 } from '@ai-sdk/provider';
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import {
   JsonLineSplitter,
   appleStatusValues,
@@ -81,7 +81,7 @@ function helperEnv(extra: Readonly<Record<string, string>> | undefined): Record<
 }
 
 const unavailable = (message: string, hint: string, details?: Record<string, unknown>) =>
-  new UtilError('APPLE_UNAVAILABLE', message, hint, details ? { details } : {});
+  new VoxError('APPLE_UNAVAILABLE', message, hint, details ? { details } : {});
 
 const MISSING_HINT = 'The app ships `vox-apple-llm`; reinstall Vox Studio if it is missing.';
 
@@ -283,7 +283,7 @@ function appleFailed(
   message: string,
   details: Record<string, unknown>,
   cause?: unknown,
-): UtilError {
+): VoxError {
   const hints: Record<typeof reason, string> = {
     crash:
       'The Apple helper stopped; the next request restarts it. Try again or use another model.',
@@ -293,13 +293,13 @@ function appleFailed(
     generation: 'The on-device model failed to answer; try again or use another model.',
     badRequest: 'Vox sent a request the helper rejected; please report this.',
   };
-  return new UtilError('APPLE_FAILED', message, hints[reason], {
+  return new VoxError('APPLE_FAILED', message, hints[reason], {
     details: { reason, ...details },
     ...(cause !== undefined && cause !== '' && { cause }),
   });
 }
 
-function mapHelperError(code: string, message: string): UtilError {
+function mapHelperError(code: string, message: string): VoxError {
   switch (code) {
     case 'unavailable': {
       const status = /^Apple on-device model: (\w+)$/.exec(message)?.[1];
@@ -311,7 +311,7 @@ function mapHelperError(code: string, message: string): UtilError {
       );
     }
     case 'contextOverflow':
-      return new UtilError(
+      return new VoxError(
         'CONTEXT_OVERFLOW',
         'the request is larger than the on-device model context',
         'Shorten the request; the loop compacts and retries once.',

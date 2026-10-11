@@ -1,0 +1,102 @@
+{
+  "columns": 6,
+  "cells": [
+    {
+      "kind": "scene",
+      "template": "vox/kinetic-serif",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/kinetic-serif",
+      "fixture": "paper-left"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/kinetic-serif",
+      "fixture": "punchline"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/map-route",
+      "fixture": "bengaluru-city"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/map-route",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/map-route",
+      "fixture": "region"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/map-route",
+      "fixture": "rotterdam-mumbai"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "clipping"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "dark-single"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "two"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/paper-collage",
+      "fixture": "vhs"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/stat",
+      "fixture": "coffee"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/stat",
+      "fixture": "dark"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/stat",
+      "fixture": "longest"
+    },
+    {
+      "kind": "transition",
+      "template": "vox/paper-tear",
+      "fixture": "(cut)"
+    },
+    {
+      "kind": "transition",
+      "template": "vox/slide-paper",
+      "fixture": "(cut)"
+    },
+    {
+      "kind": "caption",
+      "preset": "vox/mono-box"
+    },
+    {
+      "kind": "caption",
+      "preset": "vox/serif-lower"
+    },
+    {
+      "kind": "caption",
+      "preset": "vox/word-reveal"
+    }
+  ]
+}

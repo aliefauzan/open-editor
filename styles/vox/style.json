@@ -1,0 +1,137 @@
+{
+  "id": "vox",
+  "name": "Vox",
+  "version": "1.0.0",
+  "description": "Vox-like paper collage: archive cutouts with a red outline on warm paper, yellow land on a blue sea, serif kinetic type, yellow label tags and black-boxed mono captions. Entrances pop and hold on twos for a stop-motion feel.",
+  "status": "active",
+  "extends": "base",
+  "source": {
+    "type": "builtin",
+    "reference": "instagram.com/reel/DePNgrmToh9"
+  },
+  "trusted": true,
+  "tokens": {
+    "colors": {
+      "paper": "#EDE8DF",
+      "ink": "#141414",
+      "accent": "#D7261E",
+      "highlight": "#F5C518",
+      "sea": "#1D4FA0",
+      "dark": "#1B1A17",
+      "caption": "#ffffff",
+      "captionBox": "rgb(20 20 20 / 88%)"
+    },
+    "fonts": {
+      "display": {
+        "family": "DM Serif Display",
+        "file": "assets/fonts/DMSerifDisplay-Regular.ttf",
+        "weight": 400
+      },
+      "body": {
+        "family": "Libre Caslon Text",
+        "file": "assets/fonts/LibreCaslonText-Variable.ttf",
+        "weight": 400
+      },
+      "caption": {
+        "family": "IBM Plex Mono",
+        "file": "assets/fonts/IBMPlexMono-Regular.ttf",
+        "weight": 400
+      }
+    },
+    "texture": {
+      "paper": "assets/textures/paper.jpg",
+      "grain": 0.15
+    },
+    "motion": {
+      "easing": "back.out(1.6)",
+      "frameHold": 2,
+      "jitterPx": 2,
+      "entrance": "pop"
+    }
+  },
+  "captions": {
+    "default": "vox/mono-box",
+    "presets": ["vox/mono-box", "vox/serif-lower", "vox/word-reveal"]
+  },
+  "templates": ["kinetic-serif", "stat", "paper-collage", "map-route"],
+  "transitions": ["paper-tear", "slide-paper"],
+  "overlays": [
+    {
+      "name": "paper-grain",
+      "default": true
+    },
+    {
+      "name": "film-look",
+      "default": false
+    }
+  ],
+  "pacing": {
+    "beatMs": {
+      "min": 1200,
+      "target": 2500,
+      "max": 5000
+    },
+    "speakerRatio": {
+      "min": 0.15,
+      "max": 0.35
+    }
+  },
+  "imagery": {
+    "searchHints": ["vintage photograph", "archival", "black and white", "engraving"],
+    "generateSuffix": "vintage halftone photograph, isolated object, plain background, high contrast",
+    "cutoutStroke": {
+      "color": "#D7261E",
+      "widthPx": 10
+    }
+  },
+  "sfx": {
+    "paper-pop": {
+      "path": "assets/sfx/paper-pop.wav",
+      "type": "appear",
+      "source": "https://commons.wikimedia.org/wiki/File:Virada_de_Carta.ogg",
+      "licence": "CC0"
+    },
+    "paper-slide": {
+      "path": "assets/sfx/paper-slide.wav",
+      "type": "move",
+      "source": "https://commons.wikimedia.org/wiki/File:Turning_a_page.ogg",
+      "licence": "CC0"
+    },
+    "whoosh": {
+      "path": "assets/sfx/whoosh.wav",
+      "type": "move",
+      "source": "https://commons.wikimedia.org/wiki/File:Book_paper_pages_assorted.ogg",
+      "licence": "CC0"
+    },
+    "stamp": {
+      "path": "assets/sfx/stamp.wav",
+      "type": "land",
+      "source": "https://commons.wikimedia.org/wiki/File:Hardcover_books_dropped.ogg",
+      "licence": "CC0"
+    },
+    "thump-tap": {
+      "path": "assets/sfx/thump-tap.wav",
+      "type": "hero",
+      "source": "https://commons.wikimedia.org/wiki/File:Dull_thud.ogg",
+      "licence": "CC0"
+    },
+    "type-key": {
+      "path": "assets/sfx/type-key.wav",
+      "type": "appear",
+      "source": "https://freesound.org/people/yottasounds/sounds/380138/",
+      "licence": "CC0"
+    },
+    "timpani": {
+      "path": "assets/sfx/timpani.wav",
+      "type": "hero",
+      "source": "https://commons.wikimedia.org/wiki/File:Timpani_64-c-p5.wav",
+      "licence": "CC0"
+    },
+    "snip": {
+      "path": "assets/sfx/snip.wav",
+      "type": "appear",
+      "source": "https://freesound.org/people/mywhats/sounds/175522/",
+      "licence": "CC0"
+    }
+  }
+}

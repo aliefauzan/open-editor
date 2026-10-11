@@ -3,7 +3,7 @@
 // stdin, so it is never in any process's argv (visible to `ps`). Reads put only the service and
 // account in argv; the key comes back on stdout.
 import { spawn } from 'node:child_process';
-import { UtilError } from '../errors.pending.ts';
+import { VoxError } from '../errors.ts';
 import { parseKeyRef } from './mask.ts';
 
 export const SECURITY_BIN = '/usr/bin/security';
@@ -66,8 +66,8 @@ export interface SecurityKeychainOptions {
   run?: RunProcess;
 }
 
-const invalid = (message: string, hint: string): UtilError =>
-  new UtilError('CONFIG_INVALID', message, hint);
+const invalid = (message: string, hint: string): VoxError =>
+  new VoxError('CONFIG_INVALID', message, hint);
 
 function checkProviderId(id: string): void {
   if (!PROVIDER_ID.test(id)) {
@@ -91,8 +91,8 @@ export function createSecurityKeychain(options: SecurityKeychainOptions = {}): K
     throw new Error('invalid Keychain service name');
   const run = options.run ?? runProcess;
 
-  const fail = (what: string, r: RunResult, secret?: string): UtilError =>
-    new UtilError(
+  const fail = (what: string, r: RunResult, secret?: string): VoxError =>
+    new VoxError(
       'KEYCHAIN_FAILED',
       `Keychain ${what} failed (exit ${String(r.code)})`,
       'Unlock the login Keychain and try again, or use an env: key reference instead.',

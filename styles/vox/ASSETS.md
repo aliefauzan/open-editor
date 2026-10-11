@@ -6,8 +6,8 @@ npm registry, commons.wikimedia.org, with User-Agent `VoxStudio-assets/0.0 (http
 
 ## Fonts (`assets/fonts/`)
 
-See `assets/fonts/SOURCES.md` (per-file upstream path, SHA-256, licence text). All SIL OFL 1.1. Both display
-candidates are present: Libre Caslon Display and DM Serif Display. Phase 07 picks one and removes the other.
+See `assets/fonts/SOURCES.md` (per-file upstream path, SHA-256, licence text). All SIL OFL 1.1. Display
+font kept: DM Serif Display (phase 07 rendered both on `kinetic-serif` and `stat`; Libre Caslon Display was too light next to the reference and was removed).
 
 ## Geo (`assets/geo/countries-50m.json`)
 
@@ -35,9 +35,20 @@ candidates are present: Libre Caslon Display and DM Serif Display. Phase 07 pick
 - Other CC0 candidates looked at and not used: "Pergament.1.jpg" (blotchy parchment), "Old Paper texture.jpg"
   (AI-generated, so unclear status).
 
+## Film grain (`assets/textures/grain-trix400.jpg`, GATE 3 round 2)
+
+- Source: "Tri-x 400 grain2.jpg" by Wiley.andrew.r, Wikimedia Commons,
+  <https://commons.wikimedia.org/wiki/File:Tri-x_400_grain2.jpg>, licence CC0 1.0. A real scan of Kodak Tri-X 400
+  film grain. Source file SHA-256 `3022ddf4cb74af915ce4977e8b9eccc7b89f4fb88094c0997b2eafe88752fdd8` (5642x3671 grey).
+- Change: crop 384x384 at (2400,1500), contrast stretched around the mean so mid grey is neutral in `overlay`
+  blend (`lutyuv=y='clip((val-121)*4+128,0,255)'`), grey JPEG `-q:v 6` (about 42 kB).
+  Output SHA-256 `b3f4bd8c622cb6b3827a869057bec1076d4c80e71d8a6bce8e9694b200a71345`.
+- Used by `overlays/film-look.html`, inlined as a data URL by `scripts/sync-vox-inline.mjs` (the token contract
+  only carries the paper texture).
+
 ## SFX (`assets/sfx/`)
 
-Candidates only, see `assets/sfx/CREDITS.md`.
+Accepted in phase 07 (five files; `typewriter` removed), see `assets/sfx/CREDITS.md`.
 
 ## Vendored code (`templates/map-route/vendor/`)
 

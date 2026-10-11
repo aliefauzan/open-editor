@@ -38,7 +38,9 @@ async function newProject(dir: string, name = 'demo'): Promise<string> {
 }
 
 describe('vox new', () => {
-  test('picks the vox style when one is installed, else base (phase 03 step 4)', async () => {
+  // Phase 07 made `vox` a built-in style, so a new project always gets it; a user folder with the same
+  // id is a duplicate the registry rejects (STYLE_DUPLICATE) and never replaces the built-in one.
+  test('picks the vox style when one is installed (built-in since phase 07; phase 03 step 4)', async () => {
     const home = mkdtempSync(join(tmpdir(), 'vox-home-'));
     const style = join(home, 'styles', 'vox');
     mkdirSync(style, { recursive: true });
@@ -67,7 +69,7 @@ describe('vox new', () => {
       return entries[0]!.changes.find((c) => c.after.styleId)!.after.styleId;
     };
     expect(await styleOf({ VOX_HOME: home })).toBe('vox');
-    expect(await styleOf({ VOX_HOME: join(home, 'none') })).toBe('base');
+    expect(await styleOf({ VOX_HOME: join(home, 'none') })).toBe('vox');
   });
 
   test('creates a project with a 9:16 sequence added by one cli op', async () => {
@@ -87,7 +89,7 @@ describe('vox new', () => {
     }[];
     expect(entries.map((e) => [e.op, e.actor])).toEqual([['addSequence', 'cli']]);
     const seq = entries[0]!.changes.find((c) => c.after.canvas)!.after;
-    expect(seq).toMatchObject({ canvas: { width: 1080, height: 1920 }, styleId: 'base' });
+    expect(seq).toMatchObject({ canvas: { width: 1080, height: 1920 }, styleId: 'vox' });
   });
 
   test('text output names the project', async () => {

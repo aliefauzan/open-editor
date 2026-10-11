@@ -1,0 +1,18 @@
+{
+  "$comment": "Reference models for the live evals (agent spec \"Testing\"; plan phase 12). Candidates are tried in order; 'verified' turns true only when phase 13 step 7b ran the probe and the eval (D-44). The local plan-mode model is the first Ollama candidate that passes the `plan` probe.",
+  "editor": [
+    {
+      "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-4.5",
+      "mode": "tools",
+      "verified": false
+    },
+    { "provider": "claude", "model": "claude-sonnet-5-5", "mode": "tools", "verified": false }
+  ],
+  "localPlan": [
+    { "provider": "ollama", "model": "qwen3:14b", "mode": "plan", "verified": false },
+    { "provider": "ollama", "model": "qwen3:8b", "mode": "plan", "verified": false },
+    { "provider": "ollama", "model": "llama3.1:8b", "mode": "plan", "verified": false }
+  ],
+  "fast": [{ "provider": "apple", "model": "apple-on-device", "verified": false }]
+}

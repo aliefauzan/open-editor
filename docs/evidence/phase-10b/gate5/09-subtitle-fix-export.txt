@@ -1,0 +1,8 @@
+GATE 5 subtitle fix + burned-in export (2026-10-11, AI by owner delegation)
+Project: Quick clips — tiktok.com, Clip 1. Edited word 'Well,' -> 'Well…' in the Subtitles panel (double-click, Enter).
+Export: MP4 + SRT, Subtitles burned in, Standard, YouTube -14 LUFS; audio check PASS (loudness -14.07 LUFS).
+MP4: h264 1080x1920 + aac, 35.967 s, 29.3 MB. SRT cue 2:
+2
+00:00:00,333 --> 00:00:01,633
+think? Well… I
+Finding: burned captions render in a serif fallback font; the preview shows a bold sans.

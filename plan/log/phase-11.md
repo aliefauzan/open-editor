@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | waiting: manual 1 (owner keys + live probe); not merged |
-| Started · Finished | 2026-10-11 17:03 · |
+| Status | [x] merged 2026-10-11 19:22; live probe deferred to phase 13 step 7b (D-44) |
+| Started · Finished | 2026-10-11 17:03 · 2026-10-11 19:22 |
 | Model | Opus 5.5 · high |
 | Machine | M5, macOS 27.0.1, Node 24.14.0, pnpm 12.0.0, Swift 6.4 |
 | Branch | phase/11-agent-core (worktree `.worktrees/phase-11`) |
@@ -30,7 +30,7 @@ Test order: 1, 2, 3, 15, 4, 18, 14, 12b, 5, 6, 19, 7, 8, 16, 13, 17, 9, 10, 11, 
 - [x] `vox config providers add|list|remove`, `roles set`, `prices set`, `probe` (`packages/cli`).
 - [x] Verify after `git merge main` (all green, below).
 - [x] Review: self-review (token budget).
-- [ ] MANUAL STEP 1 (owner keys, live probe) — open; the phase waits on it and is not merged.
+- [x] MANUAL STEP 1 (owner keys, live probe) — deferred to phase 13 step 7b by the owner (D-44): keys go in through the Settings screen. Merged on mock, replay and Apple on-device evidence.
 
 ## Files created / changed
 55 files on `phase/11-agent-core` (+8,109 / −53 against main).
@@ -265,3 +265,10 @@ with credentials is refused before any request; test added).
   as the plan probe task; config persistence of entries (with `preset`) and probe reports; redactor
   registration of resolved keys; `vox config providers add|roles set|probe` (calls
   `assertRoleAssignable`); the live probe (MANUAL STEP already in the phase plan).
+
+## Merge (orchestrator, 2026-10-11 19:22)
+Owner chose to enter provider keys through the Settings screen (D-44), so MANUAL STEPS 1–2 move to
+phase 13 step 7b. After `git merge main` (10a, D-44): typecheck and lint clean; `pnpm test` 2254
+passed, 1 skipped, and one timing test failed per full run while phase 10b ran in parallel (load
+average ~14): `lock.test.ts` (break marker 10 s) once, `preview.test.ts` (150 ms coalesce) once.
+Each passed 3/3 alone. Flaky under load, not a regression.

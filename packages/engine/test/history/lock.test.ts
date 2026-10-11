@@ -138,4 +138,32 @@ describe('project.lock (O_EXCL)', () => {
     await release();
     expect(readdirSync(d)).toEqual([]);
   });
+
+  test('breaking a stale lock never counts against the wait (taken even with no wait at all)', async () => {
+    // With timeoutMs 0 there is no time to wait, so this holds however slow the disk is: a lock
+    // that can be broken is taken, also after two breaks in a row (crashed marker, then the lock).
+    const d = dir();
+    const dead = () =>
+      writeFileSync(
+        lockFile(d),
+        JSON.stringify({ pid: 9_999_999, host: hostname(), startedAt: new Date().toISOString() }),
+      );
+    const alive = (pid: number) => pid === process.pid;
+    dead();
+    const r1 = await acquireLock(d, { timeoutMs: 0, isPidAlive: alive });
+    await r1();
+    dead();
+    writeFileSync(join(d, '.project.lock.break'), '');
+    const old = new Date(Date.now() - 11_000);
+    utimesSync(join(d, '.project.lock.break'), old, old);
+    const r2 = await acquireLock(d, { timeoutMs: 0, isPidAlive: alive });
+    await r2();
+    expect(readdirSync(d)).toEqual([]);
+    // a lock that cannot be broken is still LOCKED at once
+    writeFileSync(
+      lockFile(d),
+      JSON.stringify({ pid: process.pid, host: hostname(), startedAt: new Date().toISOString() }),
+    );
+    await expect(acquireLock(d, { timeoutMs: 0 })).rejects.toMatchObject({ code: 'LOCKED' });
+  });
 });

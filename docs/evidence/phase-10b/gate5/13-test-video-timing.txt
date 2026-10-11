@@ -1,0 +1,20 @@
+Owner test video https://www.youtube.com/watch?v=rtcMRI3ARck (11:08, 1620x1080), 1 clip, 30-60 s,
+installed app built from 35cbf1b (2026-10-12). Times from project file birth/modify stamps
+(Make clips pressed = project created, 01:20:29).
+
+step                         end        took
+download                     01:20:52   0:23
+proxy + audio + peaks        01:21:18   0:26
+thumbs, shots                01:21:29   0:11
+transcribe | facetrack       01:22:23   0:54 (side by side; facetrack about 1:00 from start)
+pick clips                   01:22:23   <1 s
+total                                   1:54
+
+Root cause of the slow facetrack in run 12: the tools env (<tools>/py-env) still held the vox_py
+package from phase 04. Setup re-synced only on a uv.lock change, and uv kept its first build of
+vox_py (version 0.0.0, cache keyed on pyproject.toml). So no Python speed-up reached the app.
+35cbf1b stores a hash of pyproject.toml + vox_py/ and re-syncs with --reinstall-package vox_py.
+After launch: py-env vox_py/facetrack.py, transcribe.py, _tool.py byte-equal to the bundle.
+
+Result (13-test-video-quick-clip-result.jpg): 1 clip, 37 s, 9:16 crop on the speaker's face,
+no black bands, captions shown in the base style caption font (IBM Plex Mono, preset plain).

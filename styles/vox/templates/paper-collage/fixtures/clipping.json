@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "media": "m_cutout",
+      "x": 70,
+      "y": 66,
+      "scale": 0.8,
+      "rotate": 7
+    }
+  ],
+  "clipping": {
+    "kicker": "The Daily Ledger · 1952",
+    "headline": "City council bans coffee carts from the old market",
+    "body": "The vote came late on Tuesday after three hours of debate. Vendors say the rule will end a trade their families have run for decades, while the council points to crowding at the gates.",
+    "highlight": "bans coffee carts"
+  },
+  "grade": "bw",
+  "label": "1952",
+  "labelPos": "bottom"
+}

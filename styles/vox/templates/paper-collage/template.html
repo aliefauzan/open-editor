@@ -1,0 +1,490 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+        .v-page {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background-color: var(--tok-color-paper);
+          color: var(--tok-color-ink);
+        }
+        .v-page.bg-dark {
+          background-color: var(--tok-color-dark);
+          color: var(--tok-color-paper);
+        }
+        .v-page.bg-highlight {
+          background-color: var(--tok-color-highlight);
+        }
+        .c-stage {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 45%;
+        }
+        .c-paper {
+          position: absolute;
+          inset: 0;
+          background-image: var(--tok-texture-paper);
+          background-size: 50% auto;
+          mix-blend-mode: multiply;
+          opacity: 0.45;
+        }
+        .v-page.bg-dark .c-paper {
+          mix-blend-mode: soft-light;
+          opacity: 0.35;
+        }
+        .c-item {
+          position: absolute;
+          transform-origin: 50% 50%;
+        }
+        .c-item img {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
+        .c-label {
+          position: absolute;
+          left: 12%;
+          right: 12%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+        }
+        .c-label span {
+          padding: 0.08em 0.4em 0.12em;
+          background: var(--tok-color-highlight);
+          color: var(--tok-color-ink);
+          font-family: var(--tok-font-display);
+          font-weight: var(--tok-font-display-weight);
+          line-height: 1.1;
+          overflow-wrap: anywhere;
+          box-shadow: 0 0.06em 0 var(--tok-color-ink);
+        }
+        .c-clip {
+          position: absolute;
+          transform-origin: 50% 50%;
+          filter: drop-shadow(0 0.4em 0.5em rgb(0 0 0 / 30%));
+        }
+        .c-clip-paper {
+          position: relative;
+          padding: 1.1em 1.2em 1.6em;
+          background-color: #f3efe4;
+          color: var(--tok-color-ink);
+          overflow: hidden;
+        }
+        .c-clip-paper::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: var(--tok-texture-paper);
+          background-size: 60% auto;
+          mix-blend-mode: multiply;
+          opacity: 0.55;
+        }
+        .c-clip-kicker {
+          position: relative;
+          font-family: var(--tok-font-caption);
+          font-size: 0.5em;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          border-bottom: 0.08em solid var(--tok-color-ink);
+          padding-bottom: 0.3em;
+          margin-bottom: 0.45em;
+        }
+        .c-clip-head {
+          position: relative;
+          font-family: var(--tok-font-display);
+          font-weight: var(--tok-font-display-weight);
+          font-size: 1.25em;
+          line-height: 1.08;
+          overflow-wrap: anywhere;
+        }
+        .c-clip-body {
+          position: relative;
+          margin-top: 0.5em;
+          font-family: var(--tok-font-body);
+          font-size: 0.62em;
+          line-height: 1.35;
+          text-align: justify;
+          hyphens: auto;
+          overflow-wrap: anywhere;
+        }
+        .c-hl {
+          background-image: linear-gradient(
+            100deg,
+            rgb(245 197 24 / 0%) 0.4%,
+            var(--tok-color-highlight) 1.5%,
+            var(--tok-color-highlight) 98%,
+            rgb(245 197 24 / 0%) 99.6%
+          );
+          background-repeat: no-repeat;
+          background-position: 0 62%;
+          background-size: 0% 78%;
+          mix-blend-mode: multiply;
+          box-decoration-break: clone;
+          -webkit-box-decoration-break: clone;
+          padding: 0 0.12em;
+          margin: 0 -0.12em;
+        }
+        /* archive grades for the cutouts (GATE 3 round 2) */
+        .grade-bw .c-item img {
+          filter: grayscale(1) contrast(1.18) brightness(0.96);
+        }
+        .grade-sepia .c-item img {
+          filter: sepia(0.85) saturate(1.15) contrast(1.06) brightness(0.95);
+        }
+        .grade-faded .c-item img {
+          filter: saturate(0.55) contrast(0.82) brightness(1.08) sepia(0.18);
+        }
+        .grade-vhs .c-item img {
+          filter: saturate(1.45) contrast(1.12) hue-rotate(-8deg)
+            drop-shadow(0.35em 0 0 rgb(255 0 60 / 35%))
+            drop-shadow(-0.35em 0 0 rgb(0 160 255 / 35%));
+        }
+        .c-scan {
+          position: absolute;
+          inset: 0;
+          display: none;
+          background: repeating-linear-gradient(
+            0deg,
+            rgb(0 0 0 / 22%) 0,
+            rgb(0 0 0 / 22%) 2px,
+            rgb(0 0 0 / 0%) 2px,
+            rgb(0 0 0 / 0%) 5px
+          );
+          mix-blend-mode: multiply;
+        }
+        .grade-vhs .c-scan {
+          display: block;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="v-page">
+          <div class="c-stage">
+            <div class="c-paper"></div>
+            <div class="c-clip">
+              <div class="c-clip-paper">
+                <div class="c-clip-kicker"></div>
+                <div class="c-clip-head"></div>
+                <div class="c-clip-body"></div>
+              </div>
+            </div>
+            <!-- six static slots: images in the markup are loaded before the first frame -->
+            <div class="c-item"><img alt="" /></div>
+            <div class="c-item"><img alt="" /></div>
+            <div class="c-item"><img alt="" /></div>
+            <div class="c-item"><img alt="" /></div>
+            <div class="c-item"><img alt="" /></div>
+            <div class="c-item"><img alt="" /></div>
+            <div class="c-scan"></div>
+          </div>
+          <div class="c-label"><span></span></div>
+        </div>
+      </div>
+      <script>
+        // vox:motion:begin
+        /* global window */
+        // vox motion helpers (styles spec Part B "Tokens" motion; phase 07 step 3).
+        // Templates inline a copy of this file between the `vox:motion` markers (scripts/sync-vox-motion.mjs
+        // writes the copies; a test checks they equal this file). Everything is deterministic: timing comes
+        // from the GSAP timeline only, and jitter uses a PRNG seeded from the scene instance id.
+        (function () {
+          'use strict';
+          if (window.voxMotion) return;
+
+          // FNV-1a 32-bit hash of a string: the jitter seed of a scene instance
+          function hash(str) {
+            var h = 0x811c9dc5;
+            for (var i = 0; i < str.length; i++) {
+              h ^= str.charCodeAt(i);
+              h = Math.imul(h, 0x01000193) >>> 0;
+            }
+            return h >>> 0;
+          }
+
+          // mulberry32: small seeded PRNG, values in [0, 1)
+          function rng(seed) {
+            var a = seed >>> 0;
+            return function () {
+              a = (a + 0x6d2b79f5) >>> 0;
+              var t = a;
+              t = Math.imul(t ^ (t >>> 15), t | 1);
+              t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+              return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+          }
+
+          function tokenOf(root, name, fallback) {
+            var v = window.getComputedStyle(root).getPropertyValue(name).trim();
+            return v === '' ? fallback : v;
+          }
+
+          // create(root, id): the helper set of one scene instance. `fps` is the frame grid the holds use
+          // (the sequence's data-fps when present, else 30).
+          function create(root, id, opts) {
+            var o = opts || {};
+            var gsap = window.gsap;
+            var fpsAttr = window.document.querySelector('[data-fps]');
+            var fps = o.fps || (fpsAttr ? Number(fpsAttr.getAttribute('data-fps')) : 30) || 30;
+            var hold = Math.max(
+              1,
+              Math.round(Number(tokenOf(root, '--tok-motion-frame-hold', '1')) || 1),
+            );
+            var jitterPx = Number(tokenOf(root, '--tok-motion-jitter-px', '0')) || 0;
+            var easing = tokenOf(root, '--tok-motion-easing', 'back.out(1.6)');
+            var entrance = tokenOf(root, '--tok-motion-entrance', 'pop');
+            var random = rng(hash(String(id)));
+            var step = hold / fps;
+
+            // An ease whose progress only changes every `hold` frames (animation "on twos").
+            function held(ease, duration) {
+              var base = gsap.parseEase(ease) || gsap.parseEase('none');
+              var n = Math.max(1, Math.round((duration * fps) / hold));
+              if (hold === 1) return base;
+              return function (p) {
+                return p >= 1 ? 1 : base(Math.floor(p * n) / n);
+              };
+            }
+
+            // pop(tl, el, at, d?): the style entrance. `pop` scales up from 0.6 with the style easing,
+            // held on twos; unknown entrances fall back to `fade` (styles spec "Tokens").
+            function pop(tl, el, at, d) {
+              var dur = d || 0.4;
+              if (entrance === 'pop') {
+                tl.fromTo(
+                  el,
+                  { scale: 0.6, opacity: 0 },
+                  { scale: 1, opacity: 1, duration: dur, ease: held(easing, dur) },
+                  at,
+                );
+              } else {
+                tl.fromTo(el, { opacity: 0 }, { opacity: 1, duration: dur, ease: 'none' }, at);
+              }
+              jitter(tl, el, at, dur);
+              return at + dur;
+            }
+
+            // slideIn(tl, el, at, fromX, fromY, d?): a card moving in, held on twos.
+            function slideIn(tl, el, at, fromX, fromY, d) {
+              var dur = d || 0.5;
+              tl.fromTo(
+                el,
+                { xPercent: fromX, yPercent: fromY },
+                { xPercent: 0, yPercent: 0, duration: dur, ease: held('power3.out', dur) },
+                at,
+              );
+              return at + dur;
+            }
+
+            // jitter(tl, el, from, dur): seeded offsets of up to jitterPx on every held frame of
+            // [from, from + dur), then rest at 0. Entrances only, so held shots stay still.
+            function jitter(tl, el, from, dur) {
+              if (!(jitterPx > 0) || hold < 2) return;
+              var count = Math.max(1, Math.floor(dur / step));
+              for (var i = 0; i < count; i++) {
+                tl.set(
+                  el,
+                  {
+                    x: Math.round((random() * 2 - 1) * jitterPx),
+                    y: Math.round((random() * 2 - 1) * jitterPx),
+                  },
+                  from + i * step,
+                );
+              }
+              tl.set(el, { x: 0, y: 0 }, from + count * step);
+            }
+
+            // pushIn(tl, el, from, dur, amount?): slow camera push, continuous (camera moves are never held).
+            function pushIn(tl, el, from, dur, amount) {
+              tl.fromTo(
+                el,
+                { scale: 1 },
+                { scale: 1 + (amount || 0.06), duration: dur, ease: 'power2.inOut' },
+                from,
+              );
+            }
+
+            return {
+              fps: fps,
+              hold: hold,
+              step: step,
+              jitterPx: jitterPx,
+              easing: easing,
+              random: random,
+              held: held,
+              pop: pop,
+              slideIn: slideIn,
+              jitter: jitter,
+              pushIn: pushIn,
+            };
+          }
+
+          window.voxMotion = { create: create, hash: hash, rng: rng };
+        })();
+        // vox:motion:end
+      </script>
+      <script>
+        // vox/paper-collage: cutouts with a red outline pop in one after another on paper while the
+        // stage pushes in; the label pops last. Optional newspaper clipping (behind the cutouts) with a
+        // highlighter stroke drawn over one phrase, and an archive grade on the cutouts.
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var v = mount.vars;
+          var W = __W__;
+          var H = __H__;
+          var DUR = __DUR__;
+          var M = voxMotion.create(root, '__ID__');
+          var page = root.querySelector('.v-page');
+          page.classList.add('bg-' + (v.bg || 'paper'));
+          if (v.grade && v.grade !== 'none') page.classList.add('grade-' + v.grade);
+          var stage = root.querySelector('.c-stage');
+          // red outline around the cutout's alpha: four hard drop-shadows, then a soft paper shadow
+          var s = Math.max(2, Math.round((W / 1080) * 10));
+          var red = getComputedStyle(root).getPropertyValue('--tok-color-accent').trim() || 'red';
+          var outline =
+            'drop-shadow(' +
+            s +
+            'px 0 0 ' +
+            red +
+            ') drop-shadow(-' +
+            s +
+            'px 0 0 ' +
+            red +
+            ') ' +
+            'drop-shadow(0 ' +
+            s +
+            'px 0 ' +
+            red +
+            ') drop-shadow(0 -' +
+            s +
+            'px 0 ' +
+            red +
+            ') ' +
+            'drop-shadow(0 ' +
+            Math.round(s * 1.2) +
+            'px ' +
+            Math.round(s * 1.5) +
+            'px rgb(0 0 0 / 35%))';
+          var items = v.items || [];
+          var slots = stage.querySelectorAll('.c-item');
+          var els = [];
+          for (var i = 0; i < slots.length; i++) {
+            var box = slots[i];
+            var it = items[i];
+            if (!it) {
+              box.style.display = 'none';
+              continue;
+            }
+            var w = W * 0.42 * (it.scale || 1);
+            box.style.width = w + 'px';
+            box.style.left = (it.x / 100) * W - w / 2 + 'px';
+            box.style.top = (it.y / 100) * H - w / 2 + 'px';
+            box.style.filter = outline;
+            box.style.rotate = (it.rotate || 0) + 'deg';
+            box.querySelector('img').setAttribute('src', it.media);
+            els.push(box);
+          }
+          var label = root.querySelector('.c-label');
+          var labelText = label.querySelector('span');
+          label.style.fontSize = Math.round(W * 0.07) + 'px';
+          var pos = v.labelPos || 'center';
+          label.style.top = (pos === 'top' ? 10 : pos === 'bottom' ? 66 : 46) + '%';
+          if (v.label) labelText.textContent = v.label;
+          else label.style.display = 'none';
+          // the clipping: kicker, headline and body set as text (never markup); the first match of
+          // the highlight phrase (headline first, then body) is wrapped for the marker stroke
+          var clip = root.querySelector('.c-clip');
+          var hl = null;
+          var c = v.clipping;
+          if (c) {
+            clip.style.width = W * ((c.width || 78) / 100) + 'px';
+            clip.style.fontSize = Math.round(W * 0.058) + 'px';
+            clip.style.left = ((c.x === undefined ? 50 : c.x) / 100) * W + 'px';
+            clip.style.top = ((c.y === undefined ? 34 : c.y) / 100) * H + 'px';
+            clip.style.translate = '-50% -50%';
+            clip.style.rotate = (c.rotate === undefined ? -2 : c.rotate) + 'deg';
+            var kicker = clip.querySelector('.c-clip-kicker');
+            if (c.kicker) kicker.textContent = c.kicker;
+            else kicker.style.display = 'none';
+            var parts = [
+              [clip.querySelector('.c-clip-head'), c.headline || ''],
+              [clip.querySelector('.c-clip-body'), c.body || ''],
+            ];
+            for (var q = 0; q < parts.length; q++) {
+              var node = parts[q][0];
+              var txt = parts[q][1];
+              if (!txt) {
+                node.style.display = 'none';
+                continue;
+              }
+              var at =
+                !hl && c.highlight ? txt.toLowerCase().indexOf(c.highlight.toLowerCase()) : -1;
+              if (at < 0) {
+                node.textContent = txt;
+                continue;
+              }
+              node.appendChild(document.createTextNode(txt.slice(0, at)));
+              hl = document.createElement('span');
+              hl.className = 'c-hl';
+              hl.textContent = txt.slice(at, at + c.highlight.length);
+              node.appendChild(hl);
+              node.appendChild(document.createTextNode(txt.slice(at + c.highlight.length)));
+            }
+            // torn bottom edge: a seeded jagged line
+            var pts = ['0% 0%', '100% 0%'];
+            var n = 18;
+            for (var e = n; e >= 0; e--) {
+              pts.push((e / n) * 100 + '% ' + (100 - M.random() * 3.2).toFixed(2) + '%');
+            }
+            clip.querySelector('.c-clip-paper').style.clipPath = 'polygon(' + pts.join(', ') + ')';
+          } else {
+            clip.style.display = 'none';
+          }
+          var tl = gsap.timeline({ paused: true });
+          var t0 = 0;
+          if (c) {
+            M.pop(tl, clip, 0, 0.35);
+            t0 = Math.max(M.step, Math.round(0.3 / M.step) * M.step);
+          }
+          // pops share the first 45 % of the scene, at most 0.25 s apart, on held frames
+          var gap = Math.min(0.25, (DUR * 0.45) / Math.max(1, els.length));
+          gap = Math.max(M.step, Math.round(gap / M.step) * M.step);
+          for (var k = 0; k < els.length; k++) M.pop(tl, els[k], t0 + k * gap, 0.35);
+          var tEnd = t0 + els.length * gap;
+          if (hl) {
+            // the marker stroke draws left to right on held frames
+            tl.to(
+              hl,
+              { backgroundSize: '100% 78%', duration: 0.5, ease: M.held('power2.inOut', 0.5) },
+              tEnd,
+            );
+            tEnd += 0.5;
+          }
+          if (v.label) M.pop(tl, labelText, tEnd, 0.3);
+          M.pushIn(tl, stage, 0, DUR, 0.08);
+          tl.set(root, {}, DUR);
+          window.__timelines[mount.key] = mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+total 14848
+drwxr-xr-x@ 6 af  staff      192 Oct 11 22:19 .
+drwxr-xr-x@ 3 af  staff       96 Oct 11 22:18 ..
+drwxr-xr-x@ 6 af  staff      192 Oct 11 22:19 GATE 5 fixture-Main-layers
+-rw-r--r--@ 1 af  staff  7575150 Oct 11 22:19 GATE 5 fixture-Main.mp4
+-rw-r--r--@ 1 af  staff    18115 Oct 11 22:19 GATE 5 fixture-Main.otio
+-rw-r--r--@ 1 af  staff     1114 Oct 11 22:18 GATE 5 fixture-Main.srt
+stream|codec_name=h264|width=1080|height=1920|duration=20.000000
+stream|codec_name=aac|duration=20.000000

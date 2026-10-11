@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { VoxError } from './errors.ts';
 import type { ProjectStore } from './history/store.ts';
 import type { JobRunner } from './jobs.ts';
-import { ActorSchema, applyJobOps, findMedia } from './media-api.ts';
+import { ActorSchema, RunIdSchema, applyJobOps, findMedia } from './media-api.ts';
 import { DEFAULT_FPS, isFpsInSet, type Fps } from './model/fps.ts';
 import { newId } from './model/ids.ts';
 import { TranscriptSchema, type MediaItem, type Transcript } from './model/schema.ts';
@@ -37,6 +37,7 @@ export const QuickClipsArgsSchema = z
     /** Passed to a registered scorer (e.g. "moments about pricing"); the heuristic ignores it. */
     prompt: z.string().max(2000).optional(),
     actor: ActorSchema,
+    runId: RunIdSchema,
   })
   .refine((a) => a.minMs <= a.maxMs, { message: 'minMs must not be more than maxMs' });
 export type QuickClipsArgs = z.input<typeof QuickClipsArgsSchema>;
@@ -153,6 +154,7 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
             {
               mediaId: media.id,
               ...(args.prompt !== undefined ? { prompt: args.prompt } : {}),
+              ...(args.runId !== undefined ? { runId: args.runId } : {}),
               candidates: cands.map((c, index) => ({
                 index,
                 startMs: c.startMs,
@@ -239,6 +241,7 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
       });
       const version = await applyJobOps(store, ops, {
         actor: args.actor ?? 'user',
+        runId: args.runId,
         jobId: ctx.jobId,
         baseVersion: project.version,
       });

@@ -86,10 +86,10 @@ describe('scene variables through the real registry (step 4)', () => {
 });
 
 describe('engine.styles and engine.geo', () => {
-  test('lists the installed styles; base is the default without a vox style', () => {
+  test('lists the installed styles; vox is the default once installed (phase 07)', () => {
     const e = engine();
-    expect(e.styles.list().map((s) => s.id)).toEqual(['base', 'kit', 'kitdraft']);
-    expect(e.styles.defaultId()).toBe('base');
+    expect(e.styles.list().map((s) => s.id)).toEqual(['base', 'kit', 'kitdraft', 'vox']);
+    expect(e.styles.defaultId()).toBe('vox');
     expect(e.styles.get('kit').chain).toEqual(['kit', 'base']);
     expect(e.styles.problems()).toEqual([]);
   });

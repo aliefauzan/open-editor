@@ -6,7 +6,8 @@
   "type": "module",
   "description": "Vox Studio agent",
   "exports": {
-    ".": "./src/api.ts"
+    ".": "./src/api.ts",
+    "./test-kit": "./test/helpers/kit.ts"
   },
   "scripts": {
     "test": "vitest run --root ../.. packages/agent/",

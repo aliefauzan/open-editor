@@ -81,6 +81,7 @@ import {
   trustStyle,
   type TrustStore,
 } from './styles/manage.ts';
+import { repoPyProject } from './py.ts';
 import { validateStyle, type ValidateOptions, type ValidateReport } from './styles/validate.ts';
 
 export const version = '0.0.0';
@@ -997,10 +998,18 @@ export function openEngine(opts: EngineOptions): Engine {
       },
       validate(id, o = {}) {
         const ffmpeg = opts.tools?.['ffmpeg'];
+        const t = opts.tools ?? {};
+        // the SFX kit check runs the Python audio QA like the audioQa job does
+        const py = {
+          pyProject: t['py'] ?? repoPyProject(),
+          ...(t['uv'] ? { uv: t['uv'] } : {}),
+          ...(t['pyEnv'] && t['dir'] ? { toolsDir: t['dir'] } : {}),
+        };
         return validateStyle({
           ...o,
           registry: registry(),
           styleId: id,
+          py,
           ...(ffmpeg ? { ffmpeg } : {}),
         });
       },

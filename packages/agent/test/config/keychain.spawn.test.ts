@@ -13,7 +13,8 @@ interface SpawnCall {
 }
 const calls: SpawnCall[] = [];
 
-vi.mock('node:child_process', () => ({
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   spawn: (file: string, args: string[], options: Record<string, unknown>) => {
     const child = new EventEmitter() as EventEmitter & {
       stdin: PassThrough;

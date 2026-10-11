@@ -1,6 +1,26 @@
 import { describe, expect, test } from 'vitest';
 import { VoxError, isVoxError, toVoxErrorJson } from '../src/errors.ts';
 
+// Agent codes (phase 11; D-26, D-38 and the phase-11 decision).
+const AGENT_CODES = [
+  'KEYCHAIN_FAILED',
+  'PRICE_MISSING',
+  'APPLE_UNAVAILABLE',
+  'APPLE_FAILED',
+  'CONTEXT_OVERFLOW',
+  'PROBE_FAILED',
+  'PROVIDER_AUTH',
+  'PROVIDER_RATE_LIMITED',
+  'PROVIDER_UNAVAILABLE',
+  'PROVIDER_FAILED',
+  'UNKNOWN_ALIAS',
+  'TOOL_UNKNOWN',
+  'TOOL_REFUSED',
+  'PLAN_INVALID',
+  'CHECKPOINT_MISSED',
+  'ROLE_MISSING',
+];
+
 describe('VoxError', () => {
   test('carries code, message, hint, details and is an Error', () => {
     const e = new VoxError('TRACK_LOCKED', 'Track V1 is locked', 'Unlock V1 first', {
@@ -56,6 +76,12 @@ describe('VoxError', () => {
       'EXPORT_PATH',
     ])
       expect(ERROR_CODES).toContain(c);
+    expect(new Set(ERROR_CODES).size).toBe(ERROR_CODES.length);
+  });
+
+  test('agent codes are known (phase 11)', async () => {
+    const { ERROR_CODES } = await import('../src/errors.ts');
+    for (const c of AGENT_CODES) expect(ERROR_CODES).toContain(c);
     expect(new Set(ERROR_CODES).size).toBe(ERROR_CODES.length);
   });
 
