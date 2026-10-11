@@ -164,4 +164,11 @@ describe('workflow replay fixtures (step 8e)', () => {
     },
     120_000,
   );
+  test('a changed tool result in a fixture fails the replay', async () => {
+    const f = JSON.parse(readFileSync(join(DIR, 'stylize-tools.json'), 'utf8')) as Fixture;
+    const i = f.lines.findIndex((l) => l.type === 'tool' && l['tool'] === 'add_scene');
+    f.lines[i] = { ...f.lines[i]!, versions: [999] };
+    const { lines } = await play(f, scriptedModel(scriptFromRecord(f.lines)).model);
+    expect(comparable(lines)).not.toEqual(comparable(f.lines));
+  }, 120_000);
 });
