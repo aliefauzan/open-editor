@@ -7,6 +7,10 @@
 //                           Silero VAD model, D-15); setup syncs it into <tools>/py-env (S31)
 //   bin/uv                  pinned uv (setup manifest pin, SHA-256 verified)
 //   cli/vox.mjs, cli/vox    the bundled `vox` CLI and its launcher (Electron as Node)
+//   agent/workflows/        the agent's workflow prompts (packages/agent/workflows/*.md)
+//   bin/vox-apple-llm       the Apple on-device helper (`swift build -c release`; phase 13, D-16);
+//                           absent in a `--no-apple` build
+//   build-info.json         { version, appleHelper }: what this build bundles
 // Used by scripts/build.ts --package; the CLI bundle is written there (vite).
 import {
   chmodSync,
@@ -18,6 +22,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { dirname, join, relative, sep } from 'node:path';
 import { installComponent } from '../src/engine-host/setup/install.ts';
 import { loadManifest } from '../src/engine-host/setup/manifest.ts';
@@ -121,7 +126,57 @@ res=$(/usr/bin/dirname "$(/usr/bin/dirname "$self")")
 exec /usr/bin/env ELECTRON_RUN_AS_NODE=1 "$res/../MacOS/Vox Studio" "$res/cli/vox.mjs" "$@"
 `;
 
-export async function stageResources(cacheDir = join(DESKTOP, 'cache')): Promise<void> {
+/** The lowest macOS SDK that has FoundationModels (the Apple helper; D-16). */
+export const APPLE_SDK_MIN = 26;
+
+/** The macOS SDK version `xcrun` reports, or undefined (no Xcode / command-line tools). */
+export function macSdkVersion(
+  run: typeof spawnSync = spawnSync,
+  env: NodeJS.ProcessEnv = process.env,
+): number | undefined {
+  const r = run('xcrun', ['--sdk', 'macosx', '--show-sdk-version'], { encoding: 'utf8', env });
+  const v = r.status === 0 ? Number.parseFloat(String(r.stdout).trim()) : Number.NaN;
+  return Number.isFinite(v) ? v : undefined;
+}
+
+/**
+ * Builds `native/apple-llm` (release) and returns the binary. Throws a clear message when no
+ * macOS 26+ SDK is found: the release build (`pnpm dist`) needs it; `pnpm dist:no-apple` skips it.
+ */
+export function buildAppleHelper(
+  run: typeof spawnSync = spawnSync,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const sdk = macSdkVersion(run, env);
+  if (sdk === undefined || sdk < APPLE_SDK_MIN) {
+    throw new Error(
+      `pnpm dist needs the macOS ${String(APPLE_SDK_MIN)}+ SDK (Xcode or command-line tools ${String(APPLE_SDK_MIN)} or newer) to build the Apple on-device helper; found ${sdk === undefined ? 'none' : String(sdk)}. Install it, or run pnpm dist:no-apple to build without the helper.`,
+    );
+  }
+  const pkg = join(REPO, 'native', 'apple-llm');
+  const r = run('swift', ['build', '-c', 'release', '--package-path', pkg], {
+    encoding: 'utf8',
+    env,
+    stdio: ['ignore', 'inherit', 'inherit'],
+  });
+  if (r.status !== 0)
+    throw new Error(`swift build of native/apple-llm failed (exit ${String(r.status)})`);
+  const bin = join(pkg, '.build', 'release', 'vox-apple-llm');
+  if (!existsSync(bin)) throw new Error(`swift build left no ${relative(REPO, bin)}`);
+  return bin;
+}
+
+export interface StageOptions {
+  cacheDir?: string;
+  /** false: `pnpm dist:no-apple` (no helper; build-info says appleHelper: false). */
+  appleHelper?: boolean;
+}
+
+export async function stageResources(opts: StageOptions = {}): Promise<void> {
+  const cacheDir = opts.cacheDir ?? join(DESKTOP, 'cache');
+  const withApple = opts.appleHelper ?? true;
+  // first, so a missing SDK fails before the slow steps
+  const appleBin = withApple ? buildAppleHelper() : undefined;
   rmSync(STAGE, { recursive: true, force: true });
   mkdirSync(STAGE, { recursive: true });
   cpSync(join(REPO, 'styles'), join(STAGE, 'styles'), { recursive: true, filter: noJunk });
@@ -148,5 +203,22 @@ export async function stageResources(cacheDir = join(DESKTOP, 'cache')): Promise
   chmodSync(join(STAGE, 'bin', 'uv'), 0o755);
   mkdirSync(join(STAGE, 'cli'), { recursive: true });
   writeFileSync(join(STAGE, 'cli', 'vox'), LAUNCHER, { mode: 0o755 });
+  const wf = join(STAGE, 'agent', 'workflows');
+  mkdirSync(wf, { recursive: true });
+  cpSync(join(REPO, 'packages', 'agent', 'workflows'), wf, {
+    recursive: true,
+    filter: (s) => !s.endsWith('.DS_Store'),
+  });
+  if (appleBin !== undefined) {
+    cpSync(appleBin, join(STAGE, 'bin', 'vox-apple-llm'));
+    chmodSync(join(STAGE, 'bin', 'vox-apple-llm'), 0o755);
+  }
+  const version = (
+    JSON.parse(readFileSync(join(DESKTOP, 'package.json'), 'utf8')) as { version: string }
+  ).version;
+  writeFileSync(
+    join(STAGE, 'build-info.json'),
+    `${JSON.stringify({ version, appleHelper: appleBin !== undefined }, null, 2)}\n`,
+  );
   process.stdout.write(`staged resources (${n} node packages, uv ${got.version})\n`);
 }

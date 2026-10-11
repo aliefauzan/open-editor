@@ -4,6 +4,8 @@
 // workflow prompt. The parser takes only the small YAML subset these files use: `key: value` and
 // `key: [a, b, …]` lists that may wrap over several lines.
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { VoxError } from '../errors.ts';
 import { ROLES } from '../providers/roles.ts';
@@ -66,8 +68,25 @@ export function parseWorkflow(text: string): Workflow {
 
 const cache = new Map<string, Workflow>();
 
+/** The packaged app's copy (`<Resources>/agent/workflows`); unset: the repo folder next to `src/`. */
+let packagedDir: string | undefined;
+
 /**
- * Loads `packages/agent/workflows/<name>.md`. Only the packaged files load: their allowedTools are
+ * Points the loader at the workflow files a packaged app ships in its Resources (set once at start by
+ * the engine host and the bundled CLI; a bundle has no repo folder next to its code). `undefined`
+ * restores the repo folder.
+ */
+export function setWorkflowsDir(dir: string | undefined): void {
+  packagedDir = dir;
+  cache.clear();
+}
+
+export function workflowsDir(): string | undefined {
+  return packagedDir;
+}
+
+/**
+ * Loads `packages/agent/workflows/<name>.md` (or the packaged copy, `setWorkflowsDir`). Only the packaged files load: their allowedTools are
  * checked by the tests against the tool registry.
  */
 export function loadWorkflow(name: WorkflowName): Workflow {
@@ -78,7 +97,10 @@ export function loadWorkflow(name: WorkflowName): Workflow {
       `Use one of: ${WORKFLOW_NAMES.join(', ')}.`,
     );
   }
-  const url = new URL(`../../workflows/${name}.md`, import.meta.url);
+  const url =
+    packagedDir !== undefined
+      ? pathToFileURL(join(packagedDir, `${name}.md`))
+      : new URL(`../../workflows/${name}.md`, import.meta.url);
   const key = url.href;
   let w = cache.get(key);
   if (!w) {

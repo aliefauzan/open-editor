@@ -49,14 +49,86 @@ const AgentRun = z.strictObject({
   message: z.string().min(1).max(20_000),
   workflow: z.string().min(1).max(100).optional(),
   selection: z.array(z.string()).max(10_000),
-  mode: z.string().min(1).max(50).optional(),
+  mode: z.enum(['tools', 'plan']).optional(),
   confirmPlan: z.boolean().optional(),
+  /** Media ids the user attached in the chat (files dropped on the input are imported first). */
+  attachments: z
+    .array(z.string().regex(/^m_[A-Za-z0-9_-]+$/, 'media id'))
+    .max(20)
+    .optional(),
 });
 
 const AgentDecision = z.union([
   z.strictObject({ approve: z.boolean(), wordKeys: z.array(z.string()).optional() }),
   z.strictObject({ choice: z.string().min(1).max(200) }),
 ]);
+
+/** Provider presets (agent spec "Providers and models", D-38); a test keeps it equal to @vox/agent's. */
+export const PRESET_IDS = [
+  'claude',
+  'openrouter',
+  'opencode-zen',
+  '9router',
+  'lmstudio',
+  'ollama',
+  'apple',
+  'openai',
+  'gemini',
+] as const;
+/** Roles the Settings screen assigns (the run uses these three; agent spec "Model roles"). */
+export const SETTINGS_ROLES = ['editor', 'fast', 'vision'] as const;
+export const COOKIE_BROWSERS = ['safari', 'chrome', 'firefox'] as const;
+
+const ProviderIdArg = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/, 'provider id');
+const ModelIdArg = z.string().trim().min(1).max(200);
+const Usd = z.number().positive().finite().max(10_000);
+
+/**
+ * `settings.save(patch)` (phase 13): one change per field; every field optional. `apiKey` absent,
+ * empty or masked = unchanged (S18); a typed key goes to the Keychain in the engine host. A role is
+ * assigned only to a model whose probe passed that role. `cookiesFromBrowser` is the only app path
+ * that writes `ingest.cookiesFromBrowser` (S33).
+ */
+export const SettingsPatch = z.strictObject({
+  provider: z
+    .strictObject({
+      id: ProviderIdArg.optional(),
+      preset: z.enum(PRESET_IDS).optional(),
+      baseUrl: z.string().trim().min(1).max(2048).optional(),
+      apiKey: z.string().max(4096).nullable().optional(),
+      options: z
+        .strictObject({
+          numCtx: z.int().positive().max(10_000_000).optional(),
+          contextTokens: z.record(ModelIdArg, z.int().positive().max(100_000_000)).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  removeProvider: ProviderIdArg.optional(),
+  role: z
+    .strictObject({ role: z.enum(SETTINGS_ROLES), providerId: ProviderIdArg, model: ModelIdArg })
+    .optional(),
+  clearRole: z.enum(SETTINGS_ROLES).optional(),
+  limits: z
+    .strictObject({
+      maxUsdPerRun: Usd.optional(),
+      maxStepsPerRun: z.int().positive().max(1_000).optional(),
+    })
+    .optional(),
+  price: z
+    .union([
+      z.strictObject({ model: ModelIdArg, free: z.literal(true) }),
+      z.strictObject({
+        model: ModelIdArg,
+        inPerMTok: z.number().min(0).max(10_000),
+        outPerMTok: z.number().min(0).max(10_000),
+      }),
+    ])
+    .optional(),
+  cookiesFromBrowser: z.enum(COOKIE_BROWSERS).nullable().optional(),
+  contact: z.string().max(200).nullable().optional(),
+});
+export type SettingsPatchData = z.infer<typeof SettingsPatch>;
 
 const ChooseTarget = z.strictObject({
   // the dialog opens in the folder last used for this project (plan D-13)
@@ -102,8 +174,9 @@ export const METHOD_ARGS = {
   'agent.decide': t(z.string().min(1).max(100), AgentDecision),
   'agent.undoRun': t(z.string().min(1).max(100)),
   'settings.get': t(),
-  'settings.save': t(z.record(z.string(), z.unknown())),
-  'settings.probe': t(z.string().min(1).max(200)),
+  'settings.save': t(SettingsPatch),
+  // `<providerId>:<model>` or a role name
+  'settings.probe': t(z.string().min(1).max(270)),
   'styles.list': t(),
   'styles.get': t(z.string().min(1).max(100)),
   'styles.accept': t(z.string().min(1).max(100)),
@@ -270,6 +343,11 @@ export interface Results {
   'projects.open': OpenedProject;
   'ops.apply': ApplyResultData;
   'preview.url': string;
+  'settings.get': SettingsData;
+  'settings.save': SettingsData;
+  'settings.probe': ProbedData;
+  'agent.run': { runId: string; workflow: string; mode: 'tools' | 'plan' };
+  'agent.runs': AgentRunData[];
 }
 export type Result<M extends Method> = M extends keyof Results ? Results[M] : unknown;
 
@@ -286,3 +364,138 @@ export type VoxApi = {
   /** Finder drop onto the window: imports the dropped files (preload resolves their paths). */
   dropFiles?(projectId: string, files: ArrayLike<File>): Promise<unknown>;
 };
+
+// Settings (phase 13; engine host `SettingsHost`). Keys never appear here: only the masked form.
+export interface ProbeCheckData {
+  status: string;
+  reason?: string;
+}
+export interface ProbedData {
+  providerId: string;
+  model: string;
+  report?: {
+    tools?: ProbeCheckData;
+    loop?: ProbeCheckData;
+    vision?: ProbeCheckData;
+    plan?: ProbeCheckData;
+    context?: { contextTokens: number | null; source: string; error?: string };
+    toolList?: { tokens: number; share: number | null; result: ProbeCheckData };
+    appleStatus?: string;
+  };
+  error?: { code: string; message: string; hint: string };
+  roles: {
+    role: string;
+    assignable: boolean;
+    mode?: 'tools' | 'plan';
+    failures: { check: string; reason: string }[];
+  }[];
+}
+export type SettingsRole = (typeof SETTINGS_ROLES)[number];
+export interface SettingsData {
+  providers: {
+    id: string;
+    type: string;
+    preset?: string;
+    baseUrl?: string;
+    keyRef: 'keychain' | 'env' | 'none';
+    /** `sk-or-…a1b2`, or null when no key is stored. Never the key. */
+    keyMasked: string | null;
+    /** Runs on this Mac (Ollama, LM Studio, Apple): project content stays here. */
+    local: boolean;
+    /** Installed models the host could list (Ollama tags, the Apple model). */
+    models: string[];
+    options?: { numCtx?: number; contextTokens?: Record<string, number> };
+  }[];
+  presets: {
+    id: (typeof PRESET_IDS)[number];
+    label: string;
+    key: 'required' | 'none';
+    baseUrl?: string;
+    local: boolean;
+  }[];
+  roles: Partial<Record<SettingsRole, { providerId: string; model: string }>>;
+  /** The editor's loop mode (`tools` or `plan`). */
+  mode?: 'tools' | 'plan';
+  limits: { maxUsdPerRun: number; maxStepsPerRun: number };
+  prices: Record<string, unknown>;
+  /** `build-info.json` `appleHelper`; false hides the Apple provider (D-16). */
+  appleHelper: boolean;
+  /** The helper's `--status`. */
+  apple?: { status: string; usable: boolean; hint: string };
+  /** Probe results of this session. */
+  probes: ProbedData[];
+  ingest: { cookiesFromBrowser: (typeof COOKIE_BROWSERS)[number] | null };
+  contact: string | null;
+}
+
+// Agent panel (phase 13; engine host `AgentHost`). Events: `agent.event` carries `{ type, payload }`
+// (`agent.started|step|tool|todos|paused|done`, agent spec "Events", plus `agent.report` when the
+// run's clip reports are written); `agent.todos` carries `{ runId, items }`.
+export interface TightenRangeData {
+  wordKey: string;
+  kind: 'pause' | 'filler' | 'repeat';
+  seqStartMs: number;
+  seqEndMs: number;
+  text: string;
+}
+export interface AgentPauseData {
+  runId: string;
+  reason: 'budget' | 'approval' | 'error';
+  kind?: 'source' | 'plan' | 'pauses';
+  detail: string;
+  sources?: string[];
+  ranges?: TightenRangeData[];
+  /** A `pauses` pause: the sequence of the ranges. */
+  sequenceId?: string;
+  /** A `plan` pause: the validated plan (`ClipPlan` for clips, an op list for free-form). */
+  plan?: unknown;
+  /** A `budget` pause: the cap "Continue" raises the run to. */
+  continueUsd?: number;
+}
+export interface ClipReportData {
+  sequenceId: string;
+  status: string;
+  scenes: number;
+  placeholders: number;
+  speakerShare: number;
+  health: string[];
+  audio?: {
+    pass: boolean;
+    failing: string[];
+    integratedLufs?: number;
+    truePeakDbtp?: number;
+    listen: string[];
+  };
+  edges: string[];
+  skipped: string[];
+}
+export interface AgentRunData {
+  runId: string;
+  projectId: string;
+  workflow: string;
+  mode: 'tools' | 'plan';
+  message: string;
+  models: Record<string, string>;
+  startedAt: string;
+  status: 'running' | 'paused' | 'completed' | 'stopped' | 'failed';
+  summary: string;
+  costUsd: number;
+  /** `notes`: the change note the step was given (edits by the user or another run since the last step). */
+  steps: { step: number; subRun?: number; scope: string[]; text: string; notes?: string[] }[];
+  tools: { tool: string; status: 'done' | 'failed'; byWorkflow?: boolean; error?: string }[];
+  todos: { text: string; status: 'pending' | 'in_progress' | 'done' }[];
+  /** Sequences in the latest step's scope (the "agent editing" marker while it runs). */
+  scope: string[];
+  /** The run's history entries still in effect: "Edited in timeline (n changes)". */
+  changes: {
+    version: number;
+    op: string;
+    itemIds: string[];
+    sequenceIds: string[];
+    undone: boolean;
+  }[];
+  clips: ClipReportData[];
+  sequenceIds: string[];
+  pause?: AgentPauseData;
+  error?: ErrorData;
+}

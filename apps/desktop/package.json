@@ -1,6 +1,6 @@
 {
   "name": "@vox/desktop",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -14,12 +14,14 @@
     "test:slow": "node scripts/build.ts && VOX_SLOW=1 vitest run",
     "e2e": "node scripts/build.ts && playwright test -c e2e/playwright.config.ts",
     "dist": "node scripts/build.ts --package && electron-builder --config electron-builder.yml --arm64 --mac dmg",
+    "dist:no-apple": "node scripts/build.ts --package --no-apple && electron-builder --config electron-builder.yml --arm64 --mac dmg",
     "bench:timeline": "node bench/timeline.ts",
     "bench:latency": "node scripts/build.ts && node bench/latency.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@hyperframes/player": "0.8.145",
+    "@vox/agent": "workspace:*",
     "@vox/engine": "workspace:*",
     "zod": "4.6.5"
   },

@@ -83,7 +83,7 @@ export class ConfigUsageError extends Error {}
  * The Apple helper: `VOX_APPLE_LLM`; else `<Resources>/bin/vox-apple-llm` in the app; else the dev
  * build in `native/apple-llm`. Absent when none exists.
  */
-function appleHelper(io: ConfigIo): AppleModelOptions | undefined {
+export function appleHelper(io: ConfigIo): AppleModelOptions | undefined {
   const fromEnv = io.env['VOX_APPLE_LLM'];
   if (fromEnv !== undefined && fromEnv !== '') return { command: fromEnv };
   const path =

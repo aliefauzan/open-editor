@@ -1,5 +1,5 @@
 $ xattr -p com.apple.quarantine <tmp>/Vox-Studio.dmg  (exit 0)
-0083;6acb5422;Safari;
+0083;6acbec0c;Safari;
 
 $ xattr -p com.apple.quarantine <tmp>/Applications/Vox Studio.app  (exit 0)
 0083;00000000;;
@@ -8,19 +8,19 @@ $ spctl --assess --type execute -vv <tmp>/Applications/Vox Studio.app  (exit 3)
 <tmp>/Applications/Vox Studio.app: rejected
 
 $ codesign --verify --deep --strict -vv <tmp>/Applications/Vox Studio.app  (exit 0)
+--prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper.app
+--prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Renderer).app
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (GPU).app
---prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper.app
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Squirrel.framework/Versions/Current/.
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (GPU).app
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Renderer).app
 --validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/ReactiveObjC.framework/Versions/Current/.
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Renderer).app
+--validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (GPU).app
+--prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Plugin).app
 --validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Squirrel.framework/Versions/Current/.
 --validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/ReactiveObjC.framework/Versions/Current/.
---prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper.app
---validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper.app
---prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Plugin).app
 --validated:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Vox Studio Helper (Plugin).app
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/.
 --prepared:<tmp>/Applications/Vox Studio.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/Helpers/chrome_crashpad_handler
@@ -34,3 +34,56 @@ $ xattr -dr com.apple.quarantine <tmp>/Applications/Vox Studio.app  (exit 0)
 
 $ setup screen
 Ready (components ready, doctor without errors)
+
+$ render from the installed app
+{
+  "mp4": {
+    "id": "job_mv497kpckydd",
+    "kind": "render",
+    "projectId": "p_mv497hsp72wd",
+    "status": "done",
+    "progress": 1,
+    "message": "muxing",
+    "result": {
+      "files": [
+        {
+          "sequenceId": "seq_main",
+          "path": "<home>/Projects/p_mv497hsp72wd/renders/Clean install fixture-Main.mp4",
+          "durationMs": 20000
+        }
+      ],
+      "loudness": "youtube",
+      "quality": "draft",
+      "captions": "burn"
+    }
+  },
+  "srt": {
+    "id": "job_mv499slghtya",
+    "kind": "exportCaptions",
+    "projectId": "p_mv497hsp72wd",
+    "status": "done",
+    "progress": 1,
+    "result": {
+      "path": "<home>/Projects/p_mv497hsp72wd/renders/Clean install fixture-Main.srt",
+      "chunks": 24,
+      "sequenceId": "seq_main"
+    }
+  },
+  "otio": {
+    "id": "job_mv499szgoiqt",
+    "kind": "exportTimeline",
+    "projectId": "p_mv497hsp72wd",
+    "status": "done",
+    "progress": 1,
+    "message": "writing timeline",
+    "result": {
+      "path": "<home>/Projects/p_mv497hsp72wd/renders/Clean install fixture-Main.otio",
+      "layersDir": "<home>/Projects/p_mv497hsp72wd/renders/Clean install fixture-Main-layers",
+      "sequenceId": "seq_main",
+      "clips": 3,
+      "layers": [
+        "captions"
+      ]
+    }
+  }
+}

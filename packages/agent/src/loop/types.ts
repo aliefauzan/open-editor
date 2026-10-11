@@ -37,6 +37,8 @@ export interface PauseInfo {
   detail: string;
   sources?: string[];
   ranges?: TightenRange[];
+  /** A `pauses` pause: the sequence the ranges belong to (the app seeks in it). */
+  sequenceId?: string;
   plan?: unknown;
 }
 

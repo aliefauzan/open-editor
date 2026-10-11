@@ -1,7 +1,8 @@
 // Sequence tabs (app spec "Timeline"): one tab per sequence, "+" to add or duplicate, and the
 // sequence's canvas, style, overlay and sound-effect settings.
 import { useState } from 'react';
-import { useCtx, useEditor } from './context.tsx';
+import { agentScope } from './agent-store.ts';
+import { useAgent, useCtx, useEditor } from './context.tsx';
 import { seqOf } from './editing.ts';
 import { useResolvedStyle, useStyleList } from './use-styles.ts';
 
@@ -111,10 +112,12 @@ export function SequenceTabs() {
   const { editor } = useCtx();
   const sequences = useEditor((x) => x.project?.sequences ?? NONE);
   const current = useEditor((x) => x.sequenceId);
-  const agentScope = useEditor((x) => x.agentItems);
+  // the "agent editing" marker (D-15): sequences in an active run's latest step scope (a string,
+  // so the selector result is stable between renders)
+  const editing = useAgent((x) => [...agentScope(x)].sort().join(' '));
+  const marked = new Set(editing ? editing.split(' ') : []);
   const [menu, setMenu] = useState(false);
   const [settings, setSettings] = useState(false);
-  void agentScope; // the "agent editing" marker arrives with the agent panel (phase 13)
   return (
     <div className="relative flex h-8 shrink-0 items-center gap-1 border-b border-neutral-800 px-2">
       <div
@@ -127,6 +130,7 @@ export function SequenceTabs() {
             key={q.id}
             type="button"
             role="tab"
+            data-sequence-id={q.id}
             aria-selected={q.id === current}
             onClick={() => editor.getState().setSequence(q.id)}
             className={`rounded-t px-3 py-1 text-xs whitespace-nowrap ${
@@ -136,6 +140,15 @@ export function SequenceTabs() {
             }`}
           >
             {q.name}
+            {marked.has(q.id) && (
+              <span
+                className="ml-1.5 rounded bg-indigo-700 px-1 text-[10px] text-white"
+                data-testid="agent-editing"
+                title="The agent is editing this sequence; you can still edit it"
+              >
+                agent editing
+              </span>
+            )}
           </button>
         ))}
       </div>

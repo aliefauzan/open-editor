@@ -29,7 +29,7 @@ export interface QuickStartProps {
 }
 
 export function QuickStart(props: QuickStartProps) {
-  const { vox, jobs } = useCtx();
+  const { vox, jobs, ui } = useCtx();
   const [text, setText] = useState('');
   const [badge, setBadge] = useState<string | null>(null);
   const [count, setCount] = useState(3);
@@ -112,6 +112,14 @@ export function QuickStart(props: QuickStartProps) {
     >
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Quick clips</h1>
+        <button
+          type="button"
+          data-testid="open-settings"
+          className="ml-auto mr-3 text-xs text-neutral-400 underline"
+          onClick={() => ui.getState().set({ settingsOpen: true, settingsFocus: null })}
+        >
+          Settings
+        </button>
         {props.onOpenSetup && (
           <button
             type="button"
@@ -237,6 +245,15 @@ export function QuickStart(props: QuickStartProps) {
                 onClick={() => void run({ kind: 'file' })}
               >
                 Choose file…
+              </button>
+            )}
+            {error.code === 'LOGIN_REQUIRED' && (
+              <button
+                type="button"
+                className="mt-2 ml-2 rounded bg-neutral-800 px-2 py-1"
+                onClick={() => ui.getState().set({ settingsOpen: true, settingsFocus: 'cookies' })}
+              >
+                Open Settings
               </button>
             )}
           </div>

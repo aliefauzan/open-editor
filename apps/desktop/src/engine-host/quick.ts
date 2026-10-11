@@ -10,11 +10,16 @@
 // Test builds (`VOX_E2E=1`, unpackaged) seed the checked-in transcript, shots and facetrack of the
 // seed media by media hash (plan D-16; R7 `SEEDS.json`), so the quick path runs with no mlx-whisper
 // and no Python facetrack. Release builds never seed.
+//
+// With a `fast` model in Settings the pick uses the agent's LLM scorer (phase 13; D-50): the job asks
+// the engine for the `llm` scorer and runs inside `withLlmScorer`. Without a fast model, or when the
+// scorer fails or its budget is spent, the engine's heuristic picks (the engine falls back itself).
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import type { Engine } from '@vox/engine';
+import { withLlmScorer } from '@vox/agent';
+import type { Engine, QuickClipScorer } from '@vox/engine';
 import { projectDirFor, resolveProjectPath } from '@vox/engine/paths';
 import type { ErrorData, EventName } from '../shared/api.ts';
 import { toErrorData } from './rpc.ts';
@@ -85,15 +90,18 @@ export class AppJobs {
   private readonly engine: Engine;
   private readonly emit: (name: EventName, payload: unknown) => void;
   private readonly seeds: SeedSource | undefined;
+  private readonly llmScorer: (() => Promise<QuickClipScorer | undefined>) | undefined;
 
   constructor(
     engine: Engine,
     emit: (name: EventName, payload: unknown) => void,
     seeds?: SeedSource,
+    llmScorer?: () => Promise<QuickClipScorer | undefined>,
   ) {
     this.engine = engine;
     this.emit = emit;
     this.seeds = seeds;
+    this.llmScorer = llmScorer;
   }
 
   has(id: string): boolean {
@@ -247,20 +255,42 @@ export class AppJobs {
     } else {
       for (const k of STAGES) done.set(k, 1);
     }
-    return tracked(
-      'quickClips',
-      {
-        ...base,
-        ...(a.count === undefined ? {} : { count: a.count }),
-        ...(a.minMs === undefined ? {} : { minMs: a.minMs }),
-        ...(a.maxMs === undefined ? {} : { maxMs: a.maxMs }),
-      },
-      job.abort.signal,
-    );
+    const scorer = await this.llmScorer?.().catch(() => undefined);
+    const pick = () =>
+      tracked(
+        'quickClips',
+        {
+          ...base,
+          ...(a.count === undefined ? {} : { count: a.count }),
+          ...(a.minMs === undefined ? {} : { minMs: a.minMs }),
+          ...(a.maxMs === undefined ? {} : { maxMs: a.maxMs }),
+          ...(scorer ? { scorer: 'llm' } : {}),
+        },
+        job.abort.signal,
+      );
+    return scorer ? withLlmScorer(this.engine, scorer, pick, { signal: job.abort.signal }) : pick();
+  }
+
+  /**
+   * Test builds: the agent's analysis jobs on a seed media take the seed for that one stage (as the
+   * run's actor and runId). False when this is not a test build or the media is not a seed.
+   */
+  async seedStage(
+    kind: string,
+    a: { projectId: string; mediaId: string },
+    by: { actor: 'user' | 'agent'; runId?: string },
+  ): Promise<boolean> {
+    if (!this.seeds || !(STAGES as readonly string[]).includes(kind)) return false;
+    return this.seed(a, this.seeds, [kind as (typeof STAGES)[number]], by);
   }
 
   /** Test builds: copy the seeds of a seed media (matched by SHA-256) into the project. */
-  private async seed(a: MakeClipsArgs, seeds: SeedSource): Promise<boolean> {
+  private async seed(
+    a: { projectId: string; mediaId: string },
+    seeds: SeedSource,
+    kinds: readonly (typeof STAGES)[number][] = STAGES,
+    by: { actor: 'user' | 'agent'; runId?: string } = { actor: 'user' },
+  ): Promise<boolean> {
     let table: Record<string, { sha256: string }>;
     try {
       table = JSON.parse(
@@ -278,7 +308,7 @@ export class AppJobs {
     if (!name) return false;
     const stem = basename(name).replace(/\.[^.]+$/, '');
     const patch: Record<string, string> = {};
-    for (const kind of STAGES) {
+    for (const kind of kinds) {
       const rel = `${FOLDER[kind]}/${a.mediaId}.json`;
       await mkdir(join(dir, FOLDER[kind]), { recursive: true });
       const src = join(seeds.dir, FOLDER[kind], `${stem}.json`);
@@ -294,7 +324,7 @@ export class AppJobs {
     const r = await this.engine.applyOp(
       a.projectId,
       { op: 'updateMedia', args: { mediaId: a.mediaId, patch } } as never,
-      { actor: 'user' },
+      by,
     );
     const bad = r.results.find((x) => x.status !== 'succeeded');
     if (bad) throw bad.error;

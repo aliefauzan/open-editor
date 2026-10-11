@@ -101,6 +101,7 @@ async function tighten(
       kind: 'pauses',
       detail: `${String(ranges.length)} pause(s) in ${alias} can be cut (${String(ranges.reduce((n, r) => n + r.seqEndMs - r.seqStartMs, 0))} ms).`,
       ranges,
+      sequenceId,
     });
     if (d.action === 'stop') throw new RunStopped();
     keys = d.wordKeys;

@@ -84,7 +84,7 @@ import {
 import { repoPyProject } from './py.ts';
 import { validateStyle, type ValidateOptions, type ValidateReport } from './styles/validate.ts';
 
-export const version = '0.0.0';
+export const version = '1.0.0';
 
 // The public surface, listed by name so a new internal export never leaks into the contract.
 export {

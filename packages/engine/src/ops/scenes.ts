@@ -76,7 +76,8 @@ export function addScene(
   validateVariables(t, a.variables, ctx.templates, p);
   if (a.sfxOff) checkSfxOff(t, a.sfxOff);
   const start = snapT(s, a.startMs);
-  const end = snapT(s, start + (a.durationMs ?? t.durationMs.default));
+  // the end snaps on its own (not start + duration), so beats that meet at a ms still meet
+  const end = snapT(s, a.startMs + (a.durationMs ?? t.durationMs.default));
   if (end <= start)
     fail('VALIDATION', 'The scene would be shorter than one frame', 'Pass a longer durationMs');
   const scene: SceneClip = {

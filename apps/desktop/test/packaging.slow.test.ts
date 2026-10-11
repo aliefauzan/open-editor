@@ -3,7 +3,7 @@
 // target (`~/.local/bin`, temp HOME) runs `vox --version`; S31: no file in the `.app` changes while
 // setup runs (fixture components, temp VOX_TOOLS_DIR / VOX_HOME) and a project compiles.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FuseV1Options, getCurrentFuseWire } from '@electron/fuses';
@@ -30,7 +30,7 @@ describe('packaged app', () => {
     expect(existsSync(join(RES, 'default_app.asar'))).toBe(false);
   });
 
-  test('vox self-test --json from the app CLI: built modules pass, later ones skipped', () => {
+  test('vox self-test --json from the app CLI: every check passes, none skipped (D-12, D-16)', () => {
     const home = temp('vox-st-');
     const out = execFileSync(join(RES, 'cli', 'vox'), ['self-test', '--json'], {
       env: { HOME: home, PATH: '/usr/bin:/bin' },
@@ -43,10 +43,37 @@ describe('packaged app', () => {
     };
     expect(r).toMatchObject({ ok: true, packaged: true });
     const st = Object.fromEntries(r.checks.map((c) => [c.name, c.status]));
-    for (const n of ['resources', 'styles', 'geo', 'compile', 'silero-vad'])
-      expect(st[n]).toBe('passed');
-    expect(st['apple-helper']).toBe('notBuilt');
+    for (const n of [
+      'resources',
+      'styles',
+      'geo',
+      'compile',
+      'silero-vad',
+      'vox-style',
+      'vox-map-route',
+      'agent-workflows',
+      'agent-tools',
+    ])
+      expect(st[n], n).toBe('passed');
+    // the helper is in a `pnpm dist` build; a `pnpm dist:no-apple` build says so in build-info.json
+    const info = JSON.parse(readFileSync(join(RES, 'build-info.json'), 'utf8')) as {
+      appleHelper: boolean;
+    };
+    expect(st['apple-helper']).toBe(info.appleHelper ? 'passed' : 'notBuilt');
+    expect(existsSync(join(RES, 'bin', 'vox-apple-llm'))).toBe(info.appleHelper);
     expect(Object.values(st)).not.toContain('failed');
+    expect(Object.values(st)).not.toContain('skipped');
+  });
+
+  test('the bundled Apple helper is signed and answers --status (pnpm dist, D-16)', () => {
+    const info = JSON.parse(readFileSync(join(RES, 'build-info.json'), 'utf8')) as {
+      appleHelper: boolean;
+    };
+    if (!info.appleHelper) return; // a no-apple build: covered by the self-test check above
+    const helper = join(RES, 'bin', 'vox-apple-llm');
+    execFileSync('/usr/bin/codesign', ['--verify', '--strict', helper]);
+    const out = execFileSync(helper, ['--status'], { encoding: 'utf8' });
+    expect(JSON.parse(out)).toMatchObject({ status: expect.any(String) });
   });
 
   test('fuses (S27)', async () => {

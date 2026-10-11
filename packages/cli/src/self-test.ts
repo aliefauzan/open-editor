@@ -1,7 +1,8 @@
-// `vox self-test --json` (app spec "Packaging and sharing", plan phase 09 + D-12): checks that the
-// files a build ships with are there and work. From the packaged app's CLI it checks every R1
-// "Packaged app" resource; checks of modules built in later phases report `skipped: <reason>` (or
-// `notBuilt` for the Apple helper, D-16) until their phase lands, never `passed`.
+// `vox self-test --json` (app spec "Packaging and sharing", plan phases 09 and 13, D-12, D-16): checks
+// that the files a build ships with are there and work. From the packaged app's CLI it checks every
+// R1 "Packaged app" resource. Since phase 13 every module is in the build and every check is
+// required: a `skipped` result fails the self-test. The one allowed non-pass is the Apple helper's
+// `notBuilt` in a `pnpm dist:no-apple` build (`build-info.json` `appleHelper: false`).
 import { createHash } from 'node:crypto';
 import {
   accessSync,
@@ -14,6 +15,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { appleStatus, buildRegistry, loadWorkflow, workflowsDir } from '@vox/agent';
 import { openEngine, SILERO_SHA256, type Engine, type OpCall } from '@vox/engine';
 
 export type SelfTestStatus = 'passed' | 'failed' | 'skipped' | 'notBuilt';
@@ -37,6 +39,8 @@ export interface SelfTestOptions {
   stylesDirs: string[];
   /** The uv project (`py/`). */
   pyDir: string;
+  /** Repo runs: the dev build of the Apple helper (`native/apple-llm`), if any. */
+  appleHelper?: string;
 }
 
 /** R1 "Packaged app" rows of modules that are built now: path under Resources → what it is. */
@@ -53,6 +57,10 @@ export const PACKAGED_FILES: readonly (readonly [string, string])[] = [
   ['bin/uv', 'bundled uv'],
   ['cli/vox.mjs', 'vox CLI'],
   ['cli/vox', 'vox launcher'],
+  ['agent/workflows/clipper.md', 'clipper workflow prompt'],
+  ['agent/workflows/stylize.md', 'Stylize workflow prompt'],
+  ['agent/workflows/edit.md', 'free-form edit prompt'],
+  ['build-info.json', 'what this build bundles (appleHelper)'],
 ];
 
 const EXECUTABLES = new Set(['bin/uv', 'cli/vox']);
@@ -71,8 +79,13 @@ function isExecutable(path: string): boolean {
 }
 
 function resourcesCheck(resources: string | undefined): SelfTestCheck {
+  // from the repo the "resources" are the checkout itself, which the other checks use
   if (resources === undefined)
-    return { name: 'resources', status: 'skipped', detail: 'not a packaged build (repo layout)' };
+    return {
+      name: 'resources',
+      status: 'passed',
+      detail: 'repo layout: resources from the checkout',
+    };
   const missing = PACKAGED_FILES.filter(([rel]) => {
     const p = join(resources, rel);
     return EXECUTABLES.has(rel) ? !isExecutable(p) : !existsSync(p);
@@ -166,42 +179,109 @@ export async function selfTest(o: SelfTestOptions): Promise<SelfTestReport> {
         return 'vendored silero_vad.onnx matches the R5 SHA-256';
       }),
     );
-    // Modules of later phases (D-12): skipped until they are in the build.
+    // Every module is in the build now (phase 13, D-12): each check is required.
     checks.push(
-      styleIds.includes('vox')
-        ? await attempt('vox-style', async () => 'vox style present')
-        : { name: 'vox-style', status: 'skipped', detail: 'vox style v1 arrives in phase 07' },
-      { name: 'vox-map-route', status: 'skipped', detail: 'vox/map-route arrives in phase 07' },
-      agentCheck(o.resources),
-      { name: 'agent-workflows', status: 'skipped', detail: 'workflow prompts arrive in phase 12' },
-      {
-        name: 'apple-helper',
-        status: 'notBuilt',
-        detail: 'vox-apple-llm is bundled from phase 13',
-      },
+      await attempt('vox-style', async () => {
+        if (!styleIds.includes('vox')) throw new Error('the vox style is not listed');
+        return 'vox style present';
+      }),
+      await attempt('vox-map-route', () => mapRouteCheck(engine)),
+      await attempt('agent-workflows', async () => {
+        const names = ['clipper', 'stylize', 'edit'] as const;
+        for (const n of names) {
+          const w = loadWorkflow(n);
+          if (w.allowedTools.length === 0 && n !== 'edit') throw new Error(`${n}: no tools`);
+        }
+        return `workflow prompts load: ${names.join(', ')}${workflowsDir() ? ` (${workflowsDir()})` : ''}`;
+      }),
+      await attempt('agent-tools', async () => {
+        const registry = buildRegistry({
+          imageProviders: { list: () => [], register: () => undefined },
+        });
+        const names = registry.names();
+        for (const n of names) registry.modelSchema(n);
+        return `${names.length} agent tools, each with a model schema`;
+      }),
+      await appleHelperCheck(o),
     );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
   return {
-    ok: checks.every((c) => c.status !== 'failed'),
+    // `skipped` fails (D-12); `notBuilt` is the one allowed non-pass (a no-apple build, D-16)
+    ok: checks.every((c) => c.status === 'passed' || c.status === 'notBuilt'),
     packaged: o.resources !== undefined,
     checks,
   };
 }
 
-function agentCheck(resources: string | undefined): SelfTestCheck {
-  const prices = resources === undefined ? undefined : join(resources, 'agent', 'prices.json');
-  if (prices === undefined || !existsSync(prices))
-    return {
-      name: 'agent-prices',
-      status: 'skipped',
-      detail: 'agent/prices.json arrives in phase 11',
-    };
+/** A vox sequence with a two-place `vox/map-route` scene compiles, places from the bundled data. */
+async function mapRouteCheck(engine: Engine): Promise<string> {
+  const a = engine.geo.search('lisbon')[0];
+  const b = engine.geo.search('porto')[0];
+  if (!a || !b) throw new Error('geo.search found no Lisbon or Porto');
+  const { id } = await engine.createProject('self-test-map');
+  const seqId = 'seq_selftestmap';
+  const apply = async (op: string, args: Record<string, unknown>) => {
+    const r = await engine.applyOp(id, { op, args } as unknown as OpCall, { actor: 'cli' });
+    if (!r.results.every((x) => x.status === 'succeeded'))
+      throw new Error(`${op} failed: ${JSON.stringify(r.results)}`);
+  };
+  await apply('addSequence', { name: 'Map', id: seqId, styleId: 'vox' });
+  const track = (await engine.getProject(id)).sequences.find((s) => s.id === seqId)?.videoTracks[0];
+  if (track === undefined) throw new Error('the new sequence has no video track');
+  const place = (p: { name: string; lat: number; lon: number }) => ({
+    name: p.name.slice(0, 20),
+    lat: p.lat,
+    lon: p.lon,
+  });
+  await apply('addScene', {
+    sequenceId: seqId,
+    trackId: track.id,
+    startMs: 0,
+    durationMs: 3500,
+    template: 'vox/map-route',
+    variables: { places: [place(a), place(b)], route: true },
+  });
+  const build = await engine.compile(id, seqId, { mode: 'render' });
+  const dir = await engine.writeBuild(build);
+  if (!existsSync(join(dir, 'index.html'))) throw new Error('map-route build wrote no index.html');
+  return `vox/map-route compiles: ${a.name} → ${b.name}`;
+}
+
+/**
+ * `vox-apple-llm --status` (D-16): any status passes; a missing or crashing helper fails when the
+ * build says it has one. A `pnpm dist:no-apple` build (`appleHelper: false`) reports `notBuilt`.
+ */
+async function appleHelperCheck(o: SelfTestOptions): Promise<SelfTestCheck> {
+  const name = 'apple-helper';
+  let expected: boolean;
+  let bin: string;
+  if (o.resources !== undefined) {
+    let info: { appleHelper?: unknown };
+    try {
+      info = JSON.parse(readFileSync(join(o.resources, 'build-info.json'), 'utf8')) as typeof info;
+    } catch (e) {
+      return { name, status: 'failed', detail: `build-info.json: ${String(e)}` };
+    }
+    expected = info.appleHelper === true;
+    bin = join(o.resources, 'bin', 'vox-apple-llm');
+  } else {
+    bin = o.appleHelper ?? '';
+    expected = bin !== '' && existsSync(bin);
+  }
+  if (!expected) {
+    return { name, status: 'notBuilt', detail: 'notBuilt: no macOS 26+ SDK' };
+  }
+  if (!isExecutable(bin)) return { name, status: 'failed', detail: `missing ${bin}` };
   try {
-    JSON.parse(readFileSync(prices, 'utf8'));
-    return { name: 'agent-prices', status: 'passed', detail: 'agent/prices.json loads' };
+    const s = await appleStatus({ command: bin });
+    return { name, status: 'passed', detail: `vox-apple-llm --status: ${s.status}` };
   } catch (e) {
-    return { name: 'agent-prices', status: 'failed', detail: `agent/prices.json: ${String(e)}` };
+    return {
+      name,
+      status: 'failed',
+      detail: `vox-apple-llm --status: ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
 }

@@ -5,7 +5,7 @@
 // it needs real providers, so it is not part of CI. Pauses are never approved (S20).
 import { createRedactor, openEngine, type Engine, type Project, type Redactor } from '@vox/engine';
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -283,10 +283,22 @@ async function main(argv: string[], redactor: Redactor): Promise<number> {
         .find((r) => r.provider === kind)?.model;
     if (!model) throw new Error(`no reference model for ${kind}; pass --model <id>`);
     const ref = { providerId: entry.id ?? values.provider, model };
-    conf = { ...conf, roles: { editor: ref, fast: ref, vision: ref } };
+    // the Apple on-device model has no vision; its runs use the text-only fallbacks
+    conf = {
+      ...conf,
+      roles:
+        kind === 'apple' ? { editor: ref, fast: ref } : { editor: ref, fast: ref, vision: ref },
+    };
   }
+  // the Apple helper as the CLI finds it: VOX_APPLE_LLM, else the dev build in native/apple-llm
+  const appleCommand =
+    process.env['VOX_APPLE_LLM'] ||
+    join(REPO_ROOT, 'native/apple-llm/.build/release/vox-apple-llm');
+  const apple = existsSync(appleCommand) ? { command: appleCommand } : undefined;
   const built = await buildRunModels(conf, cfgDeps, {
-    createModel: (entry, modelId, apiKey) => createLanguageModel(entry, modelId, { apiKey }),
+    createModel: (entry, modelId, apiKey) =>
+      createLanguageModel(entry, modelId, { apiKey, ...(apple && { apple }) }),
+    ...(apple && { apple }),
   });
   if (!built.models.editor) throw new Error('no editor model: set one, or pass --provider');
   const mode = (values.mode as AgentMode | undefined) ?? built.mode ?? 'tools';

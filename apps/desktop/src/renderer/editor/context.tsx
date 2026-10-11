@@ -5,6 +5,7 @@ import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { VoxApi } from '../../shared/api.ts';
 import type { MenuCommand } from '../../shared/commands.ts';
+import { createAgentStore, type AgentState, type AgentStore } from './agent-store.ts';
 import { createCommandRunner, type PlayerControl } from './commands.ts';
 import { createJobsStore, type JobsState, type JobsStore } from './jobs.ts';
 import { createEditorStore, type EditorState, type EditorStore } from './store.ts';
@@ -15,6 +16,7 @@ export interface EditorContext {
   editor: EditorStore;
   ui: UiStore;
   jobs: JobsStore;
+  agent: AgentStore;
   player: { current: PlayerControl | null };
   run(c: MenuCommand): void;
 }
@@ -24,7 +26,16 @@ export function createEditorContext(vox: VoxApi): EditorContext {
   const ui = createUiStore();
   const player: EditorContext['player'] = { current: null };
   const jobs = createJobsStore(vox);
-  return { vox, editor, ui, jobs, player, run: createCommandRunner({ vox, editor, ui, player }) };
+  const agent = createAgentStore(vox);
+  return {
+    vox,
+    editor,
+    ui,
+    jobs,
+    agent,
+    player,
+    run: createCommandRunner({ vox, editor, ui, player }),
+  };
 }
 
 const Ctx = createContext<EditorContext | null>(null);
@@ -49,6 +60,10 @@ export function useUi<T>(sel: (s: UiState) => T): T {
 
 export function useJobs<T>(sel: (s: JobsState) => T): T {
   return useStore(useCtx().jobs, sel);
+}
+
+export function useAgent<T>(sel: (s: AgentState) => T): T {
+  return useStore(useCtx().agent, sel);
 }
 
 /** For selectors that build a small object each time: re-renders only when a field changes. */

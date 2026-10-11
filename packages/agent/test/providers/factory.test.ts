@@ -132,6 +132,25 @@ describe('createLanguageModel: presets', () => {
     expect(r.body).toMatchObject({ options: { num_ctx: OLLAMA_DEFAULT_NUM_CTX, top_k: 5 } });
   });
 
+  test('ollama sends inline image bytes as a base64 data URI (provider 4.0.1 throws on bytes)', async () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+    const r = await captureRequest(
+      (fetch) => createLanguageModel(preset('ollama'), 'qwen3:8b', { apiKey: null, fetch }),
+      {
+        prompt: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'colour?' },
+              { type: 'file', mediaType: 'image/png', data: { type: 'data', data: png } },
+            ],
+          },
+        ] as never,
+      },
+    );
+    expect(JSON.stringify(r.body)).toContain(Buffer.from(png).toString('base64'));
+  });
+
   test('a generic openai-compatible entry without a preset may be keyless', async () => {
     const entry: ProviderEntry = {
       id: 'vllm',

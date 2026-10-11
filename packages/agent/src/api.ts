@@ -1,7 +1,7 @@
 // The public API of @vox/agent: provider config and keys, the provider layer (presets, models,
 // probe, roles, prices), the tool layer and the agent loop. The app (phase 13) and the CLI import
 // only from here.
-export const version = '0.0.0';
+export const version = '1.0.0';
 
 export * from './config/store.ts';
 export * from './config/keychain.ts';

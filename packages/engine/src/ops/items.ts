@@ -178,7 +178,8 @@ export function placeClip(
   };
   clip.inMs = snapIn(p, s, clip, a.inMs);
   let end: number;
-  if (a.durationMs !== undefined) end = snapT(s, start + a.durationMs);
+  // the end snaps on its own (not start + duration), so items that meet at a ms still meet
+  if (a.durationMs !== undefined) end = snapT(s, a.startMs + a.durationMs);
   else if (media.durationMs !== undefined && media.kind !== 'image') {
     end = snapDown(start + media.durationMs - clip.inMs, s.canvas.fps);
   } else {

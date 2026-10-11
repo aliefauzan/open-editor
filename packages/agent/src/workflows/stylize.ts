@@ -70,6 +70,39 @@ export function pairOf(s: Sequence): PairItem[] {
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+const PAIR_TRACKS = new Set(['V1', 'A1']);
+
+/**
+ * Whether this run's own writes since `sinceVersion` changed what Stylize keeps on the sequence: a
+ * V1/A1 media clip, the sourceRange or a caption edit. The user may edit the clip during the run
+ * (D-15: the marked tab takes edits); those changes are theirs and do not miss the checkpoint.
+ */
+async function runChangedKept(
+  run: AgentRun,
+  sequenceId: string,
+  sinceVersion: number,
+): Promise<boolean> {
+  const mine = new Set(run.versions);
+  const entries = await run.ctx.engine.history(run.ctx.projectId, { sinceVersion });
+  const pairEntity = (e: Record<string, unknown> | null) =>
+    e !== null && e.type === 'media' && PAIR_TRACKS.has(String(e.trackId));
+  for (const e of entries) {
+    if (!((e.actor === 'agent' && e.runId === run.runId) || mine.has(e.version))) continue;
+    for (const c of e.changes) {
+      if (c.key.startsWith(`item:${sequenceId}/`) && (pairEntity(c.before) || pairEntity(c.after)))
+        return true;
+      if (c.key.startsWith(`captionOverride:${sequenceId}/`)) return true;
+      if (
+        c.key === `sequence:${sequenceId}` &&
+        JSON.stringify(c.before?.sourceRange ?? null) !==
+          JSON.stringify(c.after?.sourceRange ?? null)
+      )
+        return true;
+    }
+  }
+  return false;
+}
+
 export function sceneItems(s: Sequence) {
   return s.videoTracks
     .filter((t) => t.id !== 'V1')
@@ -320,10 +353,12 @@ export async function stylizeSequences(
     }
 
     // storyboard: the pair, range and caption edits kept; at least one scene placed
+    // a change made by someone else during the run (the user's trim on the marked tab) is not a miss
     const kept =
-      JSON.stringify(pairOf(s)) === pair0 &&
-      JSON.stringify(s.sourceRange ?? null) === range0 &&
-      JSON.stringify(s.captions?.overrides ?? []) === overrides0;
+      (JSON.stringify(pairOf(s)) === pair0 &&
+        JSON.stringify(s.sourceRange ?? null) === range0 &&
+        JSON.stringify(s.captions?.overrides ?? []) === overrides0) ||
+      !(await runChangedKept(run, sequenceId, before.version));
     if (!kept)
       cp.missed('storyboard', sequenceId, 'the V1/A1 pair, sourceRange or a caption edit changed');
     else if (scenes.length === 0) cp.missed('storyboard', sequenceId, 'no scene placed');

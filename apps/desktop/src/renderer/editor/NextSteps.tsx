@@ -1,8 +1,9 @@
 // The bar above the preview after quick clips (app spec "Quick clips (start screen)"; plan D-11): Fix
-// subtitles, Add style ("Captions only" now; "Add style beats" needs a model, phase 13), Export.
+// subtitles, Add style ("Captions only", or "Add style beats": a Stylize run with the editor model,
+// phase 13), Export.
 import { useState } from 'react';
 import type { ResolvedStyleData, StyleSummaryData } from '../../shared/project.ts';
-import { useCtx, useEditor, useUi } from './context.tsx';
+import { useAgent, useCtx, useEditor, useUi } from './context.tsx';
 import type { OpCall } from './store.ts';
 
 /** "Captions only": one batch of `updateSequence { styleId, overlays: [] }` + the style's preset. */
@@ -21,12 +22,30 @@ export function captionsOnlyOp(sequenceId: string, style: ResolvedStyleData): Op
 }
 
 export function NextSteps() {
-  const { vox, editor, ui } = useCtx();
+  const { vox, editor, ui, agent, run } = useCtx();
   const show = useUi((s) => s.nextSteps);
   const note = useUi((s) => s.quickNote);
   const sequenceId = useEditor((s) => s.sequenceId);
   const [styles, setStyles] = useState<StyleSummaryData[] | null>(null);
+  const hasModel = useAgent((s) => s.settings?.roles.editor !== undefined);
   if (!show) return null;
+  /** "Add style beats": the clip takes the style, then a Stylize run adds its scenes (one run, D-11). */
+  const styleBeats = async (id: string, name: string) => {
+    if (!sequenceId) return;
+    setStyles(null);
+    try {
+      const st = editor.getState();
+      const seq = st.project?.sequences.find((q) => q.id === sequenceId);
+      if (seq && seq.styleId !== id)
+        await st.apply({ op: 'updateSequence', args: { sequenceId, styleId: id } });
+      await agent.getState().send(`Add ${name} style beats to this clip`, {
+        selection: [sequenceId],
+        workflow: 'stylize',
+      });
+    } catch (e) {
+      editor.getState().toast(e);
+    }
+  };
   const btn = 'rounded bg-neutral-800 px-2.5 py-1 text-xs hover:bg-neutral-700';
   const captionsOnly = async (id: string) => {
     if (!sequenceId) return;
@@ -88,18 +107,30 @@ export function NextSteps() {
                   <button
                     type="button"
                     role="menuitem"
-                    className={`${btn} opacity-50`}
-                    disabled
-                    title="needs a model — Settings"
+                    className={`${btn} ${hasModel ? '' : 'opacity-50'}`}
+                    disabled={!hasModel}
+                    aria-label={`Add style beats: ${s.name}`}
+                    title={
+                      hasModel
+                        ? 'The agent adds scenes from this style'
+                        : 'needs a model — Settings'
+                    }
+                    onClick={() => void styleBeats(s.id, s.name)}
                   >
                     Add style beats
                   </button>
                 </span>
               </div>
             ))}
-            <p className="mt-1 text-[11px] text-neutral-400">
-              &quot;Add style beats&quot; needs a model — Settings.
-            </p>
+            {!hasModel && (
+              <p className="mt-1 text-[11px] text-neutral-400">
+                &quot;Add style beats&quot; needs a model —{' '}
+                <button type="button" className="underline" onClick={() => run('settings')}>
+                  Settings
+                </button>
+                .
+              </p>
+            )}
           </div>
         )}
       </div>

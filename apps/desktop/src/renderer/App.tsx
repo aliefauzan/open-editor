@@ -4,6 +4,7 @@ import { createEditorContext, EditorProvider } from './editor/context.tsx';
 import { Editor } from './editor/Editor.tsx';
 import { fewerNote } from './editor/quick-flow.ts';
 import { QuickStart } from './editor/QuickStart.tsx';
+import { SettingsDialog } from './Settings.tsx';
 import { SetupNotices, SetupScreen } from './Setup.tsx';
 import { useSetup } from './setup-store.ts';
 import { useShell } from './store.ts';
@@ -14,6 +15,8 @@ export function App() {
   const ctx = useMemo(() => createEditorContext(window.vox), []);
   const openId = useStore(ctx.editor, (x) => x.projectId);
   const openError = useStore(ctx.editor, (x) => x.openError);
+  const settingsOpen = useStore(ctx.ui, (x) => x.settingsOpen);
+  const settingsFocus = useStore(ctx.ui, (x) => x.settingsFocus);
   useEffect(() => {
     // once on mount; store actions come from getState() so the effect has no dependencies
     void useShell.getState().loadProjects();
@@ -91,6 +94,12 @@ export function App() {
                 }}
               />
             </>
+          )}
+          {settingsOpen && (
+            <SettingsDialog
+              focus={settingsFocus}
+              onClose={() => ctx.ui.getState().set({ settingsOpen: false, settingsFocus: null })}
+            />
           )}
         </EditorProvider>
       </div>

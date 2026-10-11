@@ -1,1 +1,1 @@
-S31: 5646 files hashed in Vox Studio.app before and after setup + compile; changed: 0
+S31: 5718 files hashed in Vox Studio.app before and after setup + compile; changed: 0

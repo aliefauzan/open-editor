@@ -10,6 +10,7 @@ import {
   type Project,
   type TemplateInfo,
   type TemplateLookup,
+  validateVariables,
 } from '@vox/engine';
 import type { ModelMessage } from 'ai';
 import { z } from 'zod';
@@ -45,7 +46,8 @@ export const ClipPlanSchema = z.strictObject({
                 variables: z.record(z.string(), z.unknown()).optional(),
                 imageQueries: z.array(z.string().trim().min(1).max(200)).max(4).optional(),
               })
-              .refine((b) => b.endMs > b.startMs, { message: 'endMs must be after startMs' })
+              // a beat that does not end after it starts is dropped as a repair (clipPlanToOps), so
+              // one slip among many beats of a small model does not reject the whole plan
               .refine((b) => b.kind === 'speaker' || (b.template ?? '') !== '', {
                 message: 'a scene beat needs a template',
               }),
@@ -77,6 +79,21 @@ export interface Repair {
   beat: number;
   sequenceId: string;
   what: string;
+}
+
+/**
+ * The retry hint for a plan with nothing to apply: says why each scene beat was dropped (a caption
+ * preset used as a scene template, a beat that does not fit), so the next answer can fix it.
+ */
+export function emptyPlanHint(repairs: readonly Repair[]): string {
+  const dropped = repairs.filter((r) => r.what.startsWith('dropped'));
+  if (dropped.length === 0)
+    return 'Plan at least one change: add a scene beat with a scene template from the list.';
+  const why = dropped
+    .slice(0, 8)
+    .map((r) => r.what.replace(/^dropped: /, ''))
+    .join('; ');
+  return `Plan at least one change. Scene beats not applied: ${why}. Use scene templates from the list.`;
 }
 
 const issuesOf = (e: z.ZodError) =>
@@ -144,6 +161,13 @@ const fillableSlots = (t: TemplateInfo) =>
     ([path, kind]) => /^[A-Za-z0-9_]+$/.test(path) && (kind === 'image' || kind === 'cutout'),
   );
 
+/** Media slots inside an array (slot path `items/<any>/media`): [array variable, field, kind]. */
+const nestedSlots = (t: TemplateInfo) =>
+  Object.entries(t.slots).flatMap(([path, kind]) => {
+    const m = /^([A-Za-z0-9_]+)\/\*\/([A-Za-z0-9_]+)$/.exec(path);
+    return m && (kind === 'image' || kind === 'cutout') ? [[m[1]!, m[2]!, kind] as const] : [];
+  });
+
 /** Engine media id from an aliased tool result. */
 function mediaIdOf(run: AgentRun, result: unknown): string | undefined {
   const r = (result as { result?: { mediaId?: unknown } } | undefined)?.result;
@@ -204,13 +228,11 @@ export async function clipPlanToOps(
       (t) => t.id !== 'V1' && t.items.every((it) => it.type !== 'media'),
     );
     let trackId = free?.id;
+    // the Scenes track is added only when at least one scene beat of this sequence applies
+    const addTrackAt = trackId ? -1 : ops.length;
     if (!trackId) {
       const n = Math.max(0, ...seq.videoTracks.map((t) => Number(t.id.slice(1)))) + 1;
       trackId = `V${String(n)}`;
-      ops.push({
-        op: 'addTrack',
-        args: { sequenceId: sp.sequenceId, kind: 'video', name: 'Scenes' },
-      });
     }
     const occupied = (free?.items ?? []).map(
       (it) => [it.startMs, it.startMs + it.durationMs] as const,
@@ -220,6 +242,10 @@ export async function clipPlanToOps(
     for (const [i, b] of beats.entries()) {
       if (b.kind !== 'scene') continue;
       const note = (what: string) => repairs.push({ beat: i, sequenceId: sp.sequenceId, what });
+      if (b.endMs <= b.startMs) {
+        note(`dropped: ends at ${String(b.endMs)}, not after its start ${String(b.startMs)}`);
+        continue;
+      }
       let template = b.template as string;
       let t = templates.get(template);
       if (!t || t.kind !== 'scene') {
@@ -249,6 +275,65 @@ export async function clipPlanToOps(
         break;
       }
       if (!t) continue;
+      // Pictures inside an array (paper-collage `items/*/media`): the model was told to leave image
+      // slots empty, so an entry that does not name a picture of the project gets one from the beat's
+      // next image query, or from its own text when the model wrote a description there. No picture
+      // for an entry → the scene becomes a placeholder, as for a top-level slot.
+      for (const [arr, field, kind] of template === PLACEHOLDER_TEMPLATE ? [] : nestedSlots(t)) {
+        const list = variables[arr];
+        if (!Array.isArray(list)) continue;
+        const filled: unknown[] = [];
+        let missing: string | undefined;
+        for (const el of list) {
+          if (typeof el !== 'object' || el === null) continue;
+          const entry = { ...(el as Record<string, unknown>) };
+          const v = typeof entry[field] === 'string' ? (entry[field] as string).trim() : '';
+          if (p.media.some((m) => m.id === v && m.kind === 'image')) {
+            filled.push(entry);
+            continue;
+          }
+          const q = queries.shift() ?? (/\s/.test(v) ? v.slice(0, 120) : undefined);
+          const id = q === undefined ? undefined : await fillSlot(run, q, kind);
+          if (!id) {
+            missing = q ?? `${arr} ${field}`;
+            break;
+          }
+          entry[field] = id;
+          filled.push(entry);
+        }
+        if (missing === undefined) {
+          variables = { ...variables, [arr]: filled };
+          continue;
+        }
+        const ph = templates.get(PLACEHOLDER_TEMPLATE);
+        if (!ph) {
+          note(`dropped: no picture for ${missing} and no placeholder template`);
+          t = undefined;
+          break;
+        }
+        note(`placeholder: no picture for ${missing}`);
+        template = PLACEHOLDER_TEMPLATE;
+        variables = { label: `Picture: ${missing}`.slice(0, 120) };
+        t = ph;
+        break;
+      }
+      if (!t) continue;
+      // Variables that still do not fit the template (a required array left out) would fail the
+      // whole batch: the scene becomes a placeholder instead, with the reason in the repairs.
+      if (template !== PLACEHOLDER_TEMPLATE) {
+        const problem = await variablesProblem(run, t, variables, templates);
+        const ph = problem === undefined ? undefined : templates.get(PLACEHOLDER_TEMPLATE);
+        if (problem !== undefined && !ph) {
+          note(`dropped: ${template} variables do not fit (${problem})`);
+          continue;
+        }
+        if (problem !== undefined && ph) {
+          note(`placeholder: ${template} variables do not fit (${problem})`);
+          variables = { label: `Scene: ${template}`.slice(0, 120) };
+          template = PLACEHOLDER_TEMPLATE;
+          t = ph;
+        }
+      }
       let start = clamp(Math.max(b.startMs, prevEnd), 0, end);
       if (start !== b.startMs) note(`start moved ${String(b.startMs)} → ${String(start)}`);
       let dur = clamp(b.endMs - b.startMs, t.durationMs.min, t.durationMs.max);
@@ -277,8 +362,31 @@ export async function clipPlanToOps(
         },
       });
     }
+    if (addTrackAt >= 0 && ops.length > addTrackAt)
+      ops.splice(addTrackAt, 0, {
+        op: 'addTrack',
+        args: { sequenceId: sp.sequenceId, kind: 'video', name: 'Scenes' },
+      });
   }
   return { ops, repairs };
+}
+
+/** Why the variables do not fit the template (the engine's own check), or undefined when they do. */
+async function variablesProblem(
+  run: AgentRun,
+  t: TemplateInfo,
+  variables: Record<string, unknown>,
+  templates: TemplateLookup,
+): Promise<string | undefined> {
+  // pictures found for this plan were added to the project after the plan started: read it again
+  const p = await run.ctx.engine.getProject(run.ctx.projectId);
+  try {
+    validateVariables(t, variables, templates, p);
+    return undefined;
+  } catch (err) {
+    if (!isVoxError(err)) throw err;
+    return err.message.slice(0, 200);
+  }
 }
 
 /** Templates of the project's style (default when the run has no lookup). */
@@ -396,7 +504,7 @@ export async function planTurn(run: AgentRun, opts: TurnOptions): Promise<TurnRe
           throw new VoxError(
             'PLAN_INVALID',
             'the plan has nothing to apply',
-            'Plan at least one change.',
+            emptyPlanHint(repairs),
           );
       } catch (err) {
         if (!isVoxError(err) || err.code !== 'PLAN_INVALID') throw err;

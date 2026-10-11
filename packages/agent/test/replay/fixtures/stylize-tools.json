@@ -10,10 +10,10 @@
   },
   "lines": [
     {
-      "ts": "2026-10-11T16:29:17.523Z",
+      "ts": "2026-10-11T19:56:57.550Z",
       "type": "started",
       "runId": "run_wftest0001",
-      "projectId": "p_mv41g241hwh1",
+      "projectId": "p_mv48v4ei194l",
       "workflow": "stylize",
       "mode": "tools",
       "models": {
@@ -40,12 +40,12 @@
       "version": 5
     },
     {
-      "ts": "2026-10-11T16:29:17.539Z",
+      "ts": "2026-10-11T19:56:57.567Z",
       "type": "tool",
       "tool": "update_sequence",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv41g370e27z",
+        "sequenceId": "seq_mv48v5eqe9h2",
         "styleId": "vox"
       },
       "result": {
@@ -62,12 +62,12 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.555Z",
+      "ts": "2026-10-11T19:56:57.584Z",
       "type": "tool",
       "tool": "set_captions",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv41g370e27z",
+        "sequenceId": "seq_mv48v5eqe9h2",
         "enabled": true,
         "preset": "vox/mono-box"
       },
@@ -85,11 +85,11 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.560Z",
+      "ts": "2026-10-11T19:56:57.590Z",
       "type": "step",
       "step": 1,
       "subRun": 1,
-      "scope": ["seq_mv41g370e27z"],
+      "scope": ["seq_mv48v5eqe9h2"],
       "text": "",
       "calls": [
         {
@@ -133,7 +133,7 @@
       "spentUsd": 0.00014
     },
     {
-      "ts": "2026-10-11T16:29:17.577Z",
+      "ts": "2026-10-11T19:56:57.607Z",
       "type": "tool",
       "callId": "call_1_0",
       "tool": "add_scene",
@@ -160,7 +160,7 @@
                 "template": "vox/kinetic-serif",
                 "templateVersion": "1.0.0",
                 "startMs": 767,
-                "durationMs": 1766,
+                "durationMs": 1733,
                 "variables": {
                   "text": "A long video"
                 },
@@ -176,12 +176,12 @@
       "versions": [8],
       "changes": [
         {
-          "key": "item:seq_mv41g370e27z/it_mv41g3994j12",
+          "key": "item:seq_mv48v5eqe9h2/it_mv48v5h70oo1",
           "before": null,
           "after": {
-            "id": "it_mv41g3994j12",
+            "id": "it_mv48v5h70oo1",
             "startMs": 767,
-            "durationMs": 1766,
+            "durationMs": 1733,
             "type": "scene",
             "template": "vox/kinetic-serif",
             "templateVersion": "1.0.0",
@@ -195,7 +195,7 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.582Z",
+      "ts": "2026-10-11T19:56:57.623Z",
       "type": "tool",
       "callId": "call_1_1",
       "tool": "add_scene",
@@ -211,27 +211,60 @@
         "sfxOff": ["reveal"]
       },
       "result": {
-        "version": 8,
+        "version": 9,
         "results": [
           {
             "op": "addScene",
-            "status": "failed",
-            "error": {
-              "code": "OVERLAP",
-              "message": "Item it_mv41g39p8xuj overlaps it_mv41g3994j12 on track V2",
-              "hint": "Pick a free time, or pass onOverlap: 'overwrite' or 'insert'"
+            "status": "succeeded",
+            "items": [
+              {
+                "id": "c4",
+                "type": "scene",
+                "template": "vox/kinetic-serif",
+                "templateVersion": "1.0.0",
+                "startMs": 2500,
+                "durationMs": 2000,
+                "variables": {
+                  "text": "A short clip"
+                },
+                "sfxOff": ["reveal"],
+                "trackId": "V2"
+              }
+            ],
+            "report": {
+              "itemIds": ["c4"]
             }
           }
         ]
       },
+      "versions": [9],
+      "changes": [
+        {
+          "key": "item:seq_mv48v5eqe9h2/it_mv48v5hn0b3q",
+          "before": null,
+          "after": {
+            "id": "it_mv48v5hn0b3q",
+            "startMs": 2500,
+            "durationMs": 2000,
+            "type": "scene",
+            "template": "vox/kinetic-serif",
+            "templateVersion": "1.0.0",
+            "variables": {
+              "text": "A short clip"
+            },
+            "sfxOff": ["reveal"],
+            "trackId": "V2"
+          }
+        }
+      ],
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.586Z",
+      "ts": "2026-10-11T19:56:57.629Z",
       "type": "step",
       "step": 2,
       "subRun": 1,
-      "scope": ["seq_mv41g370e27z"],
+      "scope": ["seq_mv48v5eqe9h2"],
       "text": "",
       "calls": [
         {
@@ -239,7 +272,7 @@
           "toolName": "view_frames",
           "input": {
             "sequenceId": "s1",
-            "atSeqMs": [1650]
+            "atSeqMs": [1634, 3500]
           }
         },
         {
@@ -261,19 +294,24 @@
       "spentUsd": 0.00028
     },
     {
-      "ts": "2026-10-11T16:29:17.587Z",
+      "ts": "2026-10-11T19:56:57.630Z",
       "type": "tool",
       "callId": "call_2_0",
       "tool": "view_frames",
       "args": {
         "sequenceId": "s1",
-        "atSeqMs": [1650]
+        "atSeqMs": [1634, 3500]
       },
       "result": {
         "frames": [
           {
-            "seqMs": 1650,
-            "srcMs": 10450,
+            "seqMs": 1634,
+            "srcMs": 10434,
+            "health": []
+          },
+          {
+            "seqMs": 3500,
+            "srcMs": 12300,
             "health": []
           }
         ],
@@ -282,7 +320,7 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.587Z",
+      "ts": "2026-10-11T19:56:57.631Z",
       "type": "tool",
       "callId": "call_2_1",
       "tool": "check_audio",
@@ -376,11 +414,11 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.594Z",
+      "ts": "2026-10-11T19:56:57.637Z",
       "type": "step",
       "step": 3,
       "subRun": 1,
-      "scope": ["seq_mv41g370e27z"],
+      "scope": ["seq_mv48v5eqe9h2"],
       "text": "Placed the scenes.",
       "calls": [],
       "usage": {
@@ -394,40 +432,41 @@
       "spentUsd": 0.00041999999999999996
     },
     {
-      "ts": "2026-10-11T16:29:17.594Z",
+      "ts": "2026-10-11T19:56:57.637Z",
       "type": "subRun",
       "subRun": 1,
-      "scope": ["seq_mv41g370e27z"],
+      "scope": ["seq_mv48v5eqe9h2"],
       "status": "completed",
       "summary": "Placed the scenes.",
       "steps": 3
     },
     {
-      "ts": "2026-10-11T16:29:17.594Z",
+      "ts": "2026-10-11T19:56:57.638Z",
       "type": "aliases",
       "table": {
-        "s1": "seq_mv41g370e27z",
-        "c1": "it_mv41g374dcv1",
-        "m1": "m_mv41g24h9nbe",
-        "c2": "it_mv41g374dcv2",
-        "c3": "it_mv41g3994j12"
+        "s1": "seq_mv48v5eqe9h2",
+        "c1": "it_mv48v5eu1te9",
+        "m1": "m_mv48v4f1403j",
+        "c2": "it_mv48v5eu1tea",
+        "c3": "it_mv48v5h70oo1",
+        "c4": "it_mv48v5hn0b3q"
       }
     },
     {
-      "ts": "2026-10-11T16:29:17.610Z",
+      "ts": "2026-10-11T19:56:57.655Z",
       "type": "tool",
       "tool": "set_transition",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv41g370e27z",
-        "itemId": "it_mv41g3994j12",
+        "sequenceId": "seq_mv48v5eqe9h2",
+        "itemId": "it_mv48v5h70oo1",
         "transition": {
           "template": "vox/paper-tear",
           "durationMs": 700
         }
       },
       "result": {
-        "version": 9,
+        "version": 10,
         "results": [
           {
             "op": "setTransition",
@@ -436,7 +475,7 @@
               {
                 "id": "c3",
                 "startMs": 767,
-                "durationMs": 1766,
+                "durationMs": 1733,
                 "type": "scene",
                 "template": "vox/kinetic-serif",
                 "templateVersion": "1.0.0",
@@ -453,23 +492,72 @@
           }
         ]
       },
-      "versions": [9],
+      "versions": [10],
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.611Z",
+      "ts": "2026-10-11T19:56:57.671Z",
+      "type": "tool",
+      "tool": "set_transition",
+      "by": "workflow",
+      "args": {
+        "sequenceId": "seq_mv48v5eqe9h2",
+        "itemId": "it_mv48v5hn0b3q",
+        "transition": {
+          "template": "vox/paper-tear",
+          "durationMs": 700
+        }
+      },
+      "result": {
+        "version": 11,
+        "results": [
+          {
+            "op": "setTransition",
+            "status": "succeeded",
+            "items": [
+              {
+                "id": "c4",
+                "startMs": 2500,
+                "durationMs": 2000,
+                "type": "scene",
+                "template": "vox/kinetic-serif",
+                "templateVersion": "1.0.0",
+                "variables": {
+                  "text": "A short clip"
+                },
+                "sfxOff": ["reveal"],
+                "transitionIn": {
+                  "template": "vox/paper-tear",
+                  "durationMs": 700
+                },
+                "trackId": "V2"
+              }
+            ]
+          }
+        ]
+      },
+      "versions": [11],
+      "subRun": 1
+    },
+    {
+      "ts": "2026-10-11T19:56:57.672Z",
       "type": "tool",
       "tool": "view_frames",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv41g370e27z",
-        "atSeqMs": [1650]
+        "sequenceId": "seq_mv48v5eqe9h2",
+        "atSeqMs": [1633, 3500]
       },
       "result": {
         "frames": [
           {
-            "seqMs": 1650,
-            "srcMs": 10450,
+            "seqMs": 1633,
+            "srcMs": 10433,
+            "health": []
+          },
+          {
+            "seqMs": 3500,
+            "srcMs": 12300,
             "health": []
           }
         ],
@@ -478,12 +566,12 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.611Z",
+      "ts": "2026-10-11T19:56:57.672Z",
       "type": "tool",
       "tool": "check_audio",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv41g370e27z"
+        "sequenceId": "seq_mv48v5eqe9h2"
       },
       "result": {
         "pass": true,
@@ -572,20 +660,21 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T16:29:17.611Z",
+      "ts": "2026-10-11T19:56:57.672Z",
       "type": "done",
       "runId": "run_wftest0001",
       "status": "completed",
-      "summary": "Styled 1 clip(s).\nNo fast model: the heuristic scorer picks moments and every free-form turn is an edit.\nNo vision model: frames and qa.png are checked by numbers and flags only.\nSub-run 1 (s1): completed. Placed the scenes.\nClip s1: completed; 1 scene(s), speaker 65 %. Frame-health flags: none. Audio QA PASS; -14.2 LUFS, true peak -1.4 dBTP. Listen at 00:00.600, 00:01.500, 00:02.600, 00:03.400, 00:04.800 and check by ear (the agent measures; it cannot hear). Edges: vox/paper-tear added on c3. Skipped: no vision model: frames and qa.png were not described.",
+      "summary": "Styled 1 clip(s).\nNo fast model: the heuristic scorer picks moments and every free-form turn is an edit.\nNo vision model: frames and qa.png are checked by numbers and flags only.\nSub-run 1 (s1): completed. Placed the scenes.\nClip s1: completed; 2 scene(s), speaker 25 %. Frame-health flags: none. Audio QA PASS; -14.2 LUFS, true peak -1.4 dBTP. Listen at 00:00.600, 00:01.500, 00:02.600, 00:03.400, 00:04.800 and check by ear (the agent measures; it cannot hear). Edges: vox/paper-tear added on c3; vox/paper-tear added on c4. Skipped: no vision model: frames and qa.png were not described.",
       "costUsd": 0.00042,
-      "versions": [6, 7, 8, 9],
+      "versions": [6, 7, 8, 9, 10, 11],
       "todos": [],
       "aliases": {
-        "s1": "seq_mv41g370e27z",
-        "c1": "it_mv41g374dcv1",
-        "m1": "m_mv41g24h9nbe",
-        "c2": "it_mv41g374dcv2",
-        "c3": "it_mv41g3994j12"
+        "s1": "seq_mv48v5eqe9h2",
+        "c1": "it_mv48v5eu1te9",
+        "m1": "m_mv48v4f1403j",
+        "c2": "it_mv48v5eu1tea",
+        "c3": "it_mv48v5h70oo1",
+        "c4": "it_mv48v5hn0b3q"
       }
     }
   ]

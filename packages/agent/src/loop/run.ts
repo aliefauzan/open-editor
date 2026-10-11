@@ -431,6 +431,8 @@ export class AgentRun {
       const what = e.kind === 'op' ? (e.op ?? 'edit') : e.kind;
       lines.push(`- v${String(e.version)} by ${e.actor}: ${what} → ${touched.join(', ')}`);
     }
+    // the run record keeps the note with the step it goes before (the activity log, D-15)
+    if (lines.length > 0) this.record.write({ type: 'changeNote', step: this.#step, lines });
     return lines.length === 0
       ? ''
       : `Changes since your last step (not yours; re-read before editing these):\n${lines.join('\n')}`;
