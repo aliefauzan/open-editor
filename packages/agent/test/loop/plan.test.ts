@@ -269,6 +269,49 @@ describe('plan mode (step 9)', () => {
     ]);
   });
 
+  test('ClipPlan: a scene whose variables do not fit its template becomes a placeholder', async () => {
+    const f = await fixtureProject({ engine: { templates: lookup } });
+    const m = scriptedModel([
+      {
+        json: {
+          sequences: [
+            {
+              sequenceId: 's1',
+              beats: [
+                // a collage without its required `items`: the batch would fail as a whole
+                { startMs: 1000, endMs: 3000, kind: 'scene', template: 'base/collage' },
+                {
+                  startMs: 5000,
+                  endMs: 7000,
+                  kind: 'scene',
+                  template: 'base/title',
+                  variables: { title: 'Kept' },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+    const { deps } = runDeps(f, roleModel(m.model), { templates: lookup });
+    const { done, run } = await runAgent(deps, req(f, { planKind: 'clip' }));
+    expect(done.status, done.summary).toBe('completed');
+    expect(m.prompts).toHaveLength(1);
+    const seq = (await f.engine.getProject(f.projectId)).sequences[0]!;
+    const scenes = seq.videoTracks.find((t) => t.id === 'V2')!.items as {
+      template?: string;
+      variables?: Record<string, unknown>;
+    }[];
+    expect(scenes.map((s) => [s.template, s.variables])).toEqual([
+      ['base/placeholder', { label: 'Scene: base/collage' }],
+      ['base/title', { title: 'Kept' }],
+    ]);
+    const rec = readRunRecord(run.record.path).find((l) => l.tool === 'batch');
+    expect(JSON.stringify(rec?.['repairs'])).toMatch(
+      /placeholder: base\/collage variables do not fit \(.*items/,
+    );
+  });
+
   test('ClipPlan: a beat that does not end after its start is dropped, the rest applies', async () => {
     const f = await fixtureProject({ engine: { templates: lookup } });
     const beat = (startMs: number, endMs: number, title: string) => ({

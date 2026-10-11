@@ -10,6 +10,7 @@ import {
   type Project,
   type TemplateInfo,
   type TemplateLookup,
+  validateVariables,
 } from '@vox/engine';
 import type { ModelMessage } from 'ai';
 import { z } from 'zod';
@@ -317,6 +318,22 @@ export async function clipPlanToOps(
         break;
       }
       if (!t) continue;
+      // Variables that still do not fit the template (a required array left out) would fail the
+      // whole batch: the scene becomes a placeholder instead, with the reason in the repairs.
+      if (template !== PLACEHOLDER_TEMPLATE) {
+        const problem = await variablesProblem(run, t, variables, templates);
+        const ph = problem === undefined ? undefined : templates.get(PLACEHOLDER_TEMPLATE);
+        if (problem !== undefined && !ph) {
+          note(`dropped: ${template} variables do not fit (${problem})`);
+          continue;
+        }
+        if (problem !== undefined && ph) {
+          note(`placeholder: ${template} variables do not fit (${problem})`);
+          variables = { label: `Scene: ${template}`.slice(0, 120) };
+          template = PLACEHOLDER_TEMPLATE;
+          t = ph;
+        }
+      }
       let start = clamp(Math.max(b.startMs, prevEnd), 0, end);
       if (start !== b.startMs) note(`start moved ${String(b.startMs)} → ${String(start)}`);
       let dur = clamp(b.endMs - b.startMs, t.durationMs.min, t.durationMs.max);
@@ -352,6 +369,24 @@ export async function clipPlanToOps(
       });
   }
   return { ops, repairs };
+}
+
+/** Why the variables do not fit the template (the engine's own check), or undefined when they do. */
+async function variablesProblem(
+  run: AgentRun,
+  t: TemplateInfo,
+  variables: Record<string, unknown>,
+  templates: TemplateLookup,
+): Promise<string | undefined> {
+  // pictures found for this plan were added to the project after the plan started: read it again
+  const p = await run.ctx.engine.getProject(run.ctx.projectId);
+  try {
+    validateVariables(t, variables, templates, p);
+    return undefined;
+  } catch (err) {
+    if (!isVoxError(err)) throw err;
+    return err.message.slice(0, 200);
+  }
 }
 
 /** Templates of the project's style (default when the run has no lookup). */
