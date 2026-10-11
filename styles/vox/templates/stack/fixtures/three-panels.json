@@ -1,0 +1,26 @@
+{
+  "panels": [
+    {
+      "template": "vox/year-card",
+      "variables": { "year": "1952", "tag": "De Havilland Comet", "photo": "m_img" }
+    },
+    {
+      "template": "vox/stat",
+      "variables": {
+        "value": "2 billion cups.",
+        "line2": "Every single day.",
+        "bgPhoto": "m_img",
+        "tag": "The world's coffee habit"
+      }
+    },
+    {
+      "template": "vox/framed-portrait",
+      "variables": {
+        "media": "m_img",
+        "frame": "gold",
+        "stamp": "GONE",
+        "tag": "The Louvre, August 21, 1911"
+      }
+    }
+  ]
+}

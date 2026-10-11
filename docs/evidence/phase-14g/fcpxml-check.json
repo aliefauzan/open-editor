@@ -1,0 +1,14 @@
+{
+  "file": "real.fcpxml",
+  "dtdValid": true,
+  "project": "Demo \u2013 Main",
+  "durationS": 3.0,
+  "assets": 3,
+  "spineClips": 1,
+  "videoRefs": 3,
+  "audioRefs": 1,
+  "nestedClips": 3,
+  "problems": [],
+  "pass": true,
+  "note": "Automated stand-in; not imported in an NLE (Final Cut Pro and Resolve not installed)."
+}

@@ -149,8 +149,14 @@ const trackFields = {
   items: z.array(ItemSchema),
 };
 export const VideoTrackSchema = z.strictObject({ id: VideoTrackIdSchema, ...trackFields });
-export const AudioTrackSchema = z.strictObject({ id: AudioTrackIdSchema, ...trackFields });
-export const TrackSchema = z.strictObject({ id: TrackIdSchema, ...trackFields });
+/** v1.1 (plan 14f): audio tracks only. `true` ducks the track under the speech tracks in the mix. */
+const duckField = { duck: z.boolean().optional() };
+export const AudioTrackSchema = z.strictObject({
+  id: AudioTrackIdSchema,
+  ...trackFields,
+  ...duckField,
+});
+export const TrackSchema = z.strictObject({ id: TrackIdSchema, ...trackFields, ...duckField });
 
 export const CaptionOverrideSchema = z
   .strictObject({

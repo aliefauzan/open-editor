@@ -46,7 +46,7 @@ It is built in two phases (overview build order):
 - Windows and Linux builds; Intel Macs (mlx-whisper needs Apple Silicon).
 - Multiplayer, accounts, cloud hosting, mobile.
 - Colour grading and advanced audio mixing (the "Color" / "Audio" tabs in the
-  reference). Clip volume, fades and track mute exist; ducking is v1.1.
+  reference). Clip volume, fades and track mute exist; ducking is a track toggle in the audio clip inspector (v1.1, plan D-61).
 - Keyframe editing of arbitrary properties (scene animation is the template's job).
   Framing keyframes are the one exception: "Pin frame here" in the inspector (plan D-15).
 - v1: Developer ID signing, notarization and auto-update (see "Packaging").
@@ -443,8 +443,8 @@ component instead (same store and ops, no library).
   the five listen timecodes as buttons that seek the preview there. A failing check
   warns but does not block the export.
 - Captions as SRT or VTT, including the user's edits.
-- "Editable timeline" as OTIO for DaVinci Resolve (FCPXML is v1.1, or v1 if GATE 2 needed it, plan
-  D-10).
+- "Editable timeline" as OTIO for DaVinci Resolve, and "Final Cut Pro timeline" as FCPXML 1.8 (v1.1, plan D-64);
+  each is its own checkbox and writes its own layer folder.
 - Shows job progress; finished files can be revealed in Finder (each written path).
 
 ### Settings
