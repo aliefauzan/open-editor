@@ -4,6 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "productName": "Vox Studio",
   "description": "Vox Studio desktop app (Electron)",
   "main": "out/main/index.cjs",
   "scripts": {
