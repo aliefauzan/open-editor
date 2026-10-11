@@ -32,7 +32,9 @@ vox['on'] = (event: EventName, handler: (payload: unknown) => void) => {
 // never names a path itself; main checks the sender and that each path exists.
 vox['dropFiles'] = async (projectId: string, files: unknown) => {
   const list = Array.from((files ?? []) as ArrayLike<File>);
-  const paths = list.map((f) => (f instanceof File ? webUtils.getPathForFile(f) : '')).filter(Boolean);
+  const paths = list
+    .map((f) => (f instanceof File ? webUtils.getPathForFile(f) : ''))
+    .filter(Boolean);
   if (paths.length === 0) return null;
   const r = (await ipcRenderer.invoke('vox:drop', projectId, paths)) as CallResult;
   if (r.ok) return r.value;

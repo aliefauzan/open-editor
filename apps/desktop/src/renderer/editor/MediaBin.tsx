@@ -75,10 +75,7 @@ function Thumb(props: { projectId: string; m: MediaItem; offline: boolean }) {
 type Menu = { x: number; y: number; mediaId: string; replace: boolean };
 
 /** Relink offline media: import a new file, then `replaceMedia` (one op) to the new media. */
-export async function relink(
-  ctx: ReturnType<typeof useCtx>,
-  mediaId: string,
-): Promise<void> {
+export async function relink(ctx: ReturnType<typeof useCtx>, mediaId: string): Promise<void> {
   const { vox, editor, jobs } = ctx;
   const id = editor.getState().projectId;
   if (!id) return;
@@ -124,7 +121,9 @@ function ArchiveTab() {
     if (hit) return setResult(hit as typeof result);
     setBusy(true);
     setError(null);
-    const row = await jobs.getState().start('assets.search', { projectId, query: q.trim() }, `Archive: ${q.trim()}`);
+    const row = await jobs
+      .getState()
+      .start('assets.search', { projectId, query: q.trim() }, `Archive: ${q.trim()}`);
     setBusy(false);
     if (row.status === 'done') {
       archiveCache.set(k, row.result);
@@ -133,7 +132,9 @@ function ArchiveTab() {
   };
   const fetchOne = async (c: Candidate) => {
     if (!projectId) return;
-    const row = await jobs.getState().start('assets.fetch', { projectId, candidateId: c.id }, `Fetch: ${c.title}`);
+    const row = await jobs
+      .getState()
+      .start('assets.fetch', { projectId, candidateId: c.id }, `Fetch: ${c.title}`);
     if (row.status === 'done') await editor.getState().reload();
   };
   return (
@@ -173,7 +174,11 @@ function ArchiveTab() {
               {c.licenseVersion ? ` ${c.licenseVersion}` : ''} · {c.author}
             </p>
             {c.warning && <p className="text-amber-400">{c.warning}</p>}
-            <button type="button" className="mt-1 rounded bg-neutral-800 px-2" onClick={() => void fetchOne(c)}>
+            <button
+              type="button"
+              className="mt-1 rounded bg-neutral-800 px-2"
+              onClick={() => void fetchOne(c)}
+            >
               Fetch
             </button>
           </li>
@@ -271,10 +276,22 @@ export function MediaBin() {
       onClick={() => setMenu(null)}
     >
       <div role="tablist" aria-label="Media sources" className="flex border-b border-neutral-800">
-        <button type="button" role="tab" aria-selected={tab === 'library'} className={tabBtn(tab === 'library')} onClick={() => setTab('library')}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'library'}
+          className={tabBtn(tab === 'library')}
+          onClick={() => setTab('library')}
+        >
           Library
         </button>
-        <button type="button" role="tab" aria-selected={tab === 'archive'} className={tabBtn(tab === 'archive')} onClick={() => setTab('archive')}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'archive'}
+          className={tabBtn(tab === 'archive')}
+          onClick={() => setTab('archive')}
+        >
           Archive
         </button>
       </div>
@@ -290,26 +307,45 @@ export function MediaBin() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-            <select aria-label="Kind" className="rounded bg-neutral-800" value={kind} onChange={(e) => setKind(e.target.value)}>
+            <select
+              aria-label="Kind"
+              className="rounded bg-neutral-800"
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+            >
               {['all', 'video', 'audio', 'image', 'document'].map((k) => (
                 <option key={k} value={k}>
                   {k === 'all' ? 'All kinds' : k}
                 </option>
               ))}
             </select>
-            <select aria-label="Origin" className="rounded bg-neutral-800" value={origin} onChange={(e) => setOrigin(e.target.value)}>
+            <select
+              aria-label="Origin"
+              className="rounded bg-neutral-800"
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+            >
               {['all', 'upload', 'url', 'archive', 'generated'].map((k) => (
                 <option key={k} value={k}>
                   {k === 'all' ? 'All origins' : k}
                 </option>
               ))}
             </select>
-            <button type="button" aria-label={view === 'grid' ? 'List view' : 'Grid view'} className="rounded bg-neutral-800 px-1" onClick={() => setView(view === 'grid' ? 'list' : 'grid')}>
+            <button
+              type="button"
+              aria-label={view === 'grid' ? 'List view' : 'Grid view'}
+              className="rounded bg-neutral-800 px-1"
+              onClick={() => setView(view === 'grid' ? 'list' : 'grid')}
+            >
               {view === 'grid' ? '☰' : '▦'}
             </button>
           </div>
           <div className="flex items-center gap-1 border-b border-neutral-800 p-1.5">
-            <button type="button" className="rounded bg-neutral-800 px-2 py-0.5" onClick={() => void importFiles()}>
+            <button
+              type="button"
+              className="rounded bg-neutral-800 px-2 py-0.5"
+              onClick={() => void importFiles()}
+            >
               Import…
             </button>
             <input
@@ -377,7 +413,12 @@ export function MediaBin() {
         >
           {!menu.replace ? (
             <>
-              <button type="button" role="menuitem" className="px-3 py-1 text-left hover:bg-neutral-800" onClick={() => setMenu({ ...menu, replace: true })}>
+              <button
+                type="button"
+                role="menuitem"
+                className="px-3 py-1 text-left hover:bg-neutral-800"
+                onClick={() => setMenu({ ...menu, replace: true })}
+              >
                 Replace in timeline with…
               </button>
               {offline.includes(target.id) && (
@@ -423,7 +464,10 @@ export function MediaBin() {
                   className="px-3 py-1 text-left hover:bg-neutral-800"
                   onClick={() => {
                     setMenu(null);
-                    void editor.getState().apply({ op: 'replaceMedia', args: { mediaId: target.id, withMediaId: x.id } });
+                    void editor.getState().apply({
+                      op: 'replaceMedia',
+                      args: { mediaId: target.id, withMediaId: x.id },
+                    });
                   }}
                 >
                   {mediaName(x)}

@@ -1,7 +1,13 @@
 // Pure helpers of the Subtitles panel (app spec "Subtitles panel"; plan D-11, D-15): every edit is one
 // op, built here — word overrides (`setCaptions`), word removal (`removeWords`) and pause/filler
 // removal (`removePauses`). Override times are source-media ms (engine spec "Captions").
-import type { CaptionChunk, CaptionWord, MediaClip, Project, Sequence } from '../../shared/project.ts';
+import type {
+  CaptionChunk,
+  CaptionWord,
+  MediaClip,
+  Project,
+  Sequence,
+} from '../../shared/project.ts';
 import type { OpCall } from './store.ts';
 
 export interface PanelWord extends CaptionWord {
@@ -108,9 +114,14 @@ export function nudgeOp(
   const end = o?.endMs ?? toSourceMs(seq, word.key, word.endMs);
   if (start === null || end === null) return null;
   const d = Math.round(frames * frameMs(seq));
-  const next = edge === 'start' ? { startMs: start + d, endMs: end } : { startMs: start, endMs: end + d };
+  const next =
+    edge === 'start' ? { startMs: start + d, endMs: end } : { startMs: start, endMs: end + d };
   if (next.startMs < 0 || next.startMs >= next.endMs) return null;
-  return overrideOp(seq.id, word.key, edge === 'start' ? { startMs: next.startMs } : { endMs: next.endMs });
+  return overrideOp(
+    seq.id,
+    word.key,
+    edge === 'start' ? { startMs: next.startMs } : { endMs: next.endMs },
+  );
 }
 
 /** Split after this word (`breakAfter: true`), or merge with the next chunk (drop that break). */
@@ -180,7 +191,9 @@ export function hiddenWords(seq: Sequence | undefined): string[] {
 
 /** True when the chunk ends at a break the user set (only those can be merged; D-NN 10b). */
 export function userBreakAfter(seq: Sequence | undefined, wordKey: string): boolean {
-  return (seq?.captions?.overrides ?? []).some((o) => o.wordKey === wordKey && o.breakAfter === true);
+  return (seq?.captions?.overrides ?? []).some(
+    (o) => o.wordKey === wordKey && o.breakAfter === true,
+  );
 }
 
 export function findSeq(p: Project | null, id: string | null): Sequence | undefined {

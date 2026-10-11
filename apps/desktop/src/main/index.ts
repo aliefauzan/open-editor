@@ -186,7 +186,9 @@ async function importDropped(projectId: unknown, paths: unknown): Promise<unknow
     Array.isArray(paths) &&
     paths.length > 0 &&
     paths.length <= 1000 &&
-    paths.every((p) => typeof p === 'string' && isAbsolute(p) && !p.includes('\0') && existsSync(p));
+    paths.every(
+      (p) => typeof p === 'string' && isAbsolute(p) && !p.includes('\0') && existsSync(p),
+    );
   if (!ok) throw appError('ARGS_INVALID', 'Dropped items must be existing files or folders');
   return host.call('media.importFiles', [projectId, { paths }]);
 }
@@ -215,7 +217,10 @@ async function forward(method: Method, args: unknown[]): Promise<unknown> {
     return null;
   }
   if (method === 'jobs.start') {
-    return host.call(method, [args[0], exportTargets.mapJobArgs(args[1] as Record<string, unknown>)]);
+    return host.call(method, [
+      args[0],
+      exportTargets.mapJobArgs(args[1] as Record<string, unknown>),
+    ]);
   }
   return host.call(method, args);
 }

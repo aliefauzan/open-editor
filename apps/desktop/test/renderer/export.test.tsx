@@ -6,7 +6,11 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EditorProvider } from '../../src/renderer/editor/context.tsx';
-import { ExportDialog, checkNumbers, projectFileUrl } from '../../src/renderer/editor/ExportDialog.tsx';
+import {
+  ExportDialog,
+  checkNumbers,
+  projectFileUrl,
+} from '../../src/renderer/editor/ExportDialog.tsx';
 import { idle, testEditor, type TestEditor } from './ctx.ts';
 import { op } from './engine-fixture.ts';
 
@@ -16,7 +20,15 @@ const FAIL_QA = {
   mode: 'mix',
   pass: false,
   checks: [
-    { id: 'loudness', status: 'fail', rule: 'r', integratedLufs: -20.1, targetLufs: -14, deltaLu: -6.1, toleranceLu: 1 },
+    {
+      id: 'loudness',
+      status: 'fail',
+      rule: 'r',
+      integratedLufs: -20.1,
+      targetLufs: -14,
+      deltaLu: -6.1,
+      toleranceLu: 1,
+    },
     { id: 'spacing', status: 'pass', rule: 'r' },
   ],
   listen: [{ atMs: 2500, kind: 'loud SFX', listenFor: 'harshness' }],
@@ -54,7 +66,11 @@ async function setup(): Promise<{ t: TestEditor; s: Stubs }> {
           kind === 'audioQa'
             ? { ...FAIL_QA, png: '/x/Projects/PID/renders/qa/seq_main/qa.png' }
             : kind === 'render'
-              ? { files: [{ sequenceId: 'seq_main', path: '/out/Editor - Main.mp4', durationMs: 8000 }] }
+              ? {
+                  files: [
+                    { sequenceId: 'seq_main', path: '/out/Editor - Main.mp4', durationMs: 8000 },
+                  ],
+                }
               : { path: `/out/Editor - Main.${kind === 'exportCaptions' ? 'srt' : 'otio'}` };
         return { id, status: 'done', progress: 1, result };
       }) as never,
@@ -81,8 +97,14 @@ describe('export dialog (A4)', () => {
     const { t, s } = await setup();
     fireEvent.change(screen.getByLabelText('Loudness target'), { target: { value: 'tiktok' } });
     fireEvent.click(exportBtn());
-    await waitFor(() => expect(s.jobs.map((j) => j.kind)).toEqual(['audioQa', 'render', 'exportCaptions']));
-    expect(s.jobs[0]!.args).toEqual({ projectId: t.project.id, sequenceId: 'seq_main', loudness: 'tiktok' });
+    await waitFor(() =>
+      expect(s.jobs.map((j) => j.kind)).toEqual(['audioQa', 'render', 'exportCaptions']),
+    );
+    expect(s.jobs[0]!.args).toEqual({
+      projectId: t.project.id,
+      sequenceId: 'seq_main',
+      loudness: 'tiktok',
+    });
     expect(s.jobs[1]!.args).toMatchObject({
       sequenceId: 'seq_main',
       captions: 'burn',
@@ -99,7 +121,9 @@ describe('export dialog (A4)', () => {
     const { s } = await setup();
     fireEvent.click(screen.getByLabelText('Subtitles burned in'));
     fireEvent.click(exportBtn());
-    await waitFor(() => expect(s.jobs.find((j) => j.kind === 'render')?.args.captions).toBe('none'));
+    await waitFor(() =>
+      expect(s.jobs.find((j) => j.kind === 'render')?.args.captions).toBe('none'),
+    );
   });
 
   it('Save to: one file → file mode with the name prefilled; several → folder; cancel keeps the old target', async () => {
@@ -118,7 +142,11 @@ describe('export dialog (A4)', () => {
     s.answers.push({ targetId: 't_file', displayPath: '~/Clips/a.mp4' });
     fireEvent.click(screen.getByRole('button', { name: 'Change…' }));
     await waitFor(() => expect(screen.getByTestId('save-to').textContent).toContain('a.mp4'));
-    expect(s.choose[2]).toMatchObject({ mode: 'file', format: 'mp4', suggestedName: 'Editor - Main.mp4' });
+    expect(s.choose[2]).toMatchObject({
+      mode: 'file',
+      format: 'mp4',
+      suggestedName: 'Editor - Main.mp4',
+    });
     // adding a second file again drops the file target for the remembered folder
     fireEvent.click(screen.getByLabelText('SRT captions'));
     await waitFor(() => expect(screen.getByTestId('save-to').textContent).toContain('~/Movies'));
@@ -142,14 +170,20 @@ describe('export dialog (A4)', () => {
     fireEvent.click(screen.getByLabelText('Editable timeline (OTIO)'));
     fireEvent.click(exportBtn());
     const list = await screen.findByRole('list', { name: 'Export progress' });
-    await waitFor(() => expect(within(list).getAllByRole('button', { name: 'Show in Finder' })).toHaveLength(3));
+    await waitFor(() =>
+      expect(within(list).getAllByRole('button', { name: 'Show in Finder' })).toHaveLength(3),
+    );
     fireEvent.click(within(list).getAllByRole('button', { name: 'Show in Finder' })[0]!);
     await waitFor(() => expect(s.revealed).toEqual(['/out/Editor - Main.mp4']));
   });
 
   it('helpers: check numbers and the qa.png URL', () => {
-    expect(checkNumbers(FAIL_QA.checks[0] as never)).toBe('integratedLufs -20.1, targetLufs -14, deltaLu -6.1');
-    expect(projectFileUrl('p_a', '/h/Projects/p_a/renders/qa/s/qa.png')).toBe('vox-media://p/p_a/renders/qa/s/qa.png');
+    expect(checkNumbers(FAIL_QA.checks[0] as never)).toBe(
+      'integratedLufs -20.1, targetLufs -14, deltaLu -6.1',
+    );
+    expect(projectFileUrl('p_a', '/h/Projects/p_a/renders/qa/s/qa.png')).toBe(
+      'vox-media://p/p_a/renders/qa/s/qa.png',
+    );
     expect(projectFileUrl('p_a', '/elsewhere/qa.png')).toBeNull();
   });
 });

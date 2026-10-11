@@ -295,7 +295,8 @@ export function createEditorStore(vox: VoxApi): EditorStore {
           publish({ sequenceId: null });
         } catch (e) {
           const err = asError(e);
-          if (err.code === 'SCHEMA_TOO_NEW') set({ projectId: null, project: null, openError: err });
+          if (err.code === 'SCHEMA_TOO_NEW')
+            set({ projectId: null, project: null, openError: err });
           else get().toast(err);
         }
       },
@@ -333,9 +334,15 @@ export function createEditorStore(vox: VoxApi): EditorStore {
         return new Promise((resolve) => {
           void enqueue(async () => {
             const id = get().projectId;
-            if (!id) return resolve({ error: { code: 'NO_PROJECT', message: 'No project', hint: '' } });
+            if (!id)
+              return resolve({ error: { code: 'NO_PROJECT', message: 'No project', hint: '' } });
             try {
-              const r = await vox.ops.apply({ projectId: id, op: call.op, args: call.args, baseVersion });
+              const r = await vox.ops.apply({
+                projectId: id,
+                op: call.op,
+                args: call.args,
+                baseVersion,
+              });
               const error = await take(r);
               publish();
               resolve(error ? { error } : { report: r.results[0]?.report });

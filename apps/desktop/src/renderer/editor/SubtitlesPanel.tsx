@@ -27,7 +27,8 @@ import {
 } from './subtitles.ts';
 import { useCaptions } from './Timeline.tsx';
 
-const btn = 'rounded bg-neutral-800 px-1.5 py-0.5 text-[11px] hover:bg-neutral-700 disabled:opacity-40';
+const btn =
+  'rounded bg-neutral-800 px-1.5 py-0.5 text-[11px] hover:bg-neutral-700 disabled:opacity-40';
 
 function PausesAndFillers(props: { sequenceId: string; words: PanelWord[] }) {
   const { editor } = useCtx();
@@ -55,7 +56,8 @@ function PausesAndFillers(props: { sequenceId: string; words: PanelWord[] }) {
       editor.getState().toast(r.error);
       return;
     }
-    const ranges = ((r.report as { ranges?: PauseRange[] } | undefined)?.ranges ?? []) as PauseRange[];
+    const ranges = ((r.report as { ranges?: PauseRange[] } | undefined)?.ranges ??
+      []) as PauseRange[];
     setFound({ version, ranges });
     setTicked(new Set(ranges.map((_, i) => i)));
     setNote(why ?? null);
@@ -122,7 +124,10 @@ function PausesAndFillers(props: { sequenceId: string; words: PanelWord[] }) {
         </div>
         {note && <p className="text-amber-400">{note}</p>}
         {found && (
-          <ul aria-label="Found pauses and fillers" className="flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+          <ul
+            aria-label="Found pauses and fillers"
+            className="flex max-h-40 flex-col gap-0.5 overflow-y-auto"
+          >
             {found.ranges.length === 0 && <li className="text-neutral-400">Nothing found.</li>}
             {found.ranges.map((r, i) => (
               <li key={`${r.startMs}-${i}`} className="flex items-center gap-2">
@@ -233,7 +238,9 @@ export function SubtitlesPanel() {
         <button
           type="button"
           className={`${btn} mt-2`}
-          onClick={() => void editor.getState().apply({ op: 'setCaptions', args: { sequenceId, enabled: true } })}
+          onClick={() =>
+            void editor.getState().apply({ op: 'setCaptions', args: { sequenceId, enabled: true } })
+          }
         >
           Turn captions on
         </button>
@@ -247,7 +254,9 @@ export function SubtitlesPanel() {
   const oneFirst = one && words.find((w) => w.key === one.key);
   const oneLast = one && [...words].reverse().find((w) => w.key === one.key);
   const lastOfChunk = (w: PanelWord) =>
-    !words.some((x) => x.chunk === w.chunk && words.indexOf(x) > words.indexOf(w) && x.key !== w.key);
+    !words.some(
+      (x) => x.chunk === w.chunk && words.indexOf(x) > words.indexOf(w) && x.key !== w.key,
+    );
   const hidden = hiddenWords(seq);
   const allKeys = (seq.captions.overrides ?? []).map((o) => o.wordKey);
   const notice = (e: ErrorData) => editor.getState().toast(e);
@@ -284,7 +293,8 @@ export function SubtitlesPanel() {
           disabled={!find.trim()}
           onClick={() => {
             const call = findReplaceOp(sequenceId, chunks, find, replace);
-            if (!call) notice({ code: 'NOT_FOUND', message: `No caption contains “${find}”`, hint: '' });
+            if (!call)
+              notice({ code: 'NOT_FOUND', message: `No caption contains “${find}”`, hint: '' });
             run(call);
           }}
         >
@@ -299,9 +309,19 @@ export function SubtitlesPanel() {
           Reset all to transcript
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-1 border-b border-neutral-800 p-2" aria-label="Word actions">
-        <span className="text-neutral-400">{sel.length ? `${sel.length} selected` : 'Select words'}</span>
-        <button type="button" className={btn} disabled={!one} onClick={() => one && run(overrideOp(sequenceId, one.key, { text: null }))}>
+      <div
+        className="flex flex-wrap items-center gap-1 border-b border-neutral-800 p-2"
+        aria-label="Word actions"
+      >
+        <span className="text-neutral-400">
+          {sel.length ? `${sel.length} selected` : 'Select words'}
+        </span>
+        <button
+          type="button"
+          className={btn}
+          disabled={!one}
+          onClick={() => one && run(overrideOp(sequenceId, one.key, { text: null }))}
+        >
           Hide
         </button>
         <button
@@ -324,7 +344,8 @@ export function SubtitlesPanel() {
                 const w = edge === 'start' ? oneFirst : oneLast;
                 if (!w) return;
                 const call = nudgeOp(seq, w, edge, d);
-                if (!call) notice({ code: 'VALIDATION', message: 'The word cannot move there', hint: '' });
+                if (!call)
+                  notice({ code: 'VALIDATION', message: 'The word cannot move there', hint: '' });
                 run(call);
               }}
             >
@@ -357,9 +378,14 @@ export function SubtitlesPanel() {
         {chunks.map((c, i) => {
           const cw = words.filter((w) => w.chunk === i);
           const last = cw.at(-1);
-          const canMerge = last !== undefined && i + 1 < chunks.length && userBreakAfter(seq, last.key);
+          const canMerge =
+            last !== undefined && i + 1 < chunks.length && userBreakAfter(seq, last.key);
           return (
-            <li key={`${c.startMs}-${i}`} className="group flex items-start gap-2 rounded px-1 py-1 hover:bg-neutral-900" data-testid="subtitle-chunk">
+            <li
+              key={`${c.startMs}-${i}`}
+              className="group flex items-start gap-2 rounded px-1 py-1 hover:bg-neutral-900"
+              data-testid="subtitle-chunk"
+            >
               <button
                 type="button"
                 className="shrink-0 font-mono text-neutral-400 hover:text-white"
@@ -375,7 +401,13 @@ export function SubtitlesPanel() {
                     w={w}
                     selected={sel.includes(w.key)}
                     onSelect={(add) =>
-                      setSel(add ? (sel.includes(w.key) ? sel.filter((x) => x !== w.key) : [...sel, w.key]) : [w.key])
+                      setSel(
+                        add
+                          ? sel.includes(w.key)
+                            ? sel.filter((x) => x !== w.key)
+                            : [...sel, w.key]
+                          : [w.key],
+                      )
                     }
                     onEdit={(t) => run(overrideOp(sequenceId, w.key, { text: t }))}
                   />
@@ -383,7 +415,11 @@ export function SubtitlesPanel() {
               </span>
               <span className="flex shrink-0 gap-1 opacity-60 group-hover:opacity-100">
                 {canMerge && (
-                  <button type="button" className={btn} onClick={() => run(breakOp(sequenceId, last.key, false))}>
+                  <button
+                    type="button"
+                    className={btn}
+                    onClick={() => run(breakOp(sequenceId, last.key, false))}
+                  >
                     Merge with next
                   </button>
                 )}
@@ -392,7 +428,14 @@ export function SubtitlesPanel() {
                   className={btn}
                   aria-label={`Reset ${clock(c.startMs)} to transcript`}
                   disabled={!cw.some((w) => allKeys.includes(w.key))}
-                  onClick={() => run(resetOp(sequenceId, cw.map((w) => w.key)))}
+                  onClick={() =>
+                    run(
+                      resetOp(
+                        sequenceId,
+                        cw.map((w) => w.key),
+                      ),
+                    )
+                  }
                 >
                   Reset
                 </button>

@@ -44,7 +44,11 @@ export function NextSteps() {
       data-testid="next-steps"
     >
       <span className="text-xs text-neutral-400">Next steps:</span>
-      <button type="button" className={btn} onClick={() => ui.getState().set({ leftTab: 'subtitles' })}>
+      <button
+        type="button"
+        className={btn}
+        onClick={() => ui.getState().set({ leftTab: 'subtitles' })}
+      >
         Fix subtitles
       </button>
       <div className="relative">

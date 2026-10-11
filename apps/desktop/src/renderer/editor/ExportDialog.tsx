@@ -73,14 +73,21 @@ export function ExportDialog() {
   const project = useEditor((s) => s.project);
   const sequenceId = useEditor((s) => s.sequenceId);
   const seq = project?.sequences.find((s) => s.id === sequenceId);
-  const [formats, setFormats] = useState<Record<Format, boolean>>({ mp4: true, srt: true, vtt: false, otio: false });
+  const [formats, setFormats] = useState<Record<Format, boolean>>({
+    mp4: true,
+    srt: true,
+    vtt: false,
+    otio: false,
+  });
   const [all, setAll] = useState(false);
   const [quality, setQuality] = useState<'draft' | 'standard' | 'high'>('standard');
   const [useRange, setUseRange] = useState(false);
   const [burn, setBurn] = useState(true);
   const [loudness, setLoudness] = useState<Loudness>('youtube');
   const [target, setTarget] = useState<Target | null>(null);
-  const [qa, setQa] = useState<{ seq: string; result?: QaResult; error?: ErrorData }[] | null>(null);
+  const [qa, setQa] = useState<{ seq: string; result?: QaResult; error?: ErrorData }[] | null>(
+    null,
+  );
   const [busy, setBusy] = useState<'qa' | 'export' | null>(null);
   const [rows, setRows] = useState<JobRow[]>([]);
 
@@ -95,7 +102,6 @@ export function ExportDialog() {
       (e: unknown) => editor.getState().toast(e),
     );
     // only when the dialog opens
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, projectId]);
 
   const seqs = all ? (project?.sequences ?? []) : seq ? [seq] : [];
@@ -140,8 +146,16 @@ export function ExportDialog() {
     for (const s of seqs) {
       const r = await jobs
         .getState()
-        .start('audioQa', { projectId: project.id, sequenceId: s.id, loudness }, `Audio check: ${s.name}`);
-      out.push(r.status === 'done' ? { seq: s.id, result: r.result as QaResult } : { seq: s.id, ...(r.error ? { error: r.error } : {}) });
+        .start(
+          'audioQa',
+          { projectId: project.id, sequenceId: s.id, loudness },
+          `Audio check: ${s.name}`,
+        );
+      out.push(
+        r.status === 'done'
+          ? { seq: s.id, result: r.result as QaResult }
+          : { seq: s.id, ...(r.error ? { error: r.error } : {}) },
+      );
     }
     setQa(out);
     setBusy(null);
@@ -161,14 +175,19 @@ export function ExportDialog() {
       else {
         start(
           'render',
-          { sequenceId: seq.id, ...common, ...(useRange && hasRange ? { range: { startMs: inMs, endMs: outMs } } : {}) },
+          {
+            sequenceId: seq.id,
+            ...common,
+            ...(useRange && hasRange ? { range: { startMs: inMs, endMs: outMs } } : {}),
+          },
           `MP4: ${seq.name}`,
         );
       }
     }
     for (const s of seqs) {
       for (const f of ['srt', 'vtt'] as const) {
-        if (formats[f]) start('exportCaptions', { sequenceId: s.id, format: f }, `${f.toUpperCase()}: ${s.name}`);
+        if (formats[f])
+          start('exportCaptions', { sequenceId: s.id, format: f }, `${f.toUpperCase()}: ${s.name}`);
       }
       if (formats.otio) start('exportTimeline', { sequenceId: s.id }, `OTIO: ${s.name}`);
     }
@@ -180,11 +199,20 @@ export function ExportDialog() {
   const sel = 'rounded bg-neutral-800 px-1 py-0.5';
 
   return (
-    <div role="dialog" aria-label="Export" aria-modal className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
+    <div
+      role="dialog"
+      aria-label="Export"
+      aria-modal
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60"
+    >
       <div className="flex max-h-[90vh] w-[560px] flex-col gap-3 overflow-y-auto rounded-lg bg-neutral-900 p-4 text-xs shadow-2xl">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Export</h2>
-          <button type="button" aria-label="Close" onClick={() => ui.getState().set({ exportOpen: false })}>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => ui.getState().set({ exportOpen: false })}
+          >
             ×
           </button>
         </div>
@@ -199,7 +227,11 @@ export function ExportDialog() {
             ] as const
           ).map(([f, label]) => (
             <label key={f} className="flex items-center gap-1">
-              <input type="checkbox" checked={formats[f]} onChange={(e) => setFormats({ ...formats, [f]: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={formats[f]}
+                onChange={(e) => setFormats({ ...formats, [f]: e.target.checked })}
+              />
               {label}
             </label>
           ))}
@@ -212,7 +244,12 @@ export function ExportDialog() {
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-1">
               Quality
-              <select aria-label="Quality" className={sel} value={quality} onChange={(e) => setQuality(e.target.value as typeof quality)}>
+              <select
+                aria-label="Quality"
+                className={sel}
+                value={quality}
+                onChange={(e) => setQuality(e.target.value as typeof quality)}
+              >
                 <option value="draft">Draft</option>
                 <option value="standard">Standard</option>
                 <option value="high">High</option>
@@ -222,13 +259,26 @@ export function ExportDialog() {
               <input type="checkbox" checked={burn} onChange={(e) => setBurn(e.target.checked)} />
               Subtitles burned in
             </label>
-            <label className="flex items-center gap-1" title={hasRange ? '' : 'Set in and out points (I / O) first'}>
-              <input type="checkbox" disabled={!hasRange || all} checked={useRange && hasRange && !all} onChange={(e) => setUseRange(e.target.checked)} />
+            <label
+              className="flex items-center gap-1"
+              title={hasRange ? '' : 'Set in and out points (I / O) first'}
+            >
+              <input
+                type="checkbox"
+                disabled={!hasRange || all}
+                checked={useRange && hasRange && !all}
+                onChange={(e) => setUseRange(e.target.checked)}
+              />
               In to out only
             </label>
             <label className="flex items-center gap-1">
               Loudness target
-              <select aria-label="Loudness target" className={sel} value={loudness} onChange={(e) => setLoudness(e.target.value as Loudness)}>
+              <select
+                aria-label="Loudness target"
+                className={sel}
+                value={loudness}
+                onChange={(e) => setLoudness(e.target.value as Loudness)}
+              >
                 {LOUDNESS.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.label}
@@ -251,7 +301,12 @@ export function ExportDialog() {
           <section className="flex flex-col gap-1" aria-label="Audio check">
             <div className="flex items-center gap-2">
               <h3 className="font-medium">Audio check</h3>
-              <button type="button" className={sel} disabled={busy !== null} onClick={() => void runQa()}>
+              <button
+                type="button"
+                className={sel}
+                disabled={busy !== null}
+                onClick={() => void runQa()}
+              >
                 {busy === 'qa' ? 'Checking…' : 'Check audio'}
               </button>
             </div>
@@ -275,7 +330,11 @@ export function ExportDialog() {
                   ))}
                 </ul>
                 {projectFileUrl(project.id, q.result?.png) && (
-                  <img alt="Audio check chart" className="mt-1 w-full rounded" src={projectFileUrl(project.id, q.result?.png)!} />
+                  <img
+                    alt="Audio check chart"
+                    className="mt-1 w-full rounded"
+                    src={projectFileUrl(project.id, q.result?.png)!}
+                  />
                 )}
                 <div className="mt-1 flex flex-wrap gap-1">
                   {q.result?.listen?.map((l) => (
@@ -285,7 +344,8 @@ export function ExportDialog() {
                       className={sel}
                       title={l.listenFor}
                       onClick={() => {
-                        if (q.seq !== editor.getState().sequenceId) editor.getState().setSequence(q.seq);
+                        if (q.seq !== editor.getState().sequenceId)
+                          editor.getState().setSequence(q.seq);
                         editor.getState().setPlayhead(l.atMs);
                       }}
                     >
@@ -307,11 +367,23 @@ export function ExportDialog() {
                     {r.status === 'running' ? `${Math.round(r.progress * 100)} %` : r.status}
                   </span>
                 </div>
-                {r.error && <p className="text-red-300">{r.error.message} {r.error.hint}</p>}
+                {r.error && (
+                  <p className="text-red-300">
+                    {r.error.message} {r.error.hint}
+                  </p>
+                )}
                 {writtenPaths(r).map((p) => (
                   <div key={p} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate font-mono text-neutral-400">{p.split('/').pop()}</span>
-                    <button type="button" className={sel} onClick={() => void vox.exports.reveal(p).catch((e: unknown) => editor.getState().toast(e))}>
+                    <span className="min-w-0 flex-1 truncate font-mono text-neutral-400">
+                      {p.split('/').pop()}
+                    </span>
+                    <button
+                      type="button"
+                      className={sel}
+                      onClick={() =>
+                        void vox.exports.reveal(p).catch((e: unknown) => editor.getState().toast(e))
+                      }
+                    >
                       Show in Finder
                     </button>
                   </div>
@@ -321,7 +393,11 @@ export function ExportDialog() {
           </ul>
         )}
         <div className="flex justify-end gap-2">
-          <button type="button" className={sel} onClick={() => ui.getState().set({ exportOpen: false })}>
+          <button
+            type="button"
+            className={sel}
+            onClick={() => ui.getState().set({ exportOpen: false })}
+          >
             Close
           </button>
           <button
@@ -330,7 +406,9 @@ export function ExportDialog() {
             disabled={busy !== null || chosen.length === 0 || !effective}
             onClick={() => void exportNow()}
           >
-            {busy === 'export' ? 'Exporting…' : `Export ${fileCount} file${fileCount === 1 ? '' : 's'}`}
+            {busy === 'export'
+              ? 'Exporting…'
+              : `Export ${fileCount} file${fileCount === 1 ? '' : 's'}`}
           </button>
         </div>
       </div>

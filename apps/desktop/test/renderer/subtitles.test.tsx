@@ -17,7 +17,17 @@ import { op } from './engine-fixture.ts';
 afterEach(cleanup);
 
 const TRANSCRIPT = join(
-  import.meta.dirname, '..', '..', '..', '..', 'packages', 'engine', 'test', 'fixtures', 'transcripts', 'speech-fillers.json',
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  'packages',
+  'engine',
+  'test',
+  'fixtures',
+  'transcripts',
+  'speech-fillers.json',
 );
 const key = (i: number) => `m_v:r1:${i}`;
 
@@ -66,7 +76,8 @@ const chunks = (t: TestEditor) =>
 const words = async (t: TestEditor) =>
   (await chunks(t)).flatMap((c) => c.lines.flatMap((l) => l.words));
 const history = async (t: TestEditor) => (await t.engine.history(t.project.id)).length;
-const project = async (t: TestEditor) => (await t.engine.getProject(t.project.id)) as unknown as Project;
+const project = async (t: TestEditor) =>
+  (await t.engine.getProject(t.project.id)) as unknown as Project;
 const seqEnd = async (t: TestEditor) => {
   const s = (await project(t)).sequences.find((q) => q.id === SEQ)!;
   return Math.max(...s.videoTracks[0]!.items.map((i) => i.startMs + i.durationMs));
@@ -102,13 +113,21 @@ async function editWord(k: string, text: string) {
 describe('Subtitles panel (A2)', () => {
   it('edit a word in place', async () => {
     const t = await setup();
-    const after = await oneUndo(t, () => words(t), () => editWord(key(5), 'believe'));
+    const after = await oneUndo(
+      t,
+      () => words(t),
+      () => editWord(key(5), 'believe'),
+    );
     expect(after.find((w) => w.key === key(5))?.text).toBe('believe');
   });
 
   it('multi-word edit (several words on one word key)', async () => {
     const t = await setup();
-    const after = await oneUndo(t, () => words(t), () => editWord(key(0), 'So then,'));
+    const after = await oneUndo(
+      t,
+      () => words(t),
+      () => editWord(key(0), 'So then,'),
+    );
     expect(after.filter((w) => w.key === key(0)).map((w) => w.text)).toEqual(['So', 'then,']);
   });
 
@@ -116,8 +135,10 @@ describe('Subtitles panel (A2)', () => {
     const t = await setup();
     fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'think' } });
     fireEvent.change(screen.getByLabelText('Replace with'), { target: { value: 'feel' } });
-    const after = await oneUndo(t, () => words(t), () =>
-      fireEvent.click(screen.getByRole('button', { name: 'Replace all' })),
+    const after = await oneUndo(
+      t,
+      () => words(t),
+      () => fireEvent.click(screen.getByRole('button', { name: 'Replace all' })),
     );
     expect(after.filter((w) => w.text === 'feel').map((w) => w.key)).toEqual([key(3), key(5)]);
     expect(findReplaceOp('seq_main', [], 'x', 'y')).toBeNull();
@@ -127,7 +148,8 @@ describe('Subtitles panel (A2)', () => {
     const t = await setup();
     fireEvent.click(word(key(9)));
     const ovr = async () =>
-      (await project(t)).sequences[0]!.captions!.overrides.find((o) => o.wordKey === key(9)) ?? null;
+      (await project(t)).sequences[0]!.captions!.overrides.find((o) => o.wordKey === key(9)) ??
+      null;
     const after = await oneUndo(t, ovr, () =>
       fireEvent.click(screen.getByRole('button', { name: 'Start one frame later' })),
     );
@@ -168,8 +190,10 @@ describe('Subtitles panel (A2)', () => {
   it('hide a word (caption only; text: null)', async () => {
     const t = await setup();
     fireEvent.click(word(key(6)));
-    const after = await oneUndo(t, () => words(t), () =>
-      fireEvent.click(screen.getByRole('button', { name: 'Hide' })),
+    const after = await oneUndo(
+      t,
+      () => words(t),
+      () => fireEvent.click(screen.getByRole('button', { name: 'Hide' })),
     );
     expect(after.some((w) => w.key === key(6))).toBe(false);
     expect(await seqEnd(t)).toBe(8000); // hiding never cuts time
@@ -178,8 +202,10 @@ describe('Subtitles panel (A2)', () => {
   it('mark and clear emphasis', async () => {
     const t = await setup();
     fireEvent.click(word(key(10)));
-    const after = await oneUndo(t, () => words(t), () =>
-      fireEvent.click(screen.getByRole('button', { name: 'Emphasis' })),
+    const after = await oneUndo(
+      t,
+      () => words(t),
+      () => fireEvent.click(screen.getByRole('button', { name: 'Emphasis' })),
     );
     expect(after.find((w) => w.key === key(10))?.emphasis).toBe(true);
   });
@@ -188,12 +214,18 @@ describe('Subtitles panel (A2)', () => {
     const t = await setup();
     await op(t.engine, t.project.id, 'setCaptions', {
       sequenceId: 'seq_main',
-      overrides: [{ wordKey: key(0), text: 'Hey,' }, { wordKey: key(12), text: 'A' }],
+      overrides: [
+        { wordKey: key(0), text: 'Hey,' },
+        { wordKey: key(12), text: 'A' },
+      ],
     });
     await t.ctx.editor.getState().reload();
     await idle(t);
-    const ovr = async () => (await project(t)).sequences[0]!.captions!.overrides.map((o) => o.wordKey);
-    const resets = await screen.findAllByRole('button', { name: /^Reset \d+:\d+\.\d+ to transcript$/ });
+    const ovr = async () =>
+      (await project(t)).sequences[0]!.captions!.overrides.map((o) => o.wordKey);
+    const resets = await screen.findAllByRole('button', {
+      name: /^Reset \d+:\d+\.\d+ to transcript$/,
+    });
     const after = await oneUndo(t, ovr, () => fireEvent.click(resets[0]!));
     expect(after).toEqual([key(12)]);
   });
@@ -202,7 +234,10 @@ describe('Subtitles panel (A2)', () => {
     const t = await setup();
     await op(t.engine, t.project.id, 'setCaptions', {
       sequenceId: 'seq_main',
-      overrides: [{ wordKey: key(0), text: 'Hey,' }, { wordKey: key(12), emphasis: true }],
+      overrides: [
+        { wordKey: key(0), text: 'Hey,' },
+        { wordKey: key(12), emphasis: true },
+      ],
     });
     await t.ctx.editor.getState().reload();
     await idle(t);
@@ -219,8 +254,10 @@ describe('Subtitles panel (A2)', () => {
     const t = await setup();
     fireEvent.click(word(key(1)));
     fireEvent.click(word(key(8)), { shiftKey: true });
-    const after = await oneUndo(t, () => seqEnd(t), () =>
-      fireEvent.keyDown(word(key(8)), { key: 'Delete' }),
+    const after = await oneUndo(
+      t,
+      () => seqEnd(t),
+      () => fireEvent.keyDown(word(key(8)), { key: 'Delete' }),
     );
     expect(after).toBeLessThan(8000);
     expect(after).toBeGreaterThan(8000 - 1000);
@@ -238,26 +275,32 @@ describe('Subtitles panel (A2)', () => {
     expect(ticks.every((c) => c.checked)).toBe(true);
     // the dry run applied nothing
     expect(await seqEnd(t)).toBe(8000);
-    const dry = (await t.engine.applyOp(
-      t.project.id,
-      { op: 'removePauses', args: { sequenceId: SEQ, kinds: ['pause'], dryRun: true } } as never,
-      { actor: 'user' },
-    )).results[0]!.report as { ranges: { startMs: number; endMs: number }[] };
+    const dry = (
+      await t.engine.applyOp(
+        t.project.id,
+        { op: 'removePauses', args: { sequenceId: SEQ, kinds: ['pause'], dryRun: true } } as never,
+        { actor: 'user' },
+      )
+    ).results[0]!.report as { ranges: { startMs: number; endMs: number }[] };
     fireEvent.click(ticks[0]!);
     const kept = dry.ranges[0]!;
     const cut = dry.ranges[1]!;
-    const after = await oneUndo(t, () => seqEnd(t), () =>
-      fireEvent.click(within(box).getByRole('button', { name: 'Apply' })),
+    const after = await oneUndo(
+      t,
+      () => seqEnd(t),
+      () => fireEvent.click(within(box).getByRole('button', { name: 'Apply' })),
     );
     expect(after).toBe(8000 - (cut.endMs - cut.startMs));
     // the unticked pause is still there: a new dry run after redo finds it
     await t.ctx.editor.getState().redo();
     await idle(t);
-    const again = (await t.engine.applyOp(
-      t.project.id,
-      { op: 'removePauses', args: { sequenceId: SEQ, kinds: ['pause'], dryRun: true } } as never,
-      { actor: 'user' },
-    )).results[0]!.report as { ranges: { startMs: number }[] };
+    const again = (
+      await t.engine.applyOp(
+        t.project.id,
+        { op: 'removePauses', args: { sequenceId: SEQ, kinds: ['pause'], dryRun: true } } as never,
+        { actor: 'user' },
+      )
+    ).results[0]!.report as { ranges: { startMs: number }[] };
     expect(again.ranges.map((r) => r.startMs)).toEqual([kept.startMs]);
   });
 

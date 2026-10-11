@@ -18,7 +18,17 @@ import { fakeVox } from './fake-vox.ts';
 
 afterEach(cleanup);
 
-const FX = join(import.meta.dirname, '..', '..', '..', '..', 'packages', 'engine', 'test', 'fixtures');
+const FX = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  'packages',
+  'engine',
+  'test',
+  'fixtures',
+);
 const SEED_MP4 = join(FX, 'assets', 'media', 'talking-head-20s.mp4');
 
 function quickSetup(extra: Record<string, (...a: never[]) => unknown> = {}) {
@@ -82,7 +92,11 @@ describe('quick clips start screen (A1)', () => {
   it('LOGIN_REQUIRED shows its hint and "Choose file…", which reuses the same project', async () => {
     const { fake, onDone } = quickSetup({
       'media.importUrl': () => {
-        throw { code: 'LOGIN_REQUIRED', message: 'This post needs a login', hint: 'Drop the file instead' };
+        throw {
+          code: 'LOGIN_REQUIRED',
+          message: 'This post needs a login',
+          hint: 'Drop the file instead',
+        };
       },
     });
     fireEvent.change(screen.getByLabelText('Link or video file'), {

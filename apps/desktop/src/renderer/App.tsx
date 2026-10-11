@@ -64,8 +64,13 @@ export function App() {
           ) : (
             <>
               {openError?.code === 'SCHEMA_TOO_NEW' && (
-                <div role="alert" data-testid="schema-too-new" className="bg-red-900 px-4 py-2 text-sm">
-                  This project was made with a newer version of Vox Studio. Update the app to open it.
+                <div
+                  role="alert"
+                  data-testid="schema-too-new"
+                  className="bg-red-900 px-4 py-2 text-sm"
+                >
+                  This project was made with a newer version of Vox Studio. Update the app to open
+                  it.
                 </div>
               )}
               <QuickStart

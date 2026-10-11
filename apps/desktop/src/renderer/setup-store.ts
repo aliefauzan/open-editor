@@ -22,7 +22,9 @@ export interface SetupState {
   refresh(): Promise<void>;
   install(component: string): Promise<void>;
   onProgress(e: SetupProgressData): void;
-  show(open: boolean): void;
+  /** The component a "Set up" button asked for (the screen scrolls to it and marks it). */
+  focus: string | null;
+  show(open: boolean, focus?: string): void;
 }
 
 const asError = (e: unknown): ErrorData =>
@@ -86,8 +88,9 @@ export const useSetup = create<SetupState>((set, get) => ({
       },
     }));
   },
-  show(open) {
-    set({ open, touched: true });
+  focus: null,
+  show(open, focus) {
+    set({ open, touched: true, focus: open ? (focus ?? null) : null });
   },
 }));
 

@@ -62,15 +62,13 @@ export class ExportTargets {
 
   private readonly o: { stateFile: string; defaultFolder: string; home: string };
 
-  constructor(
-    o: {
-      /** `<VOX_HOME>/export-folders.json` */
-      stateFile: string;
-      /** `~/Movies` */
-      defaultFolder: string;
-      home: string;
-    },
-  ) {
+  constructor(o: {
+    /** `<VOX_HOME>/export-folders.json` */
+    stateFile: string;
+    /** `~/Movies` */
+    defaultFolder: string;
+    home: string;
+  }) {
     this.o = o;
     try {
       const raw = JSON.parse(readFileSync(o.stateFile, 'utf8')) as unknown;
@@ -124,7 +122,8 @@ export class ExportTargets {
     const id = args['targetId'];
     const t = typeof id === 'string' ? this.targets.get(id) : undefined;
     if (!t) throw targetError(`Unknown export target ${String(id)} (targets last one session)`);
-    const { targetId: _drop, ...rest } = args;
+    const rest = { ...args };
+    delete rest['targetId'];
     const projectId = typeof args['projectId'] === 'string' ? args['projectId'] : undefined;
     if (projectId) this.remember(projectId, t.mode === 'folder' ? t.path : dirname(t.path));
     return t.mode === 'file'

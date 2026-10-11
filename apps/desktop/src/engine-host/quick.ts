@@ -83,8 +83,9 @@ export class AppJobs {
   }
 
   get(id: string): Omit<AppJob, 'abort'> {
-    const { abort: _a, ...info } = this.jobs.get(id)!;
-    return info;
+    const info: Partial<AppJob> = { ...this.jobs.get(id)! };
+    delete info.abort;
+    return info as Omit<AppJob, 'abort'>;
   }
 
   cancel(id: string): void {

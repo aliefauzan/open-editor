@@ -112,7 +112,12 @@ export function createJobsStore(vox: VoxApi): JobsStore {
       // an event may have come before the row existed: read the job once
       void vox.jobs.get(jobId).then(
         (j) => {
-          const info = j as { status?: string; progress?: number; result?: unknown; error?: ErrorData };
+          const info = j as {
+            status?: string;
+            progress?: number;
+            result?: unknown;
+            error?: ErrorData;
+          };
           if (info.status && info.status in { done: 1, failed: 1, cancelled: 1 }) {
             patch(jobId, {
               status: info.status as JobStatus,

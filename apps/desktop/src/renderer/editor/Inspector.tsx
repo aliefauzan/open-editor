@@ -14,6 +14,7 @@ import type {
   Sequence,
 } from '../../shared/project.ts';
 import { useCtx, useEditor } from './context.tsx';
+import { mediaName, relink } from './MediaBin.tsx';
 import { endOf, seqOf } from './editing.ts';
 import { findItem } from './entities.ts';
 import { SchemaForm } from './SchemaForm.tsx';
@@ -400,12 +401,23 @@ function MediaInspector(props: { s: Sequence; item: MediaClip; kind: 'video' | '
   const { s, item } = props;
   const a = useApply(s, item);
   const media = useEditor((x) => x.project?.media.find((m) => m.id === item.mediaId));
+  const offline = useEditor((x) => x.offline.includes(item.mediaId));
+  const ctx = useCtx();
   const isImage = media?.kind === 'image';
   return (
     <Section title={props.kind === 'audio' ? 'Audio clip' : isImage ? 'Image clip' : 'Video clip'}>
       <p className="truncate text-xs text-neutral-300" title={media?.path}>
-        {media ? media.path.split('/').pop() : 'Offline: the media is missing'}
+        {media && !offline ? mediaName(media) : 'Offline: the media file is missing'}
       </p>
+      {offline && (
+        <button
+          type="button"
+          className="rounded bg-red-800 px-2 py-0.5 text-xs text-white"
+          onClick={() => void relink(ctx, item.mediaId)}
+        >
+          Relink…
+        </button>
+      )}
       <Timing s={s} item={item} />
       {props.kind === 'video' && <Framing s={s} item={item} />}
       {props.kind === 'video' && isImage && (

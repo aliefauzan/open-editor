@@ -31,7 +31,7 @@ function setup(o: { seeds?: boolean } = {}) {
 }
 
 type H = ReturnType<typeof createHandlers>;
-const call = <T,>(h: H, m: keyof H, ...a: unknown[]) => h[m]!(...a) as Promise<T>;
+const call = <T>(h: H, m: keyof H, ...a: unknown[]) => h[m]!(...a) as Promise<T>;
 
 async function waitJob(h: H, id: string) {
   for (let i = 0; i < 1200; i++) {
@@ -169,7 +169,10 @@ describe('engine host (10b)', () => {
     const { h, engine } = setup();
     const p = await call<{ id: string }>(h, 'projects.create', 'C');
     await addMedia(engine, p.id, { ...MEDIA, id: 'm_x', path: 'media/x.mp4', tags: [] });
-    const id = await call<string>(h, 'jobs.start', 'makeClips', { projectId: p.id, mediaId: 'm_x' });
+    const id = await call<string>(h, 'jobs.start', 'makeClips', {
+      projectId: p.id,
+      mediaId: 'm_x',
+    });
     await call(h, 'jobs.cancel', id);
     expect((await waitJob(h, id)).status).toMatch(/cancelled|failed/);
   });

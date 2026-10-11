@@ -6,9 +6,7 @@ import type { JobRow, JobsStore } from './jobs.ts';
 import { asError } from './store.ts';
 
 export type QuickInput =
-  | { kind: 'url'; url: string }
-  | { kind: 'file' }
-  | { kind: 'drop'; files: ArrayLike<File> };
+  { kind: 'url'; url: string } | { kind: 'file' } | { kind: 'drop'; files: ArrayLike<File> };
 
 export interface QuickOptions {
   count: number;
@@ -99,7 +97,8 @@ export async function makeQuickClips(
     onProgress({ progress: 0.02, message: 'Importing' });
     const unsub = jobs.subscribe((s) => {
       const row = s.rows.find((r) => r.kind === 'ingest' && r.status === 'running');
-      if (row) onProgress({ progress: 0.02 + row.progress * 0.18, message: row.message ?? 'Importing' });
+      if (row)
+        onProgress({ progress: 0.02 + row.progress * 0.18, message: row.message ?? 'Importing' });
     });
     let ing: JobRow | null;
     try {
@@ -108,18 +107,32 @@ export async function makeQuickClips(
       unsub();
     }
     if (!ing) {
-      return { ok: false, projectId: id, cancelled: true, error: { code: 'CANCELLED', message: 'No file chosen', hint: '' } };
+      return {
+        ok: false,
+        projectId: id,
+        cancelled: true,
+        error: { code: 'CANCELLED', message: 'No file chosen', hint: '' },
+      };
     }
     if (ing.status !== 'done') {
-      return { ok: false, projectId: id, error: ing.error ?? { code: 'JOB_FAILED', message: 'Import failed', hint: '' } };
+      return {
+        ok: false,
+        projectId: id,
+        error: ing.error ?? { code: 'JOB_FAILED', message: 'Import failed', hint: '' },
+      };
     }
-    const media = (ing.result as { media?: { mediaId: string; kind: string }[] } | undefined)?.media ?? [];
+    const media =
+      (ing.result as { media?: { mediaId: string; kind: string }[] } | undefined)?.media ?? [];
     const video = media.find((m) => m.kind === 'video');
     if (!video) {
       return {
         ok: false,
         projectId: id,
-        error: { code: 'MEDIA_UNSUPPORTED', message: 'That is not a video', hint: 'Paste a video link or choose a video file.' },
+        error: {
+          code: 'MEDIA_UNSUPPORTED',
+          message: 'That is not a video',
+          hint: 'Paste a video link or choose a video file.',
+        },
       };
     }
     const jobId = (await vox.jobs.start('makeClips', {
@@ -164,8 +177,12 @@ export async function makeQuickClips(
 }
 
 /** The fewer-clips note: the engine's note, else "Only N of M clips fit". */
-export function fewerNote(o: { sequenceIds: string[]; requested: number; note?: string }): string | null {
+export function fewerNote(o: {
+  sequenceIds: string[];
+  requested: number;
+  note?: string;
+}): string | null {
   if (o.sequenceIds.length >= o.requested) return null;
   const n = o.sequenceIds.length;
-  return `Only ${n} of ${o.requested} clips fit in this video at this length${o.note ? ` (${o.note})` : "."}`;
+  return `Only ${n} of ${o.requested} clips fit in this video at this length${o.note ? ` (${o.note})` : '.'}`;
 }

@@ -11,8 +11,7 @@ function setup() {
   const projectsDir = join(home, 'Projects');
   mkdirSync(join(projectsDir, 'p_abc', 'renders'), { recursive: true });
   const stateFile = join(home, '.vox', 'export-folders.json');
-  const make = () =>
-    new ExportTargets({ stateFile, defaultFolder: join(home, 'Movies'), home });
+  const make = () => new ExportTargets({ stateFile, defaultFolder: join(home, 'Movies'), home });
   return { home, projectsDir, stateFile, make };
 }
 
@@ -76,7 +75,9 @@ describe('export targets (D-13, S32)', () => {
     expect(parseCall('jobs.start', ['render', { projectId: 'p_abc', targetId: 't_1' }]).ok).toBe(
       true,
     );
-    expect(parseCall('jobs.start', ['assets.search', { projectId: 'p_abc', q: 'x' }]).ok).toBe(true);
+    expect(parseCall('jobs.start', ['assets.search', { projectId: 'p_abc', q: 'x' }]).ok).toBe(
+      true,
+    );
   });
 
   it('the dialog stub answers a folder, or the suggested file name inside it', () => {

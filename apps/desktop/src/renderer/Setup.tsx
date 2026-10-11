@@ -154,7 +154,11 @@ export function SetupScreen() {
             key={c.id}
             data-testid={`component-${c.id}`}
             data-state={c.state}
-            className="flex items-center gap-3 py-2"
+            data-focus={s.focus === c.id || undefined}
+            ref={(el) => {
+              if (el && s.focus === c.id) el.scrollIntoView?.({ block: 'center' });
+            }}
+            className={`flex items-center gap-3 py-2 ${s.focus === c.id ? 'rounded ring-2 ring-indigo-500' : ''}`}
           >
             <span className="flex-1">
               {c.label}
@@ -240,9 +244,16 @@ export function SetupNotices() {
         <div data-testid="pending-stages" className="bg-neutral-900 px-4 py-1 text-xs">
           Waiting for setup:{' '}
           {stages.map(([stage, ids]) => `${stage} (needs ${ids.join(', ')})`).join(' · ')}{' '}
-          <button type="button" className="underline" onClick={() => s.show(true)}>
-            Open setup
-          </button>
+          {[...new Set(stages.flatMap(([, ids]) => ids))].map((id) => (
+            <button
+              key={id}
+              type="button"
+              className="ml-1 rounded bg-neutral-700 px-1.5"
+              onClick={() => s.show(true, id)}
+            >
+              Set up {st.components.find((c) => c.id === id)?.label ?? id}
+            </button>
+          ))}
         </div>
       )}
     </>

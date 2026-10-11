@@ -49,7 +49,12 @@ async function searchMedia(dir: string, media: readonly ProjectMedia[], q: strin
   if (!needle) return media.map((m) => m.id);
   const hits: string[] = [];
   for (const m of media) {
-    const fields = [m.path.split('/').pop() ?? '', m.origin.url ?? '', m.description ?? '', ...m.tags];
+    const fields = [
+      m.path.split('/').pop() ?? '',
+      m.origin.url ?? '',
+      m.description ?? '',
+      ...m.tags,
+    ];
     let found = fields.some((x) => x.toLowerCase().includes(needle));
     if (!found && m.transcriptPath) {
       try {
