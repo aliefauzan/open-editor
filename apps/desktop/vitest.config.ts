@@ -5,7 +5,7 @@ const slow = process.env['VOX_SLOW'] === '1';
 
 export default defineConfig({
   test: {
-    include: slow ? ['test/**/*.slow.test.ts'] : ['test/**/*.test.ts'],
+    include: slow ? ['test/**/*.slow.test.ts'] : ['test/**/*.test.{ts,tsx}'],
     exclude: slow ? ['**/node_modules/**'] : ['**/node_modules/**', '**/*.slow.test.ts'],
     testTimeout: slow ? 600_000 : 30_000,
     hookTimeout: slow ? 600_000 : 30_000,

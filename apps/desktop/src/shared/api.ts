@@ -72,6 +72,8 @@ export const METHOD_ARGS = {
   ),
   'media.importUrl': t(ProjectId, z.string().min(1).max(4096)),
   'media.classifyUrl': t(z.string().max(4096)),
+  // waveform peaks of a media item (`peaks/<mediaId>.json`; the renderer CSP allows no fetch), 10a
+  'media.peaks': t(ProjectId, z.string().regex(/^m_[A-Za-z0-9_-]+$/, 'media id')),
   'captions.get': t(ProjectId, SequenceId),
   'jobs.start': t(z.string().regex(/^[a-zA-Z]+$/), JobArgs),
   'jobs.get': t(z.string().min(1).max(100)),

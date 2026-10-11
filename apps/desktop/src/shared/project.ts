@@ -189,7 +189,7 @@ export interface CaptionWord {
 export interface CaptionChunk {
   startMs: number;
   endMs: number;
-  lines: CaptionWord[][];
+  lines: { words: CaptionWord[] }[];
 }
 
 /** `preview.updated` payload (R2, frozen in 10a). */

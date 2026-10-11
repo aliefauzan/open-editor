@@ -2,6 +2,8 @@
 // main (zod, S11); handlers map them onto the engine API. Methods of later phases are absent and
 // answer NOT_AVAILABLE (rpc.ts). Main-only methods (dialogs, reveal) never reach the host.
 import { classifyUrl, type Engine, type OpCall } from '@vox/engine';
+import { projectDirFor, resolveProjectPath } from '@vox/engine/paths';
+import { readFile } from 'node:fs/promises';
 import type { EventName, Method, MethodArgs, SetupStatusData } from '../shared/api.ts';
 import { join } from 'node:path';
 import type { AppSetup } from './app-setup.ts';
@@ -66,6 +68,12 @@ export function createHandlers(
     'media.importFiles': async (id: A<'media.importFiles'>[0], o?: A<'media.importFiles'>[1]) => {
       if (!o?.paths) throw new Error('media.importFiles needs the chosen paths from main');
       return { jobId: engine.jobs.start('ingest', { projectId: id, inputs: o.paths }) };
+    },
+    'media.peaks': async (id: A<'media.peaks'>[0], mediaId: A<'media.peaks'>[1]) => {
+      const m = (await engine.getProject(id)).media.find((x) => x.id === mediaId);
+      if (!m?.peaksPath) return null;
+      const file = await resolveProjectPath(projectDirFor(engine.projectsDir, id), m.peaksPath);
+      return JSON.parse(await readFile(file, 'utf8')) as unknown;
     },
     'media.classifyUrl': async (url: A<'media.classifyUrl'>[0]) => classifyUrl(url),
     'jobs.start': async (kind: A<'jobs.start'>[0], args: A<'jobs.start'>[1]) =>

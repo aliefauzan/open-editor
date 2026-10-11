@@ -167,3 +167,41 @@ describe('MessagePort RPC', () => {
     port1.close();
   });
 });
+
+describe('media.peaks (phase 10a)', () => {
+  it('returns the peaks file of a media item through the path rule, null without one', async () => {
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    const { h, engine } = setup();
+    const p = (await h['projects.create']!('Peaks')) as { id: string };
+    const dir = join(engine.projectsDir, p.id);
+    mkdirSync(join(dir, 'peaks'), { recursive: true });
+    writeFileSync(
+      join(dir, 'peaks', 'm_a.json'),
+      '{"version":1,"peaksPerSecond":100,"peaks":[0.5]}',
+    );
+    const media = (id: string, extra: object) => ({
+      media: {
+        id,
+        kind: 'audio',
+        path: `media/${id}.m4a`,
+        origin: { type: 'upload' },
+        tags: [],
+        ...extra,
+      },
+    });
+    await engine.applyOp(
+      p.id,
+      { op: 'addMedia', args: media('m_a', { peaksPath: 'peaks/m_a.json' }) } as never,
+      { actor: 'user' },
+    );
+    await engine.applyOp(p.id, { op: 'addMedia', args: media('m_b', {}) } as never, {
+      actor: 'user',
+    });
+    expect(await h['media.peaks']!(p.id, 'm_a')).toEqual({
+      version: 1,
+      peaksPerSecond: 100,
+      peaks: [0.5],
+    });
+    expect(await h['media.peaks']!(p.id, 'm_b')).toBeNull();
+  });
+});
