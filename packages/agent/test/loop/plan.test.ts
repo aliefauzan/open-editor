@@ -38,6 +38,30 @@ const PLAN_TEMPLATES: TemplateInfo[] = [
     },
     slots: {},
   },
+  {
+    id: 'base/collage',
+    version: '1.0.0',
+    kind: 'scene',
+    durationMs: { min: 1000, default: 3000, max: 6000 },
+    variables: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            properties: { media: { type: 'string', minLength: 1, maxLength: 64 } },
+            required: ['media'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['items'],
+      additionalProperties: false,
+    },
+    slots: { 'items/*/media': 'cutout' },
+  },
 ];
 
 const lookup = mapTemplateLookup(PLAN_TEMPLATES);
@@ -198,6 +222,51 @@ describe('plan mode (step 9)', () => {
     expect(JSON.stringify(rec?.['repairs'])).toMatch(
       /duration clamped.*dropped: base\/nope.*placeholder/,
     );
+  });
+
+  test('ClipPlan: pictures inside an array are searched for (query, else the text written there)', async () => {
+    const f = await fixtureProject({ engine: { templates: lookup } });
+    const { engine, started } = withJobs(f);
+    const collage = (startMs: number, media: string, imageQueries?: string[]) => ({
+      startMs,
+      endMs: startMs + 2000,
+      kind: 'scene',
+      template: 'base/collage',
+      variables: { items: [{ media }] },
+      ...(imageQueries && { imageQueries }),
+    });
+    const m = scriptedModel([
+      {
+        json: {
+          sequences: [
+            {
+              sequenceId: 's1',
+              beats: [
+                collage(2000, '', ['old harbour']),
+                collage(5000, 'a red bank card'),
+                collage(8000, 'm1'),
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+    const { deps } = runDeps(f, roleModel(m.model), { engine, templates: lookup });
+    const { done } = await runAgent(deps, req(f, { planKind: 'clip' }));
+    expect(done.status, done.summary).toBe('completed');
+    expect(started.map((s) => (s.args as { query?: string }).query)).toEqual([
+      'old harbour',
+      'a red bank card',
+    ]);
+    const seq = (await f.engine.getProject(f.projectId)).sequences[0]!;
+    const labels = seq.videoTracks
+      .find((t) => t.id === 'V2')!
+      .items.map((s) => (s as { variables?: { label?: string } }).variables?.label);
+    expect(labels).toEqual([
+      'Picture: old harbour',
+      'Picture: a red bank card',
+      'Picture: items media',
+    ]);
   });
 
   test('confirm plan: pauses (approval, kind plan); stop applies nothing', async () => {

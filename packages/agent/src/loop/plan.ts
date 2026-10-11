@@ -144,6 +144,13 @@ const fillableSlots = (t: TemplateInfo) =>
     ([path, kind]) => /^[A-Za-z0-9_]+$/.test(path) && (kind === 'image' || kind === 'cutout'),
   );
 
+/** Media slots inside an array (slot path `items/<any>/media`): [array variable, field, kind]. */
+const nestedSlots = (t: TemplateInfo) =>
+  Object.entries(t.slots).flatMap(([path, kind]) => {
+    const m = /^([A-Za-z0-9_]+)\/\*\/([A-Za-z0-9_]+)$/.exec(path);
+    return m && (kind === 'image' || kind === 'cutout') ? [[m[1]!, m[2]!, kind] as const] : [];
+  });
+
 /** Engine media id from an aliased tool result. */
 function mediaIdOf(run: AgentRun, result: unknown): string | undefined {
   const r = (result as { result?: { mediaId?: unknown } } | undefined)?.result;
@@ -245,6 +252,49 @@ export async function clipPlanToOps(
         note(`placeholder: no picture for ${q ?? slot}`);
         template = PLACEHOLDER_TEMPLATE;
         variables = { label: `Picture: ${q ?? slot}`.slice(0, 120) };
+        t = ph;
+        break;
+      }
+      if (!t) continue;
+      // Pictures inside an array (paper-collage `items/*/media`): the model was told to leave image
+      // slots empty, so an entry that does not name a picture of the project gets one from the beat's
+      // next image query, or from its own text when the model wrote a description there. No picture
+      // for an entry → the scene becomes a placeholder, as for a top-level slot.
+      for (const [arr, field, kind] of template === PLACEHOLDER_TEMPLATE ? [] : nestedSlots(t)) {
+        const list = variables[arr];
+        if (!Array.isArray(list)) continue;
+        const filled: unknown[] = [];
+        let missing: string | undefined;
+        for (const el of list) {
+          if (typeof el !== 'object' || el === null) continue;
+          const entry = { ...(el as Record<string, unknown>) };
+          const v = typeof entry[field] === 'string' ? (entry[field] as string).trim() : '';
+          if (p.media.some((m) => m.id === v && m.kind === 'image')) {
+            filled.push(entry);
+            continue;
+          }
+          const q = queries.shift() ?? (/\s/.test(v) ? v.slice(0, 120) : undefined);
+          const id = q === undefined ? undefined : await fillSlot(run, q, kind);
+          if (!id) {
+            missing = q ?? `${arr} ${field}`;
+            break;
+          }
+          entry[field] = id;
+          filled.push(entry);
+        }
+        if (missing === undefined) {
+          variables = { ...variables, [arr]: filled };
+          continue;
+        }
+        const ph = templates.get(PLACEHOLDER_TEMPLATE);
+        if (!ph) {
+          note(`dropped: no picture for ${missing} and no placeholder template`);
+          t = undefined;
+          break;
+        }
+        note(`placeholder: no picture for ${missing}`);
+        template = PLACEHOLDER_TEMPLATE;
+        variables = { label: `Picture: ${missing}`.slice(0, 120) };
         t = ph;
         break;
       }
