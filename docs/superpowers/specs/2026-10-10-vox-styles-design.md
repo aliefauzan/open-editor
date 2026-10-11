@@ -302,10 +302,10 @@ Each template lists its main variables; all also accept `bg: 'paper' | 'dark' | 
 
 | Template | Seen in reel as | Main variables |
 |---|---|---|
-| `year-card` | "1952" + blueprint line drawing + framed photo + yellow tag | `year`, `tag`, `photo`, `blueprint?` |
-| `framed-portrait` | halftone face, iris zoom into eye; gold frame + "GONE" stamp | `media`, `frame: 'none' \| 'gold' \| 'polaroid'`, `zoomTo?: {x, y}`, `stamp?` |
-| `newspaper` | "LA JOCONDE A DISPARU" clipping slides in | `headline`, `subhead?`, `photo?`, `date?`, `language` |
-| `stack` | 2–3 panels stacked vertically, each a mini-scene | `panels: {template, variables}[] (2–3)` (template slots) |
+| `year-card` | "1952" + blueprint line drawing + framed photo + yellow tag | `year`, `tag`, `photo`, `blueprint?` (image slot) |
+| `framed-portrait` | halftone face, iris zoom into eye; gold frame + "GONE" stamp | `media`, `frame: 'none' \| 'gold' \| 'polaroid'`, `zoomTo?: {x, y}`, `stamp?`, `tag?` |
+| `newspaper` | "LA JOCONDE A DISPARU" clipping slides in | `headline`, `subhead?`, `photo?`, `date?`, `language?` (BCP 47 tag, default `en`) |
+| `stack` | 2–3 panels stacked vertically, each a mini-scene | `panels: {template, variables}[] (2–3)` (template slots), `bg?` |
 
 `map-route` uses Natural Earth 1:50m country shapes (public domain) bundled as TopoJSON
 in `styles/vox/assets/geo/`; its `build.mjs` projects them to SVG at compile time with
