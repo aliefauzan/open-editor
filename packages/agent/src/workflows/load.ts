@@ -43,11 +43,16 @@ export function parseWorkflow(text: string): Workflow {
     const kv = /^([A-Za-z]+):\s*(.*)$/.exec(line);
     if (!kv) throw invalid(`cannot read line ${JSON.stringify(line)}`);
     let value = kv[2]!.trim();
+    // a list may also open on the next line (the form prettier writes)
+    if (value === '' && lines[i + 1]?.trim().startsWith('[')) value = lines[++i]!.trim();
     if (value.startsWith('[')) {
       while (!value.endsWith(']') && i + 1 < lines.length) value += ` ${lines[++i]!.trim()}`;
       if (!value.endsWith(']')) throw invalid(`${kv[1]!}: the list is not closed`);
       const inner = value.slice(1, -1).trim();
-      fields[kv[1]!] = inner === '' ? [] : inner.split(',').map((s) => s.trim());
+      fields[kv[1]!] = inner
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s !== '');
     } else fields[kv[1]!] = value;
   }
   const r = FrontmatterSchema.safeParse(fields);

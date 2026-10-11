@@ -47,3 +47,13 @@ describe('workflow files', () => {
     expect(() => loadWorkflow('../evil' as never)).toThrow(/workflow/);
   });
 });
+
+describe('frontmatter list forms', () => {
+  test('a list may open on the next line and end with a trailing comma (prettier form)', () => {
+    const w = parseWorkflow(
+      '---\nname: x\nallowedTools:\n  [\n    get_sequence,\n    trim_item,\n  ]\nroles: [editor]\ncheckpoints: []\n---\nbody\n',
+    );
+    expect(w.allowedTools).toEqual(['get_sequence', 'trim_item']);
+    expect(w.prompt).toBe('body');
+  });
+});

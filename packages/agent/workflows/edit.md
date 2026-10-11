@@ -1,10 +1,25 @@
 ---
 name: edit
-allowedTools: [get_transcript, search_transcript, get_template, view_frames, add_scene, update_scene,
-               update_clip, move_item, trim_item, split_item, set_transition, set_captions, check_audio]
+allowedTools:
+  [
+    get_transcript,
+    search_transcript,
+    get_template,
+    view_frames,
+    add_scene,
+    update_scene,
+    update_clip,
+    move_item,
+    trim_item,
+    split_item,
+    set_transition,
+    set_captions,
+    check_audio,
+  ]
 roles: [editor, fast, vision]
 checkpoints: []
 ---
+
 # Free-form edit
 
 Do what the user asks, and only that. The user's selection (the sequence, the selected items and the

@@ -134,7 +134,12 @@ describe('LLM scorer: renumbered answers', () => {
 describe('LLM scorer slot', () => {
   test('two runs on one engine never use each other’s scorer', async () => {
     const regs: ((i: never, c: never) => unknown)[] = [];
-    const engine = { quickClips: { registerScorer: (_id: string, fn: never) => void regs.push(fn), scorers: () => [] } };
+    const engine = {
+      quickClips: {
+        registerScorer: (_id: string, fn: never) => void regs.push(fn),
+        scorers: () => [],
+      },
+    };
     const seen: string[] = [];
     const job = (who: string) => async () => {
       await new Promise((r) => setTimeout(r, who === 'a' ? 20 : 0));

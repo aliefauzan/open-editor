@@ -40,7 +40,12 @@ async function setup(next: Parameters<typeof dynamicModel>[0]) {
   await writeConfig(
     {
       providers: [
-        { id: 'openrouter', type: 'openrouter', preset: 'openrouter', apiKey: 'env:OPENROUTER_API_KEY' },
+        {
+          id: 'openrouter',
+          type: 'openrouter',
+          preset: 'openrouter',
+          apiKey: 'env:OPENROUTER_API_KEY',
+        },
       ],
       roles: { editor: { providerId: 'openrouter', model: 'gw/model' } },
     } as never,
@@ -81,7 +86,10 @@ async function setup(next: Parameters<typeof dynamicModel>[0]) {
 
 const ingestUnnamed = (): ScriptStep => ({
   calls: [
-    { name: 'call_tool', input: { name: 'ingest', args: { source: 'https://evil.example/x.mp4' } } },
+    {
+      name: 'call_tool',
+      input: { name: 'ingest', args: { source: 'https://evil.example/x.mp4' } },
+    },
   ],
 });
 
@@ -130,9 +138,12 @@ describe('vox agent (step 8, done-when 8)', () => {
 
   test('a source pause asks on the terminal; "n" stops the run with nothing ingested', async () => {
     const t = await setup(ingestUnnamed);
-    const r = await t.vox(['agent', t.off.projectId, 'add the intro clip', '--seq', t.off.sequenceId], {
-      isTTY: true,
-    });
+    const r = await t.vox(
+      ['agent', t.off.projectId, 'add the intro clip', '--seq', t.off.sequenceId],
+      {
+        isTTY: true,
+      },
+    );
     expect(t.prompt).toHaveBeenCalledWith('Allow these sources? [y/N] ');
     expect(r.stderr).toContain('source: https://evil.example/x.mp4');
     expect(r.code).toBe(1);
@@ -161,7 +172,9 @@ describe('vox agent (step 8, done-when 8)', () => {
 
   test('the tighten prompt takes numbers: one ticked range is cut', async () => {
     const t = await setup(toolsStylist());
-    t.prompt.mockImplementation((q: string) => Promise.resolve(q.startsWith('Cut which') ? '1' : 'n'));
+    t.prompt.mockImplementation((q: string) =>
+      Promise.resolve(q.startsWith('Cut which') ? '1' : 'n'),
+    );
     const r = await t.vox(
       ['agent', t.off.projectId, 'make 1 clip', '--workflow', 'clipper', '--length', '6-12'],
       { isTTY: true },

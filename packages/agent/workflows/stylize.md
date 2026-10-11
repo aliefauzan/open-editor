@@ -1,10 +1,24 @@
 ---
 name: stylize
-allowedTools: [get_transcript, get_template, add_scene, update_scene, move_item, trim_item,
-               set_transition, search_images, fetch_image, cutout, view_frames, check_audio]
+allowedTools:
+  [
+    get_transcript,
+    get_template,
+    add_scene,
+    update_scene,
+    move_item,
+    trim_item,
+    set_transition,
+    search_images,
+    fetch_image,
+    cutout,
+    view_frames,
+    check_audio,
+  ]
 roles: [editor, fast, vision]
 checkpoints: [storyboard, fill, review, sound]
 ---
+
 # Stylize
 
 You add the style's beats to one existing clip (the sequence in the current state). The clip's picture is
