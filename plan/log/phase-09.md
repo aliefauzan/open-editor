@@ -1,6 +1,22 @@
 # Phase 09 — App: first-run setup + `.dmg`
 
-Status: not started; early steps done under D-19
+Status: in progress (started 2026-10-11 15:07), branch `phase/09-app-setup-dmg`, worktree `.worktrees/phase-09`
+
+## Plan (phase run)
+Token-budget run: one agent, no subagents; the step-7 review is a self-review (token budget).
+1. Engine: resource dirs for packaged builds (data, vox runtime, node module base) + `vox doctor`
+   lock-hash check; CLI `self-test --json`, `--version`, resource lookup when bundled.
+2. Setup wiring in the engine host: `setup.status/install/updateYtDlp`, `setup.progress`, Chrome
+   delegate (bundled HyperFrames CLI), `<tools>/bin` links, launch-time py-env resync, doctor →
+   "Ready", update check on launch (repo `aliefauzan/open-editor`).
+3. Setup screen + doctor view + update banner (renderer); menu "Install `vox` command".
+4. Packaging: CLI + engine-host bundles, resources (R1 table), bundled uv (pinned, verified),
+   fuses (S27), drop default_app.asar, size.
+5. Slow tests: packaging (self-test, fuses, S31 bundle hash), clean-install (quarantine, spctl,
+   ffmpeg-missing view, fake brew + fixture components → Ready), install-command.
+6. README install + clone sections; review; verify; log; merge.
+Test order: setup handlers → stage table → doctor lock hash → self-test → install-command →
+renderer setup view → packaging → clean-install.
 
 ## Early steps (D-19) — s1-setup-modules
 Branch `early/s1-setup-modules`. Pure Node modules in `apps/desktop/src/engine-host/setup/`, no Electron, no engine imports (own `SetupError`; map `code` to `VoxError` when wiring).
