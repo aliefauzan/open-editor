@@ -1773,3 +1773,41 @@ setting and no second notion of "speech"; SFX stays under the existing `sfxUnder
 is the lever there, not ducking).
 **Alternatives**: duck each clip separately (many detector copies, same sound); key on the speech stem after
 `loudnorm` (the detector would not be level-matched); ducking SFX (changes the SFX stem the audio QA measures).
+
+## D-62 — Clip speed design, GATE 7 by owner delegation (phase 14e, 2026-10-12)
+**Context**: Engine spec "Non-goals" left clip speed for v1.1 with its own design (a `speed` field, duration
+rule `inMs + durationMs × speed`, audio `atempo`, a spike on HyperFrames `playbackRate`); GATE 7 asks whether
+the design is right before code. The owner delegated gates to the AI (D-49, D-58). The spike
+(`spike/bench/speed.ts`, evidence `docs/evidence/phase-14e/spike-playbackrate.json`, `atempo-timing.json`)
+rendered the 90 s barcode/flash/click fixture at 0.25×, 0.5×, 1×, 2× and 4× with `data-playback-rate`
+(HyperFrames 0.8.145, `--quality draft`, other phase agents running, load average 25).
+**Decision**: GATE 7 passes, after one revision round. The design is the engine spec section "Clip speed":
+- **Model**: `MediaClip.speed?: number` (absent = 1; 0.25–4 in 0.01 steps on video tracks, 0.5–2 on audio
+  tracks; never on images or scenes). Source span `round(durationMs × speed)`; the duration rule is
+  `inMs + durationMs × speed ≤ media duration`; time maps `src = inMs + (t − startMs) × speed`.
+- **Schema**: `schemaVersion` 3 with a load-time migration 2 → 3 that changes only the number (every v1.1
+  field is optional), after the existing `snapshots/auto-pre-migrate-v2.json` copy. Version 3 is the v1.1
+  schema: other optional v1.1 fields (14f `AudioTrack.duck`, D-61) belong to it, with no second bump before
+  v1.1 ships. A v1.0 engine refuses a v3 project with `SCHEMA_TOO_NEW` and writes nothing.
+- **Op**: `setClipSpeed { sequenceId, itemId, speed, unlinked?, onOverlap: 'error' | 'ripple' }` keeps
+  `startMs`, `inMs` and the source span (slower = longer); linked clips follow. Every op that touches
+  source offsets (trim from the start, split, ripple delete, replaceMedia clamp, fps re-snap, `NO_HANDLES`)
+  uses the span and the mapping; captions and word ranges map words through it.
+- **Render**: `<video data-playback-rate>` (and preview `<audio>`); `data-media-start` stays the source
+  offset. **Mix**: `atrim` with a 1024-sample (48 kHz) preroll → resample → denoise → `atempo` → `atrim` to
+  the timeline length → gains, fades, `adelay`. OTIO adds `LinearTimeWarp`. `engine.view` items carry
+  `speed` when it is not 1 (additive).
+- **Numbers**: picture 960/960 frames show the expected source frame at all five speeds. A/V (flash vs
+  click after the mux): plain `atempo` puts the sound early, max 33.31 ms at 0.5× in the render (one frame
+  is 33.33 ms; isolated runs: mean −45 ms at 0.5×, −11 ms at 2×), so the first design failed the bar.
+  Revision: `atempo` drops about 1024 input samples at its start; with that preroll the render measured
+  max 9.35 ms (10 pairs) and isolated runs stay within −14.5…+14.9 ms for 0.5–2×. Below 0.5× (two chained
+  stages) the error reaches 52.9 ms, and at 3–4× short clicks drop out, so sound clips stop at 0.5–2×.
+**Why**: `playbackRate` is frame exact in the pinned HyperFrames, so the risk fallback (ffmpeg pre-processing
+into a cached file) is not needed; sound stays within one frame only with the preroll and in 0.5–2×; an
+identity migration cannot lose data, and the pre-migrate copy is the way back for a v1.0 install.
+**Alternatives**: ffmpeg pre-rendered speed copies (the plan's fallback; cache and disk cost for no gain);
+`rubberband` (not in the Homebrew ffmpeg); allowing 0.25–4× sound (measured out of sync); storing `speed`
+without a version bump like D-61 (a v1.0 engine would fail `VALIDATION` instead of `SCHEMA_TOO_NEW`).
+**Open**: preview playback at speed is not measured (no GUI tool; the HyperFrames runtime sets the
+element's `playbackRate`); listed for the owner's screen check.
