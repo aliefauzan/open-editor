@@ -33,7 +33,7 @@ function writeJsonAtomic(file: string, value: unknown): void {
 function installed(stylesDirs: readonly string[]): Map<string, number> {
   const out = new Map<string, number>();
   for (const [i, root] of stylesDirs.entries()) {
-    let names: string[] = [];
+    let names: string[];
     try {
       names = readdirSync(root);
     } catch {
@@ -48,9 +48,14 @@ function installed(stylesDirs: readonly string[]): Map<string, number> {
 }
 
 function notFound(id: string): VoxError {
-  return new VoxError('STYLE_NOT_FOUND', `Style ${id} is not installed`, 'Run `vox style list`', {
-    details: { style: id },
-  });
+  return new VoxError(
+    'STYLE_NOT_FOUND',
+    `Style ${id} is not installed`,
+    'Check the id; `vox paths` prints the styles folders',
+    {
+      details: { style: id },
+    },
+  );
 }
 
 function builtIn(id: string, what: string): VoxError {

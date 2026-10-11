@@ -61,8 +61,8 @@ describe('hook determinism (step 3)', () => {
   });
 
   test('an untrusted hook is never run', async () => {
-    await expect(checkHookDeterminism(def('counter', false), STYLE, fixtures)).rejects.toMatchObject(
-      { code: 'HOOK_UNTRUSTED' },
-    );
+    await expect(
+      checkHookDeterminism(def('counter', false), STYLE, fixtures),
+    ).rejects.toMatchObject({ code: 'HOOK_UNTRUSTED' });
   });
 });

@@ -937,7 +937,7 @@ async function domPass(c: PassCtx): Promise<void> {
           problem({
             rule: 'min-entrance',
             template: def.id,
-            message: `at ${long.dur} ms frame 0 equals the resting state: the entrance never runs`,
+            message: `at ${long.dur} ms frame 0 looks the same as frame 0 at ${short.dur} ms: the entrance never runs, or it ignores skipEntrance`,
           });
         }
       }

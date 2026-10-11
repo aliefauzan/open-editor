@@ -69,9 +69,9 @@ describe('vox style new (step 1)', () => {
     expect(Object.keys(st.templates).some((k) => k.startsWith('mine/'))).toBe(false);
     expect(st.templates['kit/card']!.styleId).toBe('kit');
     // a second `new` with the same id fails
-    expect(code(thrown(() => newStyle({ stylesDirs: s.dirs, registry: s.reg(), id: 'mine' })))).toBe(
-      'STYLE_DUPLICATE',
-    );
+    expect(
+      code(thrown(() => newStyle({ stylesDirs: s.dirs, registry: s.reg(), id: 'mine' }))),
+    ).toBe('STYLE_DUPLICATE');
   });
 });
 
@@ -116,7 +116,12 @@ describe('trust, accept, remove (step 5 round trip)', () => {
     removeStyle(s.dirs, s.reg(), 'round');
     s.store.forget('round');
     expect(existsSync(join(s.user, 'round'))).toBe(false);
-    expect(s.reg().list().map((x) => x.id)).not.toContain('round');
+    expect(
+      s
+        .reg()
+        .list()
+        .map((x) => x.id),
+    ).not.toContain('round');
     expect(readFileSync(join(s.home, 'trust.json'), 'utf8')).not.toContain('"round"');
   });
 });

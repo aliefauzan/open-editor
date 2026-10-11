@@ -1,0 +1,7 @@
+{
+  "name": "odd",
+  "description": "Test preset: base/plain markup, upper case, no punctuation.",
+  "case": "title",
+  "stripPunctuation": true,
+  "position": { "yPct": 70 }
+}

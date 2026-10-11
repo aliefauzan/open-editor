@@ -1,0 +1,13 @@
+{
+  "id": "vnojson",
+  "name": "vnojson",
+  "version": "0.1.0",
+  "description": "Test style for vox style validate (phase 06).",
+  "status": "active",
+  "extends": "base",
+  "source": { "type": "user" },
+  "trusted": false,
+  "templates": [],
+  "transitions": [],
+  "captions": { "default": "base/plain", "presets": ["base/plain", "vnojson/bare"] }
+}

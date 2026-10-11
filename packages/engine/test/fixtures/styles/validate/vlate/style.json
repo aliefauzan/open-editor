@@ -1,0 +1,20 @@
+{
+  "id": "vlate",
+  "name": "vlate",
+  "version": "0.1.0",
+  "description": "Test style for vox style validate (phase 06).",
+  "status": "active",
+  "extends": "base",
+  "source": { "type": "user" },
+  "trusted": false,
+  "templates": ["pop"],
+  "transitions": [],
+  "sfx": {
+    "pop": {
+      "path": "assets/sfx/pop.wav",
+      "type": "appear",
+      "source": "generated test file",
+      "licence": "CC0"
+    }
+  }
+}
