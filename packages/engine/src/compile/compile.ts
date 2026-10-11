@@ -475,24 +475,20 @@ function framing(ctx: Ctx, m: MediaItem, p: Placed): string {
     // keyframes are item-relative; a crossfade's early start shifts the element, not the path
     const at = (k: Keyframe) =>
       (frame(p.item.startMs + k.atMs, ctx.fps) * ctx.fps.den) / ctx.fps.num;
-    const id = p.item.id;
-    ctx.script.push(
-      `tl.set(byId('${id}'), { x: ${t0.x}, y: ${t0.y}, scale: ${t0.scale} }, ${num(at(list[0]!))});`,
-    );
+    // One script line per clip: steps are [position, x, y, scale, duration]; duration 0 = a set.
+    // A line per keyframe pushed long clips past hyperframes' 300-line lint limit (`--strict-all`).
+    const steps = [`[${num(at(list[0]!))}, ${t0.x}, ${t0.y}, ${t0.scale}, 0]`];
     for (let i = 1; i < list.length; i++) {
       const t = transformOf(list[i]!, vw, vh, W, H);
       const a = at(list[i - 1]!);
       const d = at(list[i]!) - a;
-      if (d <= 0) {
-        ctx.script.push(
-          `tl.set(byId('${id}'), { x: ${t.x}, y: ${t.y}, scale: ${t.scale} }, ${num(at(list[i]!))});`,
-        );
-      } else {
-        ctx.script.push(
-          `tl.to(byId('${id}'), { x: ${t.x}, y: ${t.y}, scale: ${t.scale}, duration: ${num(d)}, ease: 'none' }, ${num(a)});`,
-        );
-      }
+      steps.push(
+        d <= 0
+          ? `[${num(at(list[i]!))}, ${t.x}, ${t.y}, ${t.scale}, 0]`
+          : `[${num(a)}, ${t.x}, ${t.y}, ${t.scale}, ${num(d)}]`,
+      );
     }
+    ctx.script.push(`voxPath('${p.item.id}', [${steps.join(', ')}]);`);
   }
   return style;
 }
@@ -953,6 +949,14 @@ ${fontFaceCss(faceList)}
       (function () {
         var byId = function (id) { return document.getElementById(id); };
         var tl = gsap.timeline({ paused: true });
+        var voxPath = function (id, steps) {
+          var el = byId(id);
+          steps.forEach(function (s) {
+            var v = { x: s[1], y: s[2], scale: s[3] };
+            if (s[4] > 0) { v.duration = s[4]; v.ease = 'none'; tl.to(el, v, s[0]); }
+            else tl.set(el, v, s[0]);
+          });
+        };
 ${indent(ctx.script, 8)}
         window.__timelines['main'] = tl;
       })();

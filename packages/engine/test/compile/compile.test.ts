@@ -272,16 +272,35 @@ describe('D-15 compile details (step 9b)', () => {
       /<video id="it_f"[^>]*style="position: absolute; left: 0; top: 0; width: 3413\.333px; height: 1920px; object-fit: fill; transform-origin: 0 0; transform: translate\(-1166\.667px, 0px\) scale\(1\);"/,
     );
     expect(html).toContain(
-      `tl.to(byId('it_f'), { x: -1166.667, y: -960, scale: 2, duration: 1, ease: 'none' }, 0);`,
+      // [position, x, y, scale, duration]: set at 0, then a 1 s tween from 0
+      `voxPath('it_f', [[0, -1166.667, 0, 1, 0], [0, -1166.667, -960, 2, 1]]);`,
     );
     expect(html).toContain(
-      `tl.to(byId('it_m'), { x: -1166.667, y: -960, scale: 2, duration: 1, ease: 'none' }, 2);`,
+      `voxPath('it_m', [[2, -1166.667, 0, 1, 0], [2, -1166.667, -960, 2, 1]]);`,
     );
     // static manual crop: x = 0.2 → 540 - 0.2 × 3413.333
     expect(html).toMatch(
       /<video id="it_s"[^>]*transform: translate\(-142\.667px, 0px\) scale\(1\);"/,
     );
     expect(html).toMatch(/<video id="it_c"[^>]*object-fit: contain;"/);
+  });
+
+  test('a long tracked path is one script line per clip (hyperframes lint: ≤ 300 lines per file)', async () => {
+    // a 60 s quick clip has hundreds of path keyframes; one tween line each broke `--strict-all`
+    const kfs = Array.from({ length: 600 }, (_, i) => ({
+      atMs: i * 3,
+      x: 0.4 + (i % 2) * 0.1,
+      y: 0.5,
+      scale: 1.2,
+    }));
+    const p = sceneProject('base', []);
+    p.sequences[0]!.videoTracks[0]!.items = [
+      clip('it_f', 'm_a', 0, 2000, 0, { frame: { mode: 'facetrack' } }),
+    ];
+    const html = index(await build(p, { mode: 'render' }, registry(), { framing: () => kfs }));
+    const structural = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '<style></style>');
+    expect(structural.split('\n').length).toBeLessThanOrEqual(300);
+    expect(html.match(/^\s*voxPath\('it_f', /gm)).toHaveLength(1);
   });
 });
 

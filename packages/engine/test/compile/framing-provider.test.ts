@@ -94,8 +94,9 @@ describe('facetrack path provider (9b)', () => {
     expect(got).toBe(want);
     // The tracked path moves: more than one transform step per clip.
     for (const it of seq.videoTracks[0]!.items) {
-      const steps = got.split(`tl.to(byId('${it.id}')`).length - 1;
-      expect(steps, it.id).toBeGreaterThan(0);
+      const path = new RegExp(`voxPath\\('${it.id}', \\[(.*)\\]\\);`).exec(got);
+      const tweens = (path?.[1] ?? '').split('], [').filter((s) => !/, 0\]?$/.test(s)).length;
+      expect(tweens, it.id).toBeGreaterThan(0);
     }
     const first = seq.videoTracks[0]!.items[0]!;
     await e.applyOp(
@@ -121,6 +122,6 @@ describe('facetrack path provider (9b)', () => {
     });
     const id = await seeded(e, false);
     const got = html(await e.compile(id, 'seq_a', { mode: 'render' }));
-    expect(got).not.toContain("tl.to(byId('");
+    expect(got).not.toContain("voxPath('");
   });
 });
