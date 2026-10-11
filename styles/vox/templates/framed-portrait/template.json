@@ -1,0 +1,72 @@
+{
+  "name": "framed-portrait",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "A halftone portrait of a named person in a gold frame (or a polaroid, or bare), opening with an iris and optionally zooming into a point such as the eyes, then a red stamp like \"GONE\" slams on and the frame thuds down. Like the Mona Lisa frame with the \"GONE\" stamp in the reference reel.",
+  "useWhen": [
+    "the speaker names a person, a portrait or a famous artwork",
+    "someone disappears, is lost, found, wanted or remembered",
+    "a stamp such as GONE, FOUND, WANTED or 1911 should land on a face"
+  ],
+  "durationMs": {
+    "min": 2000,
+    "default": 3200,
+    "max": 5000
+  },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "media": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "frame": {
+        "enum": ["none", "gold", "polaroid"]
+      },
+      "zoomTo": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": ["x", "y"],
+        "additionalProperties": false
+      },
+      "stamp": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 14
+      },
+      "tag": {
+        "type": "string",
+        "maxLength": 32
+      },
+      "bg": {
+        "enum": ["paper", "dark", "highlight"]
+      }
+    },
+    "required": ["media"],
+    "additionalProperties": false
+  },
+  "slots": {
+    "media": "image"
+  },
+  "sfxCues": [
+    {
+      "name": "frame-down",
+      "atMs": 2000,
+      "sfx": "stamp",
+      "type": "land"
+    }
+  ],
+  "minEntranceMs": 2200
+}

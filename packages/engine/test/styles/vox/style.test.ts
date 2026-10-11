@@ -12,15 +12,19 @@ const reg = loadStyleRegistry({ stylesDirs: [REPO_STYLES] });
 const VOX = join(REPO_STYLES, 'vox');
 
 describe('styles/vox', () => {
-  test('loads: 4 scene templates, 2 transitions, 3 caption presets, the paper-grain overlay (default) and film-look', () => {
+  test('loads: 8 scene templates, 2 transitions, 3 caption presets, the paper-grain overlay (default) and film-look', () => {
     expect(reg.problems()).toEqual([]);
     const vox = reg.get('vox');
     const own = Object.values(vox.templates).filter((t) => t.styleId === 'vox');
     expect(own.map((t) => `${t.kind}:${t.id}`).sort()).toEqual([
+      'scene:vox/framed-portrait',
       'scene:vox/kinetic-serif',
       'scene:vox/map-route',
+      'scene:vox/newspaper',
       'scene:vox/paper-collage',
+      'scene:vox/stack',
       'scene:vox/stat',
+      'scene:vox/year-card',
       'transition:vox/paper-tear',
       'transition:vox/slide-paper',
     ]);
@@ -62,7 +66,7 @@ describe('styles/vox', () => {
     }
   });
 
-  test('the guide names every installed template and no v1.1 template', () => {
+  test('the guide names every installed template', () => {
     const guide = readFileSync(join(VOX, 'guide.md'), 'utf8');
     const named = [...guide.matchAll(/`(vox\/[a-z-]+)`/g)].map((m) => m[1]!);
     const installed = [
@@ -70,9 +74,6 @@ describe('styles/vox', () => {
       ...Object.keys(reg.get('vox').captionPresets),
     ];
     expect([...new Set(named)].sort()).toEqual([...installed].sort());
-    for (const later of ['year-card', 'framed-portrait', 'newspaper', 'stack']) {
-      expect(guide).not.toContain(later);
-    }
   });
 
   test('no file of the style names a network URL (the SVG namespace is not fetched)', () => {
@@ -95,5 +96,34 @@ describe('styles/vox', () => {
       if (/\bfetch\(|XMLHttpRequest|WebSocket|import\(/.test(t)) hits.push(`${f}: network API`);
     }
     expect(hits).toEqual([]);
+  });
+});
+
+describe('styles/vox v1.1 stack', () => {
+  test('every stack fixture names installed scene templates (not a stack) and valid panel variables', () => {
+    const vox = reg.get('vox');
+    const stack = vox.templates['vox/stack']!;
+    for (const f of stack.fixtures) {
+      const { panels } = JSON.parse(readFileSync(f, 'utf8')) as {
+        panels: { template: string; variables: unknown }[];
+      };
+      for (const p of panels) {
+        const def = vox.templates[p.template];
+        expect(def, `${f}: ${p.template}`).toBeDefined();
+        expect(def!.kind).toBe('scene');
+        expect(p.template).not.toBe('vox/stack');
+        const v = variablesValidator(def!.variables);
+        expect(v(p.variables), `${f} ${p.template}: ${JSON.stringify(v.errors)}`).toBe(true);
+      }
+    }
+  });
+
+  test('framed-portrait and the other v1.1 scenes declare one sound cue each, none a hero', () => {
+    const vox = reg.get('vox');
+    for (const id of ['year-card', 'framed-portrait', 'newspaper', 'stack']) {
+      const cues = vox.templates[`vox/${id}`]!.sfxCues!;
+      expect(cues, id).toHaveLength(1);
+      expect(cues[0]!.type, id).not.toBe('hero');
+    }
   });
 });
