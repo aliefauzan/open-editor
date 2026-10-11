@@ -23,7 +23,13 @@ export interface JobRow {
 export interface JobsState {
   rows: JobRow[];
   /** Starts an engine job and resolves with its final row (never rejects for a failed job). */
-  start(kind: string, args: Record<string, unknown>, label: string): Promise<JobRow>;
+  start(
+    kind: string,
+    args: Record<string, unknown>,
+    label: string,
+    /** Called with the row id as soon as the job is queued (progress views). */
+    onStarted?: (id: string) => void,
+  ): Promise<JobRow>;
   /** Follows a job started elsewhere (e.g. `media.importUrl`). */
   track(jobId: string, kind: string, label: string, retry?: () => void): Promise<JobRow>;
   dismiss(id: string): void;
@@ -135,7 +141,7 @@ export function createJobsStore(vox: VoxApi): JobsStore {
     return {
       rows: [],
       track,
-      async start(kind, args, label) {
+      async start(kind, args, label, onStarted) {
         const again = () => {
           void get().start(kind, args, label);
         };
@@ -153,9 +159,12 @@ export function createJobsStore(vox: VoxApi): JobsStore {
             retry: again,
           };
           set({ rows: [...get().rows, row] });
+          onStarted?.(row.id);
           return row;
         }
-        return track(id, kind, label, again);
+        const done = track(id, kind, label, again);
+        onStarted?.(id);
+        return done;
       },
       dismiss(id) {
         set({ rows: get().rows.filter((r) => r.id !== id) });

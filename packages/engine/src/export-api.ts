@@ -34,9 +34,13 @@ const LOUDNESS = z.enum(['youtube', 'tiktok', 'broadcast']);
 
 // ---- HyperFrames runs ----
 
-/** Env keys a HyperFrames child may see: no API keys (e.g. `snapshot --describe` reads one). */
+/**
+ * Env keys a HyperFrames child may see: no API keys (e.g. `snapshot --describe` reads one).
+ * `ELECTRON_RUN_AS_NODE` stays: the app's engine host starts the CLI with its own Electron binary
+ * (`process.execPath`), which runs as Chromium without it (phase 10b).
+ */
 const ENV_KEEP =
-  /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|LANG|LC_[A-Z]+|TZ|PUPPETEER_[A-Z_]+|PRODUCER_[A-Z_]+|HYPERFRAMES_[A-Z_]+|CHROME_PATH|XDG_[A-Z_]+)$/;
+  /^(ELECTRON_RUN_AS_NODE|PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|LANG|LC_[A-Z]+|TZ|PUPPETEER_[A-Z_]+|PRODUCER_[A-Z_]+|HYPERFRAMES_[A-Z_]+|CHROME_PATH|XDG_[A-Z_]+)$/;
 
 export function hyperframesEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};

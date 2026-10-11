@@ -364,7 +364,11 @@ function Framing(props: { s: Sequence; item: MediaClip }) {
             onClick={() => {
               const atMs = snapMs(rel, s.canvas.fps);
               const keep = pins.filter((k) => k.atMs !== atMs);
-              setFrame({ keyframes: [...keep, { atMs, ...crop }].sort((x, y) => x.atMs - y.atMs) });
+              // same coalesceKey as the crop handle (`frame:<itemId>`): a pin and the drag that follows
+              // within the engine's 1 s window are one undo entry (10b E2E, D-15)
+              fieldFrame('frame', {
+                keyframes: [...keep, { atMs, ...crop }].sort((x, y) => x.atMs - y.atMs),
+              });
             }}
           >
             Pin frame here

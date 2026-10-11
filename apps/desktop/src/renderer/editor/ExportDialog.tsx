@@ -89,7 +89,7 @@ export function ExportDialog() {
     null,
   );
   const [busy, setBusy] = useState<'qa' | 'export' | null>(null);
-  const [rows, setRows] = useState<JobRow[]>([]);
+  const [rows, setRows] = useState<string[]>([]);
 
   const projectId = project?.id;
   useEffect(() => {
@@ -167,8 +167,15 @@ export function ExportDialog() {
     setBusy('export');
     const t = { targetId: effective.targetId };
     const started: Promise<JobRow>[] = [];
+    const ids: string[] = [];
+    setRows([]);
     const start = (kind: string, args: Record<string, unknown>, label: string) =>
-      started.push(jobs.getState().start(kind, { projectId: project.id, ...args, ...t }, label));
+      started.push(
+        jobs.getState().start(kind, { projectId: project.id, ...args, ...t }, label, (id) => {
+          ids.push(id);
+          setRows([...ids]);
+        }),
+      );
     if (formats.mp4) {
       const common = { quality, captions: burn ? 'burn' : 'none', loudness };
       if (all) start('render', { all: true, ...common }, 'MP4 (all sequences)');
@@ -191,7 +198,7 @@ export function ExportDialog() {
       }
       if (formats.otio) start('exportTimeline', { sequenceId: s.id }, `OTIO: ${s.name}`);
     }
-    setRows(await Promise.all(started));
+    await Promise.all(started);
     setBusy(null);
   };
 
@@ -398,7 +405,7 @@ export function ExportDialog() {
             className={sel}
             onClick={() => ui.getState().set({ exportOpen: false })}
           >
-            Close
+            Done
           </button>
           <button
             type="button"
@@ -416,11 +423,11 @@ export function ExportDialog() {
   );
 }
 
-/** The dialog's rows, kept current from the jobs store. */
-function useJobRows(rows: JobRow[]): JobRow[] {
+/** The dialog's rows (by job id), kept current from the jobs store. */
+function useJobRows(ids: string[]): JobRow[] {
   const { jobs } = useCtx();
   const [, force] = useState(0);
   useEffect(() => jobs.subscribe(() => force((n) => n + 1)), [jobs]);
   const all = jobs.getState().rows;
-  return rows.map((r) => all.find((x) => x.id === r.id) ?? r);
+  return ids.map((id) => all.find((x) => x.id === id)).filter((r): r is JobRow => r !== undefined);
 }
