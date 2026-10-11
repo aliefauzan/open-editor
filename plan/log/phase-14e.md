@@ -33,11 +33,11 @@ Test order: model/migrate → ops/speed → captions/words → audio/atempo → 
 - [x] 1 Design note in the engine spec ("Clip speed")
 - [x] 2 `playbackRate` spike + evidence
 - [x] 3 GATE 7 decision (owner delegation, D-62)
-- [ ] 4 Schema v3 + migration
-- [ ] 5 `setClipSpeed` op + speed-aware ops
-- [ ] 6 Captions / word ranges
-- [ ] 7 Compile + audio `atempo`
-- [ ] 8 Exports, view, agent, app inspector
+- [x] 4 Schema v3 + migration
+- [x] 5 `setClipSpeed` op + speed-aware ops
+- [x] 6 Captions / word ranges
+- [x] 7 Compile + audio `atempo`
+- [x] 8 Exports, view, agent, app inspector
 - [ ] 9 Review, Verify, log, merge
 
 ## Spike and GATE 7 (by owner delegation)
@@ -72,3 +72,76 @@ Review (critical, by owner delegation; round 1 → round 2):
   `playbackRate`. Listed for the owner's screen check.
 Decision: GATE 7 passes with the revised design (D-62). Evidence: `docs/evidence/phase-14e/`
 (`spike-playbackrate.json`, `atempo-timing.json`, `spike-index.html`).
+
+## Build (contract change, R2; D-62)
+Branch commits: 35a2d32 (spike), 7edd2a9 (schema v3, migration, op, speed-aware ops), 1a69cb7
+(captions, compile, mix, view), 5913ce7 (OTIO, agent), 4d8f86c (app), a31a567 (render slow test),
+f8c06bf (app spec); main merged in four times (c628491, 5a0c955, the 14g merge, d7bb642), all clean.
+- Engine model: `src/model/speed.ts` (range constants, `spanMs`, `sourceAt`, `timelineAt`,
+  `toSourceMs`), `src/model/migrate.ts` (`migrate2to3`, registered by default in `ProjectStore`),
+  `schema.ts` (`SCHEMA_VERSION = 3`, `MediaClip.speed`, 0.01 steps).
+- Ops: `src/ops/speed.ts` (`setClipSpeed`, linked clips follow, `onOverlap: 'error' | 'ripple'`, manual
+  crop pins keep their source moment); source arithmetic × speed in trim, split, fit, `replaceMedia`,
+  fps re-snap, `NO_HANDLES`, `MEDIA_BOUNDS`; invariants: no speed on images, sound only 0.5–2×.
+- Words and captions (`ops/words.ts`), compile (`data-playback-rate` on `<video>` and preview `<audio>`,
+  range cuts and crossfade early starts × speed), framing provider in source time, `engine.view`
+  `speed`, mix (`audio/graph.ts`: 1024-sample `atempo` preroll, silence pad near source start, cut to
+  the timeline length; 1× graph unchanged).
+- OTIO: `timeScalar` per clip → `LinearTimeWarp` (`py/vox_py/timeline.py`, request schema); the source
+  range keeps the timeline length. FCPXML ignores it (D-64 known limit: the adapter writes no speed).
+- Agent: `set_clip_speed` tool (generated), op description, `view_frames` `srcMs` × speed, Stylize pair
+  check includes `speed`.
+- App: Inspector "Speed" row (`setClipSpeed`, ripple; 0.25–4 video, 0.5–2 audio, hidden on images),
+  In/Out in source time, trim limits, thumbnails, waveform, subtitle mapping, optimistic trim;
+  `shared/project.ts` `speed` + `sourceSpanMs`. App spec Inspector bullets updated.
+
+## Verify (2026-10-12, worktree after merging main d7bb642)
+| Command | Result |
+|---|---|
+| `pnpm test` (load 6.0) | 2535 passed, 1 skipped, 1 failed: `history/cursor > undo depth is 500 entries` timed out (60 s) under load; re-run alone: passed (18.1 s; the same test takes 39.9 s on main at load 11.7) |
+| `pnpm -C packages/engine test -- ops/speed model/migrate audio/atempo compile/speed model/captions` | 5 files, 37 passed |
+| `VOX_SLOW=1 vitest run packages/engine/test/render/speed.slow.test.ts` (bench lock, load 6.0 → 5.2) | 1 passed, 24.4 s |
+| `VOX_SLOW=1 vitest run packages/engine/test/export/timeline.slow.test.ts -t "sped clip"` | 1 passed |
+| `pnpm -C apps/desktop test` | 383 passed, 2 failed: `agent panel placeholder > links to settings`, `next-steps bar > "Captions only" ...`; both fail without this phase's changes too (also recorded on main by 14b) |
+| `uv run --project py pytest -q py/tests` | 152 passed |
+| `rtk proxy pnpm lint` | clean (eslint + prettier) |
+| `tsc` root + `pnpm -r typecheck` | no errors |
+
+## Done-when evidence
+- Design approved: GATE 7 passed by owner delegation (D-62), section above.
+- Spike result recorded: `docs/evidence/phase-14e/spike-playbackrate.json`, `atempo-timing.json`.
+- 0.5× and 2× render in sync through the real render job (`render/speed.slow.test.ts`,
+  `docs/evidence/phase-14e/render-speed.json`): 960/960 frames show the expected source frame at
+  0.25×, 0.5×, 1×, 2×, 4×; 10 flash/click pairs, max |A/V| 15.92 ms (0.5×; 2× within 3.96 ms) < 33.3 ms
+  (one frame at 30 fps). The engine path is a little worse than the spike's 9.35 ms (the mix is
+  resampled once more), still under half a frame.
+
+## Review findings (self-review (token budget); code, TypeScript, Python focus)
+- Fixed: Inspector speed field reused the id `in-speed` of the framing "Track speed" select (label
+  collision, found by the existing framing test); renamed `in-clip-speed`.
+- Fixed: `spike/bench/speed.ts` cast a v2 object to the v3 `Project` type (root `tsc` error).
+- Checked, no change: `linkGroup` returns the selected item first; ripple longer inserts the gap at the
+  old end (the clip itself is not split); ripple shorter applies the new lengths before the cut; 1× mix
+  graph strings unchanged; keyframes stay inside the new length; migration only sets the number and the
+  store copies the v2 file first; older engines get `SCHEMA_TOO_NEW`.
+- UI gate: spec-layout check only (the Speed row uses the existing `Row`/`NumberField` pattern next to
+  In/Out, as the updated app spec says); no Playwright screenshot (no GUI tool, token budget).
+No HIGH or CRITICAL left open.
+
+## Deviations
+- `schema.test` "rejects unknown fields" used `speed` as its unknown example; changed to `pitch` (the
+  test still checks the same rule).
+- FCPXML carries no speed (adapter limit, D-64); OTIO carries it as `LinearTimeWarp`.
+- Sound speed limited to 0.5–2× (GATE 7 round 2: `atempo` beyond that is out of sync or loses
+  transients); 0.25–4× only for picture without linked sound (`unlinked: true` or no sound clip).
+
+## MANUAL STEPS
+- Optional, does not block (owner at the screen; no GUI tool here): preview playback at speed in the
+  app (TODO item added).
+
+## Handoff notes
+- `schemaVersion` 3 is the v1.1 schema: 14f's `AudioTrack.duck` (D-61) is part of it; later optional
+  fields need no bump, new required meaning does (DECISIONS D-62).
+- Any new op touching `inMs` must use `src/model/speed.ts` helpers (source = timeline × speed).
+- FCPXML (14g) ignores `timeScalar`; a later adapter fix could write `timeMap`.
+- Two app component tests fail on main independently of this phase (see Verify).
