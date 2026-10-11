@@ -66,6 +66,7 @@ export function PreviewPanel() {
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<PlayerEl | null>(null);
   const pendingReload = useRef<number | null>(null);
+  const pendingPatch = useRef<number | null>(null);
   // the playhead a reload returns to: the new document reports time 0 until `vox-playhead` lands
   const restore = useRef<{ ms: number; until: number } | null>(null);
   const fps = seq?.canvas.fps ?? { num: 30, den: 1 };
@@ -103,10 +104,8 @@ export function PreviewPanel() {
       )
         return;
       if (e.kind === 'patch' && el) {
+        pendingPatch.current = e.version;
         for (const p of e.patches) el.setRuntimeData('vox-patch', p);
-        window.dispatchEvent(
-          new CustomEvent(APPLIED_EVENT, { detail: { version: e.version, kind: 'patch' } }),
-        );
         return;
       }
       if (e.kind === 'reload') {
@@ -161,11 +160,23 @@ export function PreviewPanel() {
     el.addEventListener('play', onPlay);
     el.addEventListener('pause', onPause);
     el.addEventListener('ready', onReady);
+    // the player confirms each runtime-data delivery: the patch is in the document
+    const onApplied = (ev: Event) => {
+      const v = pendingPatch.current;
+      if (v === null || (ev as CustomEvent<{ channel?: string }>).detail?.channel !== 'vox-patch')
+        return;
+      pendingPatch.current = null;
+      window.dispatchEvent(
+        new CustomEvent(APPLIED_EVENT, { detail: { version: v, kind: 'patch' } }),
+      );
+    };
+    el.addEventListener('runtimedataapplied', onApplied);
     return () => {
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('play', onPlay);
       el.removeEventListener('pause', onPause);
       el.removeEventListener('ready', onReady);
+      el.removeEventListener('runtimedataapplied', onApplied);
       if (player.current) player.current = null;
     };
   }, [url, editor, ui, player]);

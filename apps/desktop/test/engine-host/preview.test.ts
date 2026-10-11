@@ -186,3 +186,33 @@ describe('preview pipeline', () => {
     pipe.close();
   });
 });
+
+describe('preview pipeline: several scenes', () => {
+  it('a change to two scenes at once reloads (one patch per delivery)', async () => {
+    const engine = tempEngine();
+    const p = await editorProject(engine);
+    mkdirSync(join(engine.projectsDir, p.id, 'media'), { recursive: true });
+    writeFileSync(join(engine.projectsDir, p.id, 'media', 'v.mp4'), Buffer.alloc(1024));
+    await op(engine, p.id, 'addScene', {
+      sequenceId: 'seq_main',
+      trackId: 'V2',
+      startMs: 5000,
+      durationMs: 2000,
+      template: 'base/title',
+      variables: { title: 'Two' },
+    });
+    const events: PreviewUpdated[] = [];
+    const pipe = new PreviewPipeline(engine, (_n, e) => events.push(e as PreviewUpdated));
+    await pipe.open(p.id, 'seq_main');
+    const scenes = (await engine.getProject(p.id)).sequences[0]!.videoTracks[1]!.items;
+    await op(engine, p.id, 'batch', {
+      ops: scenes.map((s) => ({
+        op: 'updateScene',
+        args: { sequenceId: 'seq_main', itemId: s.id, variables: { title: `New ${s.id}` } },
+      })),
+    });
+    await until(() => events.length === 1);
+    expect(events[0]!.kind).toBe('reload');
+    pipe.close();
+  });
+});

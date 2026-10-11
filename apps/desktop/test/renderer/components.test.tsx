@@ -439,12 +439,10 @@ describe('inspector', () => {
     ).toBeTruthy();
     // moving the clip keeps the pin on the same source frame (relative atMs)
     await act(async () => {
-      await t.ctx.editor
-        .getState()
-        .apply({
-          op: 'moveItem',
-          args: { sequenceId: 'seq_main', itemId: clip.id, startMs: 10000 },
-        });
+      await t.ctx.editor.getState().apply({
+        op: 'moveItem',
+        args: { sequenceId: 'seq_main', itemId: clip.id, startMs: 10000 },
+      });
       await idle(t);
     });
     expect((seq(t).videoTracks[0]!.items[1] as MediaClip).frame!.keyframes![0]!.atMs).toBe(1500);

@@ -187,7 +187,9 @@ export class PreviewPipeline {
     }
     if (this.active !== a) return;
     const html = build.files.get('index.html');
-    if (kind === 'patch' && typeof html === 'string') {
+    // one scene per patch: the player delivers runtime data per channel, a second payload sent
+    // before the first lands could replace it
+    if (kind === 'patch' && ids.length === 1 && typeof html === 'string') {
       const patches = this.patches(html, ids, a);
       if (patches && sameOutside(a.html, html, ids)) {
         a.html = html;

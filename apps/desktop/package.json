@@ -15,6 +15,7 @@
     "e2e": "node scripts/build.ts && playwright test -c e2e/playwright.config.ts",
     "dist": "node scripts/build.ts --package && electron-builder --config electron-builder.yml --arm64 --mac dmg",
     "bench:timeline": "node bench/timeline.ts",
+    "bench:latency": "node scripts/build.ts && node bench/latency.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
