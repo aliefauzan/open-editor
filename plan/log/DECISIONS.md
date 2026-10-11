@@ -1625,3 +1625,16 @@ the registered keys; the top-level error printed unredacted), S20/S34 PASS, S35 
    is test-only. Three tools-mode replay fixtures re-recorded (one extra `view_frames` and `check_audio`
    per clip).
 **Why**: Fix every CRITICAL/HIGH and the MEDIUMs (PROMPT step 7). Self-reviewed by the fixing agent.
+
+## D-56 — Letterbox and pillarbox: crops stay inside the picture (phase 10b, GATE 5 finding, 2026-10-12)
+**Context**: GATE 5 YouTube quick clip: the source is letterboxed, so the 9:16 clip showed black bands.
+An `activeArea` on `MediaItem` would change the frozen data model (R2, 2026-10-11).
+**Decision**: Ingest stores the active picture area (ffmpeg `cropdetect` on 6 one-second samples of the
+source, beside the proxy and audio steps; an axis is cropped only when both bars are ≥ 2 % and the samples
+agree within 1 %; the union of samples, else the full frame) in `cache/media/<mediaId>.json`, never in
+`project.json`. Auto and facetrack crops, tracked paths, pins and the static fallback stay inside that
+area, in compile and preview alike (one framing provider). Keyframe coordinates stay normalised to the
+full frame; scale 1 is still the full-frame cover crop, so a pin at scale 1 on letterboxed media is zoomed
+to fit the picture. A missing or damaged area means the full frame (old projects unchanged).
+**Why**: Removes the bands without a contract change. Commit c67489b on `phase/10b-editor-core-b`
+(self-reviewed by the fixing agent).
