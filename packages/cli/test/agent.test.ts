@@ -4,7 +4,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openEngine, writeConfig, type Engine } from '@vox/engine';
+import { createRedactor, openEngine, writeConfig, type Engine } from '@vox/engine';
 import type { OpenRouterModelInfo } from '@vox/agent';
 import { describe, expect, test, vi } from 'vitest';
 import { makeOfflineProject } from '../../../scripts/make-offline-project.ts';
@@ -16,6 +16,7 @@ import {
   toolsStylist,
   type ScriptStep,
 } from '@vox/agent/test-kit';
+import { terminalPauses } from '../src/agent.ts';
 import { run, type Io } from '../src/main.ts';
 
 const CANARY_KEY = 'sk-or-v1-CANARY0000000000000000000000000000000000000000000000000000';
@@ -33,10 +34,10 @@ const MODELS = new Map<string, OpenRouterModelInfo>([
   ],
 ]);
 
-async function setup(next: Parameters<typeof dynamicModel>[0]) {
+async function setup(next: Parameters<typeof dynamicModel>[0], apiKey = CANARY_KEY) {
   const home = mkdtempSync(join(tmpdir(), 'vox-agent-cli-'));
   const projectsDir = join(home, 'Projects');
-  const env = { HOME: home, VOX_HOME: home, OPENROUTER_API_KEY: CANARY_KEY };
+  const env = { HOME: home, VOX_HOME: home, OPENROUTER_API_KEY: apiKey };
   await writeConfig(
     {
       providers: [
@@ -69,15 +70,16 @@ async function setup(next: Parameters<typeof dynamicModel>[0]) {
       stderr: (s) => (stderr += s),
       env,
       cwd: home,
+      prompt,
+      ...extra,
       agent: {
         apple: undefined,
         createModel: () => model.model,
         probe: { context: { openRouterModels: MODELS } },
         runJob: jobs.runJob,
         wrapEngine: (e) => (engine = fakeRender(e)),
+        ...extra.agent,
       },
-      prompt,
-      ...extra,
     });
     return { code, stdout, stderr };
   };
@@ -191,5 +193,89 @@ describe('vox agent (step 8, done-when 8)', () => {
     expect((await t.vox(['agent', t.off.projectId, '--workflow', 'stylize'])).code).toBe(2);
     expect((await t.vox(['agent', t.off.projectId, 'x', '--mode', 'fast'])).code).toBe(2);
     expect((await t.vox(['agent', t.off.projectId, 'x', '--length', '9'])).code).toBe(2);
+  }, 60_000);
+});
+
+describe('the tighten prompt: picks', () => {
+  const ranges = [1, 2].map((i) => ({
+    wordKey: `w${String(i)}`,
+    kind: 'pause' as const,
+    seqStartMs: i * 1000,
+    seqEndMs: i * 1000 + 500,
+    text: '(pause 500 ms)',
+  }));
+  const pause = {
+    runId: 'run_x',
+    reason: 'approval' as const,
+    kind: 'pauses' as const,
+    detail: '2 pauses',
+    ranges,
+  };
+  function asker(answers: string[]) {
+    const io = {
+      stdout: () => undefined,
+      stderr: (s: string) => void (io.err += s),
+      err: '',
+      env: {},
+      isTTY: true,
+      prompt: vi.fn((_q: string) => Promise.resolve(answers.shift() ?? '')),
+    };
+    const ask = terminalPauses(io, {
+      json: false,
+      yesSources: false,
+      instruction: '',
+      redactor: createRedactor(),
+    });
+    return { io, ask };
+  }
+
+  test('no valid number asks again; ignored tokens are reported', async () => {
+    const { io, ask } = asker(['x, 9', '2 z']);
+    expect(await ask(pause)).toEqual({ action: 'continue', wordKeys: ['w2'] });
+    expect(io.prompt).toHaveBeenCalledTimes(2);
+    expect(io.err).toContain('ignored: x, 9');
+    expect(io.err).toContain('ignored: z');
+  });
+
+  test('three answers without a valid number: nothing is cut, said so', async () => {
+    const { io, ask } = asker(['x', '0', 'nope']);
+    expect(await ask(pause)).toEqual({ action: 'continue', wordKeys: [] });
+    expect(io.prompt).toHaveBeenCalledTimes(3);
+    expect(io.err).toContain('no valid pick: nothing is cut');
+  });
+});
+
+describe('vox agent: Ctrl-C', () => {
+  test('SIGINT stops the run; the runId is printed at the start; the handler is removed', async () => {
+    let interrupt: (() => void) | undefined;
+    let removed = 0;
+    const t = await setup((o) => {
+      interrupt?.();
+      return toolsStylist()(o);
+    });
+    const r = await t.vox(['agent', t.off.projectId, 'add a title', '--seq', t.off.sequenceId], {
+      agent: {
+        onInterrupt: (handler) => {
+          interrupt = handler;
+          return () => void removed++;
+        },
+      },
+    });
+    expect(r.stderr).toMatch(/^run run_\S+ started/m);
+    const runId = /^run (run_\S+) started/m.exec(r.stderr)![1]!;
+    expect(r.stdout).toContain(`run ${runId}: stopped`);
+    expect(r.code).toBe(1);
+    expect(removed).toBe(1);
+  }, 60_000);
+});
+
+describe('vox agent: one redactor (S19)', () => {
+  test('the configured key is registered on the engine’s redactor too', async () => {
+    // a key with no known shape: only its registration can redact it
+    const key = 'plaincanary7f3a9c2e5b1d4068';
+    const t = await setup(() => ({ text: 'Done.' }), key);
+    const r = await t.vox(['agent', t.off.projectId, 'add a title', '--seq', t.off.sequenceId]);
+    expect(r.code, r.stderr).toBe(0);
+    expect(t.engine().redactor.redact(`key ${key}`)).not.toContain(key);
   }, 60_000);
 });

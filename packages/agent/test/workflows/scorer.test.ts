@@ -2,6 +2,7 @@
 // scorer error falls back to the heuristic and the run summary says so.
 import { describe, expect, test } from 'vitest';
 import { readRunRecord } from '../../src/loop/record.ts';
+import { RunStopped } from '../../src/loop/run.ts';
 import { createLlmScorer, scoreOf, withLlmScorer } from '../../src/quickScorer.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { toolsStylist } from '../helpers/stylists.ts';
@@ -154,5 +155,112 @@ describe('LLM scorer slot', () => {
     expect([a, b]).toEqual(['a', 'b']);
     expect(seen).toEqual(['a:1', 'b:2']);
     expect(regs).toHaveLength(1);
+  });
+});
+
+describe('LLM scorer: Stop at the budget prompt', () => {
+  test('Stop at the scorer’s budget pause stops the run; quick clips writes no sequence', async () => {
+    const kit = await workflowKit();
+    const before = (await kit.engine.getProject(kit.projectId)).sequences.length;
+    const fast = dynamicModel(() => ({ json: { scores: [] } }));
+    const editor = dynamicModel(toolsStylist());
+    const pauses: string[] = [];
+    kit.deps.limits = { maxUsdPerRun: 0.000_001, maxStepsPerRun: 60 };
+    kit.deps.onPause = (p) => {
+      pauses.push(p.reason);
+      return Promise.resolve({ action: 'stop' });
+    };
+    kit.deps.models = {
+      editor: role(editor.model),
+      fast: role(fast.model, { maxOutputTokens: 2_000 }),
+    };
+    const r = await runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'clipper',
+      message: `make 1 vox clip from ${FIXTURE_VIDEO}`,
+      mode: 'tools',
+      count: 1,
+      minMs: 4000,
+      maxMs: 8000,
+      tighten: 'all',
+    });
+    expect(pauses).toEqual(['budget']);
+    expect(r.done.status, r.done.summary).toBe('stopped');
+    expect(r.done.summary).not.toContain('scorer failed');
+    expect(fast.prompts).toHaveLength(0);
+    expect(editor.prompts).toHaveLength(0);
+    expect(r.sequenceIds).toEqual([]);
+    expect((await kit.engine.getProject(kit.projectId)).sequences).toHaveLength(before);
+  }, 120_000);
+});
+
+describe('LLM scorer slot: abort while waiting', () => {
+  test('a run stopped while another holds the slot never runs its job; the queue goes on', async () => {
+    const engine = {
+      quickClips: { registerScorer: () => undefined, scorers: () => [] },
+    };
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const ran: string[] = [];
+    const first = withLlmScorer(engine as never, (() => [1]) as never, async () => {
+      ran.push('first');
+      await held;
+      return 'first';
+    });
+    const ac = new AbortController();
+    const second = withLlmScorer(
+      engine as never,
+      (() => [2]) as never,
+      () => {
+        ran.push('second');
+        return Promise.resolve('second');
+      },
+      { signal: ac.signal },
+    );
+    const third = withLlmScorer(engine as never, (() => [3]) as never, () => {
+      ran.push('third');
+      return Promise.resolve('third');
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    ac.abort();
+    await expect(second).rejects.toBeInstanceOf(RunStopped);
+    expect(ran).toEqual(['first']);
+    release();
+    await expect(first).resolves.toBe('first');
+    await expect(third).resolves.toBe('third');
+    expect(ran).toEqual(['first', 'third']);
+  });
+});
+
+describe('LLM scorer slot: run tag', () => {
+  test('a quick-clips job of another run, or of no run, never scores with the holder’s model', async () => {
+    let registered!: (i: never, c: never) => unknown;
+    const engine = {
+      quickClips: {
+        registerScorer: (_id: string, fn: never) => void (registered = fn),
+        scorers: () => [],
+      },
+    };
+    const results: unknown[] = [];
+    const call = async (runId?: string) => {
+      try {
+        results.push(await registered({ ...(runId && { runId }) } as never, {} as never));
+      } catch (e) {
+        results.push((e as Error).message);
+      }
+    };
+    await withLlmScorer(
+      engine as never,
+      (() => [1]) as never,
+      async () => {
+        await call('run_holder01');
+        await call('run_other001');
+        await call();
+      },
+      { runId: 'run_holder01' },
+    );
+    expect(results[0]).toEqual([1]);
+    expect(results[1]).toMatch(/only for the agent run that set it/);
+    expect(results[2]).toMatch(/only for the agent run that set it/);
   });
 });

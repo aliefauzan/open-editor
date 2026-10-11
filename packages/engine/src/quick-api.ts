@@ -154,6 +154,7 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
             {
               mediaId: media.id,
               ...(args.prompt !== undefined ? { prompt: args.prompt } : {}),
+              ...(args.runId !== undefined ? { runId: args.runId } : {}),
               candidates: cands.map((c, index) => ({
                 index,
                 startMs: c.startMs,

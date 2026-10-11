@@ -66,8 +66,11 @@ export function parseWorkflow(text: string): Workflow {
 
 const cache = new Map<string, Workflow>();
 
-/** Loads `packages/agent/workflows/<name>.md` (or `<dir>/<name>.md`). */
-export function loadWorkflow(name: WorkflowName, dir?: string): Workflow {
+/**
+ * Loads `packages/agent/workflows/<name>.md`. Only the packaged files load: their allowedTools are
+ * checked by the tests against the tool registry.
+ */
+export function loadWorkflow(name: WorkflowName): Workflow {
   if (!(WORKFLOW_NAMES as readonly string[]).includes(name)) {
     throw new VoxError(
       'VALIDATION',
@@ -75,12 +78,11 @@ export function loadWorkflow(name: WorkflowName, dir?: string): Workflow {
       `Use one of: ${WORKFLOW_NAMES.join(', ')}.`,
     );
   }
-  const url =
-    dir === undefined ? new URL(`../../workflows/${name}.md`, import.meta.url) : undefined;
-  const key = url?.href ?? `${dir!}/${name}.md`;
+  const url = new URL(`../../workflows/${name}.md`, import.meta.url);
+  const key = url.href;
   let w = cache.get(key);
   if (!w) {
-    w = parseWorkflow(readFileSync(url ?? key, 'utf8'));
+    w = parseWorkflow(readFileSync(url, 'utf8'));
     if (w.name !== name) throw invalid(`${key} is named ${w.name}, expected ${name}`);
     cache.set(key, w);
   }

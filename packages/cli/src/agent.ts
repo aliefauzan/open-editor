@@ -20,7 +20,7 @@ import {
   type WorkflowRequest,
 } from '@vox/agent';
 
-import { createRedactor, type Engine, type Redactor } from '@vox/engine';
+import type { Engine, Redactor } from '@vox/engine';
 import { depsOf, type ConfigIo } from './config.ts';
 
 export interface AgentIo extends ConfigIo {
@@ -52,6 +52,9 @@ function pauseText(p: PauseInfo): string {
 }
 
 const yes = (a: string) => /^y(es)?$/i.test(a.trim());
+
+/** Answers to the tighten prompt before an answer without a valid number cuts nothing. */
+const PICK_TRIES = 3;
 
 /** Answers pauses on the terminal (agent spec "CLI"). */
 export function terminalPauses(
@@ -88,20 +91,33 @@ export function terminalPauses(
           ? { action: 'continue' }
           : { action: 'stop' };
       case 'pauses': {
-        const a = (await ask('Cut which? all, none, or numbers like 1,3 [all] '))
-          .trim()
-          .toLowerCase();
         const ranges = p.ranges ?? [];
-        if (a === '' || a === 'all') return { action: 'continue' };
-        if (a === 'none') return { action: 'continue', wordKeys: [] };
-        const picks = a
-          .split(/[\s,]+/)
-          .map(Number)
-          .filter((n) => Number.isInteger(n) && n >= 1 && n <= ranges.length);
-        return {
-          action: 'continue',
-          wordKeys: [...new Set(picks)].map((n) => ranges[n - 1]!.wordKey),
-        };
+        // an answer with no valid number asks again; after the last try nothing is cut
+        for (let tries = 1; ; tries++) {
+          const a = (await ask('Cut which? all, none, or numbers like 1,3 [all] '))
+            .trim()
+            .toLowerCase();
+          if (a === '' || a === 'all') return { action: 'continue' };
+          if (a === 'none') return { action: 'continue', wordKeys: [] };
+          const tokens = a.split(/[\s,]+/).filter((t) => t !== '');
+          const valid = (t: string) =>
+            /^\d+$/.test(t) && Number(t) >= 1 && Number(t) <= ranges.length;
+          const ignored = tokens.filter((t) => !valid(t));
+          if (ignored.length > 0)
+            io.stderr(
+              clean(`ignored: ${ignored.join(', ')} (pick from 1 to ${String(ranges.length)})\n`),
+            );
+          const picks = tokens.filter(valid).map(Number);
+          if (picks.length > 0)
+            return {
+              action: 'continue',
+              wordKeys: [...new Set(picks)].map((n) => ranges[n - 1]!.wordKey),
+            };
+          if (tries >= PICK_TRIES) {
+            io.stderr('no valid pick: nothing is cut\n');
+            return { action: 'continue', wordKeys: [] };
+          }
+        }
       }
       default: {
         if (p.reason === 'budget') {
@@ -119,6 +135,15 @@ export function terminalPauses(
 
 function progress(io: AgentIo, json: boolean, redactor: Redactor) {
   return (e: AgentEvent) => {
+    // the runId first, on stderr in every mode: a stopped or killed run can still be undone
+    if (e.type === 'agent.started')
+      io.stderr(
+        clean(
+          redactor.redact(
+            `run ${e.payload.runId} started (Ctrl-C stops it; undo: vox agent undo ${e.payload.projectId} ${e.payload.runId})\n`,
+          ),
+        ),
+      );
     if (json || io.isTTY !== true) return;
     if (e.type === 'agent.tool' && e.payload.status !== 'started')
       io.stderr(clean(redactor.redact(`  ${e.payload.tool}: ${e.payload.status}\n`)));
@@ -179,7 +204,8 @@ export async function agentCommand(
   if (workflow === 'stylize' && seqs.length === 0)
     throw new AgentUsageError('--workflow stylize needs --seq <id> (repeatable)');
 
-  const redactor = createRedactor();
+  // one redactor: keys read for this run are removed from the engine's job errors and logs too
+  const redactor = engine.redactor;
   const deps = depsOf(io);
   const cfg: AgentConfigDeps = {
     io: engineConfigIO(io.env),
@@ -198,6 +224,18 @@ export async function agentCommand(
   let mode = built.mode;
   if (modeFlag !== undefined) mode = modeFlag;
   const e = deps.wrapEngine ? deps.wrapEngine(engine) : engine;
+  // Ctrl-C stops the run (the edits so far stay; the run can be undone)
+  const stop = new AbortController();
+  const onInterrupt =
+    deps.onInterrupt ??
+    ((handler: () => void) => {
+      process.once('SIGINT', handler);
+      return () => void process.off('SIGINT', handler);
+    });
+  const removeInterrupt = onInterrupt(() => {
+    io.stderr('stopping the run…\n');
+    stop.abort();
+  });
   const r = await runWorkflow(
     {
       engine: e,
@@ -228,8 +266,9 @@ export async function agentCommand(
       ...(typeof values['style'] === 'string' && { styleId: values['style'] }),
       ...(layout !== undefined && { layout: layout as WorkflowRequest['layout'] & string }),
       ...(values['confirm-plan'] === true && { confirmPlan: true }),
+      signal: stop.signal,
     },
-  );
+  ).finally(removeInterrupt);
   const out = {
     runId: r.done.runId,
     status: r.done.status,

@@ -70,8 +70,8 @@ export interface ToolContext {
   seenVersion: number;
   /** Replaces the run's todo list (emits `agent.todos`). */
   setTodos(items: TodoItem[]): void;
-  /** Starts an engine job and waits for it (the loop wires cancel and progress). */
-  runJob?(kind: string, args: Record<string, unknown>): Promise<unknown>;
+  /** Starts an engine job and waits for it (the loop wires cancel and progress); `signal` cancels it. */
+  runJob?(kind: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
   /** Reads a still written by the engine (`frames`, `mediaFrames`, `qa.png`). */
   readImage?(path: string): Promise<Uint8Array>;
   signal?: AbortSignal;

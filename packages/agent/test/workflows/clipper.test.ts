@@ -1,8 +1,12 @@
 // Phase 12 steps 1–3 (agent spec "Testing" → mock-model tests): the clipper on the offline fixture
 // (20 s talking head, clips of 4–8 s) in tools mode and in plan mode, and checkpoint enforcement.
 import { describe, expect, test } from 'vitest';
+import { VoxError } from '../../src/errors.ts';
 import { readRunRecord } from '../../src/loop/record.ts';
+import { AgentRun, RunStopped } from '../../src/loop/run.ts';
+import { buildRegistry } from '../../src/tools/registry.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
+import { workflowJob } from '../../src/workflows/clipper.ts';
 import { sceneItems } from '../../src/workflows/stylize.ts';
 import { assertClips, CLIP, planStylist, toolsStylist } from '../helpers/stylists.ts';
 import { dynamicModel, FIXTURE_VIDEO, role, workflowKit, type Kit } from '../helpers/workflow.ts';
@@ -85,4 +89,129 @@ describe('checkpoint enforcement (step 3)', () => {
     // nothing was styled
     expect(r.prompts).toHaveLength(0);
   }, 120_000);
+});
+
+/** A stand-in run for workflowJob: project versions read in order, a scripted runJob. */
+function fakeRun(versions: number[], runJob: (kind: string) => Promise<unknown>) {
+  const reads = [...versions];
+  const run = {
+    runId: 'run_unit',
+    versions: [] as number[],
+    record: { write: () => undefined },
+    ctx: {
+      projectId: 'p_unit',
+      seenVersion: 5,
+      runJob: (kind: string) => runJob(kind),
+      engine: { getProject: () => Promise.resolve({ version: reads.shift() ?? versions.at(-1)! }) },
+    },
+  };
+  return run;
+}
+
+describe('workflow jobs (job tools’ rules)', () => {
+  test('JOB_CONFLICT runs the job once more', async () => {
+    let calls = 0;
+    const run = fakeRun([5, 6], () => {
+      calls++;
+      return calls === 1
+        ? Promise.reject(Object.assign(new Error('conflict'), { code: 'JOB_CONFLICT' }))
+        : Promise.resolve({ ok: true });
+    });
+    await expect(workflowJob(run as never, 'quickClips', {})).resolves.toEqual({ ok: true });
+    expect(calls).toBe(2);
+  });
+
+  test('a user edit before the job: seenVersion is not moved past it', async () => {
+    // seen 5; the user wrote 6 before the job started; the job wrote 7
+    const run = fakeRun([6, 7], () => Promise.resolve({ ok: true }));
+    await workflowJob(run as never, 'quickClips', {});
+    expect(run.ctx.seenVersion).toBe(5);
+    expect(run.versions).toEqual([7]);
+  });
+
+  test('no user edit: seenVersion moves to the job version', async () => {
+    const run = fakeRun([5, 7], () => Promise.resolve({ ok: true }));
+    await workflowJob(run as never, 'quickClips', {});
+    expect(run.ctx.seenVersion).toBe(7);
+    expect(run.versions).toEqual([7]);
+  });
+});
+
+describe('run end status', () => {
+  test('an unrelated error after a Stop is a failure, not a stop', async () => {
+    const kit = await workflowKit();
+    const ac = new AbortController();
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'shots') return runJob(kind, args, signal);
+      ac.abort();
+      throw new VoxError('JOB_FAILED', 'the shots step crashed', 'x');
+    };
+    kit.deps.models = { editor: role(dynamicModel(toolsStylist()).model) };
+    const r = await runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'clipper',
+      message: `make 1 vox clip from ${FIXTURE_VIDEO}`,
+      mode: 'tools',
+      ...CLIP,
+      tighten: 'all',
+      signal: ac.signal,
+    });
+    expect(r.done.status).toBe('failed');
+    expect(r.done.summary).toContain('the shots step crashed');
+  }, 120_000);
+
+  test('a job cancelled by the Stop ends the run as stopped', async () => {
+    const kit = await workflowKit();
+    const ac = new AbortController();
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'shots') return runJob(kind, args, signal);
+      ac.abort();
+      throw new VoxError('CANCELLED', 'job shots cancelled', 'Run it again when ready.');
+    };
+    kit.deps.models = { editor: role(dynamicModel(toolsStylist()).model) };
+    const r = await runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'clipper',
+      message: `make 1 vox clip from ${FIXTURE_VIDEO}`,
+      mode: 'tools',
+      ...CLIP,
+      tighten: 'all',
+      signal: ac.signal,
+    });
+    expect(r.done.status).toBe('stopped');
+  }, 120_000);
+});
+
+describe('workflow calls after a Stop', () => {
+  test('workflowCall on a stopped run throws RunStopped and runs no tool', async () => {
+    const kit = await workflowKit();
+    const base = buildRegistry(kit.engine);
+    let ran = 0;
+    const registry = {
+      ...base,
+      get: (name: string) => {
+        const t = base.get(name);
+        return t && { ...t, run: (...a: Parameters<typeof t.run>) => (ran++, t.run(...a)) };
+      },
+    };
+    const ac = new AbortController();
+    const run = await AgentRun.start(
+      { ...kit.deps, registry, models: { editor: role(dynamicModel(toolsStylist()).model) } },
+      {
+        projectId: kit.projectId,
+        workflow: 'clipper',
+        message: 'x',
+        allowedTools: [],
+        mode: 'tools',
+        signal: ac.signal,
+      },
+    );
+    ac.abort();
+    await expect(run.workflowCall('ingest', { source: FIXTURE_VIDEO })).rejects.toBeInstanceOf(
+      RunStopped,
+    );
+    expect(ran).toBe(0);
+  });
 });

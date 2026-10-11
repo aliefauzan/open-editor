@@ -160,6 +160,21 @@ describe('quickClips options and scorers (steps 12, 12b)', () => {
     expect(job.result!.note).toMatch(/^Found \d of 3 clips/);
   });
 
+  test('a registered scorer gets the job’s runId (none for a job outside a run)', async () => {
+    const e2 = newEngine();
+    const o2 = await makeOfflineProject(e2);
+    const seen: ScorerInput[] = [];
+    e2.quickClips.registerScorer('fake', (input) => {
+      seen.push(input);
+      return input.candidates.map((c) => c.startMs);
+    });
+    const args = { projectId: o2.projectId, mediaId: o2.mediaId, ...OPTS, count: 1 };
+    await quick(e2, { ...args, actor: 'agent', runId: 'run_tagged01' });
+    await quick(e2, args);
+    expect(seen.map((s) => s.runId)).toEqual(['run_tagged01', undefined]);
+    expect('runId' in seen[1]!).toBe(false);
+  });
+
   test('a registered scorer changes the pick and gets the prompt; a throwing one falls back', async () => {
     const e2 = newEngine();
     const o2 = await makeOfflineProject(e2);

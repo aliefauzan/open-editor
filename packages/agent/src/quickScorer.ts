@@ -7,6 +7,7 @@ import type { QuickClipScorer, ScorerInput } from '@vox/engine';
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { wrapData } from './loop/envelope.ts';
+import { RunStopped } from './loop/run.ts';
 import type { RoleModel, Usage } from './loop/types.ts';
 import { estimateTokens } from './providers/tool-cost.ts';
 import type { AgentEngine } from './tools/types.ts';
@@ -17,6 +18,8 @@ export const SCORE_BATCH = 30;
 
 interface Slot {
   current?: QuickClipScorer;
+  /** The run holding the slot: a job must carry its runId to use `current`. */
+  runId?: string;
   /** The run holding the slot finishes before the next one sets it. */
   queue: Promise<unknown>;
 }
@@ -29,6 +32,8 @@ export function llmScorerSlot(engine: Pick<AgentEngine, 'quickClips'>): Slot {
     const s: Slot = { queue: Promise.resolve() };
     engine.quickClips.registerScorer(LLM_SCORER_ID, (input, ctx) => {
       if (!s.current) throw new Error('no fast model in this run');
+      if (s.runId !== undefined && input.runId !== s.runId)
+        throw new Error('the llm scorer is only for the agent run that set it');
       return s.current(input, ctx);
     });
     slots.set(engine.quickClips, s);
@@ -39,24 +44,55 @@ export function llmScorerSlot(engine: Pick<AgentEngine, 'quickClips'>): Slot {
 
 /**
  * Runs `body` (the quick-clips job) with `fn` as the engine's `llm` scorer. Runs on one engine
- * take turns, so a run never scores with another run's model.
+ * take turns, so a run never scores with another run's model; with `runId` set, only a job that
+ * carries that runId scores with `fn` (any other job falls back to the heuristic). A run whose
+ * `signal` aborts while it waits for its turn throws RunStopped and never runs `body`; the runs
+ * after it keep their turns.
  */
 export async function withLlmScorer<T>(
   engine: Pick<AgentEngine, 'quickClips'>,
   fn: QuickClipScorer,
   body: () => Promise<T>,
+  opts: { signal?: AbortSignal; runId?: string } = {},
 ): Promise<T> {
   const slot = llmScorerSlot(engine);
-  const turn = slot.queue.then(async () => {
+  const before = slot.queue;
+  let release!: () => void;
+  const done = new Promise<void>((r) => (release = r));
+  // the next run waits for the run before this one and for this one
+  slot.queue = before.then(() => done);
+  try {
+    await untilAborted(before, opts.signal);
     slot.current = fn;
+    if (opts.runId !== undefined) slot.runId = opts.runId;
     try {
       return await body();
     } finally {
       delete slot.current;
+      delete slot.runId;
     }
+  } finally {
+    release();
+  }
+}
+
+/** Waits for `p` (which never rejects); throws RunStopped as soon as `signal` aborts. */
+async function untilAborted(p: Promise<unknown>, signal: AbortSignal | undefined): Promise<void> {
+  if (!signal) {
+    await p;
+    return;
+  }
+  if (signal.aborted) throw new RunStopped();
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_r, reject) => {
+    onAbort = () => reject(new RunStopped());
+    signal.addEventListener('abort', onAbort, { once: true });
   });
-  slot.queue = turn.catch(() => undefined);
-  return turn;
+  try {
+    await Promise.race([p, aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
 }
 
 const ScoresSchema = z.strictObject({
@@ -85,8 +121,28 @@ export interface ScorerHost {
 
 const n = (x: number | undefined) => (typeof x === 'number' && x >= 0 ? x : 0);
 
-/** The scorer function for one run: `fast` requests under the run's budget. */
-export function createLlmScorer(host: ScorerHost, fast: RoleModel): QuickClipScorer {
+/**
+ * The scorer function for one run: `fast` requests under the run's budget. A Stop at the budget
+ * prompt calls `onStop` before the scorer throws: the engine catches every scorer error and falls
+ * back to its heuristic, so the workflow learns of the Stop through `onStop` (and cancels the job).
+ */
+export function createLlmScorer(
+  host: ScorerHost,
+  fast: RoleModel,
+  onStop?: () => void,
+): QuickClipScorer {
+  const scorer = scoreWith(host, fast);
+  return async (input, ctx) => {
+    try {
+      return await scorer(input, ctx);
+    } catch (err) {
+      if (err instanceof RunStopped) onStop?.();
+      throw err;
+    }
+  };
+}
+
+function scoreWith(host: ScorerHost, fast: RoleModel): QuickClipScorer {
   return async (input: ScorerInput, ctx) => {
     const scores = new Array<number>(input.candidates.length).fill(Number.NaN);
     const ask = async (batch: ScorerInput['candidates']) => {

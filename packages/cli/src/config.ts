@@ -58,6 +58,11 @@ export interface AgentCliDeps {
   /** `vox agent` tests: fake engine jobs (Python, render) and an engine wrapper. */
   runJob?: (kind: string, args: Record<string, unknown>) => Promise<unknown>;
   wrapEngine?: (e: Engine) => Engine;
+  /**
+   * Calls `handler` on Ctrl-C until the returned function removes it (default: one SIGINT on the
+   * process; a second Ctrl-C then ends the process as usual). Tests: a fake interrupt.
+   */
+  onInterrupt?: (handler: () => void) => () => void;
 }
 
 export interface ConfigIo {
@@ -108,6 +113,7 @@ export function depsOf(io: ConfigIo): AgentCliDeps {
     probe: io.agent?.probe ?? {},
     ...(io.agent?.runJob && { runJob: io.agent.runJob }),
     ...(io.agent?.wrapEngine && { wrapEngine: io.agent.wrapEngine }),
+    ...(io.agent?.onInterrupt && { onInterrupt: io.agent.onInterrupt }),
   };
 }
 

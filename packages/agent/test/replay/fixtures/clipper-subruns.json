@@ -13,10 +13,10 @@
   },
   "lines": [
     {
-      "ts": "2026-10-11T14:21:48.001Z",
+      "ts": "2026-10-11T16:29:17.652Z",
       "type": "started",
       "runId": "run_wftest0001",
-      "projectId": "p_mv3ww4s2buyw",
+      "projectId": "p_mv41g3akaxun",
       "workflow": "clipper",
       "mode": "tools",
       "models": {
@@ -43,7 +43,7 @@
       "version": 0
     },
     {
-      "ts": "2026-10-11T14:21:49.363Z",
+      "ts": "2026-10-11T16:29:19.031Z",
       "type": "tool",
       "tool": "ingest",
       "by": "workflow",
@@ -70,12 +70,12 @@
       "versions": [1]
     },
     {
-      "ts": "2026-10-11T14:21:49.380Z",
+      "ts": "2026-10-11T16:29:19.047Z",
       "type": "tool",
       "tool": "shots",
       "by": "workflow",
       "args": {
-        "mediaId": "m_mv3ww4tffqci"
+        "mediaId": "m_mv41g3bp2y4v"
       },
       "result": {
         "version": 2,
@@ -86,12 +86,12 @@
       "versions": [2]
     },
     {
-      "ts": "2026-10-11T14:21:49.397Z",
+      "ts": "2026-10-11T16:29:19.064Z",
       "type": "tool",
       "tool": "transcribe",
       "by": "workflow",
       "args": {
-        "mediaIds": ["m_mv3ww4tffqci"]
+        "mediaIds": ["m_mv41g3bp2y4v"]
       },
       "result": {
         "results": [
@@ -106,12 +106,12 @@
       "versions": [3]
     },
     {
-      "ts": "2026-10-11T14:21:49.414Z",
+      "ts": "2026-10-11T16:29:19.080Z",
       "type": "tool",
       "tool": "facetrack",
       "by": "workflow",
       "args": {
-        "mediaId": "m_mv3ww4tffqci"
+        "mediaId": "m_mv41g3bp2y4v"
       },
       "result": {
         "version": 4,
@@ -122,13 +122,13 @@
       "versions": [4]
     },
     {
-      "ts": "2026-10-11T14:21:49.435Z",
+      "ts": "2026-10-11T16:29:19.098Z",
       "type": "tool",
       "tool": "quickClips",
       "by": "workflow",
       "args": {
-        "projectId": "p_mv3ww4s2buyw",
-        "mediaId": "m_mv3ww4tffqci",
+        "projectId": "p_mv41g3akaxun",
+        "mediaId": "m_mv41g3bp2y4v",
         "count": 2,
         "minMs": 4000,
         "maxMs": 8000,
@@ -138,13 +138,13 @@
         "runId": "run_wftest0001"
       },
       "result": {
-        "mediaId": "m_mv3ww4tffqci",
+        "mediaId": "m_mv41g3bp2y4v",
         "scorer": "heuristic",
         "requested": 2,
         "candidates": 8,
         "clips": [
           {
-            "sequenceId": "seq_mv3ww5woajrx",
+            "sequenceId": "seq_mv41g4fdeosa",
             "name": "Clip 1",
             "startMs": 8810,
             "endMs": 13800,
@@ -152,7 +152,7 @@
             "score": 2.9046092184368737
           },
           {
-            "sequenceId": "seq_mv3ww5woajry",
+            "sequenceId": "seq_mv41g4feev8h",
             "name": "Clip 2",
             "startMs": 2922,
             "endMs": 8420,
@@ -160,17 +160,17 @@
             "score": 2.5618407526257307
           }
         ],
-        "sequenceIds": ["seq_mv3ww5woajrx", "seq_mv3ww5woajry"],
+        "sequenceIds": ["seq_mv41g4fdeosa", "seq_mv41g4feev8h"],
         "version": 5
       }
     },
     {
-      "ts": "2026-10-11T14:21:49.439Z",
+      "ts": "2026-10-11T16:29:19.103Z",
       "type": "tool",
       "tool": "remove_pauses",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajrx",
+        "sequenceId": "seq_mv41g4fdeosa",
         "dryRun": true
       },
       "result": {
@@ -195,12 +195,12 @@
       }
     },
     {
-      "ts": "2026-10-11T14:21:49.439Z",
+      "ts": "2026-10-11T16:29:19.103Z",
       "type": "tighten",
-      "sequenceId": "seq_mv3ww5woajrx",
+      "sequenceId": "seq_mv41g4fdeosa",
       "ranges": [
         {
-          "wordKey": "m_mv3ww4tffqci:771ec85e0640f157:40",
+          "wordKey": "m_mv41g3bp2y4v:771ec85e0640f157:40",
           "kind": "pause",
           "seqStartMs": 2433,
           "seqEndMs": 2967,
@@ -209,12 +209,12 @@
       ]
     },
     {
-      "ts": "2026-10-11T14:21:49.457Z",
+      "ts": "2026-10-11T16:29:19.119Z",
       "type": "tool",
       "tool": "remove_pauses",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajrx"
+        "sequenceId": "seq_mv41g4fdeosa"
       },
       "result": {
         "version": 6,
@@ -227,7 +227,7 @@
                 "id": "c1",
                 "startMs": 0,
                 "durationMs": 2433,
-                "linkId": "ln_mv3ww5wt59mm",
+                "linkId": "ln_mv41g4fh7uh2",
                 "type": "media",
                 "mediaId": "m1",
                 "inMs": 8800,
@@ -240,7 +240,7 @@
                 "id": "c2",
                 "startMs": 0,
                 "durationMs": 2433,
-                "linkId": "ln_mv3ww5wt59mm",
+                "linkId": "ln_mv41g4fh7uh2",
                 "type": "media",
                 "mediaId": "m1",
                 "inMs": 8800,
@@ -250,7 +250,7 @@
                 "id": "c3",
                 "startMs": 2433,
                 "durationMs": 2034,
-                "linkId": "ln_mv3ww5xhh1xj",
+                "linkId": "ln_mv41g4g36s2e",
                 "type": "media",
                 "mediaId": "m1",
                 "inMs": 11767,
@@ -260,7 +260,7 @@
                 "id": "c4",
                 "startMs": 2433,
                 "durationMs": 2034,
-                "linkId": "ln_mv3ww5xhh1xj",
+                "linkId": "ln_mv41g4g36s2e",
                 "type": "media",
                 "mediaId": "m1",
                 "inMs": 11767,
@@ -286,12 +286,12 @@
       "versions": [6]
     },
     {
-      "ts": "2026-10-11T14:21:49.462Z",
+      "ts": "2026-10-11T16:29:19.124Z",
       "type": "tool",
       "tool": "remove_pauses",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajry",
+        "sequenceId": "seq_mv41g4feev8h",
         "dryRun": true
       },
       "result": {
@@ -316,12 +316,12 @@
       }
     },
     {
-      "ts": "2026-10-11T14:21:49.462Z",
+      "ts": "2026-10-11T16:29:19.124Z",
       "type": "tighten",
-      "sequenceId": "seq_mv3ww5woajry",
+      "sequenceId": "seq_mv41g4feev8h",
       "ranges": [
         {
-          "wordKey": "m_mv3ww4tffqci:771ec85e0640f157:20",
+          "wordKey": "m_mv41g3bp2y4v:771ec85e0640f157:20",
           "kind": "pause",
           "seqStartMs": 2533,
           "seqEndMs": 2967,
@@ -330,12 +330,12 @@
       ]
     },
     {
-      "ts": "2026-10-11T14:21:49.480Z",
+      "ts": "2026-10-11T16:29:19.141Z",
       "type": "tool",
       "tool": "remove_pauses",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajry"
+        "sequenceId": "seq_mv41g4feev8h"
       },
       "result": {
         "version": 7,
@@ -348,7 +348,7 @@
                 "id": "c5",
                 "startMs": 0,
                 "durationMs": 2533,
-                "linkId": "ln_mv3ww5wu5v2r",
+                "linkId": "ln_mv41g4figq00",
                 "type": "media",
                 "mediaId": "m1",
                 "inMs": 2933,
@@ -361,7 +361,7 @@
                 "id": "c6",
                 "startMs": 0,
                 "durationMs": 2533,
-                "linkId": "ln_mv3ww5wu5v2r",
+                "linkId": "ln_mv41g4figq00",
                 "type": "media",
                 "mediaId": "m1",
                 "inMs": 2933,
@@ -371,7 +371,7 @@
                 "id": "c7",
                 "startMs": 2533,
                 "durationMs": 2534,
-                "linkId": "ln_mv3ww5y32oh9",
+                "linkId": "ln_mv41g4goa0d9",
                 "type": "media",
                 "mediaId": "m1",
                 "inMs": 5900,
@@ -381,7 +381,7 @@
                 "id": "c8",
                 "startMs": 2533,
                 "durationMs": 2534,
-                "linkId": "ln_mv3ww5y32oh9",
+                "linkId": "ln_mv41g4goa0d9",
                 "type": "media",
                 "mediaId": "m1",
                 "inMs": 5900,
@@ -407,12 +407,12 @@
       "versions": [7]
     },
     {
-      "ts": "2026-10-11T14:21:49.497Z",
+      "ts": "2026-10-11T16:29:19.162Z",
       "type": "tool",
       "tool": "update_sequence",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajrx",
+        "sequenceId": "seq_mv41g4fdeosa",
         "styleId": "vox"
       },
       "result": {
@@ -429,12 +429,12 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:49.515Z",
+      "ts": "2026-10-11T16:29:19.177Z",
       "type": "tool",
       "tool": "set_captions",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajrx",
+        "sequenceId": "seq_mv41g4fdeosa",
         "enabled": true,
         "preset": "vox/mono-box"
       },
@@ -452,11 +452,11 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:49.520Z",
+      "ts": "2026-10-11T16:29:19.183Z",
       "type": "step",
       "step": 1,
       "subRun": 1,
-      "scope": ["seq_mv3ww5woajrx"],
+      "scope": ["seq_mv41g4fdeosa"],
       "text": "",
       "calls": [
         {
@@ -500,7 +500,7 @@
       "spentUsd": 0.00014
     },
     {
-      "ts": "2026-10-11T14:21:49.539Z",
+      "ts": "2026-10-11T16:29:19.200Z",
       "type": "tool",
       "callId": "call_1_0",
       "tool": "add_scene",
@@ -543,10 +543,10 @@
       "versions": [10],
       "changes": [
         {
-          "key": "item:seq_mv3ww5woajrx/it_mv3ww5zqfj7k",
+          "key": "item:seq_mv41g4fdeosa/it_mv41g4ic2zpc",
           "before": null,
           "after": {
-            "id": "it_mv3ww5zqfj7k",
+            "id": "it_mv41g4ic2zpc",
             "startMs": 667,
             "durationMs": 1566,
             "type": "scene",
@@ -562,7 +562,7 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:49.556Z",
+      "ts": "2026-10-11T16:29:19.217Z",
       "type": "tool",
       "callId": "call_1_1",
       "tool": "add_scene",
@@ -607,10 +607,10 @@
       "versions": [11],
       "changes": [
         {
-          "key": "item:seq_mv3ww5woajrx/it_mv3ww607ckg1",
+          "key": "item:seq_mv41g4fdeosa/it_mv41g4it6ac9",
           "before": null,
           "after": {
-            "id": "it_mv3ww607ckg1",
+            "id": "it_mv41g4it6ac9",
             "startMs": 2233,
             "durationMs": 1800,
             "type": "scene",
@@ -627,11 +627,11 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:49.561Z",
+      "ts": "2026-10-11T16:29:19.222Z",
       "type": "step",
       "step": 2,
       "subRun": 1,
-      "scope": ["seq_mv3ww5woajrx"],
+      "scope": ["seq_mv41g4fdeosa"],
       "text": "",
       "calls": [
         {
@@ -661,7 +661,7 @@
       "spentUsd": 0.00028
     },
     {
-      "ts": "2026-10-11T14:21:49.562Z",
+      "ts": "2026-10-11T16:29:19.225Z",
       "type": "tool",
       "callId": "call_2_0",
       "tool": "view_frames",
@@ -687,7 +687,7 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:49.563Z",
+      "ts": "2026-10-11T16:29:19.226Z",
       "type": "tool",
       "callId": "call_2_1",
       "tool": "check_audio",
@@ -781,11 +781,11 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:49.570Z",
+      "ts": "2026-10-11T16:29:19.233Z",
       "type": "step",
       "step": 3,
       "subRun": 1,
-      "scope": ["seq_mv3ww5woajrx"],
+      "scope": ["seq_mv41g4fdeosa"],
       "text": "Placed the scenes.",
       "calls": [],
       "usage": {
@@ -799,41 +799,41 @@
       "spentUsd": 0.00041999999999999996
     },
     {
-      "ts": "2026-10-11T14:21:49.570Z",
+      "ts": "2026-10-11T16:29:19.233Z",
       "type": "subRun",
       "subRun": 1,
-      "scope": ["seq_mv3ww5woajrx"],
+      "scope": ["seq_mv41g4fdeosa"],
       "status": "completed",
       "summary": "Placed the scenes.",
       "steps": 3
     },
     {
-      "ts": "2026-10-11T14:21:49.570Z",
+      "ts": "2026-10-11T16:29:19.233Z",
       "type": "aliases",
       "table": {
-        "m1": "m_mv3ww4tffqci",
-        "s1": "seq_mv3ww5woajrx",
-        "c1": "it_mv3ww5wt59mk",
-        "c2": "it_mv3ww5wt59ml",
-        "c3": "it_mv3ww5xhh1xi",
-        "c4": "it_mv3ww5xhh1xk",
-        "s2": "seq_mv3ww5woajry",
-        "c5": "it_mv3ww5wu5v2p",
-        "c6": "it_mv3ww5wu5v2q",
-        "c7": "it_mv3ww5y32oh8",
-        "c8": "it_mv3ww5y32oha",
-        "c9": "it_mv3ww5zqfj7k",
-        "c10": "it_mv3ww607ckg1"
+        "m1": "m_mv41g3bp2y4v",
+        "s1": "seq_mv41g4fdeosa",
+        "c1": "it_mv41g4fh7uh0",
+        "c2": "it_mv41g4fh7uh1",
+        "c3": "it_mv41g4g36s2d",
+        "c4": "it_mv41g4g36s2f",
+        "s2": "seq_mv41g4feev8h",
+        "c5": "it_mv41g4figpzy",
+        "c6": "it_mv41g4figpzz",
+        "c7": "it_mv41g4goa0d8",
+        "c8": "it_mv41g4goa0da",
+        "c9": "it_mv41g4ic2zpc",
+        "c10": "it_mv41g4it6ac9"
       }
     },
     {
-      "ts": "2026-10-11T14:21:49.588Z",
+      "ts": "2026-10-11T16:29:19.250Z",
       "type": "tool",
       "tool": "set_transition",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajrx",
-        "itemId": "it_mv3ww5zqfj7k",
+        "sequenceId": "seq_mv41g4fdeosa",
+        "itemId": "it_mv41g4ic2zpc",
         "transition": {
           "template": "vox/paper-tear",
           "durationMs": 700
@@ -870,13 +870,13 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:49.605Z",
+      "ts": "2026-10-11T16:29:19.267Z",
       "type": "tool",
       "tool": "set_transition",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajrx",
-        "itemId": "it_mv3ww607ckg1",
+        "sequenceId": "seq_mv41g4fdeosa",
+        "itemId": "it_mv41g4it6ac9",
         "transition": {
           "template": "vox/paper-tear",
           "durationMs": 700
@@ -914,12 +914,132 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:49.623Z",
+      "ts": "2026-10-11T16:29:19.268Z",
+      "type": "tool",
+      "tool": "view_frames",
+      "by": "workflow",
+      "args": {
+        "sequenceId": "seq_mv41g4fdeosa",
+        "atSeqMs": [1450, 3133]
+      },
+      "result": {
+        "frames": [
+          {
+            "seqMs": 1450,
+            "srcMs": 10250,
+            "health": []
+          },
+          {
+            "seqMs": 3133,
+            "srcMs": 12467,
+            "health": []
+          }
+        ],
+        "note": "no vision model: frame-health flags only"
+      },
+      "subRun": 1
+    },
+    {
+      "ts": "2026-10-11T16:29:19.268Z",
+      "type": "tool",
+      "tool": "check_audio",
+      "by": "workflow",
+      "args": {
+        "sequenceId": "seq_mv41g4fdeosa"
+      },
+      "result": {
+        "pass": true,
+        "targetLufs": -14,
+        "durationMs": 6000,
+        "checks": [
+          {
+            "id": "cueTiming",
+            "status": "pass",
+            "limitMs": 33,
+            "maxAbsDeltaMs": 12,
+            "failures": []
+          },
+          {
+            "id": "oneEventPerCue",
+            "status": "pass",
+            "failures": []
+          },
+          {
+            "id": "spacing",
+            "status": "pass",
+            "minGapMs": 120,
+            "failures": []
+          },
+          {
+            "id": "underSpeech",
+            "status": "pass",
+            "failures": []
+          },
+          {
+            "id": "loudness",
+            "status": "pass",
+            "integratedLufs": -14.2,
+            "truePeakDbtp": -1.4
+          }
+        ],
+        "cues": [
+          {
+            "index": 1,
+            "atMs": 1200,
+            "type": "appear",
+            "hero": false
+          },
+          {
+            "index": 2,
+            "atMs": 1250,
+            "type": "appear",
+            "hero": false
+          }
+        ],
+        "dropped": [],
+        "listen": [
+          {
+            "atMs": 600,
+            "timecode": "00:00.600",
+            "kind": "hero cue",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 1500,
+            "timecode": "00:01.500",
+            "kind": "hero cue",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 2600,
+            "timecode": "00:02.600",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 3400,
+            "timecode": "00:03.400",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 4800,
+            "timecode": "00:04.800",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          }
+        ],
+        "picture": "no vision model: qa.png not described; use the numbers above"
+      },
+      "subRun": 1
+    },
+    {
+      "ts": "2026-10-11T16:29:19.285Z",
       "type": "tool",
       "tool": "update_sequence",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajry",
+        "sequenceId": "seq_mv41g4feev8h",
         "styleId": "vox"
       },
       "result": {
@@ -936,12 +1056,12 @@
       "subRun": 2
     },
     {
-      "ts": "2026-10-11T14:21:49.639Z",
+      "ts": "2026-10-11T16:29:19.300Z",
       "type": "tool",
       "tool": "set_captions",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajry",
+        "sequenceId": "seq_mv41g4feev8h",
         "enabled": true,
         "preset": "vox/mono-box"
       },
@@ -959,11 +1079,11 @@
       "subRun": 2
     },
     {
-      "ts": "2026-10-11T14:21:49.643Z",
+      "ts": "2026-10-11T16:29:19.305Z",
       "type": "step",
       "step": 1,
       "subRun": 2,
-      "scope": ["seq_mv3ww5woajry"],
+      "scope": ["seq_mv41g4feev8h"],
       "text": "",
       "calls": [
         {
@@ -1007,7 +1127,7 @@
       "spentUsd": 0.00056
     },
     {
-      "ts": "2026-10-11T14:21:49.664Z",
+      "ts": "2026-10-11T16:29:19.321Z",
       "type": "tool",
       "callId": "call_4_0",
       "tool": "add_scene",
@@ -1050,10 +1170,10 @@
       "versions": [16],
       "changes": [
         {
-          "key": "item:seq_mv3ww5woajry/it_mv3ww6341txx",
+          "key": "item:seq_mv41g4feev8h/it_mv41g4lpfour",
           "before": null,
           "after": {
-            "id": "it_mv3ww6341txx",
+            "id": "it_mv41g4lpfour",
             "startMs": 767,
             "durationMs": 1766,
             "type": "scene",
@@ -1069,7 +1189,7 @@
       "subRun": 2
     },
     {
-      "ts": "2026-10-11T14:21:49.681Z",
+      "ts": "2026-10-11T16:29:19.337Z",
       "type": "tool",
       "callId": "call_4_1",
       "tool": "add_scene",
@@ -1114,10 +1234,10 @@
       "versions": [17],
       "changes": [
         {
-          "key": "item:seq_mv3ww5woajry/it_mv3ww63octga",
+          "key": "item:seq_mv41g4feev8h/it_mv41g4m50f30",
           "before": null,
           "after": {
-            "id": "it_mv3ww63octga",
+            "id": "it_mv41g4m50f30",
             "startMs": 2533,
             "durationMs": 2034,
             "type": "scene",
@@ -1134,11 +1254,11 @@
       "subRun": 2
     },
     {
-      "ts": "2026-10-11T14:21:49.686Z",
+      "ts": "2026-10-11T16:29:19.341Z",
       "type": "step",
       "step": 2,
       "subRun": 2,
-      "scope": ["seq_mv3ww5woajry"],
+      "scope": ["seq_mv41g4feev8h"],
       "text": "",
       "calls": [
         {
@@ -1168,7 +1288,7 @@
       "spentUsd": 0.0006999999999999999
     },
     {
-      "ts": "2026-10-11T14:21:49.687Z",
+      "ts": "2026-10-11T16:29:19.343Z",
       "type": "tool",
       "callId": "call_5_0",
       "tool": "view_frames",
@@ -1194,7 +1314,7 @@
       "subRun": 2
     },
     {
-      "ts": "2026-10-11T14:21:49.688Z",
+      "ts": "2026-10-11T16:29:19.343Z",
       "type": "tool",
       "callId": "call_5_1",
       "tool": "check_audio",
@@ -1288,11 +1408,11 @@
       "subRun": 2
     },
     {
-      "ts": "2026-10-11T14:21:49.693Z",
+      "ts": "2026-10-11T16:29:19.350Z",
       "type": "step",
       "step": 3,
       "subRun": 2,
-      "scope": ["seq_mv3ww5woajry"],
+      "scope": ["seq_mv41g4feev8h"],
       "text": "Placed the scenes.",
       "calls": [],
       "usage": {
@@ -1306,43 +1426,43 @@
       "spentUsd": 0.0008399999999999998
     },
     {
-      "ts": "2026-10-11T14:21:49.693Z",
+      "ts": "2026-10-11T16:29:19.350Z",
       "type": "subRun",
       "subRun": 2,
-      "scope": ["seq_mv3ww5woajry"],
+      "scope": ["seq_mv41g4feev8h"],
       "status": "completed",
       "summary": "Placed the scenes.",
       "steps": 3
     },
     {
-      "ts": "2026-10-11T14:21:49.693Z",
+      "ts": "2026-10-11T16:29:19.350Z",
       "type": "aliases",
       "table": {
-        "m1": "m_mv3ww4tffqci",
-        "s1": "seq_mv3ww5woajrx",
-        "c1": "it_mv3ww5wt59mk",
-        "c2": "it_mv3ww5wt59ml",
-        "c3": "it_mv3ww5xhh1xi",
-        "c4": "it_mv3ww5xhh1xk",
-        "s2": "seq_mv3ww5woajry",
-        "c5": "it_mv3ww5wu5v2p",
-        "c6": "it_mv3ww5wu5v2q",
-        "c7": "it_mv3ww5y32oh8",
-        "c8": "it_mv3ww5y32oha",
-        "c9": "it_mv3ww5zqfj7k",
-        "c10": "it_mv3ww607ckg1",
-        "c11": "it_mv3ww6341txx",
-        "c12": "it_mv3ww63octga"
+        "m1": "m_mv41g3bp2y4v",
+        "s1": "seq_mv41g4fdeosa",
+        "c1": "it_mv41g4fh7uh0",
+        "c2": "it_mv41g4fh7uh1",
+        "c3": "it_mv41g4g36s2d",
+        "c4": "it_mv41g4g36s2f",
+        "s2": "seq_mv41g4feev8h",
+        "c5": "it_mv41g4figpzy",
+        "c6": "it_mv41g4figpzz",
+        "c7": "it_mv41g4goa0d8",
+        "c8": "it_mv41g4goa0da",
+        "c9": "it_mv41g4ic2zpc",
+        "c10": "it_mv41g4it6ac9",
+        "c11": "it_mv41g4lpfour",
+        "c12": "it_mv41g4m50f30"
       }
     },
     {
-      "ts": "2026-10-11T14:21:49.711Z",
+      "ts": "2026-10-11T16:29:19.366Z",
       "type": "tool",
       "tool": "set_transition",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajry",
-        "itemId": "it_mv3ww6341txx",
+        "sequenceId": "seq_mv41g4feev8h",
+        "itemId": "it_mv41g4lpfour",
         "transition": {
           "template": "vox/paper-tear",
           "durationMs": 700
@@ -1379,13 +1499,13 @@
       "subRun": 2
     },
     {
-      "ts": "2026-10-11T14:21:49.728Z",
+      "ts": "2026-10-11T16:29:19.381Z",
       "type": "tool",
       "tool": "set_transition",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww5woajry",
-        "itemId": "it_mv3ww63octga",
+        "sequenceId": "seq_mv41g4feev8h",
+        "itemId": "it_mv41g4m50f30",
         "transition": {
           "template": "vox/paper-tear",
           "durationMs": 700
@@ -1423,7 +1543,127 @@
       "subRun": 2
     },
     {
-      "ts": "2026-10-11T14:21:49.728Z",
+      "ts": "2026-10-11T16:29:19.382Z",
+      "type": "tool",
+      "tool": "view_frames",
+      "by": "workflow",
+      "args": {
+        "sequenceId": "seq_mv41g4feev8h",
+        "atSeqMs": [1650, 3550]
+      },
+      "result": {
+        "frames": [
+          {
+            "seqMs": 1650,
+            "srcMs": 4583,
+            "health": []
+          },
+          {
+            "seqMs": 3550,
+            "srcMs": 6917,
+            "health": []
+          }
+        ],
+        "note": "no vision model: frame-health flags only"
+      },
+      "subRun": 2
+    },
+    {
+      "ts": "2026-10-11T16:29:19.382Z",
+      "type": "tool",
+      "tool": "check_audio",
+      "by": "workflow",
+      "args": {
+        "sequenceId": "seq_mv41g4feev8h"
+      },
+      "result": {
+        "pass": true,
+        "targetLufs": -14,
+        "durationMs": 6000,
+        "checks": [
+          {
+            "id": "cueTiming",
+            "status": "pass",
+            "limitMs": 33,
+            "maxAbsDeltaMs": 12,
+            "failures": []
+          },
+          {
+            "id": "oneEventPerCue",
+            "status": "pass",
+            "failures": []
+          },
+          {
+            "id": "spacing",
+            "status": "pass",
+            "minGapMs": 120,
+            "failures": []
+          },
+          {
+            "id": "underSpeech",
+            "status": "pass",
+            "failures": []
+          },
+          {
+            "id": "loudness",
+            "status": "pass",
+            "integratedLufs": -14.2,
+            "truePeakDbtp": -1.4
+          }
+        ],
+        "cues": [
+          {
+            "index": 1,
+            "atMs": 1200,
+            "type": "appear",
+            "hero": false
+          },
+          {
+            "index": 2,
+            "atMs": 1250,
+            "type": "appear",
+            "hero": false
+          }
+        ],
+        "dropped": [],
+        "listen": [
+          {
+            "atMs": 600,
+            "timecode": "00:00.600",
+            "kind": "hero cue",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 1500,
+            "timecode": "00:01.500",
+            "kind": "hero cue",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 2600,
+            "timecode": "00:02.600",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 3400,
+            "timecode": "00:03.400",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 4800,
+            "timecode": "00:04.800",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          }
+        ],
+        "picture": "no vision model: qa.png not described; use the numbers above"
+      },
+      "subRun": 2
+    },
+    {
+      "ts": "2026-10-11T16:29:19.382Z",
       "type": "done",
       "runId": "run_wftest0001",
       "status": "completed",
@@ -1432,21 +1672,21 @@
       "versions": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
       "todos": [],
       "aliases": {
-        "m1": "m_mv3ww4tffqci",
-        "s1": "seq_mv3ww5woajrx",
-        "c1": "it_mv3ww5wt59mk",
-        "c2": "it_mv3ww5wt59ml",
-        "c3": "it_mv3ww5xhh1xi",
-        "c4": "it_mv3ww5xhh1xk",
-        "s2": "seq_mv3ww5woajry",
-        "c5": "it_mv3ww5wu5v2p",
-        "c6": "it_mv3ww5wu5v2q",
-        "c7": "it_mv3ww5y32oh8",
-        "c8": "it_mv3ww5y32oha",
-        "c9": "it_mv3ww5zqfj7k",
-        "c10": "it_mv3ww607ckg1",
-        "c11": "it_mv3ww6341txx",
-        "c12": "it_mv3ww63octga"
+        "m1": "m_mv41g3bp2y4v",
+        "s1": "seq_mv41g4fdeosa",
+        "c1": "it_mv41g4fh7uh0",
+        "c2": "it_mv41g4fh7uh1",
+        "c3": "it_mv41g4g36s2d",
+        "c4": "it_mv41g4g36s2f",
+        "s2": "seq_mv41g4feev8h",
+        "c5": "it_mv41g4figpzy",
+        "c6": "it_mv41g4figpzz",
+        "c7": "it_mv41g4goa0d8",
+        "c8": "it_mv41g4goa0da",
+        "c9": "it_mv41g4ic2zpc",
+        "c10": "it_mv41g4it6ac9",
+        "c11": "it_mv41g4lpfour",
+        "c12": "it_mv41g4m50f30"
       }
     }
   ]

@@ -3,7 +3,7 @@
 // (transcript + image) with the user's configured role models, or with every role on one configured
 // provider, and prints a scorecard per run. Each run is capped by the config's `maxUsdPerRun`. Opt-in:
 // it needs real providers, so it is not part of CI. Pauses are never approved (S20).
-import { createRedactor, openEngine, type Engine, type Project } from '@vox/engine';
+import { createRedactor, openEngine, type Engine, type Project, type Redactor } from '@vox/engine';
 import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -57,6 +57,8 @@ export interface EvalDeps {
   engine?: (projectsDir: string) => Engine;
   /** Job stand-ins (tests). */
   runJob?: WorkflowDeps['runJob'];
+  /** The redactor holding the configured keys (S19): every run record and event goes through it. */
+  redactor: Redactor;
 }
 
 const SEEDS = [
@@ -110,10 +112,10 @@ function bounds(e: Engine, input: EvalInput): ClipBounds {
   };
 }
 
-function workflowDeps(deps: EvalDeps, e: Engine, pauses: PauseInfo[]): WorkflowDeps {
+export function workflowDeps(deps: EvalDeps, e: Engine, pauses: PauseInfo[]): WorkflowDeps {
   return {
     engine: e,
-    redactor: createRedactor(),
+    redactor: deps.redactor,
     models: deps.models,
     limits: { maxUsdPerRun: deps.maxUsdPerRun, maxStepsPerRun: deps.maxStepsPerRun },
     onPause: (p) => {
@@ -243,7 +245,12 @@ export function formatScorecards(cards: readonly Scorecard[]): string {
     .join('');
 }
 
-async function main(argv: string[]): Promise<number> {
+/** The top-level error line, redacted (S19): a provider error may quote a key. */
+export function fatalMessage(err: unknown, redactor: Redactor): string {
+  return `${redactor.redact(err instanceof Error ? err.message : String(err))}\n`;
+}
+
+async function main(argv: string[], redactor: Redactor): Promise<number> {
   const { values } = parseArgs({
     args: argv,
     options: {
@@ -254,7 +261,6 @@ async function main(argv: string[]): Promise<number> {
     },
     strict: true,
   });
-  const redactor = createRedactor();
   const cfgDeps = {
     io: engineConfigIO(process.env),
     keychain: createSecurityKeychain(),
@@ -289,6 +295,7 @@ async function main(argv: string[]): Promise<number> {
     mode,
     maxUsdPerRun: conf.limits.maxUsdPerRun,
     maxStepsPerRun: conf.limits.maxStepsPerRun,
+    redactor,
   });
   process.stdout.write(
     redactor.redact(values.json ? `${JSON.stringify(cards, null, 2)}\n` : formatScorecards(cards)),
@@ -297,10 +304,11 @@ async function main(argv: string[]): Promise<number> {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main(process.argv.slice(2)).then(
+  const redactor = createRedactor();
+  main(process.argv.slice(2), redactor).then(
     (code) => (process.exitCode = code),
     (err: unknown) => {
-      process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+      process.stderr.write(fatalMessage(err, redactor));
       process.exitCode = 1;
     },
   );

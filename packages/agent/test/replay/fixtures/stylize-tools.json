@@ -10,10 +10,10 @@
   },
   "lines": [
     {
-      "ts": "2026-10-11T14:21:47.857Z",
+      "ts": "2026-10-11T16:29:17.523Z",
       "type": "started",
       "runId": "run_wftest0001",
-      "projectId": "p_mv3ww3lb1uff",
+      "projectId": "p_mv41g241hwh1",
       "workflow": "stylize",
       "mode": "tools",
       "models": {
@@ -40,12 +40,12 @@
       "version": 5
     },
     {
-      "ts": "2026-10-11T14:21:47.874Z",
+      "ts": "2026-10-11T16:29:17.539Z",
       "type": "tool",
       "tool": "update_sequence",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww4nxhsxj",
+        "sequenceId": "seq_mv41g370e27z",
         "styleId": "vox"
       },
       "result": {
@@ -62,12 +62,12 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:47.891Z",
+      "ts": "2026-10-11T16:29:17.555Z",
       "type": "tool",
       "tool": "set_captions",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww4nxhsxj",
+        "sequenceId": "seq_mv41g370e27z",
         "enabled": true,
         "preset": "vox/mono-box"
       },
@@ -85,11 +85,11 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:47.897Z",
+      "ts": "2026-10-11T16:29:17.560Z",
       "type": "step",
       "step": 1,
       "subRun": 1,
-      "scope": ["seq_mv3ww4nxhsxj"],
+      "scope": ["seq_mv41g370e27z"],
       "text": "",
       "calls": [
         {
@@ -133,7 +133,7 @@
       "spentUsd": 0.00014
     },
     {
-      "ts": "2026-10-11T14:21:47.915Z",
+      "ts": "2026-10-11T16:29:17.577Z",
       "type": "tool",
       "callId": "call_1_0",
       "tool": "add_scene",
@@ -176,10 +176,10 @@
       "versions": [8],
       "changes": [
         {
-          "key": "item:seq_mv3ww4nxhsxj/it_mv3ww4qnbv94",
+          "key": "item:seq_mv41g370e27z/it_mv41g3994j12",
           "before": null,
           "after": {
-            "id": "it_mv3ww4qnbv94",
+            "id": "it_mv41g3994j12",
             "startMs": 767,
             "durationMs": 1766,
             "type": "scene",
@@ -195,7 +195,7 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:47.920Z",
+      "ts": "2026-10-11T16:29:17.582Z",
       "type": "tool",
       "callId": "call_1_1",
       "tool": "add_scene",
@@ -218,7 +218,7 @@
             "status": "failed",
             "error": {
               "code": "OVERLAP",
-              "message": "Item it_mv3ww4r35clf overlaps it_mv3ww4qnbv94 on track V2",
+              "message": "Item it_mv41g39p8xuj overlaps it_mv41g3994j12 on track V2",
               "hint": "Pick a free time, or pass onOverlap: 'overwrite' or 'insert'"
             }
           }
@@ -227,11 +227,11 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:47.925Z",
+      "ts": "2026-10-11T16:29:17.586Z",
       "type": "step",
       "step": 2,
       "subRun": 1,
-      "scope": ["seq_mv3ww4nxhsxj"],
+      "scope": ["seq_mv41g370e27z"],
       "text": "",
       "calls": [
         {
@@ -261,7 +261,7 @@
       "spentUsd": 0.00028
     },
     {
-      "ts": "2026-10-11T14:21:47.926Z",
+      "ts": "2026-10-11T16:29:17.587Z",
       "type": "tool",
       "callId": "call_2_0",
       "tool": "view_frames",
@@ -282,7 +282,7 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:47.927Z",
+      "ts": "2026-10-11T16:29:17.587Z",
       "type": "tool",
       "callId": "call_2_1",
       "tool": "check_audio",
@@ -376,11 +376,11 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:47.935Z",
+      "ts": "2026-10-11T16:29:17.594Z",
       "type": "step",
       "step": 3,
       "subRun": 1,
-      "scope": ["seq_mv3ww4nxhsxj"],
+      "scope": ["seq_mv41g370e27z"],
       "text": "Placed the scenes.",
       "calls": [],
       "usage": {
@@ -394,33 +394,33 @@
       "spentUsd": 0.00041999999999999996
     },
     {
-      "ts": "2026-10-11T14:21:47.935Z",
+      "ts": "2026-10-11T16:29:17.594Z",
       "type": "subRun",
       "subRun": 1,
-      "scope": ["seq_mv3ww4nxhsxj"],
+      "scope": ["seq_mv41g370e27z"],
       "status": "completed",
       "summary": "Placed the scenes.",
       "steps": 3
     },
     {
-      "ts": "2026-10-11T14:21:47.935Z",
+      "ts": "2026-10-11T16:29:17.594Z",
       "type": "aliases",
       "table": {
-        "s1": "seq_mv3ww4nxhsxj",
-        "c1": "it_mv3ww4o2hf4u",
-        "m1": "m_mv3ww3lthdye",
-        "c2": "it_mv3ww4o2hf4v",
-        "c3": "it_mv3ww4qnbv94"
+        "s1": "seq_mv41g370e27z",
+        "c1": "it_mv41g374dcv1",
+        "m1": "m_mv41g24h9nbe",
+        "c2": "it_mv41g374dcv2",
+        "c3": "it_mv41g3994j12"
       }
     },
     {
-      "ts": "2026-10-11T14:21:47.952Z",
+      "ts": "2026-10-11T16:29:17.610Z",
       "type": "tool",
       "tool": "set_transition",
       "by": "workflow",
       "args": {
-        "sequenceId": "seq_mv3ww4nxhsxj",
-        "itemId": "it_mv3ww4qnbv94",
+        "sequenceId": "seq_mv41g370e27z",
+        "itemId": "it_mv41g3994j12",
         "transition": {
           "template": "vox/paper-tear",
           "durationMs": 700
@@ -457,7 +457,122 @@
       "subRun": 1
     },
     {
-      "ts": "2026-10-11T14:21:47.952Z",
+      "ts": "2026-10-11T16:29:17.611Z",
+      "type": "tool",
+      "tool": "view_frames",
+      "by": "workflow",
+      "args": {
+        "sequenceId": "seq_mv41g370e27z",
+        "atSeqMs": [1650]
+      },
+      "result": {
+        "frames": [
+          {
+            "seqMs": 1650,
+            "srcMs": 10450,
+            "health": []
+          }
+        ],
+        "note": "no vision model: frame-health flags only"
+      },
+      "subRun": 1
+    },
+    {
+      "ts": "2026-10-11T16:29:17.611Z",
+      "type": "tool",
+      "tool": "check_audio",
+      "by": "workflow",
+      "args": {
+        "sequenceId": "seq_mv41g370e27z"
+      },
+      "result": {
+        "pass": true,
+        "targetLufs": -14,
+        "durationMs": 6000,
+        "checks": [
+          {
+            "id": "cueTiming",
+            "status": "pass",
+            "limitMs": 33,
+            "maxAbsDeltaMs": 12,
+            "failures": []
+          },
+          {
+            "id": "oneEventPerCue",
+            "status": "pass",
+            "failures": []
+          },
+          {
+            "id": "spacing",
+            "status": "pass",
+            "minGapMs": 120,
+            "failures": []
+          },
+          {
+            "id": "underSpeech",
+            "status": "pass",
+            "failures": []
+          },
+          {
+            "id": "loudness",
+            "status": "pass",
+            "integratedLufs": -14.2,
+            "truePeakDbtp": -1.4
+          }
+        ],
+        "cues": [
+          {
+            "index": 1,
+            "atMs": 1200,
+            "type": "appear",
+            "hero": false
+          },
+          {
+            "index": 2,
+            "atMs": 1250,
+            "type": "appear",
+            "hero": false
+          }
+        ],
+        "dropped": [],
+        "listen": [
+          {
+            "atMs": 600,
+            "timecode": "00:00.600",
+            "kind": "hero cue",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 1500,
+            "timecode": "00:01.500",
+            "kind": "hero cue",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 2600,
+            "timecode": "00:02.600",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 3400,
+            "timecode": "00:03.400",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          },
+          {
+            "atMs": 4800,
+            "timecode": "00:04.800",
+            "kind": "loud SFX",
+            "listenFor": "one clean hit on the cut"
+          }
+        ],
+        "picture": "no vision model: qa.png not described; use the numbers above"
+      },
+      "subRun": 1
+    },
+    {
+      "ts": "2026-10-11T16:29:17.611Z",
       "type": "done",
       "runId": "run_wftest0001",
       "status": "completed",
@@ -466,11 +581,11 @@
       "versions": [6, 7, 8, 9],
       "todos": [],
       "aliases": {
-        "s1": "seq_mv3ww4nxhsxj",
-        "c1": "it_mv3ww4o2hf4u",
-        "m1": "m_mv3ww3lthdye",
-        "c2": "it_mv3ww4o2hf4v",
-        "c3": "it_mv3ww4qnbv94"
+        "s1": "seq_mv41g370e27z",
+        "c1": "it_mv41g374dcv1",
+        "m1": "m_mv41g24h9nbe",
+        "c2": "it_mv41g374dcv2",
+        "c3": "it_mv41g3994j12"
       }
     }
   ]

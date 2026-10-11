@@ -46,6 +46,10 @@ describe('workflow files', () => {
   test('an unknown workflow name is refused', () => {
     expect(() => loadWorkflow('../evil' as never)).toThrow(/workflow/);
   });
+
+  test('only the packaged workflow files load (no folder argument)', () => {
+    expect(loadWorkflow.length).toBe(1);
+  });
 });
 
 describe('frontmatter list forms', () => {

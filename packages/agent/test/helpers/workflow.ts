@@ -98,7 +98,7 @@ export function fakeRender(real: Engine): Engine {
 }
 
 export interface FakeJobs {
-  runJob: (kind: string, args: Record<string, unknown>) => Promise<unknown>;
+  runJob: (kind: string, args: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
   qa: QaScript;
   search: { candidates: { id: string; title: string }[] };
   jobs: { kind: string; args: Record<string, unknown> }[];
@@ -137,7 +137,7 @@ export function fakeJobs(engine: () => Engine): FakeJobs {
     });
     return { mediaId };
   };
-  f.runJob = async (kind, args) => {
+  f.runJob = async (kind, args, signal) => {
     f.jobs.push({ kind, args });
     switch (kind) {
       case 'shots':
@@ -154,7 +154,7 @@ export function fakeJobs(engine: () => Engine): FakeJobs {
       case 'assets.search':
         return f.search;
       default:
-        return runEngineJob(engine(), kind, args);
+        return runEngineJob(engine(), kind, args, signal);
     }
   };
   return f;

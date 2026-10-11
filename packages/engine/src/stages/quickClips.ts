@@ -247,6 +247,8 @@ export function pickClips(
 export interface ScorerInput {
   mediaId: string;
   prompt?: string;
+  /** The agent run that started the job (absent for a job outside a run). */
+  runId?: string;
   candidates: { index: number; startMs: number; endMs: number; text: string }[];
 }
 
