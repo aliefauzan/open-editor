@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  buildEmbedder,
   buildRunModels,
   CLIPPER_DEFAULTS,
   closeUnfinishedRuns,
@@ -143,6 +144,15 @@ export class AgentHost {
     const runId = this.#d.newRunId?.() ?? `run_${randomBytes(9).toString('base64url')}`;
     const abort = new AbortController();
     const conf = await loadAgentConfig(this.#d.cfg);
+    // screenplay match: the `embed` role, when one is set and usable (else the workflow ranks with the language model)
+    const embed =
+      workflow === 'screenplay' && !this.#d.models
+        ? await buildEmbedder(
+            conf,
+            this.#d.cfg,
+            this.#d.fetch !== undefined ? { fetch: this.#d.fetch } : {},
+          ).catch(() => undefined)
+        : undefined;
     const len = lengthIn(a.message);
     const attachedVideo = attachments.find((id) =>
       /\.(mp4|mov|m4v|webm|mkv)$/i.test(project.media.find((m) => m.id === id)?.path ?? ''),
@@ -189,6 +199,7 @@ export class AgentHost {
           },
           onPause: (info) => this.#pause(runId, info, conf.limits.maxUsdPerRun),
           ...(this.#d.runJob && { runJob: this.#d.runJob }),
+          ...(embed && { embed }),
         },
         req,
       )

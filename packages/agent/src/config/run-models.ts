@@ -11,7 +11,9 @@ import {
   type ContextDeps,
   type OpenRouterModelInfo,
 } from '../providers/context.ts';
+import { createEmbedder } from '../providers/factory.ts';
 import { PRESETS, type ProviderEntry } from '../providers/presets.ts';
+import type { Embedder } from '../screenplay/match.ts';
 import { isLocalProvider, lookupPrice, type PriceEntry } from '../providers/prices.ts';
 import { selectMode, type AgentMode } from '../providers/roles.ts';
 import { findProvider, providerKey, type AgentConfig, type AgentConfigDeps } from './store.ts';
@@ -104,4 +106,24 @@ export async function buildRunModels(
     if (role === 'editor') mode = m.mode;
   }
   return { models, ...(mode && { mode }) };
+}
+
+/**
+ * The `embed` role as an embedding function (screenplay match), or undefined when no embed role is
+ * set. A set role whose provider cannot embed throws CONFIG_INVALID (the caller reports it and the
+ * workflow falls back to LLM ranking).
+ */
+export async function buildEmbedder(
+  conf: AgentConfig,
+  cfg: AgentConfigDeps,
+  deps: { fetch?: typeof fetch } = {},
+): Promise<Embedder | undefined> {
+  const ref = conf.roles.embed;
+  if (!ref) return undefined;
+  const entry = findProvider(conf, ref.providerId);
+  const key = await providerKey(cfg, entry);
+  return createEmbedder(entry, ref.model, {
+    apiKey: key,
+    ...(deps.fetch !== undefined && { fetch: deps.fetch }),
+  });
 }
