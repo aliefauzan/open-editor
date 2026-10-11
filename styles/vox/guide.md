@@ -53,5 +53,17 @@ the search finds nothing usable and an image provider is configured. Cutouts get
 
 ## Sound
 
-Every scene and transition carries its own sound cues (paper pops, slides, one thump for the big
-reveal of a `vox/stat`). Leave them on unless the user asks for a quiet edit.
+Every scene and transition carries its own sound cue: a scissors snip on `vox/paper-collage`, a
+typewriter key on `vox/kinetic-serif`, a low timpani hit on the reveal of a `vox/stat`, a pop on
+`vox/map-route`, paper slides and whooshes on the transitions. Use them as accents, not on every cut:
+about one cut in three to five gets a sound (big reveals, `stat` numbers, collage drops). Switch the
+other scene cues off with `sfxOff`; prefer hard cuts, and add a transition only where its sound is the
+accent (a transition's cue cannot be switched off). A quiet edit, when the user asks: `sfx` off.
+
+## Looks
+
+- Archive or dark scenes: add the `film-look` overlay (real film grain, flicker, vignette).
+- Quoting a headline or article: `vox/paper-collage` with `clipping` and `highlight` set to the phrase
+  the speaker stresses; `grade: bw` or `sepia` for old pictures, `faded` for colour film, `vhs` for
+  1980s–90s footage.
+- `vox/word-reveal` captions mix an italic serif with a bold grotesk on emphasis words.
