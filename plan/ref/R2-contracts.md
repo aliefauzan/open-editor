@@ -17,8 +17,8 @@ commit, and every consumer updated in that commit.
 | `VoxError { code, message, hint, cause? }` + codes | engine "Error handling", all specs | `engine/src/errors.ts` | 02 | grows; codes never renamed |
 | Engine library API (`openEngine`, `Engine`) | engine "Library API" | `engine/src/api.ts` | 02 (grows 03–05) | 05 |
 | Engine events (`project.changed`, `job.*`) | engine "Library API" | `engine/src/api.ts` | 02/04 | 05 |
-| `style.json`, `template.json`, tokens `--tok-*` (incl. `sfx` object form `{path, type, source, licence}` and `sfxCues` with `name` and `type`, D-14; `minEntranceMs` and the reserved `skipEntrance` variable, D-15) | styles "Part A", "SFX rules" | `engine/src/styles/` | 03 | 06 |
-| Caption preset `captions/<preset>.json` (`case`, `stripPunctuation`, `safeArea`, `position`) and the read/active/unread word-state contract (D-15) | styles "Caption presets" | `engine/src/styles/`, `engine/src/compile/` | 03 | 06 |
+| `style.json`, `template.json`, tokens `--tok-*` (incl. `sfx` object form `{path, type, source, licence}` and `sfxCues` with `name` and `type`, D-14; `minEntranceMs` and the reserved `skipEntrance` variable, D-15) | styles "Part A", "SFX rules" | `engine/src/styles/` | 03 | 06, frozen 2026-10-11 |
+| Caption preset `captions/<preset>.json` (`case`, `stripPunctuation`, `safeArea`, `position`) the read/active/unread word-state contract (D-15) and word `data-key` (D-34) | styles "Caption presets" | `engine/src/styles/`, `engine/src/compile/` | 03 | 06, frozen 2026-10-11 |
 | `CaptionChunk` / `CaptionWord` (lines, word times, `emphasis`; D-15) | engine "Captions" | `engine/src/model/` (`deriveCaptions`) | 03 | 03 |
 | Cue list `build/<seq>/audio/cues.json` (kept and dropped cues with reasons) | engine "Sound cues" | `engine/src/audio/cues.ts` | 03 | 05 |
 | Audio QA output (`qa.json`, `qa.png`, `LISTEN.md`; thresholds in `audioqa_thresholds.json`) | engine "Audio QA" | `py/vox_py/audioqa.py`, job `audioQa` | 05 | 05 (thresholds never loosened, R3) |

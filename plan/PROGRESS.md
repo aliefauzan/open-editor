@@ -10,10 +10,10 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 02 | Engine: model, ops, history | 00 | [x] | 2026-10-11 00:17 | 2026-10-11 02:26 | Model, 29 ops + `batch`, history store (kill-safe), lock, `vox new/op/undo/redo/history/snapshot/paths`; applyOp p95 22.9 ms; contracts frozen (D-28) | log/phase-02.md |
 | 03 | Engine: styles loader, `base`, compile, captions, audio | 01, 02 | [x] | 2026-10-11 03:20 | 2026-10-11 04:35 | base style, compile (render + preview), captions, audio mix + stems + cues, layers MOV; 90 s spike fixture 0 cut errors (D-30) | log/phase-03.md |
 | 04 | Engine: jobs, Python bridge, ingest, transcribe, facetrack | 01, 02 | [x] | 2026-10-11 04:43 | 2026-10-11 05:40 | Jobs on the engine (ingest, transcribe, shots, facetrack), yt-dlp + LOGIN_REQUIRED, doctor, CLI chain; seeds committed; D-31 | log/phase-04.md |
-| 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [ ] | | | | log/phase-05.md |
-| 06 | Style tooling (Part A rest) | 03 | [ ] | | | | log/phase-06.md |
+| 05 | Engine: assets, render, export, CLI + GATE 2 | 03, 04 | [~] waiting: GATE 2 | 2026-10-11 05:43 | | Assets, render + mux, exports, audio QA, quick clips, CLI; local GATE 2 parts pass (A/V sync 0.69 ms, frames exact on 29.97/VFR); URLs, Resolve, Commons contact wait for the owner; D-32, D-33 | log/phase-05.md |
+| 06 | Style tooling (Part A rest) | 03 | [x] | 2026-10-11 07:31 | 2026-10-11 08:09 | `vox style validate/new/trust/accept/remove`, migrate, hook checks, safe area, `minEntranceMs`, caption preset and cue checks; base previews; style + caption preset formats frozen (D-34) | log/phase-06.md |
 | 07 | `vox` style v1 + GATE 3 | 05, 06 | [ ] | | | | log/phase-07.md |
-| 08 | App shell + security + GATE 4 | 01, 03 | [ ] | | | | log/phase-08.md |
+| 08 | App shell + security + GATE 4 | 01, 03 | [x] | 2026-10-11 08:17 | 2026-10-11 09:15 | Electron 44.7.0 shell: hardened schemes + IPC (S1, S10–S15, S28 pass), engine host in utilityProcess, fixture plays in opaque sandbox, skeleton ad-hoc dmg; GATE 4 pass (D-35, D-36, D-37) | log/phase-08.md |
 | 09 | App: first-run setup + `.dmg` | 05, 08 | [ ] | | | | log/phase-09.md |
 | 10a | App: editor core A (store, preview, timeline, inspector) | 06, 09 | [ ] | | | | log/phase-10a.md |
 | 10b | App: editor core B (quick clips, subtitles, media bin, export, gallery) + GATE 5 | 10a | [ ] | | | | log/phase-10b.md |
@@ -40,11 +40,11 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | Competitor teardown changes applied | — | [x] | D-15 | CapCut 9.4.1 teardown: rational fps + VFR copy, loudness match + export targets, VAD speech gate, word kinds, `shots`, `auto` framing + keyframes, `CaptionChunk`, pause/word removal, `coalesceKey`, `JOB_CONFLICT`, agent tool surface, aliases, sub-runs, replay tests; specs and plan updated, `schemaVersion` stays 2 |
 | GATE 1 — HyperFrames go/hybrid, preview strategy, opaque sandbox | 01 | [x] | 2026-10-11, D-29 | all 9 items pass: HyperFrames go (whole sequence), opaque sandbox, no Preview fallback, NTSC go, no pre-render cache (margin 20.8 %) |
 | Contracts frozen: `project.json`, ops, `HistoryEntry`, path rule | 02 | [x] | 2026-10-11, D-28 | also the transcript file format, `ApplyResult`, `engine.view` / `SequenceView` and `SCHEMA_TOO_NEW` (R2 rows "02"); changes after this need a DECISIONS entry |
-| GATE 2 — engine done-when (URL → MP4 by CLI, `vox quick`, Instagram/TikTok/file ingest, export folder, audio QA, OTIO in Resolve) | 05 | [ ] | | |
+| GATE 2 — engine done-when (URL → MP4 by CLI, `vox quick`, Instagram/TikTok/file ingest, export folder, audio QA, OTIO in Resolve) | 05 | [~] | | waiting for the owner: URLs, Resolve screenshot, Commons contact (TODO) |
 | Contracts frozen: Engine API + events, engine CLI | 05 | [ ] | | R2 rows "frozen after 05" |
 | GATE 3 — `vox` side-by-side sheet approved + ear check of `LISTEN.md` | 07 | [ ] | | |
-| GATE 4 — timeline library benchmark | 08 | [ ] | | |
-| Contract frozen: `window.vox` API | 08 and 05 | [ ] | | freezes when both are done (it wraps the engine API) |
+| GATE 4 — timeline library benchmark | 08 | [x] | 2026-10-11, D-35 | decided by numbers: 119.7 fps in Electron 44.7.0, linked + marquee 3/3; keep the library |
+| Contract frozen: `window.vox` API | 08 and 05 | [ ] | | freezes when both are done (it wraps the engine API); 08 done 2026-10-11, waiting for 05 |
 | GATE 5 — 4-core done (`.dmg` clean-install test + owner's run with a fresh `VOX_HOME`, manual editing, quick clips, latency; D-16) | 10b | [ ] | | |
 | v1.0 — fresh-clone check + owner installs the Release `.dmg` from the README and exports a clip (friend optional, D-16) | 13 | [ ] | | |
 | GATE 6 — sheet for the 4 new `vox` templates | 14a | [ ] | | |

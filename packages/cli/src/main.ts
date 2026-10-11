@@ -92,6 +92,10 @@ const USAGE = `usage:
   vox export-captions <project> [--seq id] --format srt|vtt [-o file | --out-dir dir] [--overwrite]
   vox export-timeline <project> [--seq id] [-o file | --out-dir dir] [--overwrite]
   vox credits <project>                   licence and attribution of the archive assets used
+  vox style validate <style> [--no-render] [--no-dom]   check a style; writes its previews/
+  vox style new <id> [--extends <style>] [--name <name>]   scaffold a draft user style
+  vox style trust <id> [--yes]            allow a user style's build.mjs hook to run
+  vox style accept <id> | remove <id>     mark a draft active | delete a user style
 common options: --json, --projects-dir <dir>; <project> is an id or a unique name
 `;
 
@@ -181,6 +185,14 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     overwrite: { type: 'boolean' },
   },
   credits: COMMON,
+  style: {
+    ...COMMON,
+    extends: { type: 'string' },
+    name: { type: 'string' },
+    yes: { type: 'boolean' },
+    'no-render': { type: 'boolean' },
+    'no-dom': { type: 'boolean' },
+  },
 };
 
 interface Parsed {
@@ -270,10 +282,11 @@ function toolsDir(io: Io): string {
   );
 }
 
+const voxHomeOf = (io: Io) => io.env['VOX_HOME'] ?? join(io.env['HOME'] ?? homedir(), '.vox');
+
 function stylesDirs(io: Io): string[] {
   const builtIn = fileURLToPath(new URL('../../../styles', import.meta.url));
-  const voxHome = io.env['VOX_HOME'] ?? join(io.env['HOME'] ?? homedir(), '.vox');
-  return [builtIn, join(voxHome, 'styles')];
+  return [builtIn, join(voxHomeOf(io), 'styles')];
 }
 
 async function engineFor(values: Parsed['values'], io: Io): Promise<Engine> {
@@ -290,6 +303,7 @@ async function engineFor(values: Parsed['values'], io: Io): Promise<Engine> {
     projectsDir: dir,
     stylesDirs: stylesDirs(io),
     tools: resolveToolPaths({ toolsDir: toolsDir(io), env: io.env }),
+    trustFile: join(voxHomeOf(io), 'trust.json'),
     config,
     ...io.engine,
   });
@@ -918,8 +932,90 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       out({ projectId: p.id, mediaId: media.mediaId, ...q, files }, lines.join(''));
       return 0;
     }
+    case 'style':
+      return styleCommand(positionals, values, io, out);
     default:
       throw new UsageError(`unknown command ${JSON.stringify(cmd)}`);
+  }
+}
+
+/** `vox style validate|new|trust|accept|remove` (phase 06). */
+async function styleCommand(
+  positionals: string[],
+  values: Parsed['values'],
+  io: Io,
+  out: (v: unknown, text: string) => void,
+): Promise<number> {
+  const [sub, id] = positionals;
+  if (!sub || !['validate', 'new', 'trust', 'accept', 'remove'].includes(sub)) {
+    throw new UsageError(`style needs validate, new, trust, accept or remove`);
+  }
+  need(positionals, 2, 'style id');
+  const e = await engineFor(values, io);
+  const json = values['json'] === true;
+  switch (sub) {
+    case 'validate': {
+      const progress =
+        io.isTTY && !json ? (s: string) => io.stderr(clean(`\rvalidate: ${s}\x1b[K`)) : undefined;
+      const r = await e.styles.validate(id!, {
+        ...(values['no-render'] === true ? { render: false } : {}),
+        ...(values['no-dom'] === true ? { dom: false } : {}),
+        ...(progress ? { onProgress: progress } : {}),
+      });
+      if (progress) io.stderr('\r\x1b[K');
+      const where = (p: { template?: string; preset?: string; fixture?: string }) =>
+        [p.template ?? p.preset, p.fixture].filter(Boolean).join(' ');
+      const lines = r.problems.map(
+        (p) => `FAIL ${p.rule}${where(p) ? ` ${where(p)}` : ''}: ${p.message}\n`,
+      );
+      for (const n of r.notes) lines.push(`note ${n}\n`);
+      const checks = Object.entries(r.checked)
+        .map(([k, v]) => `${k} ${v}`)
+        .join(', ');
+      lines.push(`${r.ok ? 'ok' : 'failed'}: ${r.styleId} (${checks})\n`);
+      if (r.previews.length > 0) lines.push(`previews: ${r.previews.join(', ')}\n`);
+      out(r, lines.join(''));
+      return r.ok ? 0 : 1;
+    }
+    case 'new': {
+      const ext = values['extends'];
+      const name = values['name'];
+      const r = e.styles.create({
+        id: id!,
+        ...(typeof ext === 'string' ? { extends: ext } : {}),
+        ...(typeof name === 'string' ? { name } : {}),
+      });
+      out(r, `created ${r.id} (draft) at ${r.dir}\n`);
+      return 0;
+    }
+    case 'trust': {
+      const style = e.styles.get(id!);
+      if (values['yes'] !== true) {
+        if (json || !io.isTTY || !io.prompt) {
+          throw new UsageError('style trust needs --yes when it cannot ask');
+        }
+        const answer = await io.prompt(
+          clean(
+            `Trust ${style.id} (${style.dir})? Its build.mjs runs on this computer with your permissions. [y/N] `,
+          ),
+        );
+        if (!/^y(es)?$/i.test(answer.trim())) {
+          out({ trusted: false }, 'not trusted\n');
+          return 1;
+        }
+      }
+      e.styles.trust(style.id);
+      out({ id: style.id, trusted: true }, `trusted ${style.id}\n`);
+      return 0;
+    }
+    case 'accept':
+      e.styles.accept(id!);
+      out({ id, status: 'active' }, `${id} is active\n`);
+      return 0;
+    default:
+      e.styles.remove(id!);
+      out({ id, removed: true }, `removed ${id}\n`);
+      return 0;
   }
 }
 

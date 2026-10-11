@@ -5,6 +5,6 @@
     "jsx": "react-jsx",
     "types": ["node", "vite/client"]
   },
-  "include": ["bench", "test"],
+  "include": ["bench", "test", "src", "e2e", "scripts", "vitest.config.ts"],
   "exclude": ["bench/**/out"]
 }

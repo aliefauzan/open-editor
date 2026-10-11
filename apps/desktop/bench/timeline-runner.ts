@@ -5,7 +5,8 @@ import { loadavg } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
-import { type Browser, chromium, type Page } from 'playwright';
+import { createRequire } from 'node:module';
+import { _electron, type Browser, chromium, type ElectronApplication, type Page } from 'playwright';
 import { build, preview } from 'vite';
 import { BENCH_GEOMETRY as G } from './timeline-proto/model.ts';
 import {
@@ -27,7 +28,7 @@ export interface RunOptions {
   attempts: number;
   headed: boolean;
   gestureMs: number;
-  browser: 'shell' | 'chromium';
+  browser: 'shell' | 'chromium' | 'electron';
   log?: (line: string) => void;
 }
 
@@ -200,6 +201,13 @@ export async function runTimelineBench(opts: RunOptions): Promise<RunResult> {
     build: { outDir: OUT_DIR },
     preview: { host: '127.0.0.1', port: 0, open: false },
   });
+  if (opts.browser === 'electron') {
+    try {
+      return await runInElectron(server, opts, log);
+    } finally {
+      await server.close();
+    }
+  }
   // The headless shell cannot run headed; --headed always means full Chromium.
   const full = opts.headed || opts.browser === 'chromium';
   const mode = opts.headed ? 'headed' : full ? 'new headless' : 'headless shell';
@@ -232,5 +240,54 @@ export async function runTimelineBench(opts: RunOptions): Promise<RunResult> {
   } finally {
     await browser?.close();
     await server.close();
+  }
+}
+
+/** Step A3: the same attempts inside the pinned Electron, a real window on the display. */
+async function runInElectron(
+  server: { httpServer: { address(): unknown } },
+  opts: RunOptions,
+  log: (line: string) => void,
+): Promise<RunResult> {
+  const { port } = server.httpServer.address() as AddressInfo;
+  const url = `http://127.0.0.1:${port}/`;
+  const executablePath = createRequire(import.meta.url)('electron') as unknown as string;
+  let app: ElectronApplication | null = null;
+  try {
+    app = await _electron.launch({
+      executablePath,
+      args: [path.join(import.meta.dirname, 'timeline-electron-main.cjs'), url],
+    });
+    const page = await app.firstWindow();
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => {
+      if (m.type() === 'error') errors.push(`console: ${m.text()}`);
+    });
+    await page.waitForLoadState('load');
+    const attempts: AttemptResult[] = [];
+    for (let i = 1; i <= opts.attempts; i++) {
+      log(`attempt ${i}/${opts.attempts} (electron)`);
+      attempts.push(await runAttempt(page, url, opts.gestureMs));
+      if (errors.length > 0) throw new Error(`page errors: ${errors.join('; ')}`);
+    }
+    const gpuRenderer = await page.evaluate(() => window.__bench!.gpuRenderer());
+    const win = await page.evaluate(() => ({
+      w: window.innerWidth,
+      h: window.innerHeight,
+      dpr: window.devicePixelRatio,
+    }));
+    const versions = await app.evaluate(() => ({
+      electron: process.versions.electron,
+      chrome: process.versions.chrome,
+    }));
+    return {
+      browserVersion: `Electron ${versions.electron} (Chromium ${versions.chrome})`,
+      mode: `electron window ${win.w}x${win.h} at DPR ${win.dpr}`,
+      gpuRenderer,
+      attempts,
+    };
+  } finally {
+    await app?.close();
   }
 }

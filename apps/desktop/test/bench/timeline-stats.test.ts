@@ -137,6 +137,10 @@ describe('parseBenchArgs', () => {
     });
   });
 
+  it('accepts --browser electron (GATE 4 re-run inside the app shell, step A3)', () => {
+    expect(parseBenchArgs(['--browser', 'electron']).browser).toBe('electron');
+  });
+
   it('rejects unknown flags and bad numbers', () => {
     expect(() => parseBenchArgs(['--nope'])).toThrow(/unknown/);
     expect(() => parseBenchArgs(['--attempts', '0'])).toThrow(/attempts/);

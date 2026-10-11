@@ -98,7 +98,9 @@ apps/desktop
 
 - Compiled builds, scene instance files, template previews, thumbnails and project media
   are served only through the `vox-media://` scheme, registered privileged as `standard`,
-  `secure` and `stream` (range requests for video seeking), with `corsEnabled: false`.
+  `secure` and `stream` (range requests for video seeking), with `corsEnabled: true` so the
+  opaque-origin player can load fonts; only font responses carry `Access-Control-Allow-Origin: *`,
+  everything else has no CORS header (D-37).
 - URLs look like `vox-media://p/<projectId>/build/…`, `…/files/…`,
   `vox-media://styles/<styleId>/…`. The handler applies the engine path rule, imported
 from `@vox/engine/paths` (decode

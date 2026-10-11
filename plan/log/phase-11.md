@@ -101,3 +101,59 @@ question (D-26, left for phase 11).
   per step with the run's tool names and sends `TEXT_TOOL_CALL_CORRECTION`, and counts identical calls.
 - Envelope use: wrap transcript/caption/vision text with `wrapData`; the system prompt rule stays in 11.
 - Decide the `env:NAME` allow-list question and `http:` to non-loopback hosts (D-26).
+
+## Early steps (D-19) — g2-providers
+
+Branch `early/g2-providers` (worktree `.worktrees/early-g2-providers`), from main b2a7b41, main
+merged in at 9f37d55. No `@vox/engine` import; errors use the G1 `UtilError` shim. Decisions: D-38.
+N1 and G1 files are only imported.
+
+**Done** (all in `packages/agent`, tests first, `MockLanguageModelV4` or the fake helper, no network):
+- Pins (R5 filled): `ai` 7.0.137, `@openrouter/ai-sdk-provider` 3.1.0, `@ai-sdk/anthropic` 4.0.78,
+  `@ai-sdk/openai` 4.0.91, `@ai-sdk/google` 4.0.93, `ollama-ai-provider-v2` 4.0.1,
+  `@ai-sdk/openai-compatible` 3.0.67, `@ai-sdk/provider` 4.0.26. All Apache-2.0; transitive MIT and
+  `json-schema` (AFL-2.1 OR BSD-3-Clause).
+- `src/providers/presets.ts`: preset table (claude, openrouter, opencode-zen, 9router, lmstudio,
+  ollama, apple, openai, gemini), `ProviderEntry` schema (loose, `preset?`, `options.numCtx`,
+  `options.contextTokens`), `requiresKey`, `providerEntryFromPreset` (key ref `keychain:<id>`).
+- `src/providers/factory.ts`: `createLanguageModel(entry, modelId, {apiKey, fetch?, apple?})` builds
+  a `LanguageModelV4` per type; Zen routes by model family; Ollama `num_ctx` middleware; keyed
+  provider without a key → `CONFIG_INVALID`; base URL through `assertSafeBaseUrl`.
+  `resolveEntryKey` resolves through G1 `resolveApiKey(ref, deps, entry.id)`.
+- `src/providers/capture.ts`: captures the first request a provider package would send (URL,
+  headers, body) and rejects it; used for wire tests and the tool-list measure.
+- `src/providers/apple.ts`: `LanguageModelV4` over `vox-apple-llm` (argument array, minimal env,
+  `JsonLineSplitter`, serial requests with ids, timeout → SIGKILL + restart, crash → `APPLE_FAILED`
+  with stderr tail, abort, `--status` → `APPLE_UNAVAILABLE` with hint, `contextOverflow` →
+  `CONTEXT_OVERFLOW`, guided generation from `responseFormat.schema`, stream). Tools, files and a
+  non-user last message are refused (`UnsupportedFunctionalityError`/`InvalidPromptError`).
+- `src/providers/probe.ts`: tools, loop, vision (generated solid-colour PNG), plan/json checks;
+  results carry codes or HTTP status only, never provider text.
+- `src/providers/context.ts`: OpenRouter models list (context, price via G1
+  `parseOpenRouterPricing`, modalities, tools), Ollama `/api/show`, `detectContext` per D-38.
+- `src/providers/tool-cost.ts`: `toolDefinitions`, `serializedToolList` (provider's own `tools`
+  JSON), `estimateTokens`, `checkToolListCost` (25 %), `measureToolListCost`.
+- `src/providers/roles.ts`: `ROLES`, `EDITOR_MIN_CONTEXT` 32,000, `selectMode`, `roleCheck`,
+  `assertRoleAssignable` (`PRICE_MISSING` via G1, else `PROBE_FAILED` with the failed checks).
+- Tests: `test/providers/{presets,factory,apple,probe,context,tool-cost,roles}.test.ts`,
+  `test/providers/apple.local.test.ts` (real helper: status, context, text, stream, schema, plan
+  probe and role verdict; skipped with the reason off macOS 26 SDK), fixture
+  `test/fixtures/fake-apple-llm-restarts.mjs` (per-spawn scripts for restart tests).
+
+**Numbers**: after merging main, root `pnpm test` 128 files, 1908 passed, 1 skipped (local tier
+on, Apple helper ready on the M5); `pnpm typecheck` and `pnpm lint` clean;
+`uv run --project py pytest` 109 passed (after `make.sh`).
+
+**Review**: self-review (owner asked to cut token cost; no review agents). Fixed: parameter property
+in `apple.ts`, a late exit of an old helper rejecting a new request (`failFor(child)`), function-typed
+tool descriptions in `toolDefinitions`, context fetches now go through `assertSafeBaseUrl` (a base URL
+with credentials is refused before any request; test added).
+
+**Left for phase 11**
+- Swap `UtilError` for `VoxError`; append `APPLE_UNAVAILABLE`, `APPLE_FAILED`, `CONTEXT_OVERFLOW`,
+  `PROBE_FAILED` (with G1's `CONFIG_INVALID`, `KEYCHAIN_FAILED`, `PRICE_MISSING`).
+- Tool generation from engine zod schemas, `allowedTools`/`describe_tool`/`call_tool`, feeding the
+  real largest list to `measureToolListCost`; the loop, compaction, plan mode executor, `ClipPlan`
+  as the plan probe task; config persistence of entries (with `preset`) and probe reports; redactor
+  registration of resolved keys; `vox config providers add|roles set|probe` (calls
+  `assertRoleAssignable`); the live probe (MANUAL STEP already in the phase plan).

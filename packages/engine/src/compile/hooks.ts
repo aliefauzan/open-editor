@@ -102,3 +102,31 @@ export async function runHook(
   for (const [name] of files) ctx.fileUrl(name);
   return { vars: out.vars ?? vars, files };
 }
+
+type MigrateFn = (vars: Record<string, unknown>, fromVersion: string) => unknown;
+
+/**
+ * `migrate(variables, fromVersion)` from a template's `build.mjs` (styles spec "Versions"). Only for a
+ * trusted declaring style: an untrusted hook module is never imported (`HOOK_UNTRUSTED`). Returns
+ * undefined when the template has no hook or the hook has no `migrate` export.
+ */
+export async function runMigrate(
+  def: TemplateDef,
+  vars: Record<string, unknown>,
+  fromVersion: string,
+): Promise<Record<string, unknown> | undefined> {
+  if (!def.hookPath) return undefined;
+  if (!def.trusted) throw hookUntrusted(def);
+  const mod = (await import(pathToFileURL(def.hookPath).href)) as { migrate?: MigrateFn };
+  if (typeof mod.migrate !== 'function') return undefined;
+  const out = mod.migrate(structuredClone(vars), fromVersion);
+  if (out === null || typeof out !== 'object' || Array.isArray(out)) {
+    throw new VoxError(
+      'STYLE_INVALID',
+      `${def.id}: migrate() did not return a variables object`,
+      'Return the migrated variables object from migrate(variables, fromVersion)',
+      { details: { template: def.id, reason: 'hook' } },
+    );
+  }
+  return out as Record<string, unknown>;
+}

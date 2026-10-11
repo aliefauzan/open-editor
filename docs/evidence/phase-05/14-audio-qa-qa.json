@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "mode": "mix",
+  "pass": true,
+  "note": "Measurements only. They do not say the sound is good: a person has to listen to the timecodes in LISTEN.md.",
+  "fps": 30.0,
+  "targetLufs": -14.0,
+  "durationMs": 5000,
+  "checks": [
+    {
+      "id": "cueTiming",
+      "rule": "each cue has an SFX onset within 1 frame(s) of atMs",
+      "status": "skipped",
+      "limitMs": 33.33,
+      "maxAbsDeltaMs": null,
+      "cues": [],
+      "failures": []
+    },
+    {
+      "id": "oneEventPerCue",
+      "rule": "every SFX onset belongs to a cue (no second event inside a cue's sample)",
+      "status": "pass",
+      "onsets": 0,
+      "extraOnsets": 0,
+      "failures": []
+    },
+    {
+      "id": "spacing",
+      "rule": "no two SFX onsets closer than 120 ms",
+      "status": "pass",
+      "minGapMs": null,
+      "limitMs": 120,
+      "failures": []
+    },
+    {
+      "id": "sfxUnderSpeech",
+      "rule": "while speech is active, SFX is at least 6 LU below speech",
+      "status": "pass",
+      "limitLu": 6,
+      "windowMs": 200,
+      "minMarginLu": null,
+      "onsets": [],
+      "failures": []
+    },
+    {
+      "id": "loudness",
+      "rule": "integrated loudness at the target +-1 LU, true peak <= -1 dBTP, no clipped samples",
+      "status": "pass",
+      "integratedLufs": -13.92,
+      "targetLufs": -14.0,
+      "deltaLu": 0.08,
+      "toleranceLu": 1,
+      "truePeakDbtp": -3.75,
+      "maxTruePeakDbtp": -1,
+      "clippedSamples": 0,
+      "parts": {
+        "integrated": "pass",
+        "truePeak": "pass",
+        "clipping": "pass"
+      },
+      "failures": []
+    }
+  ],
+  "cues": [],
+  "onsets": [],
+  "listen": [],
+  "png": {
+    "file": "qa.png",
+    "width": 1600,
+    "height": 416,
+    "rows": [
+      {
+        "name": "sfx",
+        "y0": 40,
+        "y1": 160
+      },
+      {
+        "name": "speech",
+        "y0": 160,
+        "y1": 280
+      },
+      {
+        "name": "mix",
+        "y0": 280,
+        "y1": 400
+      }
+    ],
+    "markerScanY": 38,
+    "markerWidthPx": 2,
+    "markers": []
+  },
+  "files": {
+    "qaJson": "qa.json",
+    "png": "qa.png",
+    "listen": "LISTEN.md"
+  },
+  "thresholds": {
+    "schemaVersion": 1,
+    "note": "Pass/fail limits live under `checks`. They are never loosened to make a check pass (R3); changing one needs a plan DECISIONS entry. `analysis` holds measurement settings, not limits. The loudness target is not stored here: it comes from the request (D-15), only the tolerance is.",
+    "checks": {
+      "cueTiming": {
+        "toleranceFrames": 1
+      },
+      "spacing": {
+        "minGapMs": 120
+      },
+      "sfxUnderSpeech": {
+        "minMarginLu": 6
+      },
+      "loudness": {
+        "toleranceLu": 1,
+        "maxTruePeakDbtp": -1,
+        "clipLevel": 0.9997,
+        "clipMinRun": 3
+      },
+      "kit": {
+        "maxPeakEnergyShare": 0.9,
+        "maxOnsets": 1,
+        "noiseFlatness": 0.35,
+        "noiseFrameFraction": 0.9,
+        "edgeMs": 5,
+        "edgeMaxDbfs": -40,
+        "maxPeakDbfs": -1,
+        "maxLengthMs": 3000
+      }
+    },
+    "analysis": {
+      "sampleRateHz": 48000,
+      "truePeakRateHz": 192000,
+      "maxMixSeconds": 600,
+      "onsetHopMs": 1,
+      "onsetFloorDbfs": -50,
+      "onsetRiseDb": 12,
+      "onsetLookbackMs": 10,
+      "onsetSilenceMs": 50,
+      "onsetRearmDropDb": 15,
+      "cueMatchWindowMs": 250,
+      "overlapWindowMs": 200,
+      "speechFrameMs": 20,
+      "speechFrameFloorDbfs": -50,
+      "speechActiveMinFraction": 0.5,
+      "peakHalfWidthHz": 30,
+      "flatnessFrame": 2048,
+      "flatnessHop": 1024,
+      "flatnessActiveFloorDbfs": -50
+    }
+  }
+}

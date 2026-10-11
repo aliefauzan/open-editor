@@ -999,3 +999,174 @@ caption fixes came from the step 12 and 9c tests.
 
 **Why**: Each is the simplest option that meets phase 04's done-when; the values come from the
 fixture tests (sprite and peaks sizes, retry timing) and the M5 doctor run (impersonation warning).
+
+## D-32 · 2026-10-11 · phase 05 · Assets, render, export: mix true peak and implementation choices
+
+**Decision**: Phase 05 changes one contract point and settles these points the specs leave open:
+- Mix true peak (contract change, engine spec "Audio mix"): the final two-pass `loudnorm` aims at
+  −1.5 dBTP (`MIX_TRUE_PEAK_DBTP`), not −1. The audio QA ceiling stays −1 dBTP (`TRUE_PEAK_DBTP`).
+  Aiming exactly at the ceiling left a tiktok (−12 LUFS) mix at about −1.0 dBTP, which the QA's own
+  measurement flagged; 0.5 dB headroom passes on every preset without touching the targets.
+- `compile` takes `captions?: boolean` (default on); `render --captions none` and the per-layer
+  compiles of `export-timeline` use it.
+- Licences: Commons `pd` counts as PDM; NC, ND and GFDL candidates are dropped from search results.
+  `assets.cutout` refuses ND images with the new code `LICENSE_REFUSED`; `assets.generate` without a
+  registered image provider fails with the new code `PROVIDER_MISSING`.
+- Cutout model: rembg `u2net.onnx` (Apache-2.0, SHA-256 pinned, 200 MiB cap) downloaded into
+  `<tools>/models/rembg` on first use, like the face model.
+- Render: default quality `standard`; without `sequenceId` the first sequence renders. The export
+  stem is `<project name>-<sequence name>`. The picture is a silent HyperFrames MP4, muxed with the
+  WAV mix by ffmpeg (video copy, AAC 192k 48 kHz, metadata stripped, `+faststart`).
+- HyperFrames runs with an allowlisted environment (PATH, HOME, locale, TMPDIR, Puppeteer/Chrome and
+  HyperFrames variables) plus telemetry off, so no API key reaches it (its snapshot `--describe`
+  calls Gemini when a key is present).
+- `engine.frames()` uses `hyperframes snapshot`, cached in `cache/frames/<seq>/<build hash>/`.
+- `export-timeline`: OTIO media references are always absolute `file://` paths. Layer MOVs
+  (ProRes 4444 with alpha) are one per scene, transition, overlay item and one for captions, in
+  `<name>-layers/` beside the `.otio`; a name clash takes the same `(2)` suffix as the `.otio`.
+- `credits` lists archive media referenced by any sequence, with its licence and attribution text.
+- Test files for the E3 export target are named `export-target*.test.ts` so the phase verify filter
+  `test -- export-target audio-qa` selects them.
+
+**Why**: The true-peak change is the smallest one that makes the phase 05 loudness check (step 8e)
+pass on the tiktok preset; the rest are the simplest options that meet phase 05's done-when.
+
+## D-33 · 2026-10-11 · phase 05 · Quick clips and GATE 2 checks: implementation choices
+
+**Decision**: Phase 05 settles these points that the engine spec "Quick clips" and the phase plan leave open (no contract change):
+- Heuristic signals: energy is the variance of short-term loudness (400 ms windows, 100 ms step), hook is a first sentence that is a question or holds a digit or an English cardinal number word, coverage is the share of facetrack samples with a face. Energy is min-max scaled over the candidate set (0 when all are equal); the speech score is the spec's speech ratio minus the pause penalty, unscaled.
+- A registered scorer that throws or returns a wrong number of scores falls back to the heuristic; the result names `heuristic` and carries `scorerError { scorer, message }`. An unknown `scorer` id fails with `NOT_FOUND`.
+- `quickClips` on media without a transcript fails with `VALIDATION` and the hint `vox transcribe <mediaId>`; non-video media fails with `MEDIA_UNSUPPORTED`. Quick-clip sequences take the source rate when it is in the fixed set, else `nearestFixedFps`.
+- CLI: `-o` is the short form of `--output` (a file target); `--out-dir` is a folder target; `vox quick --out-dir` needs `--render`.
+- GATE 2 frame check (done-when 10, `scripts/gate2-frames.ts`): the clip's framing is switched to `contain` in one batch (undone afterwards) so the burnt-in counter stays on screen whatever `auto` chose; expected counters are read from the media's reference picture, which is the CFR copy for a VFR source (D-15) and the source otherwise.
+- The engine integration test (step 9) runs the real `transcribe` job when the Whisper weights are in the Hugging Face cache and `CI` is unset; otherwise it seeds the checked-in transcript of the same file.
+
+**Why**: These are the simplest choices that make the selection deterministic and testable on crafted inputs, keep a broken AI scorer from blocking quick clips, and make the frame check independent of the framing choice.
+
+## D-34 · 2026-10-11 · phase 06 · Style tooling: trust store, validate checks, caption word keys
+
+**Decision**: Phase 06 settles these points that the styles spec and the phase plan leave open:
+- Trust (S8): `vox style trust` records `{ hash, trustedAt }` per style id in `<VOX_HOME>/trust.json`
+  (engine option `trustFile`). The hash is SHA-256 over the style's `*.mjs`/`*.cjs`/`*.js` files in
+  path order; editing them withdraws trust. A style's own `trusted` field counts only for built-in
+  styles (D-23). `remove` forgets the trust and fails with `VALIDATION` while another installed style
+  extends the style; built-in styles cannot be trusted, accepted or removed.
+- `vox style new <id> [--extends <style>] [--name]` scaffolds a draft, untrusted partial child (no own
+  templates, `guide.md`, empty `templates/`) in the user styles folder; the parent defaults to `base`.
+- `TEMPLATE_VERSION` migrate: on a major mismatch compile calls `migrate(variables, fromVersion)` of the
+  declaring style's trusted hook, then validates the result (`VARIABLES_INVALID`); no `migrate` export
+  keeps `TEMPLATE_VERSION`; an untrusted declaring style fails with `HOOK_UNTRUSTED` without loading it.
+- Hook static check: hooks and their imports may import only relative paths inside the style folder and
+  Node built-ins other than network and process modules (`http`, `https`, `http2`, `net`, `tls`,
+  `dgram`, `dns`, `child_process`, `cluster`, `worker_threads`, `inspector`); `require()` and dynamic
+  `import()` fail. Determinism runs each fixture through the hook twice with instance id
+  `validate-<fixture>` and compares JSON bytes; hooks of untrusted styles are not run (a note).
+- Scene text safe area: the safe area of the style's default caption preset (20 / 12 on 9:16) with
+  top ≥ 0; checked on each template's longest fixture at the middle and last frame. `base/title`
+  (`.t-box`) and `base/text-overlay` (`.o-band`) side margins move from 8 % to 12 % and 10 % so their
+  text stays inside it.
+- Validation project: 1080×1920 at 30 fps; generated sample media `m_video`, `m_img`, `m_cutout`;
+  overlays off. Each own scene fixture sits on V2 at its default duration, 500 ms apart; each own
+  transition joins two 1500 ms V1 clips. One render (`--quality draft --strict-all`) plus a lint of
+  the preview build. A transition's still is taken at cut − duration/4.
+- `minEntranceMs` m: the short instance is max(`durationMs.min`, 0.75·m), the long one
+  max(1.5·m, default) clamped to the duration range (1500 / 3000 ms for m = 2000). Resting-state
+  equality allows opacity ±0.01 and translation ±(`jitterPx` + 0.5) px.
+- Cue timing: thresholds from the scene window's median frame difference: spike ≥ max(2, 4·median),
+  motion ≥ max(0.5, 2·median); frames are 108×192 grey.
+- Caption presets mark each word element with `data-key="<CaptionWord.key>"` (spec edit, styles
+  "Caption presets"), so validate reads each word's look and box.
+- Previews: `previews/contact.jpg` plus `contact.json` (cell labels), `<template>.jpg` (540 wide) and
+  `<template>.gif` (10 fps, 270 wide) per own template and transition.
+- SFX credits: `assets/sfx/CREDITS.md` has a line naming each SFX file and `CC0` or `project`.
+
+**Why**: These are the simplest choices that make every phase 06 check measurable and deterministic,
+keep trust outside the style folder (a copied folder cannot trust itself), and freeze the style and
+caption preset formats (R2) with the one field validate needs.
+
+## D-35 · 2026-10-11 · phase 08 · GATE 4: pass, the timeline keeps `@xzdarcy/react-timeline-editor`
+
+**Decision**: GATE 4 is decided by its numbers (README §5, D-10). Re-run inside the app's pinned
+Electron 44.7.0 (Chromium 152.0.7977.130) as D-19 asked, under the bench lock, with
+`node bench/timeline.ts --browser electron --attempts 3 --gesture-ms 3000`: 1,000 items on 8 tracks,
+a real 1920x1080 window at DPR 2 on the M5 display (ANGLE Metal), production React build.
+Medians: drag 119.7 fps, trim 119.7 fps, linked V1/A1 drag 119.4 fps (p95 frame ≤ 9.6 ms, at most
+1 frame over 20 ms per gesture); linked check 3/3 (equal `startMs` after the drop), marquee exactly
+50 of 50 3/3, every gesture moved the clip (library updates = mouse moves, 344–360). Bar 50 fps:
+the result is 139 % above it, not within 10 %, so no owner stop. The early U1 run in the Playwright
+headless shell (fixed 60 Hz) gave 60.0 fps on all three gestures (D-19 evidence, `A1-`).
+Outcome: phase 10a builds the timeline on `@xzdarcy/react-timeline-editor` 1.0.0 through its public
+props and events only, with the app's own marquee, linked follow (`getActionRender` offsets, one
+store update per move) and multi-select, as the U1 prototype shows. No custom canvas.
+
+**Why**: The app spec "Timeline implementation" pass rule (fps ≥ 50 and both prototype checks) holds
+in the shell the app ships. Evidence: `docs/evidence/phase-08/A3-timeline-bench-electron.json`,
+`A1-timeline-bench.json`; log `plan/log/phase-08.md`.
+
+## D-36 · 2026-10-11 · phase 08 · App build: plain vite 8 build script, no electron-vite; shell pins
+
+**Decision**: `apps/desktop` builds with its own `scripts/build.ts` on vite 8.3.4 (already pinned for
+the GATE 4 bench, D-19) instead of electron-vite. Outputs: `out/renderer` (React app plus the
+vendored `@hyperframes/player` global script), `out/preload/index.cjs`, `out/main/index.cjs`
+(CommonJS, all dependencies bundled), and with `--package` the bundled engine host
+`out/engine-host/index.mjs`. In development the engine host runs from TypeScript source through
+`utilityProcess` (Node type stripping); packaged builds use the bundle. Packaging is
+electron-builder 26.15.3 with a skeleton config (ad-hoc signed arm64 `.dmg`, `out/**` only, no
+`node_modules`, built-in styles as `extraResources`); phase 09 extends it. Shell pins: Zustand
+5.0.15, Tailwind CSS 4.3.3 with `@tailwindcss/vite` 4.3.3, `@playwright/test` 1.64.0 (same as the
+bench `playwright`). shadcn/ui is not added in 08 (the minimal UI needs no components); phase 10a
+adds it when the editor UI starts.
+
+**Why**: electron-vite 5.0.0 declares peer vite ^5–7 and the repo is on vite 8 (R5 note: "electron-vite
+must accept it or the pin moves"); a 90-line build script avoids a second vite and a peer
+override. Main is CommonJS because Playwright's `_electron.launch` hangs on an ESM main (seen with
+the bench and the app); the bench's own main (`bench/timeline-electron-main.cjs`) is CommonJS for
+the same reason. Evidence: `plan/log/phase-08.md`.
+
+## D-37 · 2026-10-11 · phase 08 · `vox-media://` is CORS-enabled; only font responses allow any origin
+
+**Decision**: `vox-media://` is registered with `corsEnabled: true` (was `false` in the app spec
+"Untrusted HTML"). The handler adds `Access-Control-Allow-Origin: *` only to font responses
+(`.woff2`, `.woff`, `.ttf`, `.otf`); every other response has no CORS header, so cross-origin reads
+of builds, media and data stay refused. The media CSP (`connect-src 'none'`) is unchanged.
+
+**Why**: The player runs builds in an opaque-origin sandbox (origin `null`, S14). Browsers load
+`@font-face` fonts in CORS mode, so with CORS off every style font failed to load in the preview
+(console errors in the smoke test). Fonts are public style assets, so allowing them to any origin
+discloses nothing; only `vox-app://` and `vox-media://` pages can reach the scheme at all (all
+http/https/ws is blocked, S10). Test: `test/main/protocol.test.ts` (font CORS case).
+
+## D-38 · 2026-10-11 · phase 11 (early G2) · Provider presets, context sources, tool-list measure and role rules
+
+**Decision**:
+- Presets add `openai` (`https://api.openai.com/v1`, responses API) and `gemini`
+  (`https://generativelanguage.googleapis.com/v1beta`) to the spec's seven. A provider entry keeps
+  the preset it was created from in a top-level `preset?` field; it drives OpenCode Zen routing by
+  model family (`claude-` Anthropic, `gpt-` OpenAI, `gemini-` Google, else OpenAI-compatible) and
+  local pricing (`lmstudio`).
+- The factory refuses a keyed provider without a key (`CONFIG_INVALID`), so the SDKs' environment
+  variable fallback is never reached. Ollama gets `num_ctx` on every request (default 32,768,
+  `options.numCtx`).
+- Context sources: OpenRouter `GET /models` `context_length`; Ollama `min(/api/show context_length,
+  num_ctx)`; Apple `--status` `contextSize`; every other provider `options.contextTokens[modelId]`,
+  else unknown. An unknown context fails the context-bound checks (editor context, tool-list cost);
+  the hint says to enter it.
+- Tool-list tokens are measured on the `tools` field of the request body the provider package
+  itself builds (first request captured, never sent), at 3 UTF-16 units per token (rounded up), or a
+  supplied counter. Over 25 % of the effective context fails the role.
+- "≥ 32k effective context" for `editor` means ≥ 32,000 tokens, so a 32,768 model passes.
+- Mode: `plan` for Ollama, LM Studio and Apple, and for any model whose `loop` probe did not pass;
+  else `tools`; `--mode` overrides, except `tools` on Apple is `CONFIG_INVALID`. In tools mode the
+  editor needs tools, loop and a measured tool list; in plan mode it needs plan, and the tool list
+  only if measured. `fast` needs plan/json; `vision` the vision probe; `image`/`embed` a declared
+  capability (OpenRouter modalities or the entry). Apple: a status other than `ready` fails every
+  role; it never fills vision, image or embed.
+- Apple model defaults: temperature 0, `maxTokens` 2,000, request timeout 120 s (kill and restart
+  the helper), helper environment limited to `HOME`, `TMPDIR`, `LANG`, `LC_ALL`, `PATH`.
+- New error codes for phase 11 to append: `APPLE_UNAVAILABLE`, `APPLE_FAILED`, `CONTEXT_OVERFLOW`,
+  `PROBE_FAILED` (G2 uses them through the G1 `UtilError` shim).
+
+**Why**: The specs give the roles' needs but not these numbers and sources; each is the simplest
+rule that keeps a role from getting a model it cannot use. Measuring the provider's own serialisation
+follows each wire format without a tokenizer per provider. Evidence: `plan/log/phase-11.md`
+"Early steps (D-19) — g2-providers".

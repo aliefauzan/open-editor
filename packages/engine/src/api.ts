@@ -71,6 +71,15 @@ import {
   type StyleRegistry,
   type StyleSummary,
 } from './styles/registry.ts';
+import {
+  acceptStyle,
+  newStyle,
+  openTrustStore,
+  removeStyle,
+  trustStyle,
+  type TrustStore,
+} from './styles/manage.ts';
+import { validateStyle, type ValidateOptions, type ValidateReport } from './styles/validate.ts';
 
 export const version = '0.0.0';
 
@@ -253,6 +262,8 @@ export type {
   StyleSummary,
   TemplateDef,
 } from './styles/registry.ts';
+export { openTrustStore, styleCodeHash, type TrustStore } from './styles/manage.ts';
+export type { ValidateProblem, ValidateReport } from './styles/validate.ts';
 export {
   checkRelativePath,
   ensureProjectsDir,
@@ -370,8 +381,10 @@ export interface EngineOptions {
   tools?: ToolPaths;
   /** Template metadata lookup; default: the style registry over `stylesDirs`. */
   templates?: TemplateLookup;
-  /** Trust of a style outside the built-in folder (S8); default untrusted. */
+  /** Trust of a style outside the built-in folder (S8); default: `trustFile`, else untrusted. */
   isTrusted?: (styleId: string, dir: string) => boolean;
+  /** Trust store (`<voxHome>/trust.json`, S8): read by the default `isTrusted`, written by `styles.trust`. */
+  trustFile?: string;
   /** Crop path provider for `facetrack`/`auto` clips (phase 05 plugs in the facetrack path). */
   framing?: FramingProvider;
   now?: () => Date;
@@ -495,6 +508,19 @@ export interface Engine {
     defaultId(): string;
     /** Re-reads the style folders (after a style is added or edited). */
     reload(): void;
+    /** `vox style new`: a draft partial child in the last styles folder (the user folder). */
+    create(o: { id: string; extends?: string; name?: string }): { id: string; dir: string };
+    /** Marks a draft user style `active`. */
+    accept(styleId: string): void;
+    /** Deletes a user style folder and forgets its trust; fails while another style extends it. */
+    remove(styleId: string): void;
+    /** Trusts a user style's hook code as it is now (S8); needs `trustFile`. */
+    trust(styleId: string): void;
+    /** `vox style validate` (phase 06). */
+    validate(
+      styleId: string,
+      o?: Pick<ValidateOptions, 'render' | 'dom' | 'previews' | 'onProgress'>,
+    ): Promise<ValidateReport>;
   };
   geo: { search(query: string, opts?: { limit?: number }): Place[] };
   /** Subscribe; returns the unsubscribe function. */
@@ -564,10 +590,24 @@ export function openEngine(opts: EngineOptions): Engine {
   for (const name of JOB_EVENTS) jobs.on(name, (payload) => emitter.emit(name, payload));
   const stores = new Map<string, Promise<ProjectStore>>();
   let reg: StyleRegistry | undefined;
+  let trustStore: TrustStore | undefined;
+  const trusts = (): TrustStore => {
+    if (!opts.trustFile) {
+      throw new VoxError(
+        'VALIDATION',
+        'No trust store configured',
+        'Open the engine with trustFile',
+      );
+    }
+    return (trustStore ??= openTrustStore(opts.trustFile));
+  };
+  const isTrusted =
+    opts.isTrusted ??
+    (opts.trustFile ? (id: string, dir: string) => trusts().isTrusted(id, dir) : undefined);
   const registry = (): StyleRegistry =>
     (reg ??= loadStyleRegistry({
       stylesDirs: opts.stylesDirs,
-      ...(opts.isTrusted ? { isTrusted: opts.isTrusted } : {}),
+      ...(isTrusted ? { isTrusted } : {}),
     }));
   const storeOpts = {
     templates: opts.templates ?? registryTemplateLookup(registry),
@@ -922,6 +962,33 @@ export function openEngine(opts: EngineOptions): Engine {
           : 'base',
       reload: () => {
         reg = undefined;
+      },
+      create(o) {
+        const r = newStyle({ stylesDirs: opts.stylesDirs, registry: registry(), ...o });
+        reg = undefined;
+        return r;
+      },
+      accept(id) {
+        acceptStyle(opts.stylesDirs, id);
+        reg = undefined;
+      },
+      remove(id) {
+        removeStyle(opts.stylesDirs, registry(), id);
+        if (opts.trustFile) trusts().forget(id);
+        reg = undefined;
+      },
+      trust(id) {
+        trustStyle(opts.stylesDirs, trusts(), id);
+        reg = undefined;
+      },
+      validate(id, o = {}) {
+        const ffmpeg = opts.tools?.['ffmpeg'];
+        return validateStyle({
+          ...o,
+          registry: registry(),
+          styleId: id,
+          ...(ffmpeg ? { ffmpeg } : {}),
+        });
       },
     },
 
