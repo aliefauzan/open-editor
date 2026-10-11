@@ -36,6 +36,9 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 - [x] **One public YouTube URL** — given 2026-10-11: <https://youtu.be/BveD4v3YwEQ>. you are allowed to use, for GATE 2 (phase 05) and the agent runs
       (phases 12, 13). If none is here when phase 05 starts, the AI proposes public candidates here (your
       own posts first, else videos with a reuse licence) and you confirm one (D-16).
+- [x] **App test video (plain YouTube)** — given 2026-10-12: <https://www.youtube.com/watch?v=rtcMRI3ARck>.
+      The owner's standard check that the app works: the AI runs a quick clip from this link in the
+      installed app after every rebuild and at each app gate (GATE 5 on), and records time and result.
 - [x] **One public Instagram reel URL and one public TikTok URL** — given 2026-10-11:
       <https://www.instagram.com/reel/Ddb4orITV_K/>, <https://www.tiktok.com/@ngurahmayun_code/video/7695082402745486593>. you are allowed to use, for GATE 2
       (phase 05) and the quick-clips check at GATE 5 (phase 10b) (D-13). If the Instagram one needs a
