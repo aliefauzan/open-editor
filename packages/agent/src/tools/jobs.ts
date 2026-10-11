@@ -159,7 +159,7 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
           pass: boolean;
           png: string;
           checks?: QaCheck[];
-          listen?: { atMs: number; timecode?: string; kind?: string; why?: string }[];
+          listen?: { atMs: number; timecode?: string; kind?: string; listenFor?: string }[];
           cues?: unknown[];
           targetLufs?: number;
           durationMs?: number;
@@ -179,7 +179,7 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
             checks: qa.checks ?? [],
             cues: qa.cues ?? [],
             dropped: build.cues.dropped.map((d) => ({ atMs: d.cue.atMs, sfx: d.cue.sfx, itemId: d.cue.itemId, reason: d.reason })),
-            listen: (qa.listen ?? []).map((l) => ({ atMs: l.atMs, timecode: l.timecode, kind: l.kind })),
+            listen: (qa.listen ?? []).map((l) => ({ atMs: l.atMs, timecode: l.timecode, kind: l.kind, listenFor: l.listenFor })),
             ...(shown?.description !== undefined && { picture: shown.description }),
             ...(shown === null && { picture: 'no vision model: qa.png not described; use the numbers above' }),
           }),

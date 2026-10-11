@@ -53,7 +53,7 @@ export async function fixtureProject(
   const projectsDir = join(mkdtempSync(join(tmpdir(), 'vox-agent-p-')), 'Projects');
   const engine = openEngine({
     projectsDir,
-    stylesDirs: [],
+    stylesDirs: [join(REPO, 'styles')],
     templates: mapTemplateLookup(TEMPLATES),
     ...opts.engine,
   });
