@@ -4,18 +4,36 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Vox Studio desktop app (placeholder; scaffold is phase 08)",
+  "description": "Vox Studio desktop app (Electron)",
+  "main": "out/main/index.cjs",
   "scripts": {
+    "build": "node scripts/build.ts",
+    "start": "node scripts/build.ts && electron .",
+    "test": "vitest run",
+    "test:slow": "node scripts/build.ts && VOX_SLOW=1 vitest run",
+    "e2e": "node scripts/build.ts && playwright test -c e2e/playwright.config.ts",
+    "dist": "node scripts/build.ts --package && electron-builder --config electron-builder.yml --arm64 --mac dmg",
     "bench:timeline": "node bench/timeline.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
+  "dependencies": {
+    "@hyperframes/player": "0.8.145",
+    "@vox/engine": "workspace:*",
+    "zod": "4.6.5"
+  },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@tailwindcss/vite": "4.3.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@xzdarcy/react-timeline-editor": "1.0.0",
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
     "playwright": "1.64.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "vite": "8.3.4"
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.4",
+    "zustand": "5.0.15"
   }
 }

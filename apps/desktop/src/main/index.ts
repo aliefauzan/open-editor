@@ -1,0 +1,196 @@
+// Electron main: the window and its security flags, the two schemes, IPC routing to the engine
+// host (app spec "Architecture", "Window security", "Untrusted HTML"; R4 S1, S10–S15, S28).
+import { join } from 'node:path';
+import {
+  BrowserWindow,
+  app,
+  ipcMain,
+  protocol,
+  session,
+  shell,
+  type WebContents,
+  type WebFrameMain,
+} from 'electron';
+import { projectDirFor } from '@vox/engine/paths';
+import { type EventName, type Method } from '../shared/api.ts';
+import { handleCall, isAllowedExternal, type FrameLike } from './guard.ts';
+import { EngineHost } from './host.ts';
+import {
+  CSP_APP,
+  CSP_MEDIA,
+  fileResponse,
+  notFound,
+  resolveAppPath,
+  resolveMediaPath,
+} from './protocol.ts';
+
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'vox-app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  {
+    scheme: 'vox-media',
+    privileges: {
+      standard: true,
+      secure: true,
+      stream: true,
+      supportFetchAPI: true,
+      corsEnabled: false,
+    },
+  },
+]);
+
+/** Test hooks only for unpackaged builds started with VOX_E2E=1; release builds never have them. */
+const TEST = !app.isPackaged && process.env['VOX_E2E'] === '1';
+const APP_ROOT = app.getAppPath();
+const RENDERER_DIR = join(APP_ROOT, 'out', 'renderer');
+const PRELOAD = join(APP_ROOT, 'out', 'preload', 'index.cjs');
+const HOST_ENTRY = app.isPackaged
+  ? join(APP_ROOT, 'out', 'engine-host', 'index.mjs')
+  : join(APP_ROOT, 'src', 'engine-host', 'index.ts');
+const BUILTIN_STYLES = app.isPackaged
+  ? join(process.resourcesPath, 'styles')
+  : join(APP_ROOT, '..', '..', 'styles');
+
+export const WEB_PREFERENCES = {
+  preload: PRELOAD,
+  contextIsolation: true,
+  sandbox: true,
+  nodeIntegration: false,
+  nodeIntegrationInSubFrames: false,
+  webSecurity: true,
+  webviewTag: false,
+  spellcheck: false,
+} as const;
+
+const appWindows = new Set<WebContents>();
+const testLog = { blocked: [] as string[], external: [] as string[], permissions: [] as string[] };
+
+const log = (line: string) => {
+  if (TEST || !app.isPackaged) process.stderr.write(`${line}\n`);
+};
+
+function broadcast(name: EventName, payload: unknown): void {
+  for (const wc of appWindows) if (!wc.isDestroyed()) wc.send('vox:event', name, payload);
+}
+
+const host = new EngineHost({
+  entry: HOST_ENTRY,
+  init: { builtinStyles: BUILTIN_STYLES },
+  onEvent: broadcast,
+  onRestart: (info) => broadcast('host.restarted', info),
+  log,
+});
+
+function openExternal(url: string): void {
+  if (!isAllowedExternal(url)) return;
+  if (TEST) testLog.external.push(url);
+  else void shell.openExternal(url);
+}
+
+/** Main-only methods (dialogs, Finder); everything else goes to the engine host. */
+async function forward(method: Method, args: unknown[]): Promise<unknown> {
+  if (method === 'projects.reveal') {
+    const roots = host.roots;
+    if (!roots) throw new Error('The engine is not ready');
+    shell.showItemInFolder(projectDirFor(roots.projectsDir, args[0] as string));
+    return null;
+  }
+  return host.call(method, args);
+}
+
+function call(frame: WebFrameMain | null, sender: WebContents, method: unknown, args: unknown) {
+  return handleCall(frame as FrameLike | null, appWindows.has(sender), method, args, forward);
+}
+
+function hardenSession(): void {
+  const ses = session.defaultSession;
+  ses.protocol.handle('vox-app', async (req) => {
+    const file = await resolveAppPath(req.url, RENDERER_DIR);
+    return file ? fileResponse(file, req, CSP_APP) : notFound();
+  });
+  ses.protocol.handle('vox-media', async (req) => {
+    const roots = host.roots;
+    const file = roots ? await resolveMediaPath(req.url, roots) : null;
+    return file ? fileResponse(file, req, CSP_MEDIA) : notFound();
+  });
+  // S12: renderers have no http(s)/ws(s); the engine host does all network work.
+  ses.webRequest.onBeforeRequest(
+    { urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] },
+    (d, cb) => {
+      if (TEST) testLog.blocked.push(d.url);
+      cb({ cancel: true });
+    },
+  );
+  // S15: no camera, microphone, geolocation, notifications, …
+  ses.setPermissionRequestHandler((_wc, permission, cb) => {
+    if (TEST) testLog.permissions.push(permission);
+    cb(false);
+  });
+  ses.setPermissionCheckHandler(() => false);
+}
+
+app.on('web-contents-created', (_e, wc) => {
+  // S10: no navigation, no new windows, no webviews; allowlisted links open in the browser.
+  wc.on('will-navigate', (e, url) => {
+    e.preventDefault();
+    openExternal(url);
+  });
+  wc.on('will-redirect', (e) => e.preventDefault());
+  wc.setWindowOpenHandler(({ url }) => {
+    openExternal(url);
+    return { action: 'deny' };
+  });
+  wc.on('will-attach-webview', (e) => e.preventDefault());
+});
+
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 820,
+    minWidth: 960,
+    minHeight: 600,
+    backgroundColor: '#111111',
+    title: 'Vox Studio',
+    webPreferences: { ...WEB_PREFERENCES },
+  });
+  const wc = win.webContents;
+  appWindows.add(wc);
+  wc.once('destroyed', () => appWindows.delete(wc));
+  void win.loadURL('vox-app://app/index.html');
+  return win;
+}
+
+ipcMain.handle('vox:call', (e, method: unknown, args: unknown) =>
+  call(e.senderFrame, e.sender, method, args),
+);
+
+if (TEST) {
+  Object.assign(globalThis, {
+    __voxTest: {
+      log: testLog,
+      hostPid: () => host.pid,
+      restarts: () => host.restarts,
+      roots: () => host.roots,
+      webPreferences: () =>
+        BrowserWindow.getAllWindows().map((w) => w.webContents.getLastWebPreferences()),
+      /** Runs the real IPC check for a given frame (a subframe, another window, …). */
+      callAs: (frame: WebFrameMain, method: string, args: unknown[]) =>
+        call(frame, webContentsOf(frame), method, args),
+    },
+  });
+}
+
+function webContentsOf(frame: WebFrameMain): WebContents {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (w.webContents.mainFrame.framesInSubtree.includes(frame)) return w.webContents;
+  }
+  throw new Error('frame has no window');
+}
+
+app.on('window-all-closed', () => app.quit());
+app.on('before-quit', () => host.stop());
+
+void app.whenReady().then(async () => {
+  hardenSession();
+  createWindow();
+  await host.start().catch((e: unknown) => log(`engine host failed to start: ${String(e)}`));
+});
