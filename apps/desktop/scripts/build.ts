@@ -5,7 +5,7 @@
 //   out/engine-host  bundled engine host, packaged builds only (`--package`); dev runs src/ (TS)
 //   out-resources/   packaged builds only: the app's Resources (scripts/stage-resources.ts) and
 //                    the bundled `vox` CLI (out-resources/cli/vox.mjs)
-// Usage: node scripts/build.ts [--package]
+// Usage: node scripts/build.ts [--package [--no-apple]]  (--no-apple: no Apple helper; D-16)
 import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
@@ -88,7 +88,7 @@ if (pkg) {
     'es',
     'index.mjs',
   );
-  await stageResources();
+  await stageResources({ appleHelper: !process.argv.includes('--no-apple') });
   await nodeBundle(
     path.join(SRC, 'cli', 'vox.ts'),
     path.join(STAGE, 'cli'),

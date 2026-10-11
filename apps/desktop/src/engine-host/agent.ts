@@ -13,6 +13,9 @@ import {
   buildRunModels,
   CLIPPER_DEFAULTS,
   closeUnfinishedRuns,
+  costFromReported,
+  createLlmScorer,
+  exceedsBudget,
   createLanguageModel,
   loadAgentConfig,
   readRunRecord,
@@ -20,6 +23,8 @@ import {
   runsDir,
   runWorkflow,
   RUN_ID,
+  RunStopped,
+  stepUpperBoundUsd,
   sourceIn,
   type AgentConfigDeps,
   type AgentEvent,
@@ -32,7 +37,7 @@ import {
   type WorkflowName,
   type WorkflowRequest,
 } from '@vox/agent';
-import { VoxError, type Engine, type HistoryEntry } from '@vox/engine';
+import { VoxError, type Engine, type HistoryEntry, type QuickClipScorer } from '@vox/engine';
 import type { AgentPauseData, AgentRunData, EventName, MethodArgs } from '../shared/api.ts';
 
 type RunArgs = MethodArgs<'agent.run'>[0];
@@ -293,6 +298,35 @@ export class AgentHost {
       );
     }
     return this.#d.engine.undoRun(projectId, runId, { actor: 'user' });
+  }
+
+  /**
+   * The quick-clips LLM scorer: the `fast` model of Settings under the per-run cap (one "run" per
+   * Make clips). None without a fast model. Over the cap the scorer stops and the engine's heuristic
+   * picks the rest (the engine falls back on any scorer error).
+   */
+  async quickScorer(): Promise<QuickClipScorer | undefined> {
+    const built = await this.#models().catch(() => undefined);
+    const fast = built?.models.fast;
+    if (!fast) return undefined;
+    const cap = (await loadAgentConfig(this.#d.cfg)).limits.maxUsdPerRun;
+    let spent = 0;
+    const host: Parameters<typeof createLlmScorer>[0] = {
+      ensureBudget: (role, inputTokens) =>
+        exceedsBudget(spent, stepUpperBoundUsd(role.price, inputTokens, role.maxOutputTokens), cap)
+          ? Promise.reject(new RunStopped())
+          : Promise.resolve(),
+      addCost: (role, usage, meta) => {
+        const reported = (meta as { openrouter?: { usage?: { cost?: unknown } } } | undefined)
+          ?.openrouter?.usage?.cost;
+        const usd =
+          costFromReported(typeof reported === 'number' ? reported : null, role.price, usage) ?? 0;
+        spent += usd;
+        return usd;
+      },
+      record: { write: () => undefined },
+    };
+    return createLlmScorer(host, fast);
   }
 
   /** Waits for every active run (tests, quit). */

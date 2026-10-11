@@ -1,6 +1,7 @@
 # Packaging (phase 08 skeleton, phase 09): ad-hoc signed arm64 .dmg, macOS 14+, < 300 MB. The
 # Resources of plan R1 "Packaged app" are staged by `scripts/build.ts --package` into out-resources/
-# (styles, engine-data, hyperframes/node_modules, py/, bin/uv, cli/). Fuses per R4 S27. Notarization
+# (styles, engine-data, hyperframes/node_modules, py/, bin/uv, cli/, agent/workflows, bin/vox-apple-llm,
+# build-info.json). Fuses per R4 S27. Notarization
 # hooks stay off until there is a Developer ID (TODO).
 appId: app.vox.studio
 productName: Vox Studio
@@ -18,6 +19,7 @@ extraResources:
     filter: ['**/*']
 asar: true
 afterPack: scripts/after-pack.cjs
+afterSign: scripts/after-sign.cjs
 artifactName: Vox-Studio-${version}-arm64.${ext}
 electronFuses:
   runAsNode: true # the vox CLI and the HyperFrames CLI run with Electron as Node

@@ -26,7 +26,7 @@ import {
   type JobInfo,
   writeConfig,
 } from '@vox/engine';
-import { configCommand, ConfigUsageError, type AgentCliDeps } from './config.ts';
+import { appleHelper, configCommand, ConfigUsageError, type AgentCliDeps } from './config.ts';
 import { agentCommand, AgentUsageError } from './agent.ts';
 
 export interface Io {
@@ -493,6 +493,10 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         ...(io.resources === undefined ? {} : { resources: io.resources }),
         stylesDirs: stylesDirs(io).slice(0, 1),
         pyDir,
+        ...(io.resources === undefined && {
+          appleHelper: (io.agent && 'apple' in io.agent ? io.agent.apple : appleHelper(io))
+            ?.command,
+        }),
       });
       const mark = { passed: 'ok  ', failed: 'FAIL', skipped: 'skip', notBuilt: 'skip' } as const;
       out(r, r.checks.map((c) => `${mark[c.status]} ${c.name}: ${c.detail}\n`).join(''));
