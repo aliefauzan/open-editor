@@ -92,5 +92,9 @@ export async function runScreenplay(deps: EvalDeps): Promise<Scorecard> {
         `scene ${String(i + 1)} (${s.heading}): ${it?.type === 'scene' ? 'a placeholder' : 'the wrong clip'}`,
       );
   });
+  if (violations.length > 0 && r.screenplay)
+    violations.push(
+      `ranking: ${r.screenplay.method}; ${r.screenplay.notes.slice(0, 4).join(' | ')}`,
+    );
   return scorecard('screenplay', r, violations, Date.now() - t0);
 }

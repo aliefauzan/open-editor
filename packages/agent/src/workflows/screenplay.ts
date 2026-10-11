@@ -49,7 +49,9 @@ import type { Checkpoints } from './checkpoints.ts';
 const PLACEHOLDER = 'base/placeholder';
 /** Keyframes the vision model sees per clip. */
 export const KEYFRAMES = [0.2, 0.5, 0.8] as const;
-export const MAX_SCENES = 60;
+export /** Longer clips are not transcribed while tagging (cost); they are tagged from pictures. */
+const MAX_TRANSCRIBE_MS = 120_000;
+const MAX_SCENES = 60;
 const MAX_TEXT_BYTES = 400_000;
 const MAX_TAGS = 8;
 
@@ -158,21 +160,27 @@ async function project(run: AgentRun): Promise<Project> {
 }
 
 /** Step 1: the screenplay document and its scenes. */
-async function findScenes(
-  run: AgentRun,
-  opts: ScreenplayOptions,
-): Promise<{ scenes: Scene[]; documentId: string }> {
-  let ref = opts.screenplay ?? run.request.attachments?.[0];
+async function findScenes(run: AgentRun, opts: ScreenplayOptions): Promise<{ scenes: Scene[] }> {
+  const named = opts.screenplay ?? run.request.attachments?.[0];
   let p = await project(run);
-  let doc = ref === undefined ? undefined : p.media.find((m) => m.id === ref);
-  if (ref !== undefined && !doc) {
-    const ing = await run.workflowCall('ingest', { source: ref });
+  let doc: Project['media'][number] | undefined;
+  if (named === undefined) {
+    doc = p.media.find((m) => m.kind === 'document');
+  } else if (/^m_/.test(named)) {
+    doc = p.media.find((m) => m.id === named);
+    if (!doc)
+      throw new VoxError(
+        'VALIDATION',
+        `media ${named} is not in the project`,
+        'Pass a screenplay file path or the id of a document in the project.',
+      );
+  } else {
+    const ing = await run.workflowCall('ingest', { source: named });
     const res = run.aliases.fromModel(ing.result) as { result?: { media?: { mediaId: string }[] } };
-    ref = res.result?.media?.[0]?.mediaId;
+    const id = res.result?.media?.[0]?.mediaId;
     p = await project(run);
-    doc = p.media.find((m) => m.id === ref);
+    doc = p.media.find((m) => m.id === id);
   }
-  doc ??= ref === undefined ? p.media.find((m) => m.kind === 'document') : undefined;
   if (!doc || doc.kind !== 'document')
     throw new VoxError(
       'VALIDATION',
@@ -192,7 +200,7 @@ async function findScenes(
       `the screenplay has ${String(scenes.length)} scenes; the limit is ${String(MAX_SCENES)}`,
       'Match it in parts.',
     );
-  return { scenes, documentId: doc.id };
+  return { scenes };
 }
 
 /** Step 2: tags and a description for every clip that has none. */
@@ -214,7 +222,15 @@ async function tagFootage(
       continue;
     }
     let media = v;
-    if (media.hasAudio !== false && media.transcriptPath === undefined) {
+    if (
+      media.hasAudio !== false &&
+      media.transcriptPath === undefined &&
+      (media.durationMs ?? 0) > MAX_TRANSCRIBE_MS
+    ) {
+      notes.push(
+        `${basename(media.path)}: longer than ${String(MAX_TRANSCRIBE_MS / 1000)} s, not transcribed (tagged from the picture only).`,
+      );
+    } else if (media.hasAudio !== false && media.transcriptPath === undefined) {
       try {
         await run.workflowCall('transcribe', { mediaIds: [media.id] });
         media = (await project(run)).media.find((m) => m.id === v.id) ?? media;
