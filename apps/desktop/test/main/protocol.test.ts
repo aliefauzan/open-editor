@@ -86,7 +86,7 @@ describe('headers (S13, S28)', () => {
     expect(r.headers.get('Content-Security-Policy')).toBeNull();
   });
 
-  it('only fonts carry a CORS header (opaque-origin builds load fonts in CORS mode, D-XX)', () => {
+  it('only fonts carry a CORS header (opaque-origin builds load fonts in CORS mode, D-37)', () => {
     expect(headersFor('a/Inter.ttf', CSP_MEDIA).get('Access-Control-Allow-Origin')).toBe('*');
     expect(headersFor('a/x.woff2', CSP_MEDIA).get('Access-Control-Allow-Origin')).toBe('*');
     for (const f of ['a/index.html', 'a/project.json', 'a/clip.mp4', 'a/app.js', 'a/x.png']) {

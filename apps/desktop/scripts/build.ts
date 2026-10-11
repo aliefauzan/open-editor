@@ -1,4 +1,4 @@
-// Builds the app with vite 8 (R5 pin; electron-vite 5 accepts vite ≤ 7 only, D-XX):
+// Builds the app with vite 8 (R5 pin; electron-vite 5 accepts vite ≤ 7 only, D-36):
 //   out/renderer   React UI (served by vox-app://), plus the vendored HyperFrames player
 //   out/preload    the window.vox bridge (CommonJS, sandboxed preload)
 //   out/main       Electron main (CommonJS: Playwright's Electron launcher needs a CJS main)

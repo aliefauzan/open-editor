@@ -34,7 +34,7 @@ protocol.registerSchemesAsPrivileged([
       stream: true,
       supportFetchAPI: true,
       // CORS mode on (fonts in the opaque sandbox need it); only font responses carry
-      // Access-Control-Allow-Origin, so other cross-origin reads stay blocked (D-XX)
+      // Access-Control-Allow-Origin, so other cross-origin reads stay blocked (D-37)
       corsEnabled: true,
     },
   },

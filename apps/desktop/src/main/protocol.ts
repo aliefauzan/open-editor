@@ -41,7 +41,7 @@ const STYLE_ID = /^[a-z0-9][a-z0-9-]*$/;
 
 /**
  * Fonts are fetched in CORS mode, and the opaque-sandbox player (origin `null`) is cross-origin to
- * everything, so font responses (only) allow any origin (D-XX). Every other response has no CORS
+ * everything, so font responses (only) allow any origin (D-37). Every other response has no CORS
  * header, so cross-origin reads stay blocked; builds also have `connect-src 'none'`.
  */
 const FONT_EXTS = new Set(['.woff2', '.woff', '.ttf', '.otf']);
