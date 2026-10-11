@@ -28,6 +28,9 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 - [x] (downloaded by the AI for reference only, owner's permission 2026-10-11) **Second style reference** (given 2026-10-11): <https://www.tiktok.com/@metro.media.house3/video/7695169259369925908>.
       Phase 07 uses it beside the reel for the style target. Save it as
       `docs/evidence/phase-07/reference/tiktok-2.mp4` (gitignored). The AI never downloads it.
+- [x] **More style references** (given 2026-10-11, downloaded by the AI for reference only with the owner's permission): the latest 5 videos each of
+      <https://www.tiktok.com/@metro.media.house3> and <https://www.tiktok.com/@attentioncompound>, in
+      `docs/evidence/phase-07/reference/<account>/` (gitignored); list in `reference/REFERENCES.md`.
 - [ ] **Reference layout screenshot** of the invideo editor at `docs/reference/invideo-layout.png`
       (gitignored; used by the UI review in PROMPT step 7 from phase 08 on).
 - [x] **One public YouTube URL** — given 2026-10-11: <https://youtu.be/BveD4v3YwEQ>. you are allowed to use, for GATE 2 (phase 05) and the agent runs
