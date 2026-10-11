@@ -165,3 +165,61 @@ def test_missing_video_fails_cleanly(face_model, tmp_path):
     )
     assert code == 1
     assert stderr_error(stderr)["code"] == "INPUT_NOT_FOUND"
+
+
+# ---- parallel detection (decision "Quick clips speed") ----
+
+
+def test_ordered_map_keeps_order_and_reads_ahead_at_most_two_per_worker():
+    import threading
+    import time
+
+    read = []
+    done = []
+    lock = threading.Lock()
+
+    def items():
+        for i in range(40):
+            read.append(i)
+            yield i
+
+    def slow(i):
+        time.sleep(0.002 * (i % 3))
+        with lock:
+            done.append(i)
+        return i * i
+
+    out = []
+    for r in facetrack.ordered_map(slow, items(), 4):
+        # Never more than 2 × 4 items taken from the source beyond those already returned.
+        assert len(read) - len(out) <= 8
+        out.append(r)
+    assert out == [i * i for i in range(40)]
+    assert sorted(done) == list(range(40))
+
+
+def test_ordered_map_with_one_worker_runs_inline():
+    assert list(facetrack.ordered_map(lambda x: x + 1, iter([1, 2, 3]), 1)) == [2, 3, 4]
+
+
+def test_ordered_map_raises_the_first_error_in_order():
+    def fn(i):
+        if i == 5:
+            raise ValueError("bad frame")
+        return i
+
+    results = facetrack.ordered_map(fn, iter(range(20)), 3)
+    assert [next(results) for _ in range(5)] == [0, 1, 2, 3, 4]
+    with pytest.raises(ValueError, match="bad frame"):
+        next(results)
+
+
+@pytest.mark.local
+def test_parallel_detection_matches_one_thread(face_model, monkeypatch):
+    request = {"videoPath": str(fixture_file("face-2people.mp4")), "faceModelPath": str(face_model)}
+    monkeypatch.setattr(facetrack, "WORKERS", 1)
+    one = facetrack.handle(dict(request))
+    monkeypatch.setattr(facetrack, "WORKERS", 4)
+    four = facetrack.handle(dict(request))
+    assert four == one
+    assert len(one["samples"]) >= 58

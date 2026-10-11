@@ -13,15 +13,24 @@ samples: { atMs, faces: Box[], bodies: Box[], saliency: Box | null }[] }`, where
 - Bodies: Apple Vision `VNDetectHumanRectanglesRequest` (upper body). Saliency: Vision
   `VNGenerateAttentionBasedSaliencyImageRequest`, the union of its salient objects.
 The engine builds the crop path from these detections and the shot list (`stages/facetrack.ts`).
+
+Speed (decision "Quick clips speed"): samples are detected on `WORKERS` threads, each with its own
+FaceDetector; MediaPipe and Vision release the GIL, so this is about 2.3x faster on 4 performance
+cores. Results come back in frame order and are the same as a single-threaded run.
 """
 
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import subprocess
 import tempfile
+import threading
 import urllib.request
+from collections import deque
+from collections.abc import Callable, Iterable, Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +48,8 @@ FACE_MODEL_SHA256 = "3698b18f063835bc609069ef052228fbe86d9c9a6dc8dcb7c7c2d69aed2
 DEFAULT_SAMPLE_FPS = 12
 DEFAULT_SHORT_SIDE = 360
 DEFAULT_MIN_FACE_SCORE = 0.5
+# Detection threads: the performance cores of an M-series Mac; more gives nothing (measured).
+WORKERS = max(1, min(4, (os.cpu_count() or 1) // 2))
 SAME_FACE_IOU = 0.3
 SAME_FACE_INSIDE = 0.6
 
@@ -265,6 +276,59 @@ def vision_detect(frame: np.ndarray) -> tuple[list[dict], dict | None]:
     return bodies, saliency
 
 
+# ---- parallel detection ----
+
+
+def ordered_map[T, R](fn: Callable[[T], R], items: Iterable[T], workers: int) -> Iterator[R]:
+    """`map(fn, items)` on `workers` threads, in order, with at most 2 × workers items in flight
+    (frames are large: the source is never read ahead further than that). One worker runs inline."""
+    if workers <= 1:
+        yield from map(fn, items)
+        return
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="facetrack") as pool:
+        pending: deque[Future[R]] = deque()
+        try:
+            for item in items:
+                pending.append(pool.submit(fn, item))
+                if len(pending) >= 2 * workers:
+                    yield pending.popleft().result()
+            while pending:
+                yield pending.popleft().result()
+        finally:
+            for f in pending:
+                f.cancel()
+
+
+class Detector:
+    """Faces + Vision for one frame, safe to call from several threads (a FaceDetector each)."""
+
+    def __init__(self, model_path: Path, min_score: float):
+        self.model_path = model_path
+        self.min_score = min_score
+        self._local = threading.local()
+        self._finders: list[FaceFinder] = []
+        self._lock = threading.Lock()
+
+    def _finder(self) -> FaceFinder:
+        finder = getattr(self._local, "finder", None)
+        if finder is None:
+            finder = FaceFinder(self.model_path, self.min_score)
+            self._local.finder = finder
+            with self._lock:
+                self._finders.append(finder)
+        return finder
+
+    def __call__(self, frame: np.ndarray) -> tuple[list[dict], list[dict], dict | None]:
+        bodies, saliency = vision_detect(frame)
+        return self._finder().find(frame), bodies, saliency
+
+    def close(self) -> None:
+        with self._lock:
+            for f in self._finders:
+                f.close()
+            self._finders.clear()
+
+
 # ---- video ----
 
 
@@ -360,16 +424,22 @@ def handle(raw: dict) -> dict:
     src_w, src_h, duration_ms = probe(video, req.get("ffprobe", "ffprobe"), formats)
     width, height = scaled_size(src_w, src_h, short_side)
     expected = max(1, round(duration_ms / 1000 * fps))
-    finder = FaceFinder(model_path, min_score)
+    detect = Detector(model_path, min_score)
     samples = []
     step = max(1, expected // 50)
+    source = frames(video, ffmpeg, formats, fps, width, height)
+    results: Iterator[tuple[list[dict], list[dict], dict | None]] = iter(())
     try:
-        for i, frame in enumerate(frames(video, ffmpeg, formats, fps, width, height)):
-            bodies, saliency = vision_detect(frame)
+        # The first frame runs on this thread: PyObjC loads the Quartz/Vision names lazily, and that
+        # first lookup is not thread-safe.
+        first = next(source, None)
+        if first is not None:
+            results = itertools.chain([detect(first)], ordered_map(detect, source, WORKERS))
+        for i, (faces, bodies, saliency) in enumerate(results):
             samples.append(
                 {
                     "atMs": round(i * 1000 / fps),
-                    "faces": finder.find(frame),
+                    "faces": faces,
                     "bodies": bodies,
                     "saliency": saliency,
                 }
@@ -377,7 +447,11 @@ def handle(raw: dict) -> dict:
             if i % step == 0:
                 _tool.progress(min(i / expected, 0.99), f"frame {i + 1} of about {expected}")
     finally:
-        finder.close()
+        close = getattr(results, "close", None)
+        if close:
+            close()
+        source.close()
+        detect.close()
     if not samples:
         raise _tool.ToolError("MEDIA_UNREADABLE", f"no video frames decoded from {video}")
     # Some containers (e.g. WebM) report no duration: fall back to the sampled span.
