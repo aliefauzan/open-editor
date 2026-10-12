@@ -19,7 +19,7 @@
 //     --reference <video> --out <dir> --key <file> --sheet <jpg> [--prefix <p>] [--seed <n>]
 //     [--ref-ms <ms,...>] [--strip-ms <ms,...>]
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { randomInt } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -45,20 +45,46 @@ async function job<T>(e: Engine, name: string, args: unknown): Promise<T> {
 
 /** Cuts on V1 at the speaker's pauses (sequence ms); every second segment gets a punch-in. */
 const CUTS = [5420, 11180, 14740];
-const PUNCH_IN = { mode: 'manual', x: 0.5, y: 0.42, scale: 1.3 } as const;
+const PUNCH_IN_SCALE = 1.15;
+const PUNCH_IN_SHIFT = 0.09;
+const FACETRACK = join(REPO, 'packages/engine/test/fixtures/facetracks/talking-head-20s.json');
 
 /**
- * Caption edit of the fixture transcript (word index in its `words` array): emphasis on the key
- * phrases, and chunk breaks so that two-tier beats (a plain line with a boxed phrase), plain
- * beats and single-word beats ("Hello,", "First,", "Finally,") all occur.
+ * A fixed punch-in on the speaker, framed off centre: the crop centre sits PUNCH_IN_SHIFT (source
+ * widths) left of the mean face centre of the fixture's facetrack in the item, so the face is on
+ * the right and part of a centred caption runs over the speaker (where captions can go behind).
  */
-const EMPHASIS = [6, 7, 18, 19, 25, 26, 38, 39, 45, 55, 56, 66, 67];
-const BREAK_AFTER = [0, 5, 21, 23, 26, 34, 36, 48, 50, 53, 56];
+function punchIn(startMs: number, endMs: number) {
+  const ft = JSON.parse(readFileSync(FACETRACK, 'utf8')) as {
+    samples: { atMs: number; faces: { x: number; y: number; w: number; h: number }[] }[];
+  };
+  const c = ft.samples
+    .filter((s) => s.atMs >= startMs && s.atMs < endMs && s.faces.length > 0)
+    .map((s) => s.faces[0]!);
+  const mean = (f: (b: (typeof c)[number]) => number) =>
+    Math.round((c.reduce((a, b) => a + f(b), 0) / Math.max(1, c.length)) * 1e4) / 1e4;
+  return {
+    mode: 'manual',
+    x: (c.length ? mean((b) => b.x + b.w / 2) : 0.5) - PUNCH_IN_SHIFT,
+    y: c.length ? mean((b) => b.y + b.h / 2) : 0.4,
+    scale: PUNCH_IN_SCALE,
+  } as const;
+}
+
+/**
+ * Caption edit of the fixture transcript (word index in its `words` array): emphasis on key words,
+ * and chunk breaks with 11 characters a line so that two-tier beats (a plain line above a boxed
+ * line: "into a / SHORT CLIP.", "the best / MOMENTS", "a few sound / EFFECTS.", "a vertical /
+ * VIDEO", "this quick / TEST."), plain beats and single-word beats ("Hello,", "First,",
+ * "Finally,") all occur.
+ */
+const EMPHASIS = [6, 7, 18, 19, 26, 39, 45, 56, 67];
+const BREAK_AFTER = [0, 5, 12, 15, 21, 23, 26, 33, 35, 48, 50, 53, 56];
 
 /** Beat times on the clip sheets (sequence ms): two-tier, plain, behind the subject, reveal. */
-const BEAT_MS = { twoTier: 5150, plain: 3500, behind: 12900, reveal: 14440 };
+const BEAT_MS = { twoTier: 5150, plain: 3500, behind: 7650, reveal: 14440 };
 
-async function renderIn(e: Engine, styleId: string, file: string): Promise<RenderJobResult> {
+export async function renderIn(e: Engine, styleId: string, file: string): Promise<RenderJobResult> {
   const { projectId, sequenceId, mediaId } = await makeOfflineProject(e, `A/B ${styleId}`);
   const op = async (o: unknown) => {
     const r = await e.applyOp(projectId, o as never, { actor: 'cli' });
@@ -82,8 +108,15 @@ async function renderIn(e: Engine, styleId: string, file: string): Promise<Rende
     await op({ op: 'splitItem', args: { sequenceId, itemId: item.id, atMs } });
   }
   for (const [n, item] of (await v1()).entries()) {
-    if (n % 2 === 1) {
-      await op({ op: 'updateClip', args: { sequenceId, itemId: item.id, frame: PUNCH_IN } });
+    if (n % 2 === 1 && item.type === 'media') {
+      await op({
+        op: 'updateClip',
+        args: {
+          sequenceId,
+          itemId: item.id,
+          frame: punchIn(item.inMs, item.inMs + item.durationMs),
+        },
+      });
     }
   }
 
@@ -107,7 +140,7 @@ async function renderIn(e: Engine, styleId: string, file: string): Promise<Rende
       preset,
       autoEmphasis: false,
       maxWords: 4,
-      maxCharsPerLine: 16,
+      maxCharsPerLine: 11,
       maxLines: 2,
       overrides,
       ...(position && { position }),
@@ -279,7 +312,9 @@ async function main(argv: string[]): Promise<void> {
   if (!behind || 'skipped' in behind) {
     throw new Error(`behind-subject step did not run: ${JSON.stringify(behind ?? null)}`);
   }
-  const behindMs = behind.atMs[0] ?? BEAT_MS.behind;
+  // the behind column: "the best / MOMENTS" when that beat went behind, else the first such beat
+  const near = behind.atMs.some((t) => Math.abs(t - BEAT_MS.behind) <= 500);
+  const behindMs = near ? BEAT_MS.behind : (behind.atMs[0] ?? BEAT_MS.behind);
 
   // blind names: the order is random unless --seed picks it (0: vox first, 1: extracted first)
   const flip = values.seed === undefined ? randomInt(2) === 1 : Number(values.seed) % 2 === 1;

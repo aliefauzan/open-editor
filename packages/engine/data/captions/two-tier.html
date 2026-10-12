@@ -28,6 +28,8 @@
         .c-line {
           display: block;
           text-align: center;
+          font-family: var(--tok-font-body);
+          font-style: @@T1_STYLE@@;
         }
         .c-word {
           font-family: var(--tok-font-body);
@@ -41,7 +43,23 @@
           position: relative;
           line-height: 1;
           vertical-align: middle;
-          visibility: hidden;
+          font-family: var(--tok-font-caption);
+          font-style: normal;
+          opacity: 0;
+        }
+        .c-boxwrap {
+          display: inline-block;
+          position: relative;
+          vertical-align: middle;
+          line-height: 1;
+        }
+        .c-ink {
+          position: absolute;
+          left: 0;
+          top: 0;
+          background: none !important;
+          box-shadow: none !important;
+          mix-blend-mode: normal !important;
         }
         .c-box .c-word {
           font-family: var(--tok-font-caption);
@@ -87,6 +105,9 @@
           var T1_FRINGE = @@T1_FRINGE@@;
           var GLOW = @@GLOW@@;
           var REVEAL = @@REVEAL@@;
+          // a knocked-out box shows the footage through its letters (screen blend); a copy of the
+          // letters in translucent ink lies on top, so the letters stay readable on light footage
+          var KNOCK_INK = 'rgba(0,0,0,0.55)';
           // the text shadow of a read tier 1 word: glow and the red/cyan split
           var split = T1_FRINGE && FRINGE > 0 ? -FRINGE + 'px 0 0 rgba(255,40,60,0.55), ' + FRINGE + 'px 0 0 rgba(40,220,255,0.55)' : '';
           var t1Read = [GLOW ? '0 0 0.22em rgba(255,255,255,0.42)' : '', split].filter(Boolean).join(', ') || 'none';
@@ -158,6 +179,9 @@
               line.className = 'c-line';
               line.style.height = heights[l3] + 'px';
               line.style.lineHeight = heights[l3] + 'px';
+              // the spaces between words and runs take the tier 1 size and tracking
+              line.style.fontSize = T1.size * H * scale + 'px';
+              line.style.letterSpacing = T1.track + 'em';
               var rs3 = lines[l3];
               for (var r = 0; r < rs3.length; r++) {
                 var run = rs3[r];
@@ -177,9 +201,13 @@
                     shadows.push(-FRINGE + 'px 0 0 rgba(255,40,60,0.75)', FRINGE + 'px 0 0 rgba(40,220,255,0.75)');
                   if (shadows.length) box.style.boxShadow = shadows.join(', ');
                   if (BOX.knockout) box.style.mixBlendMode = 'screen';
-                  line.appendChild(box);
+                  // the box hides by opacity (a visible child would show through a hidden chunk)
+                  var wrap = document.createElement('span');
+                  wrap.className = 'c-boxwrap';
+                  wrap.appendChild(box);
+                  line.appendChild(wrap);
                   host = box;
-                  tl.set(box, { visibility: 'visible' }, run.words[0].startMs / 1000);
+                  tl.set(box, { opacity: 1 }, run.words[0].startMs / 1000);
                 }
                 for (var k = 0; k < run.words.length; k++) {
                   var w = run.words[k];
@@ -213,6 +241,24 @@
                     }
                   }
                   host.appendChild(span);
+                }
+                if (run.emph && BOX.knockout) {
+                  // the readable ink copy of the knocked-out letters (no data-key: not a caption word)
+                  var inkBox = host.cloneNode(true);
+                  inkBox.className = 'c-box c-ink';
+                  inkBox.setAttribute('aria-hidden', 'true');
+                  var copies = inkBox.querySelectorAll('.c-word');
+                  for (var q = 0; q < copies.length; q++) {
+                    var cp = copies[q];
+                    cp.removeAttribute('data-key');
+                    cp.className = 'c-ink-word';
+                    cp.style.color = 'transparent';
+                    cp.style.display = 'inline-block';
+                    cp.style.textTransform = 'uppercase';
+                    tl.set(cp, { color: KNOCK_INK }, run.words[q].startMs / 1000);
+                  }
+                  host.parentNode.appendChild(inkBox);
+                  tl.set(inkBox, { opacity: 1 }, run.words[0].startMs / 1000);
                 }
               }
               el.appendChild(line);

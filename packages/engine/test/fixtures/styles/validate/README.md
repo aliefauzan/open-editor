@@ -8,6 +8,8 @@ Each folder is a style that extends `base`, loaded together with the repo `style
 - `vnocredit`: `assets/sfx/CREDITS.md` has no entry for `pop.wav`.
 - `vnojson`: caption preset `bare` has no `.json`.
 - `vbadcase`: caption preset `odd` has `case: "title"`.
+- `vgap`: caption preset `stuck` hides its chunks by `visibility` but sets each word back to
+  `visible`, so chunk 1's words stay on screen after the chunk ends (caption gap).
 - `vskip`: a variables schema declares the reserved `skipEntrance`.
 - `vunsafe`: `low` puts text below the safe area, has a text variable without `maxLength` and
   references a missing `pic.png`; `noskip` ignores `skipEntrance`.
