@@ -1095,6 +1095,10 @@ one project; an ambiguous name fails and lists the matching ids.
 
 - Whisper gets an `initial_prompt` built from the English filler list, so it keeps more
   fillers (the spike records how many survive).
+- Whisper hears only the speech (D-79): each region is padded by 400 ms, spans less than
+  500 ms apart are merged, the spans are joined and every segment and word time is shifted back
+  to source time. When the spans keep at least 90 % of the file, or the VAD fails, Whisper hears
+  the whole file.
 - Each word is clipped to the speech region it overlaps most; a word that overlaps no
   region by at least 40 ms (or its whole length, if shorter) is dropped (D-21). Whisper segments
   with `no_speech_prob > 0.6` or `compression_ratio > 2.4` are dropped whole. This stops
