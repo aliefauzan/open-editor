@@ -108,8 +108,8 @@ videoeditor/
     vox_py/transcribe.py     # mlx-whisper
     vox_py/vad.py            # Silero VAD (ONNX, onnxruntime); used by transcribe.py
     vox_py/models/silero_vad.onnx  # vendored, MIT; SHA-256 in plan R5
-    vox_py/facetrack.py      # MediaPipe Tasks FaceDetector + Apple Vision body and
-                             # saliency (pyobjc-framework-Vision)
+    vox_py/facetrack.py      # Apple Vision faces, body and saliency (pyobjc-framework-Vision);
+                             # MediaPipe Tasks FaceDetector as the fallback (D-82)
     vox_py/cutout.py         # Apple Vision subject lift, rembg fallback (D-72)
     vox_py/timeline.py       # opentimelineio export
   projects/                  # dev scratch only, gitignored (real projects: "Project folder")
@@ -1051,7 +1051,7 @@ and a rerun with unchanged inputs is a no-op. Stages run as jobs (below).
 | `vox ingest <project> <url\|path>... [--playlist]` | download (YouTube, Instagram, TikTok or any yt-dlp URL; see "Ingest sources") or copy a local file; content-sniffed type; ffprobe metadata; source fps, VFR check and CFR copy, loudness (see "Ingest analysis"); proxy, extracted audio, thumbs, peaks; `addMedia`. Text files (`.txt`, `.md`, `.fountain`, `.pdf`) become `document` media with plain text at `media/<id>.txt` (`.pdf` text via `pypdf`, BSD, in `py/`). `--no-proxies` (API `{ proxies: false }`) skips proxy, thumbs and peaks; styles Part C uses it for reference videos |
 | `vox transcribe <project> [mediaId...]` | Silero VAD speech gate, then mlx-whisper (pinned repo) with a filler `initial_prompt`, auto language, word timestamps; drops non-speech; computes word kinds (see "Speech gate") |
 | `vox shots <project> <mediaId>` | shot detection with ffmpeg `scdet` on the proxy (else the original, scaled) → `shots/<mediaId>.json` (see "Shots and framing") |
-| `vox facetrack <project> <mediaId>` | MediaPipe Tasks `FaceDetector` (full-range model, downloaded `.tflite`) plus Apple Vision body and saliency, at 12 fps on the proxy scaled to 360p; per-shot subject choice with hysteresis (`faceIndex` overrides) → `{ atMs, x, y, scale }` crop keyframes (see "Shots and framing") |
+| `vox facetrack <project> <mediaId>` | Apple Vision faces (`VNDetectFaceRectanglesRequest`; MediaPipe Tasks `FaceDetector`, full-range model, downloaded `.tflite`, on frames where Vision finds none, D-82) plus Apple Vision body and saliency, at 12 fps on the proxy scaled to 360p; per-shot subject choice with hysteresis (`faceIndex` overrides) → `{ atMs, x, y, scale }` crop keyframes (see "Shots and framing") |
 | `vox highlights <project> <mediaId>` | macOS 27 only (D-75): `vox-apple-llm --highlights` (MediaIntelligence highlight ranges, highlight levels in 0.5 s steps, a key frame) on the H.264 proxy → `cache/highlights/<mediaId>.json` (derived data: no project change, no history entry); elsewhere, without the helper or without a proxy the job finishes with `available: false` and the reason |
 | `vox assets search <project> "<query>" [--source commons,openverse]` | candidates with licence + author, stored in `cache/assets/<queryHash>.json`; the job result returns them |
 | `vox assets fetch <project> <candidateId>` | download, record licence, `addMedia` (origin `archive`) |
@@ -1113,10 +1113,11 @@ cuts; it is not built in v1.
 
 **Detection.** `vox_py.facetrack` samples at 12 fps on the proxy scaled to a 360 px short side (D-21; the original
 when there is no proxy). Each
-sample holds the faces (MediaPipe), and the body boxes (Vision
+sample holds the faces (Apple Vision `VNDetectFaceRectanglesRequest`; on a frame where Vision finds no face,
+or without Vision, MediaPipe BlazeFace on the frame and three tiles, D-82), and the body boxes (Vision
 `VNDetectHumanRectanglesRequest`) and attention saliency box (Vision
 `VNGenerateAttentionBasedSaliencyImageRequest`). It writes `facetracks/<mediaId>.json`,
-once per media.
+once per media; a file whose `detector.version` is not the engine's (or that has none) is detected again.
 
 **Path.** The engine turns the detections into crop keyframes `{ atMs, x, y, scale }`:
 
