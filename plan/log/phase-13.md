@@ -175,8 +175,32 @@ not be captured or driven; each stand-in is named below. The GUI items stay open
       source; MP4 1080x1920, 30 fps, 37.5 s, -14.1 LUFS, cropdetect full frame (no bands), captions
       burned (mono, keyword bold) and an SRT. Evidence: `docs/evidence/phase-13/10-installed-quick-clip-sheet.jpg`,
       `10-installed-quick-clip.srt`.
-- [ ] GUI: Setup, Install all on a fresh home; quick clip and export in the app; agent panel "Make clips
-      from URL", 3 tabs, play, trim, export (needs the screen unlocked).
+- [x] GUI, 2026-10-12 13:09-13:21 (screen unlocked; driven by the orchestrator with background
+      accessibility control), installed 1.0.0 app started with a fresh home (`VOX_HOME`, `VOX_TOOLS_DIR`,
+      `VOX_PROJECTS_DIR` set to new empty folders). Setup screen showed 3 missing tools (deno, yt-dlp,
+      Python environment); Install all finished in about 2.5 min (13:10:19 to about 13:12:40) and the app
+      went to Quick clips. Quick clip from the test URL with count 1, 30-60 s: done in under 5:20 (13:13:02
+      start; editor open by 13:18:19) at load average 14-23 (another session's five agents running).
+      Play works; captions show (mono, keyword bold); 9:16 with no bands. Export (MP4 + SRT, Standard,
+      burned subtitles, YouTube loudness) finished by 13:21:23; the export audio check passed (loudness
+      -14.1 LUFS, target -14). The MP4 is 1080x1920, 30 fps, 37.5 s, H.264/AAC. Evidence:
+      `docs/evidence/phase-13/10-gui-quick-clip-sheet.jpg`.
+- [~] GUI Settings: the provider pop-up menu could not be driven in the background, so `ollama` and
+      `apple` were added and the roles set with the installed CLI on the same home (editor and vision
+      `ollama:qwen3.5:latest`; the fast role stays empty because `apple-on-device` failed the probe's plan
+      check). The app showed them after reopening Settings, and its Test button on the Ollama model gave
+      tools, loop and vision ok, plan failed, context 32,768.
+- [ ] GUI agent panel: "Make clips from URL", 3 tabs, play, trim, export. Not done: the screen locked
+      again at about 13:30 before the run started.
+- [~] Agent stand-in (screen locked), same fresh home, installed 1.0.0 CLI: `vox agent <p> --workflow clipper
+      --count 3 --length 30-60 --yes-sources --yes` with editor `ollama:qwen3.5:latest` (plan mode), no fast
+      model (heuristic scorer). Exit 0 in 18:04 (13:50:46 to 14:08:50, cost $0), 3 clip sequences, each
+      tightened (9, 14, 11 pauses). Clip 1: 4 scenes (3 placeholder), Audio QA fail (sfxUnderSpeech),
+      -14.13 LUFS. Clip 2: 9 scenes (7 placeholder), Audio QA fail (sfxUnderSpeech), -14.09 LUFS. Clip 3:
+      4 scenes (4 placeholder), Audio QA pass, -13.84 LUFS. Clip 3 rendered (standard) in 90 s: 1080x1920,
+      30 fps, 22.8 s, -13.8 LUFS, captions styled, paper-tear edges; the scene pictures are placeholders,
+      as the handoff note expects for plan mode with a small local model. Evidence:
+      `docs/evidence/phase-13/10-agent-clip3-sheet.jpg`. Trim in the GUI is not covered.
 
 ## Handoff notes
 - Phase 14 (Claude Code skill): `workflows/*.md` are staged into `Resources/agent/workflows`; call
