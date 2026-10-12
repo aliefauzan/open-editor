@@ -68,7 +68,9 @@ export function buildYtdlpArgs(opts: YtdlpArgsOptions): string[] {
     '-f',
     'bv*+ba/b',
     '-S',
-    'res:1080',
+    // largest picture up to 1080 first, then H.264 among equal sizes (D-78): VP9/AV1 decode in
+    // software and MediaIntelligence (D-75) cannot read VP9
+    'res:1080,vcodec:h264',
     '--merge-output-format',
     'mp4',
     '--proxy',

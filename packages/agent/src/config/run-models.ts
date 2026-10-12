@@ -4,7 +4,7 @@
 import type { LanguageModelV4 } from '@ai-sdk/provider';
 import { VoxError } from '../errors.ts';
 import type { RoleModel, RunModels } from '../loop/types.ts';
-import type { AppleModelOptions } from '../providers/apple.ts';
+import { appleStatus, createAppleEmbedder, type AppleModelOptions } from '../providers/apple.ts';
 import {
   detectContext,
   fetchOpenRouterModels,
@@ -15,6 +15,7 @@ import { createEmbedder } from '../providers/factory.ts';
 import { PRESETS, type ProviderEntry } from '../providers/presets.ts';
 import type { Embedder } from '../screenplay/match.ts';
 import { isLocalProvider, lookupPrice, type PriceEntry } from '../providers/prices.ts';
+import { promptCacheTarget, withCachePrices } from '../providers/prompt-cache.ts';
 import { selectMode, type AgentMode } from '../providers/roles.ts';
 import { findProvider, providerKey, type AgentConfig, type AgentConfigDeps } from './store.ts';
 
@@ -76,7 +77,8 @@ async function roleModel(
       provider: { ...kind, label },
       modelId: ref.model,
       contextTokens: ctx.contextTokens,
-      price,
+      // Anthropic cache rates filled in where the table has none (D-76)
+      price: withCachePrices(promptCacheTarget({ provider: kind, modelId: ref.model }), price),
       maxOutputTokens: conf.maxOutputTokens[role],
     },
   };
@@ -109,21 +111,27 @@ export async function buildRunModels(
 }
 
 /**
- * The `embed` role as an embedding function (screenplay match), or undefined when no embed role is
- * set. A set role whose provider cannot embed throws CONFIG_INVALID (the caller reports it and the
- * workflow falls back to LLM ranking).
+ * The `embed` role as an embedding function (screenplay match). A set role whose provider cannot
+ * embed throws CONFIG_INVALID (the caller reports it and the workflow falls back to LLM ranking).
+ * With no embed role set, the Apple helper's on-device embeddings are used when its `--status`
+ * says `embed: true` (D-77, native first: a free first pass before LLM ranking); else undefined.
  */
 export async function buildEmbedder(
   conf: AgentConfig,
   cfg: AgentConfigDeps,
-  deps: { fetch?: typeof fetch } = {},
+  deps: { fetch?: typeof fetch; apple?: AppleModelOptions } = {},
 ): Promise<Embedder | undefined> {
   const ref = conf.roles.embed;
-  if (!ref) return undefined;
+  if (!ref) {
+    if (deps.apple === undefined) return undefined;
+    const status = await appleStatus(deps.apple).catch(() => undefined);
+    return status?.embed === true ? createAppleEmbedder(deps.apple) : undefined;
+  }
   const entry = findProvider(conf, ref.providerId);
   const key = await providerKey(cfg, entry);
   return createEmbedder(entry, ref.model, {
     apiKey: key,
     ...(deps.fetch !== undefined && { fetch: deps.fetch }),
+    ...(deps.apple !== undefined && { apple: deps.apple }),
   });
 }

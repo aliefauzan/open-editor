@@ -1046,7 +1046,7 @@ and a rerun with unchanged inputs is a no-op. Stages run as jobs (below).
 |---|---|
 | `vox doctor` | checks ffmpeg, ffprobe, yt-dlp (+ `yt-dlp-ejs` and deno or node, offers `yt-dlp -U`; reports whether `--impersonate` targets exist, which some TikTok pages need), uv env, Chromium for HyperFrames, pinned HyperFrames version, model downloads and their licences; prints fixes |
 | `vox paths [--json]` | prints the resolved projects folder, styles folders and tool paths (see "Project folder") |
-| `vox quick <url\|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]` | quick clips (below): new project, then the chain ingest → shots → transcribe → facetrack → highlights (optional, macOS 27) → quickClips, `count` captioned 9:16 clips with no style beats and no AI key needed; `--render` also writes MP4 (subtitles burned in) + SRT per clip, into `--out-dir` when given (see "Export targets"), else the project's `renders/` |
+| `vox quick <url\|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]` | quick clips (below): new project, then the chain ingest → shots → transcribe → facetrack → highlights (optional, macOS 27) → quickClips, `count` captioned 9:16 clips with no style beats and no AI key needed; `--render` also writes MP4 (subtitles burned in) + SRT per clip, into `--out-dir` when given (see "Export targets"), else the project's `renders/`; the report ends with a step table (setup, each stage, the wait for highlights, quickClips, `scorer` when a registered scorer ran, render, captions) whose rows add up to the wall time (`--json`: `steps` `[{step, ms}]` and `totalMs`; plan D-84) |
 | `vox new <name>` | creates a project with one empty 9:16 sequence; `styleId` is `vox` if installed, else `base` |
 | `vox ingest <project> <url\|path>... [--playlist]` | download (YouTube, Instagram, TikTok or any yt-dlp URL; see "Ingest sources") or copy a local file; content-sniffed type; ffprobe metadata; source fps, VFR check and CFR copy, loudness (see "Ingest analysis"); proxy, extracted audio, thumbs, peaks; `addMedia`. Text files (`.txt`, `.md`, `.fountain`, `.pdf`) become `document` media with plain text at `media/<id>.txt` (`.pdf` text via `pypdf`, BSD, in `py/`). `--no-proxies` (API `{ proxies: false }`) skips proxy, thumbs and peaks; styles Part C uses it for reference videos |
 | `vox transcribe <project> [mediaId...]` | Silero VAD speech gate, then mlx-whisper (pinned repo) with a filler `initial_prompt`, auto language, word timestamps; drops non-speech; computes word kinds (see "Speech gate") |
@@ -1187,7 +1187,7 @@ facetrack → (highlights, optional, macOS 27) → quickClips`:
 
 The result lists the sequence ids, the chosen ranges with their text, the scorer
 used, `candidates` (found), `scorerCandidates` (sent to a registered scorer; absent when
-none was asked) and `highlights: true` (only when video highlights were part of the heuristic). Selection is deterministic for the same transcript, options and scorer output.
+none was asked), `scorerMs` (whole ms spent waiting on a registered scorer, also when it failed; absent when none was asked; plan D-84) and `highlights: true` (only when video highlights were part of the heuristic). Selection is deterministic for the same transcript, options and scorer output.
 The `batch` carries the job's `jobId`, so "Undo quick clips" is one history entry. When
 Stylize or the clipper later add transitions at clip edges, they default to cover-style
 ones (see "Transitions").
@@ -1196,7 +1196,10 @@ Styling is a separate, optional step (spec 3 "Stylize"; or by hand in the app).
 Encoding: ffmpeg comes from Homebrew (plan D-05), whose build includes libx264. Proxies
 use libx264 at 540p with `-crf 23` and a keyframe every 0.5 s (`-g` and `-keyint_min` set
 from the source fps). `render` muxes HyperFrames' H.264 output with the audio mix using
-`-c:v copy` and AAC audio, so the picture is encoded only once.
+`-c:v copy` and AAC audio, so the picture is encoded only once. On Apple silicon the render
+passes `--gpu --video-bitrate <w × h × fps × bits per pixel>` so HyperFrames encodes with
+`h264_videotoolbox` (D-78); a failed hardware render is rerun once with libx264, and
+`render.encoder: "software"` in the config or `VOX_RENDER_ENCODER=software` forces libx264.
 
 ### Export targets (plan D-13)
 
@@ -1249,11 +1252,12 @@ Every export (`render`, `exportCaptions`, `exportTimeline`) takes an optional ta
   link-local and multicast addresses, connecting to the IP it checked (no DNS-rebinding
   window). Archive and image downloads by the engine use the same check in-process.
 - yt-dlp runs with `--ignore-config --no-plugin-dirs --no-playlist --playlist-items 1
-  --max-filesize 4G -f "bv*+ba/b" -S "res:1080" --merge-output-format mp4`
+  --max-filesize 4G -f "bv*+ba/b" -S "res:1080,vcodec:h264" --merge-output-format mp4`
   (`--playlist` opt-in removes `--no-playlist` and `--playlist-items 1`), output to an
   engine-generated name, never the remote title. `-S "res:1080"` limits the smaller side,
   so vertical 1080×1920 reels and TikToks keep full quality (a `height<=1080` filter
-  would drop them).
+  would drop them). Among equal sizes H.264 comes first (D-78): VP9 and AV1 decode in
+  software, and MediaIntelligence (D-75) cannot read VP9.
   YouTube needs `yt-dlp-ejs` and a JS runtime: deno is preferred (yt-dlp's default);
   if only node exists, the engine passes `--js-runtimes node` and `vox doctor` warns
   that yt-dlp considers node less safe.

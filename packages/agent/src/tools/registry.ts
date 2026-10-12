@@ -10,6 +10,7 @@ import type { ToolDefinition } from '../providers/tool-cost.ts';
 import { jobTools } from './jobs.ts';
 import { opTools } from './ops.ts';
 import { readTools } from './read.ts';
+import { transcriptTool } from './transcript-tool.ts';
 import type { AgentEngine, AgentTool, ToolContext, ToolOutput } from './types.ts';
 
 /** Sent in every run (agent spec "Tool surface"); `update_todos` only in tools mode. */
@@ -163,7 +164,7 @@ export function buildRegistry(engine: Pick<AgentEngine, 'imageProviders'>): Tool
     if (tools.has(t.name)) throw new Error(`duplicate tool ${t.name}`);
     tools.set(t.name, t);
   };
-  for (const t of [...readTools(), ...opTools(), ...jobTools(engine)]) add(t);
+  for (const t of [...readTools(), transcriptTool(), ...opTools(), ...jobTools(engine)]) add(t);
   const schemas = new Map<string, JSONSchema7>();
   const registry: ToolRegistry = {
     get: (n) => tools.get(n),

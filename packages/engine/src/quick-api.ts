@@ -67,6 +67,11 @@ export interface QuickClipsResult {
   candidates: number;
   /** How many of them went to a registered scorer (D-75); absent when no scorer was asked. */
   scorerCandidates?: number;
+  /**
+   * Whole ms spent waiting on a registered scorer, also when it failed (the fast model can take
+   * minutes); absent when no scorer was asked. Reports show it as its own step.
+   */
+  scorerMs?: number;
   /** Set when the media's video highlights (macOS 27, D-75) were part of the heuristic. */
   highlights?: true;
   clips: QuickClip[];
@@ -169,9 +174,11 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
       let scores: readonly number[] = heuristic;
       let picks: number[] | undefined;
       let sent: number[] = [];
+      let scorerMs: number | undefined;
       if (chosen && cands.length > 0) {
         ctx.progress(0.3, `scoring with ${chosen.id}`);
         sent = scorerShortlist(cands, heuristic, Math.max(SCORER_MIN_CANDIDATES, 2 * args.count));
+        const scoreStart = performance.now();
         try {
           const got = await chosen.fn(
             {
@@ -209,6 +216,8 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         } catch (e) {
           if (ctx.signal.aborted) throw e;
           scorerError = { scorer: chosen.id, message: e instanceof Error ? e.message : String(e) };
+        } finally {
+          scorerMs = Math.round(performance.now() - scoreStart);
         }
       }
       picks ??= pickClips(cands, scores, args.count);
@@ -282,6 +291,7 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         requested: args.count,
         candidates: cands.length,
         ...(chosen && cands.length > 0 ? { scorerCandidates: sent.length } : {}),
+        ...(scorerMs !== undefined ? { scorerMs } : {}),
         ...(highlights ? { highlights: true as const } : {}),
         clips,
         sequenceIds: clips.map((c) => c.sequenceId),

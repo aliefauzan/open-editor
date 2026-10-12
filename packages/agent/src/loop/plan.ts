@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { VoxError, isVoxError, toVoxErrorJson } from '../errors.ts';
 import { applyAsAgent } from '../tools/ops.ts';
 import { invokeTool } from '../tools/registry.ts';
-import { transcriptPage } from '../tools/transcript.ts';
+import { transcriptLines } from '../tools/transcript.ts';
 import type { AgentRun } from './run.ts';
 import { RunStopped } from './run.ts';
 import { wrapData } from './envelope.ts';
@@ -423,18 +423,15 @@ async function planContext(
     const clip = s?.videoTracks.find((t) => t.id === 'V1')?.items.find((it) => it.type === 'media');
     const mediaId = clip && clip.type === 'media' ? clip.mediaId : undefined;
     if (!mediaId || !p.media.find((m) => m.id === mediaId)?.transcriptPath) continue;
-    const page = await transcriptPage(
+    // the sequence's span only, one line per sentence in sequence ms (D-81)
+    const { page } = await transcriptLines(
       run.ctx.engine,
       run.ctx.projectId,
       { mediaId, sequenceId },
       3_000,
     );
-    const text = page.words
-      .filter((w) => w.seqMs !== null && w.seqMs !== undefined)
-      .map((w) => `${String(w.seqMs)} ${w.text}`)
-      .join('\n');
     parts.push(
-      `Transcript of ${run.aliases.aliasOf(sequenceId)} (sequence ms, word):\n${wrapData('transcript', text)}`,
+      `Transcript of ${run.aliases.aliasOf(sequenceId)} ([startMs-endMs] text, sequence ms):\n${wrapData('transcript', page.lines)}`,
     );
   }
   if (kind === 'clip') {

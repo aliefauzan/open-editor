@@ -120,6 +120,11 @@ export interface RunDeps {
   redactor: Redactor;
   models: RunModels;
   limits: { maxUsdPerRun: number; maxStepsPerRun: number };
+  /**
+   * With a caching editor, full state blocks below this many tokens are sent every step and not
+   * kept (D-81). Default STATE_DIFF_MIN_TOKENS; measurements pass 0 (always diff) or Infinity.
+   */
+  stateDiffMinTokens?: number;
   emit?: (event: AgentEvent) => void;
   /** Called on every pause; the run waits for the decision. Default: stop. */
   onPause?: (pause: PauseInfo) => Promise<PauseDecision>;
