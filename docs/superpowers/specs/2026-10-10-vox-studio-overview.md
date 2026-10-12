@@ -119,7 +119,7 @@ LLM-authored templates for style extraction.
 | Transcription | mlx-whisper, `mlx-community/whisper-large-v3-turbo` (from OpenAI's MIT weights) | MIT |
 | Speech gate (plan D-15) | Silero VAD, ONNX model vendored in `py/vox_py/models/` and run through `onnxruntime` (no torch) | MIT; MIT |
 | Face tracking | MediaPipe Tasks `FaceDetector` | Apache-2.0 |
-| Cutouts | rembg with a pinned permissive model (licence verified in the plan; never `bria-rmbg`, which needs a paid commercial agreement) | MIT + model licence |
+| Cutouts | Apple Vision subject lift first (D-72); fallback rembg with a pinned permissive model (licence verified in the plan; never `bria-rmbg`, which needs a paid commercial agreement) | MIT + model licence |
 | Local image generation (v1.1) | mflux + Z-Image-Turbo (default, not gated); FLUX.1-schnell optional (gated on Hugging Face, needs token) | MIT + Apache-2.0 |
 | Timeline export | OpenTimelineIO (`.otio`, native import in Resolve 18.5+); FCPXML via `otio-fcpx-xml-adapter` in v1.1, or in v1 if GATE 2 needs it (plan D-10) | Apache-2.0 |
 | Maps | Natural Earth shapes + populated places; `d3-geo` | public domain; ISC |

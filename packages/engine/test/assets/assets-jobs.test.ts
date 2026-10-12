@@ -2,9 +2,11 @@
 // config contact, fetch over checked HTTPS into one `addMedia` with the licence and attribution,
 // cutout refusals (ND licence, not an image), image providers (none → PROVIDER_MISSING with a hint,
 // a fake provider → a generated image with its prompt, one history entry with the jobId).
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { openEngine, version, type Engine } from '../../src/api.ts';
 import { VoxError } from '../../src/errors.ts';
 import type { JobInfo } from '../../src/jobs.ts';
@@ -20,10 +22,11 @@ import {
   type Cert,
   type TestServer,
 } from '../net/servers.ts';
-import { readFileSync } from 'node:fs';
 
 const FACE = new URL('../fixtures/assets/faces/face-a.jpg', import.meta.url).pathname;
 const TAP = new URL('../fixtures/assets/sfx/tap.wav', import.meta.url).pathname;
+const CARD = new URL('../fixtures/assets/captions/card-1.png', import.meta.url).pathname;
+const fakePy = new URL('../helpers/fake-py.mjs', import.meta.url).pathname;
 
 let cert: Cert;
 let srv: TestServer;
@@ -199,6 +202,106 @@ describe('assets.cutout refusals', () => {
     await addFile(e, p.id, 'm_aud1', 'audio');
     const r = await run(e, 'assets.cutout', { projectId: p.id, mediaId: 'm_aud1' });
     expect(r.error?.code).toBe('MEDIA_UNSUPPORTED');
+  });
+});
+
+describe('assets.cutout fetches u2net only for the fallback (D-72)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /** An engine with the fake Python tool and a stand-in u2net served by the local HTTPS server. */
+  function cutEngine() {
+    const toolsDir = tempDir('vox-cut-tools-');
+    const models = join(toolsDir, 'models');
+    const log = join(toolsDir, 'py.log');
+    vi.stubEnv('VOX_FAKE_PY_LOG', log);
+    vi.stubEnv('VOX_FAKE_CUTOUT_PNG', CARD);
+    const e = openEngine({
+      projectsDir: join(tempDir('vox-cut-'), 'Projects'),
+      stylesDirs: [],
+      templates,
+      tools: { uv: fakePy, py: '/nonexistent-py-project', models },
+      config: async () => ({}),
+      net: { resolver, dial },
+      assets: {
+        ca: cert.cert,
+        sleep: async () => {},
+        cutoutModel: {
+          name: 'u2net.onnx',
+          url: `https://${PUBLIC_HOST}/u2net.onnx`,
+          sha256: createHash('sha256').update(readFileSync(FACE)).digest('hex'),
+          maxBytes: 1024 * 1024,
+          label: 'cutout model',
+        },
+      },
+    });
+    const model = join(models, 'rembg', 'u2net.onnx');
+    const calls = () =>
+      existsSync(log)
+        ? readFileSync(log, 'utf8')
+            .split('\n')
+            .filter((l) => l.startsWith('cutout model='))
+        : [];
+    return { e, model, calls };
+  }
+
+  const fetched = () => hits.filter((h) => h.startsWith('/u2net.onnx')).length;
+
+  test('Vision finds the subject: no model, no download, one tool run', async () => {
+    const { e, model, calls } = cutEngine();
+    const p = await e.createProject('cut');
+    await addFile(e, p.id, 'm_img1', 'image');
+    const before = fetched();
+    const r = await run<{ mediaId: string }>(e, 'assets.cutout', {
+      projectId: p.id,
+      mediaId: 'm_img1',
+    });
+    expect(r.status, JSON.stringify(r.error)).toBe('done');
+    expect(calls()).toEqual(['cutout model=-']);
+    expect(fetched()).toBe(before);
+    expect(existsSync(model)).toBe(false);
+    const m = (await e.getProject(p.id)).media.find((x) => x.id === r.result!.mediaId)!;
+    expect(m.tags).toContain('cutout');
+  });
+
+  test('no subject: fetches the model once, then reruns the tool with it', async () => {
+    const { e, model, calls } = cutEngine();
+    vi.stubEnv('VOX_FAKE_CUTOUT_NO_SUBJECT', '1');
+    const p = await e.createProject('cut');
+    await addFile(e, p.id, 'm_img1', 'image');
+    const before = fetched();
+    const r = await run(e, 'assets.cutout', { projectId: p.id, mediaId: 'm_img1' });
+    expect(r.status, JSON.stringify(r.error)).toBe('done');
+    expect(calls()).toEqual(['cutout model=-', `cutout model=${model}`]);
+    expect(fetched()).toBe(before + 1);
+    expect(existsSync(model)).toBe(true);
+  });
+
+  test('the model is still missing after the fetch: the job fails after one retry', async () => {
+    const { e, model, calls } = cutEngine();
+    vi.stubEnv('VOX_FAKE_CUTOUT_ERROR', 'MODEL_MISSING');
+    const p = await e.createProject('cut');
+    await addFile(e, p.id, 'm_img1', 'image');
+    const r = await run(e, 'assets.cutout', { projectId: p.id, mediaId: 'm_img1' });
+    expect(r.status).toBe('failed');
+    expect(r.error?.code).toBe('PY_TOOL_FAILED');
+    expect(calls()).toEqual(['cutout model=-', `cutout model=${model}`]);
+  });
+
+  test('any other tool error fails at once, with no download', async () => {
+    const { e, model, calls } = cutEngine();
+    vi.stubEnv('VOX_FAKE_CUTOUT_ERROR', 'MEDIA_UNREADABLE');
+    const p = await e.createProject('cut');
+    await addFile(e, p.id, 'm_img1', 'image');
+    const before = fetched();
+    const r = await run(e, 'assets.cutout', { projectId: p.id, mediaId: 'm_img1' });
+    expect(r.status).toBe('failed');
+    expect(r.error?.code).toBe('PY_TOOL_FAILED');
+    expect(r.error?.message).toMatch(/MEDIA_UNREADABLE/);
+    expect(calls()).toEqual(['cutout model=-']);
+    expect(fetched()).toBe(before);
+    expect(existsSync(model)).toBe(false);
   });
 });
 

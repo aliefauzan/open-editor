@@ -34,7 +34,10 @@ import {
 import { ingestOne } from './stages/ingest.ts';
 import { resolveProjectPath } from './paths.ts';
 
-/** Pinned cutout model (R5): rembg's U^2-Net, Apache-2.0 (upstream xuebinqin/U-2-Net). */
+/**
+ * Pinned cutout model (R5): rembg's U^2-Net, Apache-2.0 (upstream xuebinqin/U-2-Net). Fallback only:
+ * fetched on demand when Apple Vision finds no subject or is not available (D-72).
+ */
 export const CUTOUT_MODEL: ModelSpec = {
   name: 'u2net.onnx',
   url: 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx',
@@ -151,6 +154,8 @@ export interface AssetsApiDeps extends MediaApiDeps {
   ca?: string;
   /** Retry back-off (tests). */
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  /** Test seam: the cutout fallback model (default CUTOUT_MODEL). */
+  cutoutModel?: ModelSpec;
 }
 
 const noProvider = (): VoxError =>
@@ -299,33 +304,42 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
           { details: { mediaId: src.id, license: src.origin.license } },
         );
       }
-      const models = tools['models'];
-      if (!models) {
-        throw new VoxError(
-          'TOOL_MISSING',
-          'No tools folder for the cutout model.',
-          'Run vox doctor.',
-        );
-      }
-      ctx.progress(0.02, 'cutout model');
-      const modelPath = await ensureModel(join(models, 'rembg'), CUTOUT_MODEL, {
-        signal: ctx.signal,
-        ...(deps.net ? { net: deps.net } : {}),
-      });
       const out = await tempIn(dir, '.png');
       try {
-        await runPyTool(
-          'cutout',
-          { input: await resolveProjectPath(dir, src.path), output: out, modelPath },
-          CutoutResultSchema,
-          {
-            pyProject: tools['py'] ?? repoPyProject(),
-            ...(tools['uv'] ? { uv: tools['uv'] } : {}),
-            ...(tools['pyEnv'] && tools['dir'] ? { toolsDir: tools['dir'] } : {}),
-            signal: ctx.signal,
-            onProgress: (p, m) => ctx.progress(0.1 + p * 0.7, m),
-            redactor: deps.redactor,
-            input: CutoutRequestSchema,
+        const input = await resolveProjectPath(dir, src.path);
+        // Apple Vision first, no model (D-72); u2net is fetched only when the tool asks for it.
+        await cutoutWithFallback(
+          (modelPath) =>
+            runPyTool(
+              'cutout',
+              { input, output: out, ...(modelPath ? { modelPath } : {}) },
+              CutoutResultSchema,
+              {
+                pyProject: tools['py'] ?? repoPyProject(),
+                ...(tools['uv'] ? { uv: tools['uv'] } : {}),
+                ...(tools['pyEnv'] && tools['dir'] ? { toolsDir: tools['dir'] } : {}),
+                signal: ctx.signal,
+                onProgress: (p, m) => ctx.progress(0.1 + p * 0.7, m),
+                redactor: deps.redactor,
+                input: CutoutRequestSchema,
+              },
+            ),
+          async () => {
+            const models = tools['models'];
+            if (!models) {
+              throw new VoxError(
+                'TOOL_MISSING',
+                'No tools folder for the cutout model.',
+                'Run vox doctor.',
+              );
+            }
+            ctx.progress(0.1, 'fetching the cutout model (fallback)');
+            return ensureModel(join(models, 'rembg'), deps.cutoutModel ?? CUTOUT_MODEL, {
+              signal: ctx.signal,
+              ...(deps.net ? { net: deps.net } : {}),
+              ...(deps.ca ? { ca: deps.ca } : {}),
+              ...(deps.sleep ? { sleep: deps.sleep } : {}),
+            });
           },
         );
         ctx.progress(0.85, 'adding');
@@ -404,11 +418,41 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
 export const CutoutRequestSchema = z.strictObject({
   input: z.string().min(1),
   output: z.string().regex(/\.png$/),
-  modelPath: z.string().regex(/u2net\.onnx$/),
+  modelPath: z
+    .string()
+    .regex(/u2net\.onnx$/)
+    .optional(),
 });
 export const CutoutResultSchema = z.strictObject({
   output: z.string(),
   width: z.int().positive(),
   height: z.int().positive(),
   coverage: z.number().min(0).max(1),
+  engine: z.enum(['vision', 'rembg']).optional(),
 });
+
+/**
+ * Runs the cutout tool without a model first (Apple Vision subject lift, D-72). Only when the tool
+ * answers MODEL_MISSING (no subject, or no Vision) is the pinned u2net model fetched, and the tool
+ * runs once more with it. Any other error, or a second failure, is the job's error.
+ */
+export async function cutoutWithFallback<R>(
+  run: (modelPath?: string) => Promise<R>,
+  fetchModel: () => Promise<string>,
+): Promise<R> {
+  try {
+    return await run();
+  } catch (e) {
+    if (!needsCutoutModel(e)) throw e;
+  }
+  return run(await fetchModel());
+}
+
+/** True for the cutout tool's "fallback needs the model" answer (D-21 tool code MODEL_MISSING). */
+export function needsCutoutModel(e: unknown): boolean {
+  return (
+    e instanceof VoxError &&
+    e.code === 'PY_TOOL_FAILED' &&
+    e.details?.['toolCode'] === 'MODEL_MISSING'
+  );
+}

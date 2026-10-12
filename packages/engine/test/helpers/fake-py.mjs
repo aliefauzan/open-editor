@@ -2,11 +2,18 @@
 // Fake `uv` for the media job tests: answers `-m vox_py.<tool>` with canned results.
 // VOX_FAKE_PY_STARTED: file written when the tool starts. VOX_FAKE_PY_GO: when set, waits for that file
 // before answering (lets a test edit the project while the job runs). VOX_FAKE_PY_LOG: appends tool names.
-import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
+// cutout: copies VOX_FAKE_CUTOUT_PNG to the output; with VOX_FAKE_CUTOUT_NO_SUBJECT set it answers
+// MODEL_MISSING unless the request has a modelPath (the Apple Vision "no subject" case, D-72);
+// VOX_FAKE_CUTOUT_ERROR=<code> fails every call with that tool error code.
+import { appendFileSync, copyFileSync, existsSync, writeFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
 const tool = (argv[argv.indexOf('-m') + 1] ?? '').replace(/^vox_py\./, '');
 if (process.env.VOX_FAKE_PY_LOG) appendFileSync(process.env.VOX_FAKE_PY_LOG, `${tool}\n`);
+const fail = (code, message) => {
+  process.stderr.write(`${JSON.stringify({ error: { code, message } })}\n`);
+  process.exitCode = 1;
+};
 
 let input = '';
 process.stdin.setEncoding('utf8');
@@ -34,6 +41,25 @@ process.stdin.on('end', () => {
             repo: 'mlx-community/whisper-large-v3-turbo',
             revision: 'a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb',
           },
+        }),
+      );
+    } else if (tool === 'cutout') {
+      if (process.env.VOX_FAKE_PY_LOG)
+        appendFileSync(process.env.VOX_FAKE_PY_LOG, `cutout model=${req.modelPath ?? '-'}\n`);
+      if (process.env.VOX_FAKE_CUTOUT_ERROR) {
+        return fail(process.env.VOX_FAKE_CUTOUT_ERROR, 'fake cutout failure');
+      }
+      if (process.env.VOX_FAKE_CUTOUT_NO_SUBJECT && !req.modelPath) {
+        return fail('MODEL_MISSING', 'no subject; the fallback needs u2net.onnx');
+      }
+      copyFileSync(process.env.VOX_FAKE_CUTOUT_PNG, req.output);
+      process.stdout.write(
+        JSON.stringify({
+          output: req.output,
+          width: 64,
+          height: 64,
+          coverage: 0.5,
+          engine: req.modelPath ? 'rembg' : 'vision',
         }),
       );
     } else {

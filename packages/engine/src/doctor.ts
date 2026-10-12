@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { readdir, readFile, stat, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { CUTOUT_MODEL } from './assets-api.ts';
 import { LOCK_FILE, type LockInfo } from './history/lock.ts';
 import { FACE_MODEL, sha256File } from './media-api.ts';
 import type { Project, Transcript } from './model/schema.ts';
@@ -346,6 +347,36 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
           ...(face ? { path: face } : {}),
           ...(faceSha ? { fix: `delete ${face} and run facetrack again` } : {}),
         },
+  );
+  // Cutout fallback model (D-72): Apple Vision does cutouts; u2net is fetched only when Vision finds
+  // no subject or is not available, so a missing file is fine.
+  const cut = models ? join(models, 'rembg', CUTOUT_MODEL.name) : undefined;
+  const cutSha = cut ? await sha256File(cut) : undefined;
+  add(
+    cutSha === CUTOUT_MODEL.sha256
+      ? {
+          name: 'model-cutout',
+          level: 'ok',
+          detail: `${CUTOUT_MODEL.name} sha256 ok (cutout fallback)`,
+          path: cut!,
+          licence: 'Apache-2.0',
+        }
+      : cutSha
+        ? {
+            name: 'model-cutout',
+            level: 'warn',
+            detail: `${CUTOUT_MODEL.name} sha256 mismatch (cutout fallback)`,
+            path: cut!,
+            licence: 'Apache-2.0',
+            fix: `delete ${cut}; the next cutout that needs the fallback fetches it again`,
+          }
+        : {
+            name: 'model-cutout',
+            level: 'ok',
+            detail: `${CUTOUT_MODEL.name} not downloaded: fetched on demand (~176 MB) only when Apple Vision finds no subject`,
+            licence: 'Apache-2.0',
+            ...(cut ? { path: cut } : {}),
+          },
   );
   const whisperLocal = models ? join(models, WHISPER_DIR, 'weights.safetensors') : undefined;
   const hfSnap = join(

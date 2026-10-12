@@ -1013,7 +1013,7 @@ fixture tests (sprite and peaks sizes, retry timing) and the M5 doctor run (impe
   `assets.cutout` refuses ND images with the new code `LICENSE_REFUSED`; `assets.generate` without a
   registered image provider fails with the new code `PROVIDER_MISSING`.
 - Cutout model: rembg `u2net.onnx` (Apache-2.0, SHA-256 pinned, 200 MiB cap) downloaded into
-  `<tools>/models/rembg` on first use, like the face model.
+  `<tools>/models/rembg` on first use, like the face model. (Since D-72: fallback only, fetched on demand.)
 - Render: default quality `standard`; without `sequenceId` the first sequence renders. The export
   stem is `<project name>-<sequence name>`. The picture is a silent HyperFrames MP4, muxed with the
   WAV mix by ffmpeg (video copy, AAC 192k 48 kHz, metadata stripped, `+faststart`).
@@ -1977,6 +1977,37 @@ model is local Ollama.
   `docs/evidence/phase-15/`. The owner may still run a real blind A/B (TODO.md) and overrule.
 **Why**: measure-first with a deterministic map keeps the draft reproducible and useful without a model; a re-skin needs
 no untrusted code; the repair step makes small local models usable instead of silently dropping their answer.
+
+## D-72 · 2026-10-12 · feat/native-cutout · Cutout runs Apple Vision subject lift first; u2net is a fallback fetched on demand
+**Context**: `assets.cutout` ran rembg with `u2net.onnx` and the engine downloaded the 176 MB model before every first
+cutout (D-32 "Cutout model"). The macOS-native offload research (`docs/research/2026-10-12-macos-native-offload.md`)
+measured Apple Vision `VNGenerateForegroundInstanceMaskRequest` (macOS 14+) against rembg on the same images: 160-381 ms
+vs 2.0-2.8 s, coverage 0.619 vs 0.619 on `face-a.jpg`, finer hair edges, and on a talking-head frame rembg kept
+colour-bar blobs that Vision dropped. The app targets macOS 14+ on arm64, so Vision is there on every supported Mac.
+**Decision**:
+- `vox_py.cutout` decodes the image with Pillow first (MAX_PIXELS: an image above 150 M pixels is now refused as
+  `MEDIA_UNREADABLE` before decoding, not only above Pillow's 2x error), then hands the decoded pixels to Vision through
+  PyObjC (already a dependency, as in `facetrack`). The alpha is Vision's `generateScaledMaskForImage` of all instances
+  at the source size (a soft float mask, not a low-res mask stretched).
+- rembg + u2net runs only when Vision is not available (not macOS, no PyObjC Vision, macOS 13, a failing request) or
+  finds no subject. `modelPath` is optional; without it the fallback fails with the existing tool code `MODEL_MISSING`.
+  A `modelPath` that is given is always checked (name, SHA-256), as before.
+- Result contract unchanged (`{ output, width, height, coverage }`, RGBA PNG) plus optional `engine: "vision" | "rembg"`.
+- Engine: the job runs the tool without a model. Only on `PY_TOOL_FAILED` with `toolCode: MODEL_MISSING` does it fetch
+  u2net (same SHA pin, `ensureModel`) and run the tool once more with `modelPath`; any other error, or a second
+  failure, is the job's error. No new error code: the first run never sends a `modelPath`, so `MODEL_MISSING` there can
+  only mean "the fallback needs the model".
+- `vox doctor` reports `model-cutout`: missing is `ok` ("fetched on demand ... only when Apple Vision finds no
+  subject"), a damaged file is a warning (the next fallback fetches it again).
+- Live check (temp tools folder with no u2net, `vox assets cutout` on `face-a.jpg` and a 1920×1080 talking-head
+  frame): no download, RGBA PNGs at source size, coverage 0.6192 and 0.2044; the tool process (uv start, imports,
+  Vision) took 1.6-2.5 s, Vision itself 45-425 ms after its first call in a process (first call 0.4-1.4 s).
+**Why**: 6-13× faster on the measured images, no 176 MB download for the common case, cleaner edges. Keeping rembg as the
+fallback keeps cutouts working where Vision cannot help (no salient subject, older systems) without changing callers.
+**Alternatives**: a Swift command in `vox-apple-llm` (D-16 single helper) — PyObjC already reaches Vision from the
+existing tool with no new binary or IPC, and the helper stays optional (`dist:no-apple`); a new error code for "fetch
+then retry" (codes are a frozen list and `MODEL_MISSING` is unambiguous on the first run); fetching u2net at setup (176
+MB that most users never need).
 
 ## D-74 · 2026-10-12 · feat/apple-vision-input · The Apple on-device model fills the `vision` role on macOS 27
 **Context**: on macOS 27, Foundation Models' on-device `SystemLanguageModel` accepts images (`Attachment(imageURL:)` in a `Prompt`, gated by `capabilities.contains(.vision)`). On the dev Mac (macOS 27.0.1, SDK 27.0) it reports vision and an 8,192-token context and describes a 1080p frame in about 2–3.5 s for about 220 input tokens. Until now `roles.ts` refused `apple` for `vision`, so frame descriptions (`view_frames`, `view_media` when the editor cannot see) always needed a paid or Ollama model.
