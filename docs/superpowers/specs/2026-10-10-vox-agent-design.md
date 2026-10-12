@@ -84,15 +84,21 @@ subscription may be used through a gateway is set by that service's terms, not b
   `maxLength`, `oneOf`, `$ref`) are dropped, and the output still passes zod before use.
   `usage` is estimated from the text when the framework reports no token counts.
   `vox-apple-llm --status` prints availability (`ready`, `notEnabled`, `notEligible`,
-  `modelNotReady`, `unsupportedOS`) and the context size.
+  `modelNotReady`, `unsupportedOS`), the context size and `vision` (image input, D-74).
+  On macOS 27 the model accepts images: a user message may carry `images`, absolute paths
+  of image files that `apple.ts` writes to a private temp dir and deletes after the answer
+  (at most 16 per request). Without the `vision` capability such a request gets
+  `visionUnavailable`.
   Exact line shapes (optional echoed `id`, error line and codes, usage fields, `\n`-only
   line splitting, the JSON Schema subset): D-22; the zod schemas in
   `packages/agent/src/providers/apple-protocol.ts` are the contract.
 - The helper exposes no tool calls, so the agent uses it in plan mode, and the probe
   decides its roles. With its context of 4k tokens (8k on macOS 27, D-22) it usually only passes the
   `fast` role (scoring quick-clip candidates, image queries); it can fill `editor` only if
-  it passes the probe. Cost is 0.
-- The helper never reads files or the network; it gets only the request text.
+  it passes the probe. On macOS 27 it can also fill `vision` when the vision probe passes
+  (D-74); before that the probe fails `vision` without sending an image. Cost is 0.
+- The helper never uses the network; the only files it reads are the image files a request
+  names.
 
 ### Model roles
 

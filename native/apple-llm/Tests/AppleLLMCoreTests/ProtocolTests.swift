@@ -52,6 +52,13 @@ struct ProtocolTests {
       #"{"id":"x","system":"s","messages":[{"role":"user","content":"a"}],"schema":null,"maxTokens":8,"temperature":0}"#,
       #"{"id":"x","system":"s","messages":{"role":"user","content":"a"},"maxTokens":8,"temperature":0}"#,
       #"{"id":"x","system":"s","messages":[{"role":"user","content":"a"}],"maxTokens":8,"temperature":"0"}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"assistant","content":"a","images":["/a.png"]},{"role":"user","content":"b"}],"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a","images":[]}],"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a","images":["a.png"]}],"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a","images":[1]}],"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a","images":"/a.png"}],"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a","images":["/1","/2","/3","/4","/5","/6","/7","/8","/9","/10","/11","/12","/13","/14","/15","/16","/17"]}],"maxTokens":8,"temperature":0}"#,
+      #"{"id":"x","system":"s","messages":[{"role":"user","content":"a","images":["/1","/2","/3","/4","/5","/6","/7","/8","/9"]},{"role":"assistant","content":"b"},{"role":"user","content":"c","images":["/1","/2","/3","/4","/5","/6","/7","/8"]}],"maxTokens":8,"temperature":0}"#,
     ])
   func rejects(_ line: String) {
     guard case .failure(let failure) = Request.parse(line: line) else {
@@ -75,7 +82,12 @@ struct ProtocolTests {
     #expect(
       encodeError(id: "r2", code: .contextOverflow, message: "too long")
         == #"{"id":"r2","error":{"code":"contextOverflow","message":"too long"}}"#)
-    #expect(encodeStatus(.ready, contextSize: 4096) == #"{"status":"ready","contextSize":4096}"#)
+    #expect(
+      encodeStatus(.ready, contextSize: 4096, vision: false)
+        == #"{"status":"ready","contextSize":4096,"vision":false}"#)
+    #expect(
+      encodeStatus(.ready, contextSize: 8192, vision: true)
+        == #"{"status":"ready","contextSize":8192,"vision":true}"#)
   }
 
   @Test("status and error code names match the agent spec and the TS schemas")
@@ -87,6 +99,7 @@ struct ProtocolTests {
     #expect(
       ErrorCode.allCases.map(\.rawValue) == [
         "badRequest", "unavailable", "contextOverflow", "guardrail", "generation",
+        "visionUnavailable",
       ])
   }
 
@@ -123,5 +136,17 @@ struct ProtocolTests {
     let r = try Request.parse(line: minimal).get()
     #expect(r.maxTokens(cappedAt: 4096) == 64)
     #expect(r.maxTokens(cappedAt: 32) == 32)
+  }
+
+  @Test("user messages may carry absolute image paths (D-74), kept in order")
+  func images() throws {
+    let line =
+      #"{"system":"","messages":[{"role":"user","content":"a","images":["/t/1.png"]},{"role":"assistant","content":"b"},{"role":"user","content":"c","images":["/t/2.png","/t/3.png"]}],"maxTokens":8,"temperature":0}"#
+    let r = try Request.parse(line: line).get()
+    #expect(r.messages[0].images == ["/t/1.png"])
+    #expect(r.messages[1].images.isEmpty)
+    #expect(r.imagePaths == ["/t/1.png", "/t/2.png", "/t/3.png"])
+    #expect(r.prompt == "c")
+    #expect(try Request.parse(line: minimal).get().imagePaths.isEmpty)
   }
 }

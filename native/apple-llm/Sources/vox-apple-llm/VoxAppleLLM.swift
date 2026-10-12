@@ -1,6 +1,7 @@
 // vox-apple-llm: Apple on-device Foundation Models over JSON lines (agent spec
 // "Apple on-device model"). Reads one request per stdin line and writes one answer per stdout
-// line, in order. Opens no files and no network connections: it only sees the request text.
+// line, in order. Opens no network connections. The only files it reads are the image files a
+// request names (D-74); it writes none.
 import AppleLLMCore
 import Foundation
 
@@ -9,8 +10,8 @@ enum VoxAppleLLM {
   static func main() async {
     switch Command.parse(Array(CommandLine.arguments.dropFirst())) {
     case .status:
-      let (status, contextSize) = Model.status()
-      writeLine(encodeStatus(status, contextSize: contextSize))
+      let info = Model.info()
+      writeLine(encodeStatus(info.status, contextSize: info.contextSize, vision: info.vision))
       exit(0)
     case .help:
       FileHandle.standardOutput.write(Data(Command.usage.utf8))
@@ -38,13 +39,14 @@ enum VoxAppleLLM {
     case .failure(let f): return encodeError(id: f.id, code: .badRequest, message: f.message)
     case .success(let r): request = r
     }
-    let (status, _) = Model.status()
-    guard status == .ready else {
+    let info = Model.info()
+    guard info.status == .ready else {
       return encodeError(
-        id: request.id, code: .unavailable, message: "Apple on-device model: \(status.rawValue)")
+        id: request.id, code: .unavailable,
+        message: "Apple on-device model: \(info.status.rawValue)")
     }
     if #available(macOS 26, *) {
-      return await Generator.respond(to: request)
+      return await Generator.respond(to: request, model: info)
     }
     return encodeError(
       id: request.id, code: .unavailable, message: "Apple on-device model: unsupportedOS")

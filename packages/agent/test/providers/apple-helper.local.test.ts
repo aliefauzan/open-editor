@@ -1,6 +1,7 @@
 // Real `vox-apple-llm` build and smoke test (local tier: never on CI, R3/D-16). Builds the Swift
 // helper in release mode, checks it against the same zod protocol schemas as the fake, and runs
-// one short text request and one schema request when Apple Intelligence is ready.
+// one short text request and one schema request when Apple Intelligence is ready, and one image
+// description when the model reports vision (macOS 27, D-74).
 // Skipped with the reason on a Mac without a macOS 26+ SDK or on another OS.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -20,6 +21,7 @@ import { runOnce, startSession, type Session } from '../helpers/apple-helper-pro
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const PKG = join(ROOT, 'native', 'apple-llm');
+const FACE = join(ROOT, 'packages', 'engine', 'test', 'fixtures', 'assets', 'faces', 'face-a.jpg');
 const BUILD_TIMEOUT = 900_000;
 
 function run(command: string, args: string[]) {
@@ -113,6 +115,8 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
     if (Number.isNaN(macosMajor)) return; // sw_vers gave no version: nothing to compare
     if (macosMajor >= 26) expect(status.status).not.toBe('unsupportedOS');
     else expect(status.status).toBe('unsupportedOS');
+    expect(typeof status.vision).toBe('boolean');
+    if (macosMajor < 27) expect(status.vision).toBe(false);
   });
 
   test('an unknown flag exits 2 with usage on stderr', async () => {
@@ -193,6 +197,43 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
     expect(res.id).toBe('j1');
     expect(Answer.safeParse(res.json).success).toBe(true);
   }, 180_000);
+
+  test('one image description from a real file (D-74)', async (ctx) => {
+    ctx.skip(status?.status !== 'ready', `Apple Intelligence status: ${status?.status}`);
+    ctx.skip(status?.vision !== true, 'the model reports no vision (needs macOS 27)');
+    const started = Date.now();
+    const res = await exchange(
+      encodeAppleRequest({
+        id: 'img1',
+        system: 'Describe video frames for an editor in one short line.',
+        messages: [{ role: 'user', content: 'Describe this frame.', images: [FACE] }],
+        maxTokens: 120,
+        temperature: 0,
+      }),
+    );
+    if (!('text' in res)) throw new Error(`expected a text answer, got ${JSON.stringify(res)}`);
+    console.info(`vox-apple-llm image (${String(Date.now() - started)} ms): ${res.text}`);
+    expect(res.id).toBe('img1');
+    expect(res.text.trim().length).toBeGreaterThan(0);
+    expect(res.usage.inputTokens).toBeGreaterThan(0);
+  }, 180_000);
+
+  test('an image file that does not exist gets badRequest', async (ctx) => {
+    ctx.skip(status?.status !== 'ready', `Apple Intelligence status: ${status?.status}`);
+    const res = await exchange(
+      encodeAppleRequest({
+        id: 'img2',
+        system: '',
+        messages: [{ role: 'user', content: 'x', images: [join(PKG, 'no-such-image.png')] }],
+        maxTokens: 8,
+        temperature: 0,
+      }),
+    );
+    expect(res).toMatchObject({
+      id: 'img2',
+      error: { code: status?.vision === true ? 'badRequest' : 'visionUnavailable' },
+    });
+  });
 
   test('when the model is not ready, a request gets `unavailable`', async (ctx) => {
     ctx.skip(status?.status === 'ready', 'model is ready on this Mac (the fake covers this case)');
