@@ -29,6 +29,7 @@ import {
   VoxError,
   type Actor,
   type ApplyResult,
+  type DoctorCheck,
   type Engine,
   type EngineOptions,
   type HighlightsJobResult,
@@ -40,6 +41,7 @@ import {
 import { appleHelper, configCommand, ConfigUsageError, type AgentCliDeps } from './config.ts';
 import { agentCommand, AgentUsageError } from './agent.ts';
 import { styleExtractCommand, StyleExtractUsageError } from './style-extract.ts';
+import { APPLE_HELPER_BUILD, appleHelperFreshness, checkoutTools } from './dev-tools.ts';
 
 export interface Io {
   stdout: (s: string) => void;
@@ -424,6 +426,41 @@ function appleHelperFor(io: Io): Pick<EngineOptions, 'appleHelper'> | undefined 
   };
 }
 
+/**
+ * The dev Apple helper against the checkout's Swift sources (D-87): a check for `vox doctor`, absent
+ * in the bundled CLI, without a helper, or with a test stand-in.
+ */
+function appleHelperCheck(io: Io): DoctorCheck | undefined {
+  if (io.resources !== undefined || (io.agent && 'apple' in io.agent)) return undefined;
+  const command = appleHelper(io)?.command;
+  const f = command === undefined ? undefined : appleHelperFreshness(command);
+  if (command === undefined || f === undefined) return undefined;
+  return f.stale
+    ? {
+        name: 'apple-helper',
+        level: 'warn',
+        detail: `the Apple helper was built before the last change to native/apple-llm (built ${new Date(f.helperMs).toISOString()}, sources ${new Date(f.sourcesMs).toISOString()})`,
+        path: command,
+        fix: `rebuild it in this checkout: ${APPLE_HELPER_BUILD}`,
+      }
+    : {
+        name: 'apple-helper',
+        level: 'ok',
+        detail: 'built after the last change to native/apple-llm',
+        path: command,
+      };
+}
+
+let appleWarned = false;
+/** One stderr line per process when the dev Apple helper is older than the checkout's sources. */
+function warnStaleAppleHelper(io: Io): void {
+  if (appleWarned) return;
+  const c = appleHelperCheck(io);
+  if (c?.level !== 'warn') return;
+  appleWarned = true;
+  io.stderr(`vox: ${c.detail}; ${c.fix ?? ''}\n`);
+}
+
 async function engineFor(values: Parsed['values'], io: Io): Promise<Engine> {
   const flag = values['projects-dir'];
   const config = () => readConfig(io.env);
@@ -434,10 +471,17 @@ async function engineFor(values: Parsed['values'], io: Io): Promise<Engine> {
     home: io.env['HOME'],
     cwd: io.cwd,
   });
+  const tools = toolPathsFor(io);
+  warnStaleAppleHelper(io);
   return openEngine({
     projectsDir: dir,
     stylesDirs: stylesDirs(io),
-    tools: toolPathsFor(io),
+    // a checkout never runs a tools folder env built from other sources (D-87); injected tools are
+    // the tests' own
+    tools:
+      io.resources === undefined && io.engine?.tools === undefined
+        ? await checkoutTools(io, tools)
+        : tools,
     trustFile: join(voxHomeOf(io), 'trust.json'),
     config,
     // video highlights (D-75) and sound tags (D-83) run the Apple helper when there is one
@@ -783,6 +827,8 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         if (answer !== '') await writeConfig({ contact: answer }, io.env);
       }
       const report = await e.doctor(values['quick'] === true ? { quick: true } : {});
+      const apple = appleHelperCheck(io);
+      if (apple) report.checks.push(apple);
       let project: unknown;
       if (positionals[0] !== undefined) {
         const id = await resolveProject(e, positionals[0]);
