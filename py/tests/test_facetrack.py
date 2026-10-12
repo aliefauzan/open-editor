@@ -1,6 +1,8 @@
-"""facetrack: MediaPipe faces + Apple Vision body and saliency boxes at 12 fps on 360p (D-15)."""
+"""facetrack: Apple Vision faces (D-82; MediaPipe BlazeFace as the fallback) + Vision body and
+saliency boxes at 12 fps on 360p (D-15)."""
 
 import os
+import sys
 import threading
 from pathlib import Path
 
@@ -9,6 +11,8 @@ import pytest
 from conftest import PY_ROOT, fixture_file, run_tool, stderr_error, validate
 
 from vox_py import _tool, facetrack
+
+darwin_only = pytest.mark.skipif(sys.platform != "darwin", reason="Apple Vision is macOS only")
 
 MODEL_CACHE = Path(os.environ.get("VOX_TEST_MODELS_DIR", PY_ROOT / "cache" / "models"))
 
@@ -90,7 +94,8 @@ def test_vision_finds_a_saliency_box_on_a_synthetic_frame():
     # A bright square on grey is the salient object.
     frame = np.full((360, 640, 3), 60, dtype=np.uint8)
     frame[150:230, 420:500] = (255, 230, 0)
-    bodies, saliency = facetrack.vision_detect(frame)
+    faces, bodies, saliency = facetrack.vision_detect(frame)
+    assert faces == []
     assert bodies == []
     assert saliency is not None
     cx, cy = 460 / 640, 190 / 360
@@ -98,11 +103,146 @@ def test_vision_finds_a_saliency_box_on_a_synthetic_frame():
     assert saliency["y"] <= cy <= saliency["y"] + saliency["h"]
 
 
+# ---- Vision first, BlazeFace per frame as the fallback (D-82; fast tier, fake detectors) ----
+
+
+def fake_detector(monkeypatch, vision_faces, vision=True):
+    """A Detector whose Vision and BlazeFace answers are canned; records the BlazeFace calls."""
+    calls = []
+
+    def fake_vision(frame, min_score):
+        out = vision_faces(int(frame[0, 0, 0]))
+        if isinstance(out, Exception):
+            raise out
+        return out, [box(0.1, 0.1, 0.5, 0.8)], box(0.2, 0.2, 0.3, 0.3)
+
+    monkeypatch.setattr(facetrack, "vision_detect", fake_vision)
+    detect = facetrack.Detector(Path("unused.tflite"), 0.5, vision=vision)
+
+    def fake_blazeface(frame):
+        calls.append(int(frame[0, 0, 0]))
+        return [box(0.6, 0.2, 0.1, 0.2, 0.7)]
+
+    monkeypatch.setattr(detect, "faces", fake_blazeface)
+    return detect, calls
+
+
+def frame_no(i):
+    return np.full((4, 4, 3), i, dtype=np.uint8)
+
+
+def test_vision_faces_are_used_and_blazeface_does_not_run(monkeypatch):
+    detect, calls = fake_detector(monkeypatch, lambda i: [box(0.4, 0.2, 0.1, 0.2, 0.9)])
+    faces, bodies, saliency, fell_back = detect.detect(frame_no(1))
+    assert faces == [box(0.4, 0.2, 0.1, 0.2, 0.9)]
+    assert bodies and saliency is not None
+    assert fell_back is False and calls == []
+
+
+def test_blazeface_runs_only_on_a_frame_where_vision_finds_no_face(monkeypatch):
+    detect, calls = fake_detector(monkeypatch, lambda i: [] if i % 2 else [box(0.4, 0.2, 0.1, 0.2)])
+    out = [detect.detect(frame_no(i)) for i in range(6)]
+    assert calls == [1, 3, 5]
+    assert [o[3] for o in out] == [False, True, False, True, False, True]
+    # the fallback frame keeps Vision's bodies and saliency
+    assert out[1][0] == [box(0.6, 0.2, 0.1, 0.2, 0.7)] and out[1][1] and out[1][2] is not None
+
+
+def test_without_vision_blazeface_finds_every_frame_and_bodies_are_empty(monkeypatch):
+    detect, calls = fake_detector(monkeypatch, lambda i: [box(0.4, 0.2, 0.1, 0.2)], vision=False)
+    assert detect.detect(frame_no(7)) == ([box(0.6, 0.2, 0.1, 0.2, 0.7)], [], None, True)
+    assert calls == [7]
+
+
+def test_a_vision_failure_on_the_first_frame_turns_vision_off(monkeypatch):
+    failed = _tool.ToolError("VISION_FAILED", "Could not create inference context")
+    detect, calls = fake_detector(monkeypatch, lambda i: failed)
+    assert facetrack.first_frame(detect, frame_no(2))[3] is True
+    assert detect.vision is False and calls == [2]
+    # any other error is still an error
+    detect, _ = fake_detector(monkeypatch, lambda i: _tool.ToolError("TOOL_FAILED", "x"))
+    with pytest.raises(_tool.ToolError):
+        facetrack.first_frame(detect, frame_no(2))
+
+
+def test_detector_version_is_2():
+    # The engine's DETECTOR_VERSION (stages/facetrack.ts) must match: it re-detects other versions.
+    assert facetrack.DETECTOR_VERSION == 2
+
+
 # ---- real models on generated fixtures (local tier) ----
 
 
+@darwin_only
 @pytest.mark.local
-def test_mediapipe_finds_both_faces_on_face_2people(face_model):
+def test_vision_finds_both_faces_on_face_2people_without_the_fallback(face_model):
+    code, result, stderr = run_tool(
+        "facetrack",
+        {"videoPath": str(fixture_file("face-2people.mp4")), "faceModelPath": str(face_model)},
+    )
+    assert code == 0, stderr
+    validate("facetrack.result.json", result)
+    assert result["detector"] == {"version": 2, "faces": "vision", "fallbackSamples": 0}
+    samples = result["samples"]
+    assert all(len(s["faces"]) == 2 for s in samples), [len(s["faces"]) for s in samples]
+    for s in samples:
+        left, right = sorted(s["faces"], key=lambda f: f["x"])
+        assert left["w"] * left["h"] > 2 * right["w"] * right["h"]  # the 30 px face, no tiles
+        assert all(0.5 <= f["score"] <= 1 for f in s["faces"])
+
+
+@darwin_only
+@pytest.mark.local
+def test_vision_faces_on_the_talking_head_match_blazeface(face_model, monkeypatch):
+    request = {
+        "videoPath": str(
+            PY_ROOT.parent / "packages/engine/test/fixtures/assets/media/talking-head-20s.mp4"
+        ),
+        "faceModelPath": str(face_model),
+    }
+    new = facetrack.handle(dict(request))
+    assert new["detector"]["faces"] == "vision" and new["detector"]["fallbackSamples"] == 0
+    monkeypatch.setattr(facetrack, "vision_available", lambda: False)
+    old = facetrack.handle(dict(request))
+    assert old["detector"] == {"version": 2, "faces": "blazeface", "fallbackSamples": 240}
+    assert all(s["bodies"] == [] and s["saliency"] is None for s in old["samples"])
+    # one face per sample from both; Vision's box covers the same face (A/B in D-82)
+    for a, b in zip(old["samples"], new["samples"], strict=True):
+        assert len(a["faces"]) == len(b["faces"]) == 1
+        fa, fb = a["faces"][0], b["faces"][0]
+        inter = max(0, min(fa["x"] + fa["w"], fb["x"] + fb["w"]) - max(fa["x"], fb["x"])) * max(
+            0, min(fa["y"] + fa["h"], fb["y"] + fb["h"]) - max(fa["y"], fb["y"])
+        )
+        assert inter / (fa["w"] * fa["h"] + fb["w"] * fb["h"] - inter) > 0.5
+        assert abs((fa["x"] + fa["w"] / 2) - (fb["x"] + fb["w"] / 2)) < 0.05
+
+
+@pytest.mark.local
+def test_cuts_2shot_blazeface_runs_only_on_the_no_face_shot(face_model):
+    code, result, stderr = run_tool(
+        "facetrack",
+        {"videoPath": str(fixture_file("cuts-2shot.mp4")), "faceModelPath": str(face_model)},
+    )
+    assert code == 0, stderr
+    no_face = [s for s in result["samples"] if not s["faces"]]
+    assert result["detector"]["faces"] == "vision"
+    assert result["detector"]["fallbackSamples"] == len(no_face) > 0
+
+
+@pytest.mark.local
+def test_blazeface_fallback_with_tiles_finds_both_faces_on_face_2people(face_model, monkeypatch):
+    # Without Vision (D-82 fallback) the D-21 tiles still find the 30 px face.
+    monkeypatch.setattr(facetrack, "vision_available", lambda: False)
+    request = {"videoPath": str(fixture_file("face-2people.mp4")), "faceModelPath": str(face_model)}
+    result = facetrack.handle(request)
+    validate("facetrack.result.json", result)
+    assert result["detector"]["faces"] == "blazeface"
+    two = [s for s in result["samples"] if len(s["faces"]) == 2]
+    assert len(two) >= 0.9 * len(result["samples"])
+
+
+@pytest.mark.local
+def test_finds_both_faces_on_face_2people(face_model):
     video = fixture_file("face-2people.mp4")
     request = {"videoPath": str(video), "faceModelPath": str(face_model)}
     validate("facetrack.request.json", request)
@@ -111,6 +251,7 @@ def test_mediapipe_finds_both_faces_on_face_2people(face_model):
     validate("facetrack.result.json", result)
     assert result["sampleFps"] == 12 and result["height"] == 360 and result["width"] == 640
     assert result["faceModel"]["sha256"] == facetrack.FACE_MODEL_SHA256
+    assert result["detector"]["version"] == facetrack.DETECTOR_VERSION
     samples = result["samples"]
     assert 58 <= len(samples) <= 61  # 5 s at 12 fps
     assert [s["atMs"] for s in samples[:3]] == [0, 83, 167]
