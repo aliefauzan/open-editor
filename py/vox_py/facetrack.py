@@ -67,11 +67,13 @@ DEFAULT_MIN_FACE_SCORE = 0.5
 DETECTOR_VERSION = 2
 # Vision face rectangles revision: 3 on macOS 14+; older systems use their default.
 VISION_FACE_REVISION = 3
-# Threads: the performance cores of an M-series Mac (the BlazeFace fallback is CPU work); 1 runs
-# every frame on the calling thread.
+# Half the cores, at most 4 (the BlazeFace fallback is CPU work); 1 runs every frame on the
+# calling thread, any other value runs frames on VISION_WORKERS threads.
 WORKERS = max(1, min(4, (os.cpu_count() or 1) // 2))
-# Frame threads when WORKERS > 1: Vision mostly waits on the Neural Engine; 3 keeps it busy (measured).
-VISION_WORKERS = 3
+# Frame threads: each mostly waits on Vision (Neural Engine). On 1440 frames of the test video's
+# proxy (Apple M5): 4 threads 6.6-7.5 s, 6 threads 5.9-6.1 s, 8 threads 5.4-5.8 s, against
+# 9.5-9.6 s for BlazeFace + Vision before D-82. 6 leaves room for the stages beside facetrack.
+VISION_WORKERS = 6
 SAME_FACE_IOU = 0.3
 SAME_FACE_INSIDE = 0.6
 
@@ -554,7 +556,7 @@ def handle(raw: dict) -> dict:
         if first is not None:
             head = first_frame(detect, first)
             # One worker runs every frame on this thread.
-            workers = max(VISION_WORKERS, WORKERS) if WORKERS > 1 else 1
+            workers = VISION_WORKERS if WORKERS > 1 else 1
             rest = ordered_run(source, [(detect.detect, workers)])
             results = itertools.chain([(head,)], rest)
         for i, ((faces, bodies, saliency, blazeface),) in enumerate(results):
