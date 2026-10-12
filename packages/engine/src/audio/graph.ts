@@ -12,7 +12,15 @@
 // final `amix`, so it ducks level-matched sources. Speech and SFX are never ducked; with no speech clip
 // the flag does nothing. The stems keep the same ducking, so `other` is what the mix hears.
 import { execFile } from 'node:child_process';
-import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, rmSync } from 'node:fs';
+import {
+  closeSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  readSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
