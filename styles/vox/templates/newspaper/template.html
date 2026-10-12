@@ -275,20 +275,66 @@
             var random = rng(hash(String(id)));
             var step = hold / fps;
 
-            // An ease whose progress only changes every `hold` frames (animation "on twos").
-            function held(ease, duration) {
+            // An ease whose progress only changes every `hold` frames (animation "on twos"); `by` overrides
+            // the style's hold.
+            function held(ease, duration, by) {
+              var h = by || hold;
               var base = gsap.parseEase(ease) || gsap.parseEase('none');
-              var n = Math.max(1, Math.round((duration * fps) / hold));
-              if (hold === 1) return base;
+              var n = Math.max(1, Math.round((duration * fps) / h));
+              if (h === 1) return base;
               return function (p) {
                 return p >= 1 ? 1 : base(Math.floor(p * n) / n);
               };
             }
 
+            // How far a piece moves to sit just outside the frame on `side` (0 left, 1 right, 2 top,
+            // 3 bottom), in the piece's own px; without layout (a stub DOM) a fixed 1200 px.
+            function offFrame(el, side) {
+              var far = 1200;
+              if (el.getBoundingClientRect && root.getBoundingClientRect) {
+                var r = el.getBoundingClientRect();
+                var f = root.getBoundingClientRect();
+                var k = root.offsetWidth && f.width ? root.offsetWidth / f.width : 1;
+                far =
+                  [r.right - f.left, f.right - r.left, r.bottom - f.top, f.bottom - r.top][side] *
+                    k +
+                  24;
+              }
+              return {
+                x: side === 0 ? -far : side === 1 ? far : 0,
+                y: side === 2 ? -far : side === 3 ? far : 0,
+              };
+            }
+
+            // assemble(tl, el, at, d): a flat pre-cut paper piece pushed in from outside the frame on a seeded
+            // side, turned a little and settling just off true, held on at least twos (paper-cut stop motion,
+            // D-101). No opacity change: a piece is never drawn in place.
+            function assemble(tl, el, at, d) {
+              var side = Math.floor(random() * 4);
+              var off = offFrame(el, side);
+              var r0 = Number(gsap.getProperty(el, 'rotation')) || 0;
+              var turn = (random() * 2 - 1) * 9;
+              var rest = r0 + (random() * 2 - 1) * 1.2;
+              var by = Math.max(2, hold);
+              tl.fromTo(
+                el,
+                { x: off.x, y: off.y, rotation: r0 + turn },
+                { x: 0, y: 0, rotation: rest, duration: d, ease: held(easing, d, by) },
+                at,
+              );
+              // one late nudge: the piece is pressed into place a frame-hold after it lands
+              tl.set(el, { rotation: r0 + (rest - r0) * 0.5 }, at + d + by / fps);
+            }
+
             // pop(tl, el, at, d?): the style entrance. `pop` scales up from 0.6 with the style easing,
-            // held on twos; unknown entrances fall back to `fade` (styles spec "Tokens").
+            // held on twos; `assemble` pushes the piece in from outside the frame (D-101); unknown entrances
+            // fall back to `fade` (styles spec "Tokens").
             function pop(tl, el, at, d) {
               var dur = d || 0.4;
+              if (entrance === 'assemble') {
+                assemble(tl, el, at, dur);
+                return at + dur;
+              }
               if (entrance === 'pop') {
                 tl.fromTo(
                   el,
@@ -352,6 +398,7 @@
               random: random,
               held: held,
               pop: pop,
+              assemble: assemble,
               slideIn: slideIn,
               jitter: jitter,
               pushIn: pushIn,

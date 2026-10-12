@@ -32,7 +32,7 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 
 interface Helpers {
-  held(ease: string, duration: number): (p: number) => number;
+  held(ease: string, duration: number, by?: number): (p: number) => number;
   pop(tl: unknown, el: object, at: number, d?: number): number;
   hold: number;
   step: number;
@@ -90,5 +90,33 @@ describe('motion.js', () => {
     expect(run('scene-b')).not.toEqual(a);
     for (const x of a) expect(Math.abs(parseFloat(x))).toBeLessThanOrEqual(2);
     expect(parseFloat(a[15]!)).toBe(0);
+  });
+  test('assemble pushes a piece in from outside the frame on held frames, never fading (D-101)', () => {
+    const tok = { ...TOK, '--tok-motion-entrance': 'assemble', '--tok-motion-frame-hold': '1' };
+    const run = (id: string) => {
+      const { gsap, m } = load(tok, id);
+      const el: Record<string, unknown> = { x: 0, y: 0, rotation: 0, opacity: 1 };
+      const tl = gsap.timeline({ paused: true });
+      expect(m.pop(tl, el, 0, 0.4)).toBeCloseTo(0.4);
+      const frames: [number, number, number, number][] = [];
+      for (let f = 0; f <= 20; f++) {
+        tl.seek(f / 30);
+        frames.push([f, Number(el['x']), Number(el['y']), Number(el['rotation'])]);
+      }
+      expect(el['opacity']).toBe(1);
+      return frames;
+    };
+    const a = run('scene-a');
+    expect(run('scene-a')).toEqual(a);
+    // frame 0: 1200 px off on one side
+    expect(Math.max(Math.abs(a[0]![1]), Math.abs(a[0]![2]))).toBe(1200);
+    // held on twos even with a style hold of 1: frames 1 and 2 show the same place
+    expect(a[2]!.slice(1, 3)).toEqual(a[3]!.slice(1, 3));
+    // landed at rest, turned at most 1.2 degrees off
+    expect(a[20]![1]).toBe(0);
+    expect(a[20]![2]).toBe(0);
+    expect(Math.abs(a[20]![3])).toBeLessThanOrEqual(1.2);
+    // another instance takes another side or turn
+    expect(run('scene-b')).not.toEqual(a);
   });
 });

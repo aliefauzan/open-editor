@@ -72,14 +72,18 @@ const reply = {
   ],
 };
 
-function engine(config: Record<string, unknown> = {}, calls: string[] = []): Engine {
+function engine(
+  config: Record<string, unknown> = {},
+  calls: string[] = [],
+  stylesDirs: string[] = [],
+): Engine {
   const getJson: GetJson = async (url, headers) => {
     calls.push(`${new URL(url).host} ${headers['user-agent']}`);
     return new URL(url).host === 'api.openverse.org' ? reply : { batchcomplete: true };
   };
   return openEngine({
     projectsDir: join(tempDir('vox-assets-jobs-'), 'Projects'),
-    stylesDirs: [],
+    stylesDirs,
     templates,
     config: async () => config,
     net: { resolver, dial },
@@ -352,6 +356,35 @@ describe('image providers', () => {
     expect((await e.history(p.id)).filter((x) => x.jobId === r.id)).toHaveLength(1);
     const bad = await run(e, 'assets.generate', { projectId: p.id, prompt: 'x', provider: 'nope' });
     expect(bad.error?.code).toBe('NOT_FOUND');
+  });
+
+  test("a prompt that names a style ends with the style's look (D-101)", async () => {
+    const styles = new URL('../../../../styles', import.meta.url).pathname;
+    const e = engine({}, [], [styles]);
+    const seen: string[] = [];
+    const out = tempDir('vox-gen-style-');
+    e.imageProviders.register({
+      id: 'fake-gen',
+      async generate(req) {
+        seen.push(req.prompt);
+        const f = join(out, `gen-${String(seen.length)}.jpg`);
+        await copyFile(FACE, f);
+        return f;
+      },
+    });
+    const p = await e.createProject('gen');
+    const vox = e.styles.get('vox').style.imagery.generateSuffix;
+    expect(vox).toMatch(/^Torn paper collage/);
+    const r = await run<{ mediaId: string }>(e, 'assets.generate', {
+      projectId: p.id,
+      prompt: 'a market stall.',
+      styleId: 'vox',
+    });
+    expect(r.status, JSON.stringify(r.error)).toBe('done');
+    await run(e, 'assets.generate', { projectId: p.id, prompt: 'a tram', styleId: 'nope' });
+    expect(seen).toEqual([`a market stall. ${vox}`, 'a tram']);
+    const m = (await e.getProject(p.id)).media.find((x) => x.id === r.result?.mediaId);
+    expect(m?.origin).toMatchObject({ prompt: `a market stall. ${vox}` });
   });
 
   test('a provider that returns a relative path fails TOOL_FAILED', async () => {

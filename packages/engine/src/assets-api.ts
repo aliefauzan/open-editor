@@ -156,6 +156,8 @@ export interface AssetsApiDeps extends MediaApiDeps {
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   /** Test seam: the cutout fallback model (default CUTOUT_MODEL). */
   cutoutModel?: ModelSpec;
+  /** A style's `imagery.generateSuffix` (styles spec), appended to prompts that name the style. */
+  generateSuffix?: (styleId: string) => string | undefined;
 }
 
 const noProvider = (): VoxError =>
@@ -381,9 +383,12 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
         );
       }
       ctx.progress(0.05, `generating with ${p.id}`);
+      // the style's look goes after the subject (D-101), e.g. vox's torn-paper collage
+      const suffix = args.styleId ? deps.generateSuffix?.(args.styleId)?.trim() : undefined;
+      const prompt = suffix ? `${args.prompt.replace(/[\s.]+$/u, '')}. ${suffix}` : args.prompt;
       const file = await p.generate(
         {
-          prompt: args.prompt,
+          prompt,
           width: args.width,
           height: args.height,
           ...(args.seed !== undefined ? { seed: args.seed } : {}),
@@ -403,7 +408,7 @@ export function registerAssetJobs(runner: JobRunner, deps: AssetsApiDeps): void 
         await copyFile(file, tmp);
         const r = await addOne(args, ctx, tmp, {
           type: 'generated',
-          prompt: args.prompt,
+          prompt,
           author: p.id,
         });
         return { ...r, provider: p.id };

@@ -7,6 +7,8 @@
 // (d) variables that do not fit their template lose the offending keys, not the whole scene.
 // (e) D-95, the final demo run: a collage planned with `items: []` and only a label cannot fit its
 // template (at least one item); it turns text-led with its label, not a placeholder.
+// (f) D-101: with a local image model, a collage the archive cannot fill gets pictures generated in
+// the style's look (two per beat), not stills of the speaker or a text card.
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -285,5 +287,43 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
       repairs.filter((w) => w.startsWith('vox/paper-collage variables do not fit')),
     ).toHaveLength(2);
     expect(repairs.join(' ')).not.toContain('placeholder');
+  }, 120_000);
+  test('(f) archive finds nothing, an image model is installed: generated paper pictures', async () => {
+    const kit = await workflowKit();
+    kit.engine.imageProviders.register({ id: 'fake-gen', generate: async () => '/nowhere.png' });
+    const gen: string[] = [];
+    const args: Record<string, unknown>[] = [];
+    pngJob(kit, 'assets.generate', gen);
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (k, a, signal) => {
+      if (k === 'assets.generate') args.push(a);
+      return runJob(k, a, signal);
+    };
+    pngJob(kit, 'assets.cutout', []);
+    const { r, p, scenes, repairs } = await stylizePlan(
+      kit,
+      scenesStylist([
+        {
+          template: 'vox/paper-collage',
+          variables: { items: items4(), label: 'Rezeki Tak Terduga' },
+        },
+      ]),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(scenes.map((s) => s.template)).toEqual(['vox/paper-collage']);
+    // two generated pictures, square, in the sequence's style; the other two items are stills
+    expect(gen).toHaveLength(2);
+    for (const a of args) {
+      expect(a).toMatchObject({
+        prompt: 'An illustration of: Rezeki Tak Terduga',
+        styleId: 'vox',
+        width: 1024,
+        height: 1024,
+      });
+    }
+    expect(p.media.filter((m) => m.tags.includes('still'))).toHaveLength(2);
+    expect(repairs).toContain(
+      '2 picture(s) generated for "Rezeki Tak Terduga" in the style\'s look',
+    );
   }, 120_000);
 });
