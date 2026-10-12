@@ -179,6 +179,9 @@ CaptionPreset {
   behindSubject?: boolean                            // render only: on beats where the subject
                                                      // overlaps the caption, the subject is
                                                      // composited over it (D-91)
+  track?: { maxWords?: number; maxLines?: number; maxCharsPerLine?: number; autoEmphasis?: boolean }
+                                                     // taken by a sequence with the preset (D-93)
+  tiered?: boolean                                   // two-tier layout (D-93)
 }
 ```
 
@@ -189,6 +192,14 @@ CaptionPreset {
   caption, every frame of that beat gets the subject over the caption (mattes cached per
   frame in the project cache). Preview and SRT/VTT are not affected. Without Apple Vision
   the step is skipped and the captions stay in front.
+
+- **Preset settings** (additive, D-93): when `setCaptions` changes a sequence's preset, the
+  sequence takes the preset's `position` and `track` settings; fields the call gives itself
+  win. "Set as style" also sets the style's default caption preset. With `tiered: true`,
+  `deriveCaptions` lays chunks out in two tiers: auto emphasis also marks each phrase's
+  closing key word (and a number's unit word), plain words and the emphasis run count apart
+  against `maxWords`, the emphasis run takes its own line and a plain word after it starts a
+  new chunk.
 
 - **Input**: compile mounts the preset once per sequence as the captions
   sub-composition (engine "Compile") and injects the sequence's `CaptionChunk[]` (engine

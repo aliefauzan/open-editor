@@ -2396,3 +2396,32 @@ qwen3.5 did not plan a stack with a panel picture query in these runs; the panel
 **Why**: the transcript already holds the exact word times in sequence time (captions use them); matching the scene's own words is deterministic and cheap, and fixes every plan regardless of how well the model reads the transcript lines.
 **Alternatives**: a stricter prompt or a retry with the transcript times (still a guess by a weak model, more calls); snapping to sentence starts only (wrong for a phrase in the middle of a sentence); fuzzy matching with an n-gram index (not needed at clip length).
 **Open**: a scene whose text paraphrases the speech (no 60 % word match) stays where the model put it; text inside array items (collage item labels) is not read.
+
+## D-93 · 2026-10-13 · fix/r3-captions · two-tier captions: boxed key words, phrase lines, readable on light footage, preset position, measured grain
+**Context**: owner report 2026-10-12 on the round 3 clip of the demo video ("that vid still not perfect"): only the italic tier 1 showed, the boxed tier 2 never appeared; captions came one word at a time, small and low in contrast on a light wall, at 75 % instead of the preset's 50 %; heavy grain on the face. Cause of the missing box: tiers split only on engine line breaks, and with the sequence's track settings (one line, auto emphasis off) no chunk ever had an emphasis run on its own line.
+**Decision**:
+- Additive caption preset fields (styles spec "Caption presets"): `track` (maxWords, maxLines, maxCharsPerLine, autoEmphasis) and `tiered`. `setCaptions` with a new preset copies the preset's `position` and `track`; fields the call gives itself win. "Set as style for this sequence" sets the style's default caption preset in the same batch when the sequence shows captions in another preset.
+- Tiered layout (`deriveCaptions(..., { tiered })`): auto emphasis also marks each phrase's closing key word (phrase end: a pause over 300 ms, a clip change, a manual break or a clause mark; key word: 4+ letters, not an English or Indonesian function word) and a number's unit word ("80 ribu"); plain words and the emphasis run count apart against `maxWords`; the emphasis run takes its own line and a plain word after it starts a new chunk.
+- Extraction: `twoTierTrack` takes words and characters a line from the reference's caption events (90th percentile, upper-case words left out), two lines, auto emphasis on.
+- `two-tier.html`: a soft dark shade under tier 1 letters and a radial dark scrim (alpha 0.42 at the centre) behind each chunk.
+- Grain: `vox_py.grain` measures the median noise of flat mid-tone areas (8-bit levels at 720 px short side); the draft's grain token is `sigma / 9` (0 to 0.5) and the paper-grain overlay is on from 0.04; without a measurement the description is used as before.
+**Verify** (worktree): `pnpm -r typecheck` and `pnpm lint` clean; `vitest run packages/engine packages/agent apps/desktop/test/renderer` 2498 passed, 1 skipped, 3 failed (`*.local` tests without fixture outputs: `make.sh` not run in the worktree, known); `pytest py/tests/test_grain.py` 4 passed.
+**Review**: self-review (token budget, session handoff).
+**Why**: the tier split was right but nothing fed it an emphasis line; a preset that brings its own track settings and position is how a sequence gets the reference's layout without the user setting five fields.
+**Alternatives**: re-wrapping inside the preset HTML (D-91 rule: presets never re-wrap); a model picking key words (a call per chunk, not deterministic).
+**Open**: the key-word rule is a heuristic (last content word of a phrase), not the reference's own choice; styles extracted before D-93 have no `track`/`tiered` and need re-extraction.
+
+## D-94 · 2026-10-13 · fix/plan-scenes · plan mode: scene variety, pictures searched before stills, paraphrase sync, variables fitted
+**Context**: owner report 2026-10-12 on the round 3 clip: all four scenes were paper-collages of stills of the speaker; the "Kesempatan Baru" scene showed at 9-14 s but is spoken about 20 s (a paraphrase, no 60 % word match, D-92 open item); D-90 backlog "plan variables repair" (unknown keys and invalid optional values turned scenes into placeholders).
+**Decision** (`packages/agent/src/loop/plan-repair.ts`, new; `plan.ts`, `speech-sync.ts`, `workflows/stylize.md`):
+- At most two scenes of one template a clip; the others turn into the style's text-led templates with the scene's text.
+- A picture slot with no query searches the archive (Commons/Openverse via fillSlot) once per beat with a query from the scene text, else the spoken words, before stills of the source; a collage that would show more than two stills of the source turns text-led or keeps two.
+- Speech sync: a short label with no matching run matches on one rare word (7+ letters, half the label) spoken once in the clip or once near the planned time; labels inside collage items and objects are read.
+- Variables are fitted to their template before the engine check: unknown keys and invalid optional values are dropped with repair notes.
+- The plan format and the stylize prompt ask for a mix of templates and one English picture query per picture.
+**Verify** (worktree): `pnpm -r typecheck` and `pnpm lint` clean; `vitest run packages/agent packages/engine` 2485 passed, 1 skipped, 2 failed (`*.local` tests without fixture outputs, known). **Verify** (main 2710475, both merged): `pnpm -r typecheck` clean; `vitest run packages/agent packages/engine apps/desktop/test/renderer` 2522 passed, 1 skipped.
+**Live check**: the demo clip run after D-93 + D-94 (clipper `--style attention-compound-r3`); see `plan/log/phase-15.md`.
+**Review**: self-review (token budget, session handoff).
+**Why**: a weak editor repeats one template and leans on the source stills; deterministic repairs after the plan fix every run without more model calls.
+**Alternatives**: a retry asking the model for variety (more calls, still a guess); stills only (the owner's complaint).
+**Open**: the rare-word match can pick a wrong place for a label whose rare word is said twice far from the plan; picture quality depends on the archive search.
