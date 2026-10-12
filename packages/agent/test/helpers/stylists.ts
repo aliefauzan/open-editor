@@ -53,7 +53,11 @@ export function toolsStylist(extra: { finalText?: string } = {}) {
   };
 }
 
-/** Plan mode: one ClipPlan per sub-run (speaker, kinetic-serif, a stat with an image query). */
+/**
+ * Plan mode: one ClipPlan per sub-run (speaker, kinetic-serif, a framed portrait with an image query).
+ * The portrait's picture is required, so an empty search makes it a placeholder (an optional picture
+ * such as a stat's `bgPhoto` is left empty instead, D-89).
+ */
 export function planStylist() {
   return (o: LanguageModelV4CallOptions): ScriptStep => {
     const { seq, items } = viewIn(o);
@@ -79,8 +83,8 @@ export function planStylist() {
                 startMs: m,
                 endMs: b,
                 kind: 'scene',
-                template: 'vox/stat',
-                variables: { value: '3 clips' },
+                template: 'vox/framed-portrait',
+                variables: { stamp: '3 clips' },
                 imageQueries: ['old film reel'],
               },
               { startMs: b, endMs: end, kind: 'speaker' },

@@ -15,6 +15,7 @@ import {
 import type { ModelMessage } from 'ai';
 import { z } from 'zod';
 import { VoxError, isVoxError, toVoxErrorJson } from '../errors.ts';
+import { writingJob } from '../tools/jobs.ts';
 import { applyAsAgent } from '../tools/ops.ts';
 import { invokeTool } from '../tools/registry.ts';
 import { transcriptLines } from '../tools/transcript.ts';
@@ -168,36 +169,46 @@ const nestedSlots = (t: TemplateInfo) =>
     return m && (kind === 'image' || kind === 'cutout') ? [[m[1]!, m[2]!, kind] as const] : [];
   });
 
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
 /** Engine media id from an aliased tool result. */
 function mediaIdOf(run: AgentRun, result: unknown): string | undefined {
   const r = (result as { result?: { mediaId?: unknown } } | undefined)?.result;
   return typeof r?.mediaId === 'string' ? run.aliases.resolve(r.mediaId) : undefined;
 }
 
+/** One registry tool call by the plan executor, recorded like a model's call. */
+async function planCall(run: AgentRun, name: string, args: Record<string, unknown>) {
+  const out = await invokeTool(run.ctx, run.registry, name, args);
+  if (out.versions) run.versions.push(...out.versions);
+  run.record.write({
+    type: 'tool',
+    tool: name,
+    args,
+    result: out.result,
+    ...(out.versions && { versions: out.versions }),
+    by: 'plan',
+  });
+  return out.result;
+}
+
 /** search → fetch → (cutout); generate when search finds nothing and a provider exists. */
 async function fillSlot(run: AgentRun, query: string, kind: string): Promise<string | undefined> {
-  const call = async (name: string, args: Record<string, unknown>) => {
-    const out = await invokeTool(run.ctx, run.registry, name, args);
-    if (out.versions) run.versions.push(...out.versions);
-    run.record.write({
-      type: 'tool',
-      tool: name,
-      args,
-      result: out.result,
-      ...(out.versions && { versions: out.versions }),
-      by: 'plan',
-    });
-    return out.result;
-  };
   try {
     let mediaId: string | undefined;
-    const found = (await call('search_images', { query })) as { candidates?: { id?: unknown }[] };
+    const found = (await planCall(run, 'search_images', { query })) as {
+      candidates?: { id?: unknown }[];
+    };
     const first = found.candidates?.find((c) => typeof c.id === 'string');
-    if (first) mediaId = mediaIdOf(run, await call('fetch_image', { candidateId: first.id }));
+    if (first)
+      mediaId = mediaIdOf(run, await planCall(run, 'fetch_image', { candidateId: first.id }));
     else if (run.registry.get('generate_image'))
-      mediaId = mediaIdOf(run, await call('generate_image', { prompt: query }));
+      mediaId = mediaIdOf(run, await planCall(run, 'generate_image', { prompt: query }));
     if (mediaId && kind === 'cutout')
-      mediaId = mediaIdOf(run, await call('cutout', { mediaId: run.aliases.aliasOf(mediaId) }));
+      mediaId = mediaIdOf(
+        run,
+        await planCall(run, 'cutout', { mediaId: run.aliases.aliasOf(mediaId) }),
+      );
     return mediaId;
   } catch (err) {
     if (err instanceof RunStopped) throw err;
@@ -210,18 +221,147 @@ async function fillSlot(run: AgentRun, query: string, kind: string): Promise<str
   }
 }
 
+/** The project media a slot value names (an engine id or a short id such as `m1`). */
+function mediaNamed(run: AgentRun, p: Project, v: unknown) {
+  if (typeof v !== 'string') return undefined;
+  const id = run.aliases.resolve(v.trim());
+  return id === undefined ? undefined : p.media.find((m) => m.id === id);
+}
+
 /** A picture of the project in a slot value (the model was told to leave slots empty). */
-const isImage = (p: Project, v: unknown) =>
-  typeof v === 'string' && p.media.some((m) => m.id === v.trim() && m.kind === 'image');
+const imageNamed = (run: AgentRun, p: Project, v: unknown) => {
+  const m = mediaNamed(run, p, v);
+  return m?.kind === 'image' ? m.id : undefined;
+};
 
 /** The text the model wrote in a slot when it is a description (has a space), as a query. */
 const describedQuery = (v: unknown) =>
   typeof v === 'string' && /\s/.test(v.trim()) ? v.trim().slice(0, 120) : undefined;
 
+/** Where a picture slot sits in time: its sequence and the sequence ms a still would show. */
+interface StillAt {
+  sequenceId: string;
+  atMs: number;
+}
+
+/**
+ * A still of a project video at sequence time `at.atMs` (D-89): one local frame (`mediaFrames`),
+ * added as an image with the video's origin (credits stay right), then cut out for a cutout slot
+ * (the plain still when the cutout fails). The frame path is the engine's own, never the model's,
+ * so the ingest source rule (S20) is not in play. Undefined when no still could be made.
+ */
+async function stillOf(
+  run: AgentRun,
+  p: Project,
+  videoId: string,
+  at: StillAt,
+  kind: string,
+): Promise<{ mediaId: string; srcMs: number } | undefined> {
+  const video = p.media.find((m) => m.id === videoId);
+  if (video?.kind !== 'video' || !video.durationMs) return undefined;
+  const seq = p.sequences.find((s) => s.id === at.sequenceId);
+  const clips = (seq?.videoTracks ?? [])
+    .flatMap((t) => t.items)
+    .flatMap((it) => (it.type === 'media' && it.mediaId === videoId ? [it] : []));
+  const clip =
+    clips.find((c) => at.atMs >= c.startMs && at.atMs < c.startMs + c.durationMs) ?? clips[0];
+  // source time shown at the beat time (engine spec "Clip speed"); a video not on the sequence: its middle
+  const raw = clip
+    ? clip.inMs +
+      (clamp(at.atMs, clip.startMs, clip.startMs + clip.durationMs - 1) - clip.startMs) *
+        (clip.speed ?? 1)
+    : video.durationMs / 2;
+  const srcMs = clamp(Math.round(raw), 0, video.durationMs - 1);
+  try {
+    const [frame] = await run.ctx.engine.mediaFrames(run.ctx.projectId, videoId, [srcMs]);
+    if (!frame) return undefined;
+    const added = await writingJob(run.ctx, 'ingest', { inputs: [frame] });
+    if (added.versions) run.versions.push(...added.versions);
+    const res = added.result as { result?: { media?: { mediaId?: unknown }[] } };
+    const alias = res.result?.media?.[0]?.mediaId;
+    const stillId = typeof alias === 'string' ? run.aliases.resolve(alias) : undefined;
+    run.record.write({
+      type: 'tool',
+      tool: 'ingest',
+      args: { still: { mediaId: run.aliases.aliasOf(videoId), atSrcMs: srcMs } },
+      result: added.result,
+      ...(added.versions && { versions: added.versions }),
+      by: 'plan',
+    });
+    if (!stillId) return undefined;
+    const description = `Still of ${videoId} at ${String(srcMs)} ms`;
+    const now = await run.ctx.engine.getProject(run.ctx.projectId);
+    if (now.media.find((m) => m.id === stillId)?.description !== description) {
+      const op = await applyAsAgent(run.ctx, 'updateMedia', {
+        mediaId: stillId,
+        patch: { origin: video.origin, description, tags: ['still'] },
+      });
+      if (op.versions) run.versions.push(...op.versions);
+    }
+    if (kind !== 'cutout') return { mediaId: stillId, srcMs };
+    try {
+      const cut = mediaIdOf(
+        run,
+        await planCall(run, 'cutout', { mediaId: run.aliases.aliasOf(stillId) }),
+      );
+      return { mediaId: cut ?? stillId, srcMs };
+    } catch (err) {
+      if (err instanceof RunStopped) throw err;
+      return { mediaId: stillId, srcMs };
+    }
+  } catch (err) {
+    if (err instanceof RunStopped) throw err;
+    run.record.write({
+      type: 'slotFailed',
+      still: { mediaId: run.aliases.aliasOf(videoId), atSrcMs: srcMs },
+      error: isVoxError(err) ? toVoxErrorJson(err) : 'error',
+    });
+    return undefined;
+  }
+}
+
+/**
+ * A picture for one slot whose value is not a picture of the project: the next image query, else the
+ * description written in the slot; when that finds nothing and the slot names a video of the project
+ * (weak models write the source clip's id, D-88 live runs), a still of it at the slot's time.
+ * `q` is the query used, `still` the repair to note when a still filled the slot.
+ */
+async function pictureFor(
+  run: AgentRun,
+  p: Project,
+  value: unknown,
+  queries: string[],
+  kind: string,
+  at: StillAt,
+): Promise<{ id?: string; q?: string; still?: string }> {
+  const known = imageNamed(run, p, value);
+  if (known) return { id: known };
+  const q = queries.shift() ?? describedQuery(value);
+  const found = q === undefined ? undefined : await fillSlot(run, q, kind);
+  if (found) return { id: found, q };
+  const video = mediaNamed(run, p, value);
+  const s = video?.kind === 'video' ? await stillOf(run, p, video.id, at, kind) : undefined;
+  if (!s) return q === undefined ? {} : { q };
+  const still = `still of ${run.aliases.aliasOf(video!.id)} at ${String(s.srcMs)} ms (${q === undefined ? 'no picture query' : `no picture for ${q}`})`;
+  return { id: s.mediaId, still, ...(q !== undefined && { q }) };
+}
+
+/** A beat's place in time, for stills: entry `k` of `n` sits at (k + 1) / (n + 1) of the beat. */
+interface BeatSpan {
+  sequenceId: string;
+  startMs: number;
+  endMs: number;
+}
+const stillAt = (b: BeatSpan, k = 0, n = 1): StillAt => ({
+  sequenceId: b.sequenceId,
+  atMs: b.startMs + Math.round(((b.endMs - b.startMs) * (k + 1)) / (n + 1)),
+});
+
 /**
  * Pictures inside arrays (paper-collage `items/*\/media`): an entry that does not name a picture of
  * the project gets one from the next image query, or from its own text when the model wrote a
- * description there. `missing` names the first entry left without a picture.
+ * description there, or a still of the video it names (D-89). `missing` names the first entry left
+ * without a picture.
  */
 async function fillArrays(
   run: AgentRun,
@@ -229,28 +369,142 @@ async function fillArrays(
   t: TemplateInfo,
   variables: Record<string, unknown>,
   queries: string[],
+  span: BeatSpan,
+  note: (what: string) => void,
 ): Promise<{ variables: Record<string, unknown>; missing?: string }> {
   let out = variables;
   for (const [arr, field, kind] of nestedSlots(t)) {
     const list = out[arr];
     if (!Array.isArray(list)) continue;
     const filled: unknown[] = [];
-    for (const el of list) {
+    for (const [k, el] of list.entries()) {
       if (typeof el !== 'object' || el === null) continue;
       const entry = { ...(el as Record<string, unknown>) };
-      if (isImage(p, entry[field])) {
-        filled.push(entry);
-        continue;
-      }
-      const q = queries.shift() ?? describedQuery(entry[field]);
-      const id = q === undefined ? undefined : await fillSlot(run, q, kind);
-      if (!id) return { variables: out, missing: q ?? `${arr} ${field}` };
-      entry[field] = id;
+      const got = await pictureFor(
+        run,
+        p,
+        entry[field],
+        queries,
+        kind,
+        stillAt(span, k, list.length),
+      );
+      if (!got.id) return { variables: out, missing: got.q ?? `${arr} ${field}` };
+      if (got.still) note(`${arr} ${String(k)}: ${got.still}`);
+      entry[field] = got.id;
       filled.push(entry);
     }
     out = { ...out, [arr]: filled };
   }
   return { variables: out };
+}
+
+/**
+ * Top-level picture slots of a scene (or of a panel): a value that is not a picture of the project
+ * gets one through `pictureFor`. A required slot with no picture is `missing` (the caller makes a
+ * placeholder); an optional one is left empty, with a repair note when a picture was asked for (D-88
+ * for panels, D-89 for scenes: the template renders without it).
+ */
+async function fillTopSlots(
+  run: AgentRun,
+  p: Project,
+  t: TemplateInfo,
+  variables: Record<string, unknown>,
+  queries: string[],
+  span: BeatSpan,
+  note: (what: string) => void,
+): Promise<{ variables: Record<string, unknown>; missing?: { q?: string; slot: string } }> {
+  const vars = { ...variables };
+  const required = new Set((t.variables['required'] ?? []) as string[]);
+  for (const [slot, kind] of fillableSlots(t)) {
+    const got = await pictureFor(run, p, vars[slot], queries, kind, stillAt(span));
+    if (got.id) {
+      if (got.still) note(`${slot}: ${got.still}`);
+      vars[slot] = got.id;
+      continue;
+    }
+    if (required.has(slot))
+      return { variables: vars, missing: { slot, ...(got.q !== undefined && { q: got.q }) } };
+    if (vars[slot] !== undefined || got.q !== undefined)
+      note(`no picture for ${got.q ?? slot}, ${slot} left empty`);
+    delete vars[slot];
+  }
+  return { variables: vars };
+}
+
+/** The ellipsis that marks shortened text (one character). */
+const ELLIPSIS = '…';
+
+/**
+ * `text` cut at word boundaries to at most `max` characters (D-89): the first run of whole words
+ * that fits and holds the most key words (all of them when they fit together), with an ellipsis on
+ * each cut side. A single word longer than `max` is cut inside the word.
+ */
+export function shortenText(text: string, max: number, keys: readonly string[] = []): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  const words = clean.split(' ');
+  const wanted = keys.map((k) => k.toLowerCase()).filter((k) => k !== '');
+  const piece = (i: number, j: number) => {
+    let s = words.slice(i, j).join(' ');
+    if (j < words.length) s = `${s.replace(/[\s,;:.!?–—-]+$/u, '')}${ELLIPSIS}`;
+    return i > 0 ? `${ELLIPSIS}${s}` : s;
+  };
+  let best: { text: string; covered: number } | undefined;
+  for (let i = 0; i < words.length; i++) {
+    let j = i;
+    while (j < words.length && piece(i, j + 1).length <= max) j++;
+    if (j === i) continue;
+    const s = piece(i, j);
+    const lower = s.toLowerCase();
+    const covered = wanted.filter((k) => lower.includes(k)).length;
+    if (!best || covered > best.covered) best = { text: s, covered };
+    if (covered === wanted.length) break;
+  }
+  return best?.text ?? `${clean.slice(0, Math.max(0, max - 1))}${ELLIPSIS}`;
+}
+
+/**
+ * Top-level text variables over their `maxLength` (weak models write long kinetic-serif lines, D-88
+ * live runs) are shortened at a word boundary, keeping the `emphasis` words when they fit; emphasis
+ * words the shortened text no longer holds are dropped. Each change is a repair note.
+ */
+function shortenTexts(
+  t: TemplateInfo,
+  variables: Record<string, unknown>,
+  note: (what: string) => void,
+): Record<string, unknown> {
+  const props = (t.variables['properties'] ?? {}) as Record<
+    string,
+    { type?: unknown; maxLength?: unknown } | undefined
+  >;
+  const out = { ...variables };
+  const emphasis = Array.isArray(out['emphasis'])
+    ? out['emphasis'].filter((e): e is string => typeof e === 'string')
+    : [];
+  let changed = false;
+  for (const [key, schema] of Object.entries(props)) {
+    const v = out[key];
+    const max = schema?.maxLength;
+    if (schema?.type !== 'string' || typeof max !== 'number' || typeof v !== 'string') continue;
+    if (v.length <= max) continue;
+    out[key] = shortenText(v, max, emphasis);
+    note(
+      `${key} shortened to the ${String(max)}-character limit (was ${String(v.length)} characters)`,
+    );
+    changed = true;
+  }
+  if (changed && emphasis.length > 0 && Array.isArray(out['emphasis'])) {
+    const texts = Object.keys(props)
+      .map((k) => out[k])
+      .filter((x): x is string => typeof x === 'string')
+      .join(' ')
+      .toLowerCase();
+    const kept = emphasis.filter((e) => texts.includes(e.toLowerCase()));
+    for (const e of emphasis.filter((x) => !kept.includes(x)))
+      note(`emphasis ${JSON.stringify(e)} dropped (not in the shortened text)`);
+    out['emphasis'] = kept;
+  }
+  return out;
 }
 
 /** `template` slots of a scene (stack `panels/*`): the array variable holding the panels. */
@@ -262,7 +516,8 @@ const panelSlots = (t: TemplateInfo) =>
 
 /**
  * Pictures inside the panels of a `template` slot (D-86). A panel's picture slot that does not name
- * a picture of the project gets one from the next image query (or the description written there).
+ * a picture of the project gets one from the next image query (or the description written there,
+ * or a still of the video it names, D-89); text over a length limit is shortened (D-89).
  * An optional slot with no picture is left empty, with a repair note when a picture was asked for
  * (the panel renders without it); a required one is `missing`, and the scene becomes a placeholder.
  * Panels with an unknown template are left as they are: the engine's variable check decides.
@@ -274,6 +529,7 @@ async function fillPanels(
   variables: Record<string, unknown>,
   queries: string[],
   templates: TemplateLookup,
+  span: BeatSpan,
   note: (what: string) => void,
 ): Promise<{ variables: Record<string, unknown>; missing?: string }> {
   let out = variables;
@@ -288,35 +544,22 @@ async function fillPanels(
         panels.push(el);
         continue;
       }
-      let vars: Record<string, unknown> =
+      const vars: Record<string, unknown> =
         typeof panel.variables === 'object' && panel.variables !== null
           ? { ...(panel.variables as Record<string, unknown>) }
           : {};
-      const required = new Set((inner.variables['required'] ?? []) as string[]);
-      for (const [slot, kind] of fillableSlots(inner)) {
-        if (isImage(p, vars[slot])) continue;
-        const q = queries.shift() ?? describedQuery(vars[slot]);
-        const id = q === undefined ? undefined : await fillSlot(run, q, kind);
-        if (id) {
-          vars[slot] = id;
-          continue;
-        }
-        if (required.has(slot)) return { variables: out, missing: q ?? `${arr} ${slot}` };
-        if (vars[slot] !== undefined || q !== undefined)
-          note(`panel ${String(i)}: no picture for ${q ?? slot}, ${slot} left empty`);
-        delete vars[slot];
-      }
-      const arrays = await fillArrays(run, p, inner, vars, queries);
+      const pnote = (what: string) => note(`panel ${String(i)}: ${what}`);
+      const top = await fillTopSlots(run, p, inner, vars, queries, span, pnote);
+      if (top.missing !== undefined)
+        return { variables: out, missing: top.missing.q ?? `${arr} ${top.missing.slot}` };
+      const arrays = await fillArrays(run, p, inner, top.variables, queries, span, pnote);
       if (arrays.missing !== undefined) return { variables: out, missing: arrays.missing };
-      vars = arrays.variables;
-      panels.push({ ...panel, variables: vars });
+      panels.push({ ...panel, variables: shortenTexts(inner, arrays.variables, pnote) });
     }
     out = { ...out, [arr]: panels };
   }
   return { variables: out };
 }
-
-const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 /** ClipPlan → ops for one batch, with slot filling and repairs. */
 export async function clipPlanToOps(
@@ -360,27 +603,23 @@ export async function clipPlanToOps(
       }
       let variables: Record<string, unknown> = { ...(b.variables ?? {}) };
       const queries = [...(b.imageQueries ?? [])];
-      for (const [slot, kind] of fillableSlots(t)) {
-        if (variables[slot] !== undefined) continue;
-        const q = queries.shift();
-        const id = q === undefined ? undefined : await fillSlot(run, q, kind);
-        if (id) {
-          variables[slot] = id;
-          continue;
-        }
+      const span: BeatSpan = { sequenceId: sp.sequenceId, startMs: b.startMs, endMs: b.endMs };
+      // Top-level picture slots: a required one with no picture turns the scene into a placeholder;
+      // an optional one is left empty with a repair note (D-89: a stat renders without its bgPhoto).
+      const top = await fillTopSlots(run, p, t, variables, queries, span, note);
+      variables = top.variables;
+      if (top.missing !== undefined) {
+        const { q, slot } = top.missing;
         const ph = templates.get(PLACEHOLDER_TEMPLATE);
         if (!ph) {
           note(`dropped: no picture for slot ${slot} and no placeholder template`);
-          t = undefined;
-          break;
+          continue;
         }
         note(`placeholder: no picture for ${q ?? slot}`);
         template = PLACEHOLDER_TEMPLATE;
         variables = { label: `Picture: ${q ?? slot}`.slice(0, 120) };
         t = ph;
-        break;
       }
-      if (!t) continue;
       // Pictures inside an array (paper-collage `items/*/media`): the model was told to leave image
       // slots empty, so an entry that does not name a picture of the project gets one from the beat's
       // next image query, or from its own text when the model wrote a description there. No picture
@@ -389,10 +628,19 @@ export async function clipPlanToOps(
       // filled the same way, from the same queue of image queries, in panel order.
       let missing: string | undefined;
       if (template !== PLACEHOLDER_TEMPLATE) {
-        const arrays = await fillArrays(run, p, t, variables, queries);
+        const arrays = await fillArrays(run, p, t, variables, queries, span, note);
         missing = arrays.missing;
         if (missing === undefined) {
-          const panels = await fillPanels(run, p, t, arrays.variables, queries, templates, note);
+          const panels = await fillPanels(
+            run,
+            p,
+            t,
+            arrays.variables,
+            queries,
+            templates,
+            span,
+            note,
+          );
           missing = panels.missing;
           variables = panels.variables;
         }
@@ -411,6 +659,7 @@ export async function clipPlanToOps(
       // Variables that still do not fit the template (a required array left out) would fail the
       // whole batch: the scene becomes a placeholder instead, with the reason in the repairs.
       if (template !== PLACEHOLDER_TEMPLATE) {
+        variables = shortenTexts(t, variables, note);
         const problem = await variablesProblem(run, t, variables, templates);
         const ph = problem === undefined ? undefined : templates.get(PLACEHOLDER_TEMPLATE);
         if (problem !== undefined && !ph) {
@@ -633,7 +882,12 @@ export async function planTurn(run: AgentRun, opts: TurnOptions): Promise<TurnRe
       const bad = res.results.filter((r) => r.status !== 'succeeded');
       if (bad.length === 0) {
         const r = `Applied a plan of ${String(ops.length)} op(s) at version ${String(res.version)}.${repairs.length ? ` Repairs: ${repairs.map((x) => x.what).join('; ')}.` : ''}`;
-        return endPlan(run, opts, { status: 'completed', summary: r, steps: step });
+        return endPlan(run, opts, {
+          status: 'completed',
+          summary: r,
+          steps: step,
+          ...(repairs.length > 0 && { repairs: repairs.map((x) => x.what) }),
+        });
       }
       if (attempt === MAX_PLAN_RETRIES) {
         throw new VoxError(

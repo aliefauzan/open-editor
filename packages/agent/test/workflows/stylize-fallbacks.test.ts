@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 import { describe, expect, test } from 'vitest';
+import { shortenText } from '../../src/loop/plan.ts';
 import { readRunRecord } from '../../src/loop/record.ts';
 import { runWorkflow } from '../../src/workflows/run-workflow.ts';
 import { sceneItems } from '../../src/workflows/stylize.ts';
@@ -172,4 +173,22 @@ describe('plan-mode picture fallbacks (D-88 live runs)', () => {
     );
     expect(r.done.summary).toContain('Repaired: text shortened to the 60-character limit');
   }, 120_000);
+});
+
+describe('shortenText (D-89)', () => {
+  test('no key words: the head, cut after a whole word, with an ellipsis', () => {
+    expect(shortenText('one two three four five', 14)).toBe('one two three…');
+    expect(shortenText('one, two, three four', 10)).toBe('one, two…');
+  });
+  test('text within the limit is kept (whitespace tidied)', () => {
+    expect(shortenText('  short   text ', 20)).toBe('short text');
+  });
+  test('key words that cannot fit together: the window with the most of them', () => {
+    expect(
+      shortenText('alpha beta gamma delta epsilon zeta', 19, ['alpha', 'zeta', 'epsilon']),
+    ).toBe('…delta epsilon zeta');
+  });
+  test('a single word over the limit is cut inside the word', () => {
+    expect(shortenText('Supercalifragilistic', 8)).toBe('Superca…');
+  });
 });
