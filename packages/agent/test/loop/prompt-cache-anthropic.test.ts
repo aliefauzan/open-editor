@@ -5,7 +5,6 @@
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 import { describe, expect, test, vi } from 'vitest';
 import { AgentRun, runAgent } from '../../src/loop/run.ts';
-import { DIFF_STATE_HEADER, FULL_STATE_HEADER } from '../../src/loop/state.ts';
 import { captureRequest } from '../../src/providers/capture.ts';
 import { createLanguageModel } from '../../src/providers/factory.ts';
 import type { ProviderEntry } from '../../src/providers/presets.ts';
@@ -15,8 +14,7 @@ import {
   promptCacheTarget,
   withCachePrices,
 } from '../../src/providers/prompt-cache.ts';
-import { estimateTokens } from '../../src/providers/tool-cost.ts';
-import { AnthropicCacheSim, MIN_TOKENS, blocksOf } from '../helpers/anthropic-cache.ts';
+import { AnthropicCacheSim, blocksOf } from '../helpers/anthropic-cache.ts';
 import { roleModel, runDeps, scriptedModel, type ScriptStep } from '../helpers/model.ts';
 import { fixtureProject } from '../helpers/project.ts';
 
@@ -97,22 +95,17 @@ describe('breakpoints in an Anthropic request (D-76)', () => {
   test('tools, system and history are marked; the state block is after the last breakpoint', async () => {
     const { prompts } = await anthropicRun();
     expect(prompts).toHaveLength(3);
-    for (const [step, o] of prompts.entries()) {
+    for (const o of prompts) {
       const blocks = blocksOf(o);
       const bps = blocks.flatMap((b, i) => (b.breakpoint ? [i] : []));
       expect(bps.length).toBeGreaterThanOrEqual(3);
       expect(bps.length).toBeLessThanOrEqual(4);
-      // the last block is this step's state block and is never cached: in full on the first
-      // step, then only the changes (D-81)
-      expect(blocks.at(-1)!.json).toContain(step === 0 ? FULL_STATE_HEADER : DIFF_STATE_HEADER);
+      // the last block is the state block and is never cached (the fixture's state is below
+      // STATE_DIFF_MIN_TOKENS, so it is sent in full every step and not kept, D-81)
+      expect(blocks.at(-1)!.json).toContain('[Current state, newest only]');
       expect(blocks.at(-1)!.breakpoint).toBe(false);
       expect(blocks.slice(bps.at(-1)! + 1).every((b) => !b.breakpoint)).toBe(true);
-      // the blocks of the steps before stay in the history, before the last breakpoint
-      const stateBlocks = blocks.flatMap((b, i) =>
-        b.json.includes(FULL_STATE_HEADER) || b.json.includes(DIFF_STATE_HEADER) ? [i] : [],
-      );
-      expect(stateBlocks).toHaveLength(step + 1);
-      expect(stateBlocks.slice(0, -1).every((i) => i <= bps.at(-1)!)).toBe(true);
+      expect(blocks.filter((b) => b.json.includes('[Current state')).length).toBe(1);
       // the system prompt is a message with a breakpoint, the last tool has one
       expect(o.prompt[0]).toMatchObject({
         role: 'system',
@@ -149,7 +142,7 @@ describe('breakpoints in an Anthropic request (D-76)', () => {
       content: { type: string; text?: string; cache_control?: unknown }[];
     }[];
     const lastContent = msgs.at(-1)!.content;
-    expect(lastContent.at(-1)!.text).toMatch(/^\[(Current state|State changes)/);
+    expect(lastContent.at(-1)!.text).toContain('[Current state');
     expect(lastContent.at(-1)!.cache_control).toBeUndefined();
     expect(lastContent.at(-2)!.cache_control).toEqual({ type: 'ephemeral' });
   });
@@ -390,18 +383,8 @@ describe('compaction and the cache (D-76)', () => {
     });
     expect(done.status).toBe('completed');
     const reqs = sim.requests;
-    // tools and system prompt (breakpoints 1 and 2) are read by every later request; the
-    // instruction too, except right after a prefix change: the kept state blocks (D-81) add a block
-    // per step, so it is then more than Anthropic's 20-block lookback behind the breakpoints
-    const first = blocksOf(m.prompts[0]!);
-    const sys = first.findIndex((b) => b.json.startsWith('{"system"'));
-    const toolsAndSystem = first.slice(0, sys + 1).reduce((n, b) => n + estimateTokens(b.json), 0);
-    expect(toolsAndSystem).toBeGreaterThan(MIN_TOKENS);
-    for (const [i, u] of reqs.entries()) {
-      if (i === 0) continue;
-      expect(u.cacheRead).toBeGreaterThanOrEqual(toolsAndSystem);
-      if (i !== 8 && i !== 10) expect(u.cacheRead).toBeGreaterThanOrEqual(reqs[0]!.cacheWrite);
-    }
+    // tools, system prompt and instruction (the first write) are read by every later request
+    for (const u of reqs.slice(1)) expect(u.cacheRead).toBeGreaterThanOrEqual(reqs[0]!.cacheWrite);
     // the prefix changes twice: when step 1's result becomes a stub (request 9), and when the
     // write at v2 turns that stub stale (request 11); every other request reads all the previous
     // request cached

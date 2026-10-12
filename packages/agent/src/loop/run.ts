@@ -43,6 +43,8 @@ import type {
 } from '../tools/types.ts';
 import { COMPACT_AT, Conversation, KEEP_RECENT_STEPS, type ResultMeta } from './conversation.ts';
 import {
+  STATE_DIFF_MIN_TOKENS,
+  STATE_FULL_EVERY,
   StateTracker,
   renderFullState,
   type SequenceState,
@@ -603,7 +605,10 @@ export class AgentRun {
     });
     const cache = promptCacheTarget(this.#deps.models.editor);
     const tools = cachedTools(cache, aiToolSet(this.registry, names));
-    const tracker = cache !== undefined ? new StateTracker() : undefined;
+    const tracker =
+      cache !== undefined
+        ? new StateTracker(STATE_FULL_EVERY, this.#deps.stateDiffMinTokens ?? STATE_DIFF_MIN_TOKENS)
+        : undefined;
     const toolTokens = estimateTokens(JSON.stringify(toolDefinitionsFor(this.registry, names)));
     const editor = this.#deps.models.editor;
     const cap = this.#deps.limits.maxStepsPerRun;
@@ -662,8 +667,9 @@ export class AgentRun {
           build,
         );
         if (tracker && snap) {
-          // the block this step sent goes into the history before the reply (D-81)
-          conv.state(step, block.text, inj.version);
+          // the block this step sent goes into the history before the reply (D-81), unless the
+          // state is small: then it is sent every step, newest only, as before D-81
+          if (block.kind !== 'unkept') conv.state(step, block.text, inj.version);
           tracker.commit(snap.snapshot, block.kind);
           this.record.write({
             type: 'state',

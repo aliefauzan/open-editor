@@ -4,8 +4,9 @@
 // previous block: the blocks before it are a cached prefix, and the new one is the only uncached
 // state text. A full block is sent at the start of a turn, after every compaction (which stubs or
 // drops the old blocks) and every STATE_FULL_EVERY steps, so the model never rebuilds the state
-// from more than STATE_FULL_EVERY - 1 diffs. Without caching nothing is kept: every step gets the
-// full block, newest only, as before D-81.
+// from more than STATE_FULL_EVERY - 1 diffs. Without caching, or while the full block is below
+// STATE_DIFF_MIN_TOKENS, nothing is kept: every step gets the full block, newest only, as before.
+import { estimateTokens } from '../providers/tool-cost.ts';
 import { wrapData } from './envelope.ts';
 
 /**
@@ -13,6 +14,15 @@ import { wrapData } from './envelope.ts';
  * always among the steps compaction keeps whole.
  */
 export const STATE_FULL_EVERY = 8;
+
+/**
+ * Below this size (estimated tokens, characters / 3) the full block is sent every step and not
+ * kept, exactly as before D-81. A kept block is written to the cache once at 1.25 × input, so for a
+ * small state the write costs about what the diffs save: on the replay fixtures (blocks of about
+ * 260 tokens, sub-runs of 1–3 steps) the diff made the input cost 0.3–1.4 % higher, while a
+ * 24-scene sequence (blocks of about 1,150 tokens) saved 23 %. 1,000 sits between the two.
+ */
+export const STATE_DIFF_MIN_TOKENS = 1_000;
 
 export const FULL_STATE_HEADER = '[Current state, newest only]';
 export const DIFF_STATE_HEADER =
@@ -95,7 +105,8 @@ export function renderStateDiff(prev: StateSnapshot, cur: StateSnapshot): string
   return `${DIFF_STATE_HEADER}\n${parts.join('\n\n')}`;
 }
 
-export type StateKind = 'full' | 'diff';
+/** `unkept`: a small full block, sent this step only and not kept in the history. */
+export type StateKind = 'full' | 'diff' | 'unkept';
 
 /**
  * Picks full or diff for each step of one turn (one conversation). `take` is called once per
@@ -106,9 +117,11 @@ export class StateTracker {
   #sinceFull = 0;
   #forceFull = true;
   readonly fullEvery: number;
+  readonly minTokens: number;
 
-  constructor(fullEvery = STATE_FULL_EVERY) {
+  constructor(fullEvery = STATE_FULL_EVERY, minTokens = STATE_DIFF_MIN_TOKENS) {
     this.fullEvery = fullEvery;
+    this.minTokens = minTokens;
   }
 
   /** The next block must be full (after a compaction). */
@@ -116,17 +129,27 @@ export class StateTracker {
     this.#forceFull = true;
   }
 
-  /** The block for `cur`: full at the start, after `invalidate`, every `fullEvery` steps, or when the diff is not shorter. */
+  /**
+   * The block for `cur`: `unkept` below STATE_DIFF_MIN_TOKENS; else full at the start, after
+   * `invalidate` or an unkept block, every `fullEvery` steps, or when the diff is not shorter.
+   */
   render(cur: StateSnapshot): { text: string; kind: StateKind } {
     const full = renderFullState(cur);
+    if (estimateTokens(full) < this.minTokens) return { text: full, kind: 'unkept' };
     if (this.#forceFull || !this.#last || this.#sinceFull + 1 >= this.fullEvery)
       return { text: full, kind: 'full' };
     const diff = renderStateDiff(this.#last, cur);
     return diff.length < full.length ? { text: diff, kind: 'diff' } : { text: full, kind: 'full' };
   }
 
-  /** The block for `cur` was sent and kept in the history. */
+  /** The block for `cur` was sent (and kept, unless `unkept`). */
   commit(cur: StateSnapshot, kind: StateKind): void {
+    if (kind === 'unkept') {
+      // nothing kept to diff against: the next kept block is full
+      this.#last = undefined;
+      this.#forceFull = true;
+      return;
+    }
     this.#last = cur;
     this.#forceFull = false;
     this.#sinceFull = kind === 'full' ? 0 : this.#sinceFull + 1;

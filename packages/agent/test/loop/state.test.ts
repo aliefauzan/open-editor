@@ -3,10 +3,12 @@
 // STATE_FULL_EVERY steps and after a compaction, and the blocks stay in the history.
 import { describe, expect, test } from 'vitest';
 import { readRunRecord } from '../../src/loop/record.ts';
+import { estimateTokens } from '../../src/providers/tool-cost.ts';
 import { AgentRun, runAgent } from '../../src/loop/run.ts';
 import {
   DIFF_STATE_HEADER,
   FULL_STATE_HEADER,
+  STATE_DIFF_MIN_TOKENS,
   STATE_FULL_EVERY,
   StateTracker,
   renderFullState,
@@ -108,7 +110,7 @@ describe('state diff rendering (D-81)', () => {
 
 describe('StateTracker (D-81)', () => {
   test(`full at the start, diffs, a full block every ${String(STATE_FULL_EVERY)} steps`, () => {
-    const t = new StateTracker();
+    const t = new StateTracker(STATE_FULL_EVERY, 0);
     const kinds: string[] = [];
     for (let step = 1; step <= 2 * STATE_FULL_EVERY + 2; step++) {
       const s = snap({
@@ -127,7 +129,7 @@ describe('StateTracker (D-81)', () => {
   });
 
   test('after invalidate (a compaction) the next block is full, then diffs again', () => {
-    const t = new StateTracker();
+    const t = new StateTracker(STATE_FULL_EVERY, 0);
     const s = snap();
     t.commit(s, t.render(s).kind);
     expect(t.render(s).kind).toBe('diff');
@@ -139,11 +141,37 @@ describe('StateTracker (D-81)', () => {
   });
 
   test('a diff that is not shorter than the full block is sent as the full block', () => {
-    const t = new StateTracker();
+    const t = new StateTracker(STATE_FULL_EVERY, 0);
     const a = snap({ items: [item('c1', 0, 1000)], captions: [] });
     t.commit(a, t.render(a).kind);
     const b = snap({ items: [item('c9', 0, 1000)], captions: [] });
     expect(t.render(b).kind).toBe('full');
+  });
+
+  test(`below ${String(STATE_DIFF_MIN_TOKENS)} tokens: the full block every step, not kept; above: full, then diffs`, () => {
+    const t = new StateTracker();
+    const small = snap();
+    expect(estimateTokens(renderFullState(small))).toBeLessThan(STATE_DIFF_MIN_TOKENS);
+    for (let i = 0; i < 3; i++) {
+      const r = t.render(small);
+      expect(r).toEqual({ text: renderFullState(small), kind: 'unkept' });
+      t.commit(small, r.kind);
+    }
+    const many = (shift: number) =>
+      snap({
+        items: Array.from({ length: 60 }, (_, i) =>
+          item(`c${String(i + 1)}`, i * 1000 + (i === 0 ? shift : 0), i * 1000 + 900),
+        ),
+      });
+    expect(estimateTokens(renderFullState(many(0)))).toBeGreaterThan(STATE_DIFF_MIN_TOKENS);
+    const kinds: string[] = [];
+    for (const s of [many(0), many(100), many(200), small, many(300), many(400)]) {
+      const r = t.render(s);
+      t.commit(s, r.kind);
+      kinds.push(r.kind);
+    }
+    // back below the threshold: unkept; above again: a full block before any diff
+    expect(kinds).toEqual(['full', 'diff', 'diff', 'unkept', 'full', 'diff']);
   });
 
   test('the full block is the pre-D-81 injection text', async () => {
@@ -169,11 +197,13 @@ async function stateRun(
   script: ScriptStep[],
   over: Parameters<typeof roleModel>[1],
   transcript?: string,
+  stateDiffMinTokens?: number,
 ) {
   const f = await fixtureProject(transcript ? { transcript } : {});
   const m = scriptedModel(script);
   const { deps } = runDeps(f, roleModel(m.model, over), {
     limits: { maxUsdPerRun: 100, maxStepsPerRun: 60 },
+    ...(stateDiffMinTokens !== undefined && { stateDiffMinTokens }),
   });
   const r = await runAgent(deps, {
     projectId: f.projectId,
@@ -222,7 +252,8 @@ describe('state blocks in the loop (D-81)', () => {
       },
       { text: 'done' },
     ];
-    const r = await stateRun(script, ANTHROPIC);
+    // threshold 0: the fixture's small state behaves as one above STATE_DIFF_MIN_TOKENS
+    const r = await stateRun(script, ANTHROPIC, undefined, 0);
     expect(r.compacted).toEqual([]);
     expect(r.kinds.map((k) => k[1])).toEqual([
       'full',
@@ -256,6 +287,7 @@ describe('state blocks in the loop (D-81)', () => {
       script,
       { ...ANTHROPIC, contextTokens: 8_000, maxOutputTokens: 100 },
       big,
+      0,
     );
     // over budget from step 9: each step stubs one more old step until the big read (step 3)
     expect(r.compacted).toEqual([9, 10, 11]);
@@ -268,6 +300,18 @@ describe('state blocks in the loop (D-81)', () => {
     const after = texts(r.prompts[10]! as never);
     expect(after.filter((t) => t.includes('[elided: the state block')).length).toBeGreaterThan(0);
     expect(after.at(-1)!.startsWith(FULL_STATE_HEADER)).toBe(true);
+  });
+
+  test('caching editor, small state (default threshold): full block every step, newest only', async () => {
+    const r = await stateRun([read(0), read(1), { text: 'done' }], ANTHROPIC);
+    expect(r.kinds.map((k) => k[1])).toEqual(['unkept', 'unkept', 'unkept']);
+    for (const o of r.prompts) {
+      const states = texts(o as never).filter(
+        (t) => t.includes('[Current state') || t.includes('[State changes'),
+      );
+      expect(states).toHaveLength(1);
+      expect(states[0]!.startsWith(FULL_STATE_HEADER)).toBe(true);
+    }
   });
 
   test('no caching: every step gets the full block, newest only, and nothing is kept', async () => {

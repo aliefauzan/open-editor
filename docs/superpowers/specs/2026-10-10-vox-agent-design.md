@@ -353,9 +353,9 @@ design; the settings screen says so next to each provider.
   is built from history entries after the last version the run saw whose `actor` is not
   `agent`, or whose `runId` belongs to another run; it lists the touched items by alias.
   Only the newest injection stays in the context. The agent works from this view, not
-  from the full project. With a prompt-caching editor (Anthropic models, D-76) the state
-  block of each step stays in the history and a step sends only what changed since the
-  previous block (changed or added items, removed item ids, caption lines removed and
+  from the full project. With a prompt-caching editor (Anthropic models, D-76) and a full
+  block of at least 1,000 tokens, the state block of each step stays in the history and a
+  step sends only what changed since the previous block (changed or added items, removed item ids, caption lines removed and
   added); a full block is sent at the start of each (sub-)run, after every compaction and
   every 8 steps, or when the diff is not shorter (D-81).
 - **Context compaction**: the loop keeps a token budget of 70 % of the model's effective
@@ -386,8 +386,8 @@ design; the settings screen says so next to each provider.
 - **Run record**: `<projectsDir>/<id>/runs/<runId>.jsonl` holds the user message, model ids,
   mode, redacted tool calls, tool results truncated to 2 kB, token usage, cost, and
   history versions created, plus the alias table, each `update_todos` list and each
-  sub-run's summary, and with a caching editor a `state` line per step (`kind` full or
-  diff, `chars` sent, `fullChars` of the full block; D-81). The UI's activity log reads it.
+  sub-run's summary, and with a caching editor a `state` line per step (`kind` full,
+  diff or unkept, `chars` sent, `fullChars` of the full block; D-81). The UI's activity log reads it.
 - **Restart** (plan D-15): a run that was paused when the app quit is not resumed. On
   the next launch it ends as `stopped` (an `agent.done` line is added to its run record);
   its edits stay and "Undo this run" still works.
