@@ -44,6 +44,15 @@ export const ConfigSchema = z.looseObject({
       cookiesFromBrowser: z.enum(['safari', 'chrome', 'firefox']).nullable().optional(),
     })
     .optional(),
+  render: z
+    .looseObject({
+      /**
+       * Final-render encoder (D-78): `auto` (default) uses VideoToolbox on Apple silicon, else
+       * libx264; `software` always uses libx264. Env `VOX_RENDER_ENCODER=software` also forces it.
+       */
+      encoder: z.enum(['auto', 'software']).optional(),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

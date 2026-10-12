@@ -4,7 +4,6 @@
 // There is no render or export tool and no argument that takes an output path (S32, D-13).
 import { z } from 'zod';
 import { VoxError } from '../errors.ts';
-import { presentImages, readStill } from './read.ts';
 import { unapprovedSources } from './sources.ts';
 import type { AgentEngine, AgentTool, ToolContext, ToolOutput } from './types.ts';
 
@@ -229,7 +228,7 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
     tool(
       'check_audio',
       'read',
-      'Run the audio QA of a sequence: the check table with numbers, the cue list with drops, five listen timecodes for a human, and the qa.png picture. A FAIL comes back as data; fix it through ops. Never claim the sound is good: no model can hear it.',
+      'Run the audio QA of a sequence: the check table with numbers, the cue list with drops and five listen timecodes for a human. The qa.png picture is saved for the user and not shown to you; work from the numbers. A FAIL comes back as data; fix it through ops. Never claim the sound is good: no model can hear it.',
       z.strictObject({ sequenceId: id }),
       async (ctx, a) => {
         const qa = (await job(ctx, 'audioQa', { sequenceId: a.sequenceId })) as {
@@ -242,12 +241,8 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
           durationMs?: number;
         };
         const build = await ctx.engine.compile(ctx.projectId, a.sequenceId, { mode: 'render' });
-        const png = await readStill(ctx, qa.png, 'qa.png');
-        const shown = await presentImages(
-          ctx,
-          [png],
-          'This is an audio QA picture: numbered cue markers on top, then waveform rows (sfx, speech, mix) with green onset ticks. For each hero cue marker, describe what the waveforms show around it. Read numbers only; do not judge how it sounds.',
-        );
+        // qa.png stays on disk for the user; the model gets the numbers it is drawn from, never
+        // the picture (D-80)
         return {
           result: ctx.aliases.toModel({
             pass: qa.pass,
@@ -267,12 +262,7 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
               kind: l.kind,
               listenFor: l.listenFor,
             })),
-            ...(shown?.description !== undefined && { picture: shown.description }),
-            ...(shown === null && {
-              picture: 'no vision model: qa.png not described; use the numbers above',
-            }),
           }),
-          ...(shown?.images && { images: shown.images }),
         };
       },
     ),

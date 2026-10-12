@@ -71,3 +71,20 @@ export async function presentCards(
     return null;
   }
 }
+
+/**
+ * The text that replaces a tool result's images once they are older than the recent history
+ * (D-80): their frame cards, or, where cards cannot be made, a note naming the stills.
+ */
+export async function agedImagesText(
+  ctx: ToolContext,
+  stills: readonly { label: string; path?: string }[],
+): Promise<string> {
+  const labels = stills.map((s) => s.label);
+  const paths = stills.flatMap((s) => (s.path === undefined ? [] : [s.path]));
+  if (paths.length === stills.length) {
+    const cards = await presentCards(ctx, paths, labels);
+    if (cards !== null) return `[images replaced by their frame cards]\n${cards}`;
+  }
+  return `[images elided: ${labels.join(', ')}; view them again to see them]`;
+}

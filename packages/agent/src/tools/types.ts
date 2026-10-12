@@ -31,8 +31,10 @@ export type ToolKind = 'read' | 'write' | 'job' | 'meta';
 export interface ToolImage {
   mediaType: 'image/png';
   data: Uint8Array;
-  /** What the image is, e.g. `seqMs 1200` or `qa.png`. */
+  /** What the image is, e.g. `seqMs 1200` or `srcMs 5000`. */
   label: string;
+  /** The still on disk: once the image leaves the recent history, its frame card replaces it (D-80). */
+  path?: string;
 }
 
 /** Describes images with the `vision` role; its prompt holds the on-image text rule (S34). */

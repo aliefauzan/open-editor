@@ -155,6 +155,8 @@ export function createAgentStore(vox: VoxApi): AgentStore {
         const projectId = get().projectId;
         if (!projectId || !message.trim()) return null;
         set({ sending: true, error: null });
+        // the roles may have changed outside the app since the panel last read them
+        void get().loadSettings();
         try {
           const r = await vox.agent.run({
             projectId,

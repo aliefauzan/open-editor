@@ -264,10 +264,13 @@ describe('roleCheck: Apple on-device', () => {
     ]);
   });
 
-  test('image and embed are never Apple roles', () => {
+  test('image is never an Apple role; embed only when the helper reports it (D-77)', () => {
     for (const role of ['image', 'embed'] as const) {
       expect(roleCheck(role, args({ ...appleProbe, vision: PASS })).assignable).toBe(false);
     }
+    const embedder = { ...appleProbe, capabilities: { embeddings: true } };
+    expect(roleCheck('image', args(embedder)).assignable).toBe(false);
+    expect(roleCheck('embed', args(embedder)).assignable).toBe(true);
   });
 
   test('vision is an Apple role only when the vision probe passed (macOS 27, D-74)', () => {
