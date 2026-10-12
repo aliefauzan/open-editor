@@ -11,6 +11,7 @@ import { LOCK_FILE, type LockInfo } from './history/lock.ts';
 import { FACE_MODEL, sha256File } from './media-api.ts';
 import type { Project, Transcript } from './model/schema.ts';
 import { PY_ENV_LOCK_FIX, pyEnvLockState } from './py.ts';
+import { checkoutPyEnvSyncEnabled, pyEnvStamp } from './pyenv.ts';
 import { moduleRequire } from './resources.ts';
 import { WHISPER_DIR, WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
 
@@ -209,6 +210,9 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
   // App-installed env (D-12): it must come from the uv.lock this build ships, else it is re-synced.
   // The same check runs before `imagegen.install` and mflux generation (D-69).
   const lock = await pyEnvLockState(o.tools);
+  // dev checkout (D-87): the next Python tool re-syncs the env, so a mismatch is only a warning
+  const devSync = checkoutPyEnvSyncEnabled(o.tools['dir']);
+  const DEV_SYNC_FIX = 'none needed: the next Python tool run syncs it from this checkout first';
   if (lock) {
     add(
       lock.state === 'current'
@@ -220,13 +224,36 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
           }
         : {
             name: 'python-env-lock',
-            level: 'error',
+            level: devSync ? 'warn' : 'error',
             detail:
               lock.state === 'unsynced'
                 ? 'the Python env has no lock hash (not synced by setup)'
                 : 'the Python env was synced from a different uv.lock',
             path: lock.pyEnv,
-            fix: PY_ENV_LOCK_FIX,
+            fix: devSync ? DEV_SYNC_FIX : PY_ENV_LOCK_FIX,
+          },
+    );
+  }
+  // The env's own sources (D-87): which vox_py it was built from, and whether that is this py/.
+  // A warning, not an error: the app re-syncs on launch, the dev CLI before the first Python tool.
+  const stamp = await pyEnvStamp(o.tools);
+  if (stamp) {
+    const short = (h: string | undefined) => (h === undefined ? 'none' : h.slice(0, 12));
+    const match = stamp.src.have === stamp.src.want;
+    add(
+      match
+        ? {
+            name: 'python-env-source',
+            level: 'ok',
+            detail: `built from these Python sources (vox_py ${short(stamp.src.want)})`,
+            path: stamp.pyEnv,
+          }
+        : {
+            name: 'python-env-source',
+            level: 'warn',
+            detail: `built from other Python sources: vox_py ${short(stamp.src.have)}, this py/ is ${short(stamp.src.want)}`,
+            path: stamp.pyEnv,
+            fix: devSync ? DEV_SYNC_FIX : PY_ENV_LOCK_FIX,
           },
     );
   }

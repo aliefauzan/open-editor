@@ -15,6 +15,7 @@ import type { z } from 'zod';
 import { pyProjectDir } from './resources.ts';
 import { VoxError, type ErrorCode } from './errors.ts';
 import { redactor as sharedRedactor, type Redactor } from './redact.ts';
+import { checkoutPyEnvSyncEnabled, ensureCheckoutPyEnv } from './pyenv.ts';
 
 export const STDERR_TAIL_LINES = 40;
 const MAX_STDOUT_BYTES = 64 * 1024 * 1024;
@@ -172,9 +173,32 @@ function parseProgress(line: string): { progress: number; message?: string } | u
 /**
  * Runs `vox_py.<tool>` with `request` and returns its result parsed by `output`.
  * Errors: VALIDATION (request), TOOL_MISSING (uv), PY_TOOL_FAILED (exit code), PY_OUTPUT_INVALID
- * (not JSON / schema mismatch), CANCELLED (signal). Every rejection is redacted.
+ * (not JSON / schema mismatch), CANCELLED (signal), TOOL_FAILED (the dev-checkout sync of the tools
+ * folder's env failed, D-87). Every rejection is redacted.
  */
 export function runPyTool<S extends z.ZodType>(
+  tool: string,
+  request: unknown,
+  output: S,
+  opts: PyBridgeOptions,
+): Promise<z.output<S>> {
+  const toolsDir = opts.toolsDir;
+  if (toolsDir === undefined || !checkoutPyEnvSyncEnabled(toolsDir)) {
+    return runPyToolNow(tool, request, output, opts);
+  }
+  // dev checkout (D-87): a tools folder env built from other sources is re-synced first
+  const redactor = opts.redactor ?? sharedRedactor;
+  return ensureCheckoutPyEnv({
+    toolsDir,
+    pyProject: opts.pyProject,
+    ...(opts.uv !== undefined && { uv: opts.uv }),
+  }).then(
+    () => runPyToolNow(tool, request, output, opts),
+    (e: unknown) => Promise.reject(redactor.redact(e)),
+  );
+}
+
+function runPyToolNow<S extends z.ZodType>(
   tool: string,
   request: unknown,
   output: S,
@@ -477,6 +501,13 @@ export const PY_ENV_LOCK_FIX =
 export async function assertPyEnvCurrent(
   tools: Readonly<Record<string, string | undefined>>,
 ): Promise<void> {
+  // dev checkout (D-87): re-sync from the checkout instead of refusing
+  const dir = tools['dir'];
+  const py = tools['py'];
+  if (tools['pyEnv'] && dir && py && checkoutPyEnvSyncEnabled(dir)) {
+    const uv = tools['uv'];
+    await ensureCheckoutPyEnv({ toolsDir: dir, pyProject: py, ...(uv !== undefined && { uv }) });
+  }
   const s = await pyEnvLockState(tools);
   if (!s || s.state === 'current') return;
   throw new VoxError(
