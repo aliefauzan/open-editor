@@ -11,6 +11,7 @@ import {
   type Sequence,
   type Track,
 } from '../model/schema.ts';
+import { spanMs, speedOf } from '../model/speed.ts';
 import { endOf, fail, findSeq, findTrack, snapDown, tracksOf, type OpContext } from './core.ts';
 
 const name = () => z.string().min(1).max(200);
@@ -124,8 +125,8 @@ function resnap(p: Project, s: Sequence, fps: Fps): void {
       const media = p.media.find((m) => m.id === it.mediaId);
       if (!media || media.kind === 'image') continue;
       if (!media.fps) it.inMs = snap(it.inMs, fps);
-      if (media.durationMs !== undefined && it.inMs + it.durationMs > media.durationMs) {
-        it.durationMs = snapDown(start + media.durationMs - it.inMs, fps) - start;
+      if (media.durationMs !== undefined && it.inMs + spanMs(it) > media.durationMs) {
+        it.durationMs = snapDown(start + (media.durationMs - it.inMs) / speedOf(it), fps) - start;
       }
     }
   }

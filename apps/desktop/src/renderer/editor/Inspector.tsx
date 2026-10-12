@@ -13,6 +13,7 @@ import type {
   SceneClip,
   Sequence,
 } from '../../shared/project.ts';
+import { sourceSpanMs } from '../../shared/project.ts';
 import { useCtx, useEditor } from './context.tsx';
 import { mediaName, relink } from './MediaBin.tsx';
 import { endOf, seqOf } from './editing.ts';
@@ -138,6 +139,8 @@ function Timing(props: { s: Sequence; item: Item }) {
       args: { sequenceId: s.id, itemId: item.id, edge, toMs: snapMs(toMs, s.canvas.fps) },
     });
   const inMs = item.type === 'media' ? item.inMs : 0;
+  // In/Out are source ms; the clip covers durationMs × speed of source (plan D-62)
+  const sp = item.type === 'media' ? (item.speed ?? 1) : 1;
   return (
     <>
       <Row label="Start" htmlFor="in-start">
@@ -166,20 +169,53 @@ function Timing(props: { s: Sequence; item: Item }) {
             value={inMs}
             min={0}
             suffix="ms"
-            onCommit={(v) => trim('start', item.startMs + (v - inMs))}
+            onCommit={(v) => trim('start', item.startMs + (v - inMs) / sp)}
           />
         </Row>
       )}
       <Row label={item.type === 'media' ? 'Out point' : 'End'} htmlFor="in-out">
         <NumberField
           id="in-out"
-          value={item.type === 'media' ? inMs + item.durationMs : endOf(item)}
+          value={item.type === 'media' ? inMs + sourceSpanMs(item) : endOf(item)}
           min={0}
           suffix="ms"
-          onCommit={(v) => trim('end', item.type === 'media' ? item.startMs + (v - inMs) : v)}
+          onCommit={(v) => trim('end', item.type === 'media' ? item.startMs + (v - inMs) / sp : v)}
         />
       </Row>
     </>
+  );
+}
+
+/**
+ * Clip speed (engine spec "Clip speed", plan D-62): 0.25–4× for picture, 0.5–2× for sound, in 0.01
+ * steps. The source range stays, so the clip gets shorter or longer; later items ripple.
+ */
+function SpeedRow(props: { s: Sequence; item: MediaClip; kind: 'video' | 'audio' }) {
+  const { editor } = useCtx();
+  const { s, item } = props;
+  const [min, max] = props.kind === 'audio' ? [0.5, 2] : [0.25, 4];
+  return (
+    <Row label="Speed" htmlFor="in-clip-speed">
+      <NumberField
+        id="in-clip-speed"
+        value={item.speed ?? 1}
+        min={min}
+        max={max}
+        step={0.05}
+        suffix="×"
+        onCommit={(v) =>
+          void editor.getState().apply({
+            op: 'setClipSpeed',
+            args: {
+              sequenceId: s.id,
+              itemId: item.id,
+              speed: Math.min(max, Math.max(min, Math.round(v * 100) / 100)),
+              onOverlap: 'ripple',
+            },
+          })
+        }
+      />
+    </Row>
   );
 }
 
@@ -423,6 +459,7 @@ function MediaInspector(props: { s: Sequence; item: MediaClip; kind: 'video' | '
         </button>
       )}
       <Timing s={s} item={item} />
+      {!isImage && <SpeedRow s={s} item={item} kind={props.kind} />}
       {props.kind === 'video' && <Framing s={s} item={item} />}
       {props.kind === 'video' && isImage && (
         <Row label="Motion" htmlFor="in-motion">

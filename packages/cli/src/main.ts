@@ -148,9 +148,10 @@ const USAGE = `usage:
   vox config roles set <role> <provider>:<model> [--mode tools|plan]   probes first; refuses a failed role
   vox config prices set <model> --in <usd> --out <usd> | --free        per million tokens
   vox config probe [<provider>:<model>...]   probe the role models (or the named ones)
-  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit] [--seq id]... [--style id]
+  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit|screenplay] [--seq id]... [--style id]
        [--layout full-collage|hybrid] [--mode tools|plan] [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan]
        [--count n] [--length 30-60]   (clipper: number of clips, length in seconds)
+       [--screenplay <file|mediaId>] [--footage <mediaId>]...   (screenplay: the document; default: every video)
   vox agent undo <project> <runId>        undo every edit of an agent run
 common options: --json, --projects-dir <dir>; <project> is an id or a unique name
 `;
@@ -257,6 +258,8 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     'confirm-plan': { type: 'boolean' },
     count: { type: 'string' },
     length: { type: 'string' },
+    screenplay: { type: 'string' },
+    footage: { type: 'string', multiple: true },
   },
   config: {
     json: { type: 'boolean' },

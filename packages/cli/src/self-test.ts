@@ -187,7 +187,7 @@ export async function selfTest(o: SelfTestOptions): Promise<SelfTestReport> {
       }),
       await attempt('vox-map-route', () => mapRouteCheck(engine)),
       await attempt('agent-workflows', async () => {
-        const names = ['clipper', 'stylize', 'edit'] as const;
+        const names = ['clipper', 'stylize', 'edit', 'screenplay'] as const;
         for (const n of names) {
           const w = loadWorkflow(n);
           if (w.allowedTools.length === 0 && n !== 'edit') throw new Error(`${n}: no tools`);

@@ -269,7 +269,11 @@ export function readTools(): AgentTool[] {
           const img = await readStill(ctx, paths[i] as string, `seqMs ${String(at)}`);
           images.push(img);
           const clip = v1?.items.find((it) => it.startMs <= at && at < it.startMs + it.durationMs);
-          const srcMs = clip && clip.type === 'media' ? clip.inMs + (at - clip.startMs) : null;
+          // source time at the clip's speed (plan D-62)
+          const srcMs =
+            clip && clip.type === 'media'
+              ? Math.round(clip.inMs + (at - clip.startMs) * (clip.speed ?? 1))
+              : null;
           frames.push({ seqMs: at, srcMs, health: frameHealth(img.data) });
         }
         const shown = await presentImages(

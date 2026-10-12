@@ -527,6 +527,12 @@ Input: a screenplay/script document (txt, md, pdf, fountain) and a footage set.
 4. Lay clips on `V1` in screenplay order with durations from the screenplay; gaps where
    nothing matched get a `base/placeholder` scene with the scene heading.
 
+Details (plan D-66): the workflow has the checkpoints `tag`, `match` and `layout`. A scene takes a
+clip only above a bar (LLM score 0.5, embedding cosine 0.3, word overlap 0.2); each clip is used at most
+once (highest score first; ties go to the clip closest in length to the scene). Ranking uses the `embed`
+role, else the `fast` role, else the `editor` role, else word overlap with a note. A clip that already has
+a `description` is not tagged again. Everything lands in one `batch` (one undo entry).
+
 ### 4. Style extract (with styles Part C)
 
 Runs the style-spec Part C pipeline, using the `vision` model.
@@ -543,8 +549,10 @@ self-review.
 ```
 vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit|screenplay|style-extract]
           [--seq id]... [--style id] [--layout full-collage|hybrid] [--mode tools|plan]
+          [--screenplay <file|mediaId>] [--footage <mediaId>]...
           [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan] [--count n] [--length 30-60]
 # the instruction is required unless --workflow is given; --seq may repeat (stylize);
+# --screenplay is required with --workflow screenplay; --footage defaults to every video in the project
 # without --workflow: clipper when the instruction names a link or file, else edit (plan D-51)
 vox agent undo <project> <runId>
 vox config providers add openrouter --key env:OPENROUTER_API_KEY

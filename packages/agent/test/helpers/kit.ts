@@ -3,3 +3,4 @@
 export { dynamicModel, fakeJobs, fakeRender, REPO, type FakeJobs } from './workflow.ts';
 export { planStylist, toolsStylist } from './stylists.ts';
 export type { ScriptStep } from './model.ts';
+export { screenplaySet } from './screenplay.ts';

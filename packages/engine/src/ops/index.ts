@@ -6,6 +6,7 @@ import { diffProjects, type Change } from '../model/diff.ts';
 import { formatIssues, type Project } from '../model/schema.ts';
 import { sortProject, type OpContext } from './core.ts';
 import { checkInvariants } from './invariants.ts';
+import { setClipSpeed, setClipSpeedArgs } from './speed.ts';
 import { setCaptions, setCaptionsArgs } from './captions.ts';
 import {
   link,
@@ -103,6 +104,7 @@ export {
   removeWordsArgs,
   pasteItemsArgs,
   restoreSnapshotArgs,
+  setClipSpeedArgs,
 };
 
 interface OpDef<S extends z.ZodType> {
@@ -141,6 +143,7 @@ const OPS = {
   removeWords: def(removeWordsArgs, removeWords),
   pasteItems: def(pasteItemsArgs, pasteItems),
   restoreSnapshot: def(restoreSnapshotArgs, restoreSnapshot),
+  setClipSpeed: def(setClipSpeedArgs, setClipSpeed),
 } as const;
 
 export type SingleOpName = keyof typeof OPS;

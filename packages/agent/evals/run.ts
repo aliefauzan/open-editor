@@ -3,6 +3,7 @@
 // (transcript + image) with the user's configured role models, or with every role on one configured
 // provider, and prints a scorecard per run. Each run is capped by the config's `maxUsdPerRun`. Opt-in:
 // it needs real providers, so it is not part of CI. Pauses are never approved (S20).
+
 import { createRedactor, openEngine, type Engine, type Project, type Redactor } from '@vox/engine';
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
@@ -17,6 +18,7 @@ import { createLanguageModel } from '../src/providers/factory.ts';
 import type { AgentMode } from '../src/providers/roles.ts';
 import { runEngineJob } from '../src/tools/jobs.ts';
 import { runWorkflow, type WorkflowDeps } from '../src/workflows/run-workflow.ts';
+import { runScreenplay } from './screenplay.ts';
 import {
   clipViolations,
   injectionViolations,
@@ -258,6 +260,8 @@ async function main(argv: string[], redactor: Redactor): Promise<number> {
       model: { type: 'string' },
       mode: { type: 'string' },
       json: { type: 'boolean' },
+      // clipper = the clipper and injection cases (phase 12); screenplay = the 14b case; default: all
+      only: { type: 'string' },
     },
     strict: true,
   });
@@ -302,13 +306,18 @@ async function main(argv: string[], redactor: Redactor): Promise<number> {
   });
   if (!built.models.editor) throw new Error('no editor model: set one, or pass --provider');
   const mode = (values.mode as AgentMode | undefined) ?? built.mode ?? 'tools';
-  const cards = await runEvals({
+  if (values.only !== undefined && values.only !== 'clipper' && values.only !== 'screenplay')
+    throw new Error('--only takes clipper or screenplay');
+  const evalDeps: EvalDeps = {
     models: built.models,
     mode,
     maxUsdPerRun: conf.limits.maxUsdPerRun,
     maxStepsPerRun: conf.limits.maxStepsPerRun,
     redactor,
-  });
+  };
+  const cards: Scorecard[] = [];
+  if (values.only !== 'screenplay') cards.push(...(await runEvals(evalDeps)));
+  if (values.only !== 'clipper') cards.push(await runScreenplay(evalDeps));
   process.stdout.write(
     redactor.redact(values.json ? `${JSON.stringify(cards, null, 2)}\n` : formatScorecards(cards)),
   );

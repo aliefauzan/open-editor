@@ -3,7 +3,7 @@
 // path, scene and caption layers as ProRes 4444 MOVs with alpha in `<name>-layers/`; a moved export
 // still resolves every reference. Also `engine.frames()` (compiled stills at canvas size, cached).
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, test } from 'vitest';
 import type { JobInfo } from '../../src/jobs.ts';
@@ -73,6 +73,40 @@ describe('export-timeline (step 7)', () => {
     expect(r2.result?.layersDir).toBe(join(out, 'Demo-Main (2)-layers'));
     expect(otioCheck(r2.result!.path).clips.every((c) => c.exists)).toBe(true);
     expect(readdirSync(out).filter((n) => n.startsWith('.'))).toEqual([]);
+  }, 600_000);
+
+  test('a sped clip gets an OTIO LinearTimeWarp with the timeline-length source range (D-62)', async () => {
+    const sx = await exportProject(exportEngine(), 3000, 'Speed');
+    const v1 = (await sx.e.getProject(sx.projectId)).sequences[0]!.videoTracks[0]!.items[0]!;
+    const r0 = await sx.e.applyOp(
+      sx.projectId,
+      { op: 'setClipSpeed', args: { sequenceId: sx.seq, itemId: v1.id, speed: 2 } } as never,
+      { actor: 'cli' },
+    );
+    expect(r0.results[0]!.status).toBe('succeeded');
+    const out = tempDir('vox-otio-speed-');
+    const r = (await sx.e.jobs.wait(
+      sx.e.jobs.start('exportTimeline', { projectId: sx.projectId, target: { dir: out } }),
+    )) as JobInfo<{ path: string }>;
+    expect(r.status, JSON.stringify(r.error)).toBe('done');
+    interface Node {
+      OTIO_SCHEMA: string;
+      name?: string;
+      children?: Node[];
+      effects?: { OTIO_SCHEMA: string; time_scalar: number }[];
+      source_range?: { duration: { value: number; rate: number } };
+    }
+    const doc = JSON.parse(readFileSync(r.result!.path, 'utf8')) as { tracks: Node };
+    const clips = doc.tracks.children!.flatMap((t) => t.children ?? []);
+    const sped = clips.filter((c) => c.name?.endsWith('m_head.mp4'));
+    expect(sped.length).toBe(2); // V1 picture + linked A1 sound
+    for (const c of sped) {
+      expect(c.effects?.map((e) => [e.OTIO_SCHEMA.split('.')[0], e.time_scalar])).toEqual([
+        ['LinearTimeWarp', 2],
+      ]);
+      // 1500 ms on the timeline at 30 fps
+      expect(c.source_range!.duration.value).toBe(45);
+    }
   }, 600_000);
 });
 

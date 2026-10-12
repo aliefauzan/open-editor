@@ -96,7 +96,10 @@ export function toSourceMs(seq: Sequence, wordKey: string, timelineMs: number): 
       timelineMs >= c.startMs - 1 &&
       timelineMs <= c.startMs + c.durationMs + 1,
   );
-  return clip ? Math.max(0, Math.round(timelineMs - clip.startMs + clip.inMs)) : null;
+  // at the clip's speed (plan D-62)
+  return clip
+    ? Math.max(0, Math.round(clip.inMs + (timelineMs - clip.startMs) * (clip.speed ?? 1)))
+    : null;
 }
 
 /**

@@ -9,6 +9,7 @@ import { gzipSync } from 'node:zlib';
 import { isVoxError, toVoxErrorJson, VoxError } from '../errors.ts';
 import { EngineLog, type EngineLogOptions } from '../log.ts';
 import { deepEqual } from '../model/equal.ts';
+import { MIGRATIONS } from '../model/migrate.ts';
 import { diffProjects, type Change } from '../model/diff.ts';
 import { newId as defaultNewId, type IdPrefix } from '../model/ids.ts';
 import { canonical, denormalise, normalise, splitSeqKey, type Entity } from '../model/normalise.ts';
@@ -203,7 +204,8 @@ export class ProjectStore {
 
   private constructor(dir: string, opts: StoreOptions) {
     this.dir = dir;
-    this.opts = opts;
+    // the engine's own migrations (plan D-62); a caller's steps (tests) replace the same numbers
+    this.opts = { ...opts, migrations: { ...MIGRATIONS, ...opts.migrations } };
     this.log = new EngineLog(dir, opts.log);
   }
 

@@ -15,7 +15,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { VoxError } from '../errors.ts';
-import type { MediaItem, Sequence } from '../model/schema.ts';
+import type { MediaClip, MediaItem, Sequence } from '../model/schema.ts';
+import { spanMs, speedOf } from '../model/speed.ts';
 import type { Cue } from './cues.ts';
 
 const run = promisify(execFile);
@@ -81,6 +82,42 @@ export interface MixGraph {
 /** Seconds with at most 6 decimals, no trailing zeros. */
 const sec = (msValue: number) => String(Number((msValue / 1000).toFixed(6)));
 const samples = (msValue: number) => Math.round((msValue * SAMPLE_RATE) / 1000);
+
+/**
+ * Samples (at 48 kHz) that ffmpeg's `atempo` drops at the start of its output. A sped clip's trim
+ * starts this much earlier, so its sound lands on time (engine spec "Clip speed", plan D-62; the
+ * phase 14e spike measured 33 ms early at 0.5× without it, 9 ms with it).
+ */
+export const ATEMPO_PREROLL_SAMPLES = 1024;
+
+/** The clip's source trim, resampled: its source span, with the `atempo` preroll when sped. */
+function speedChain(it: MediaClip): string[] {
+  const end = sec(it.inMs + spanMs(it));
+  if (speedOf(it) === 1) {
+    return [`atrim=start=${sec(it.inMs)}:end=${end}`, 'asetpts=PTS-STARTPTS', FORMAT];
+  }
+  // seconds, not samples: the source may not be 48 kHz before the resample
+  const pre = Math.min(ATEMPO_PREROLL_SAMPLES, samples(it.inMs));
+  const chain = [
+    `atrim=start=${sec(it.inMs - (pre * 1000) / SAMPLE_RATE)}:end=${end}`,
+    'asetpts=PTS-STARTPTS',
+    FORMAT,
+  ];
+  // a clip that starts less than the preroll into its source gets silence in front instead
+  if (pre < ATEMPO_PREROLL_SAMPLES) {
+    chain.push(`adelay=delays=${ATEMPO_PREROLL_SAMPLES - pre}S:all=1`);
+  }
+  return chain;
+}
+
+/** `atempo` at the clip's speed (0.5–2 for sound, one stage), cut to the timeline length. */
+function tempoChain(it: MediaClip): string[] {
+  return [
+    `atempo=${speedOf(it)}`,
+    `atrim=end_sample=${samples(it.durationMs)}`,
+    'asetpts=PTS-STARTPTS',
+  ];
+}
 const FORMAT = `aresample=${SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo`;
 
 interface Source {
@@ -114,12 +151,9 @@ function sources(input: MixInput): Source[] {
         );
       }
       if (m.kind === 'image' || m.hasAudio === false) continue;
-      const chain = [
-        `atrim=start=${sec(it.inMs)}:end=${sec(it.inMs + it.durationMs)}`,
-        'asetpts=PTS-STARTPTS',
-        FORMAT,
-      ];
+      const chain = speedChain(it);
       if (it.denoise && it.denoise !== 'off') chain.push(DENOISE_FILTERS[it.denoise]);
+      if (speedOf(it) !== 1) chain.push(...tempoChain(it));
       if (m.loudness) {
         const gain = Number((target - m.loudness.integratedLufs).toFixed(2));
         if (gain !== 0) chain.push(`volume=${gain}dB`);

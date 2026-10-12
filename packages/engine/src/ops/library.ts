@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { snapToSource } from '../model/fps.ts';
 import { MediaIdSchema, MediaItemSchema, type MediaItem, type Project } from '../model/schema.ts';
+import { spanMs, speedOf } from '../model/speed.ts';
 import { endOf, fail, findMedia, snapDown, tracksOf } from './core.ts';
 
 export const addMediaArgs = z.strictObject({ media: MediaItemSchema });
@@ -98,12 +99,15 @@ export function replaceMedia(
       for (const it of t.items) {
         if (it.type !== 'media' || it.mediaId !== from.id) continue;
         it.mediaId = to.id;
-        if (to.kind === 'image') continue;
+        if (to.kind === 'image') {
+          delete it.speed; // images have no source time (plan D-62)
+          continue;
+        }
         it.inMs = snapToSource(it.inMs, to.fps, s.canvas.fps);
         const limit = to.durationMs;
-        if (limit === undefined || it.inMs + it.durationMs <= limit) continue;
+        if (limit === undefined || it.inMs + spanMs(it) <= limit) continue;
         if (it.inMs >= limit) it.inMs = 0;
-        const end = snapDown(it.startMs + (limit - it.inMs), s.canvas.fps);
+        const end = snapDown(it.startMs + (limit - it.inMs) / speedOf(it), s.canvas.fps);
         if (end < endOf(it)) it.durationMs = end - it.startMs;
         if (it.durationMs <= 0) {
           fail(

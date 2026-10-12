@@ -387,7 +387,8 @@ lists recent projects and "New empty project".
   - Caption lane under the video tracks showing caption chunks, with emphasis words
     marked; double-click a word to edit it; "break here" on a word sets `breakAfter`.
 - **Inspector (right, collapsible)**:
-  - Media clip (video track): in/out, framing mode (cover/contain/auto/facetrack with
+  - Media clip (video track): in/out (source time), speed (0.25–4×, not on images; plan
+    D-62, engine "Clip speed": one `setClipSpeed` with `onOverlap: 'ripple'`), framing mode (cover/contain/auto/facetrack with
     face picker/manual with a drag handle on the preview), image motion, transition in.
     For `auto` and `facetrack`: stability (locked / smooth / follow, default
     smooth) and track speed (slow / normal / fast, default normal). "Pin frame here"
@@ -395,7 +396,7 @@ lists recent projects and "New empty project".
     item start) from the current crop, which the user then drags on the preview; in
     `auto`/`facetrack` it pins the track there, in `manual` it is the crop. Pins are
     listed with their time and a remove button.
-  - Media clip (audio track): in/out, volume, fade in/out, denoise (off / light /
+  - Media clip (audio track): in/out, speed (0.5–2×), volume, fade in/out, denoise (off / light /
     strong, default off).
   - Scene clip: a form generated from the template's variables JSON Schema (text fields
     with `maxLength` counters, media pickers for image slots, place search for `geo`

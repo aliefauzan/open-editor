@@ -12,8 +12,8 @@ import { baseProject, richProject, videoMedia } from '../helpers/project.ts';
 const clone = <T>(v: T): T => structuredClone(v);
 
 describe('project.json schema', () => {
-  test('schemaVersion is 2 and a rich fixture project parses', () => {
-    expect(SCHEMA_VERSION).toBe(2);
+  test('schemaVersion is 3 (v1.1, D-62) and a rich fixture project parses', () => {
+    expect(SCHEMA_VERSION).toBe(3);
     expect(parseProject(richProject())).toEqual(richProject());
   });
 
@@ -48,8 +48,21 @@ describe('project.json schema', () => {
     const deep = richProject() as unknown as {
       sequences: { videoTracks: { items: Record<string, unknown>[] }[] }[];
     };
-    deep.sequences[0]!.videoTracks[0]!.items[0]!['speed'] = 2;
+    // `speed` became a field in schemaVersion 3 (D-62); any other unknown item field still fails
+    deep.sequences[0]!.videoTracks[0]!.items[0]!['pitch'] = 2;
     expect(() => parseProject(deep)).toThrow();
+  });
+
+  test('MediaClip.speed (v1.1, D-62): 0.25–4 in steps of 0.01', () => {
+    const at = (speed: number) => {
+      const p = richProject() as unknown as {
+        sequences: { videoTracks: { items: Record<string, unknown>[] }[] }[];
+      };
+      p.sequences[0]!.videoTracks[0]!.items[0]!['speed'] = speed;
+      return () => parseProject(p);
+    };
+    for (const ok of [0.25, 0.5, 1, 1.25, 2, 3.99, 4]) expect(at(ok)).not.toThrow();
+    for (const bad of [0, 0.2, 4.01, 5, 1.005, -1, Number.NaN]) expect(at(bad)).toThrow();
   });
 
   test('canvas fps must be in the fixed set; media fps may be any rate', () => {

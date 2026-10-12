@@ -10,6 +10,7 @@ import {
   type Transcript,
   type WordKind,
 } from '../model/schema.ts';
+import { spanMs, timelineAt } from '../model/speed.ts';
 import { endOf, fail, findSeq, findTrack, snapT, type OpContext } from './core.ts';
 import { rippleRange } from './items.ts';
 
@@ -34,8 +35,9 @@ export function wordSourceTracks(s: Sequence): string[] {
 }
 
 /**
- * Every transcript word of the clips on the source tracks whose midpoint lies in
- * `[inMs, inMs + durationMs)`, shifted to timeline time and clamped to the clip; sorted by start.
+ * Every transcript word of the clips on the source tracks whose midpoint lies in the clip's source
+ * range `[inMs, inMs + durationMs × speed)`, mapped to timeline time (`startMs + (t − inMs) / speed`,
+ * plan D-62) and clamped to the clip; sorted by start.
  */
 export function mapWordsToTimeline(
   p: Project,
@@ -55,7 +57,8 @@ export function mapWordsToTimeline(
       if (!cache.has(media.id)) cache.set(media.id, transcriptOf(media));
       const tr = cache.get(media.id);
       if (!tr) continue;
-      const inEnd = it.inMs + it.durationMs;
+      const inEnd = it.inMs + spanMs(it);
+      const toTimeline = (t: number) => Math.round(timelineAt(it, t));
       tr.words.forEach((w, index) => {
         const mid = (w.startMs + w.endMs) / 2;
         if (mid < it.inMs || mid >= inEnd) return;
@@ -64,8 +67,8 @@ export function mapWordsToTimeline(
           key: `${media.id}:${media.transcriptRev}:${index}`,
           text: w.text,
           kind: w.kind,
-          startMs: clamp(it.startMs + w.startMs - it.inMs),
-          endMs: clamp(it.startMs + w.endMs - it.inMs),
+          startMs: clamp(toTimeline(w.startMs)),
+          endMs: clamp(toTimeline(w.endMs)),
           mediaId: media.id,
           index,
           trackId,

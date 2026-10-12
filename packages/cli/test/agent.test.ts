@@ -13,6 +13,7 @@ import {
   fakeJobs,
   fakeRender,
   REPO,
+  screenplaySet,
   toolsStylist,
   type ScriptStep,
 } from '@vox/agent/test-kit';
@@ -187,10 +188,49 @@ describe('vox agent (step 8, done-when 8)', () => {
     expect((cut.args as { wordKeys?: string[] }).wordKeys).toHaveLength(1);
   }, 120_000);
 
+  test('--workflow screenplay --screenplay <file>: ingests the document, ranks, lays out, reports --json', async () => {
+    // the project holds one video; the ranker likes it for every scene, the first scene takes it
+    const t = await setup((o) => {
+      const text = JSON.stringify(o.prompt);
+      const n = [...text.matchAll(/#(\d+) /g)].length;
+      return {
+        json: { scores: Array.from({ length: n }, (_x, i) => ({ index: i + 1, score: 9 })) },
+      };
+    });
+    const file = join(screenplaySet(), 'screenplay.fountain');
+    const r = await t.vox([
+      'agent',
+      t.off.projectId,
+      '--workflow',
+      'screenplay',
+      '--screenplay',
+      file,
+      '--json',
+    ]);
+    const out = JSON.parse(r.stdout) as {
+      status: string;
+      summary: string;
+      workflow: string;
+      sequenceIds: string[];
+      checkpoints: { checkpoint: string; status: string }[];
+      screenplay: { scenes: number; matched: number; placeholders: number };
+    };
+    expect(out.status, out.summary).toBe('completed');
+    expect(r.code).toBe(0);
+    expect(out.workflow).toBe('screenplay');
+    expect(out.screenplay).toMatchObject({ scenes: 6, matched: 1, placeholders: 5 });
+    expect(out.checkpoints.map((c) => c.checkpoint + ':' + c.status)).toEqual([
+      'tag:met',
+      'match:met',
+      'layout:met',
+    ]);
+  }, 120_000);
+
   test('usage errors exit 2', async () => {
     const t = await setup(() => ({ text: 'x' }));
     expect((await t.vox(['agent', t.off.projectId])).code).toBe(2);
     expect((await t.vox(['agent', t.off.projectId, '--workflow', 'stylize'])).code).toBe(2);
+    expect((await t.vox(['agent', t.off.projectId, '--workflow', 'screenplay'])).code).toBe(2);
     expect((await t.vox(['agent', t.off.projectId, 'x', '--mode', 'fast'])).code).toBe(2);
     expect((await t.vox(['agent', t.off.projectId, 'x', '--length', '9'])).code).toBe(2);
   }, 60_000);

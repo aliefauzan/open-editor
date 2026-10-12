@@ -1,0 +1,13 @@
+{
+  "panels": [
+    {
+      "template": "vox/newspaper",
+      "variables": { "headline": "La Joconde a disparu", "date": "22 aout 1911", "language": "fr" }
+    },
+    {
+      "template": "vox/kinetic-serif",
+      "variables": { "text": "Nobody saw it leave.", "emphasis": ["Nobody"] }
+    }
+  ],
+  "bg": "paper"
+}

@@ -45,6 +45,7 @@ interface PairItem {
   startMs: number;
   inMs: number;
   durationMs: number;
+  speed?: number;
   linkId?: string;
 }
 
@@ -63,6 +64,7 @@ export function pairOf(s: Sequence): PairItem[] {
         startMs: it.startMs,
         inMs: it.inMs,
         durationMs: it.durationMs,
+        ...(it.speed !== undefined && { speed: it.speed }),
         ...(it.linkId !== undefined && { linkId: it.linkId }),
       });
     }

@@ -1,5 +1,12 @@
 // Fixture projects for model/ops/history tests.
-import type { Fps, MediaItem, Project, Sequence, Track } from '../../src/model/schema.ts';
+import {
+  SCHEMA_VERSION,
+  type Fps,
+  type MediaItem,
+  type Project,
+  type Sequence,
+  type Track,
+} from '../../src/model/schema.ts';
 
 export const F30: Fps = { num: 30, den: 1 };
 export const NTSC: Fps = { num: 30000, den: 1001 };
@@ -68,7 +75,7 @@ export function baseProject(
   media: MediaItem[] = [videoMedia(), imageMedia(), audioMedia()],
 ): Project {
   return {
-    schemaVersion: 2,
+    schemaVersion: SCHEMA_VERSION,
     id: 'p_test',
     name: 'test',
     version: 0,

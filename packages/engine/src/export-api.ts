@@ -19,9 +19,10 @@ import { prepareExport, writeExport, type ExportTarget } from './export/target.t
 import type { JobContext, JobRunner } from './jobs.ts';
 import { captionsToSrt, captionsToVtt, type CaptionChunk } from './model/captions.ts';
 import { blendHalf, frame, snap, type Fps } from './model/fps.ts';
-import type { MediaItem, Project, Sequence } from './model/schema.ts';
+import type { MediaClip, MediaItem, Project, Sequence } from './model/schema.ts';
 import { findSeq } from './ops/core.ts';
 import type { ProjectStore } from './history/store.ts';
+import { speedOf } from './model/speed.ts';
 import { repoPyProject, runPyTool } from './py.ts';
 import type { Redactor } from './redact.ts';
 import { fpsArg, hyperframesBin } from './render/layers.ts';
@@ -644,12 +645,18 @@ interface OtioClip {
   /** Whole source file length in `mediaRate` frames (FCPXML assets). */
   mediaDurationFrames?: number;
   mediaRate?: { num: number; den: number };
+  /** Clip speed (plan D-62): the OTIO `LinearTimeWarp` scalar; the source range keeps the timeline length. */
+  timeScalar?: number;
 }
 interface OtioTrack {
   kind: 'video' | 'audio';
   name: string;
   clips: OtioClip[];
 }
+
+/** `timeScalar` for a sped clip (none at 1×). */
+const timeScalar = (it: MediaClip): { timeScalar?: number } =>
+  speedOf(it) === 1 ? {} : { timeScalar: speedOf(it) };
 
 const TimelineToolResultSchema = z.strictObject({
   output: z.string(),
@@ -756,6 +763,7 @@ async function exportTimeline(
             Math.round((it.durationMs * rate.num) / rate.den / 1000),
           ),
           mediaRate: { num: rate.num, den: rate.den },
+          ...timeScalar(it),
           ...(m.durationMs
             ? {
                 mediaDurationFrames: Math.max(
@@ -823,6 +831,7 @@ async function exportTimeline(
             Math.round((it.durationMs * rate.num) / rate.den / 1000),
           ),
           mediaRate: { num: rate.num, den: rate.den },
+          ...timeScalar(it),
           ...(m.durationMs
             ? {
                 mediaDurationFrames: Math.max(
