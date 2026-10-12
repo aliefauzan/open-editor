@@ -136,6 +136,62 @@ describe('plan-mode picture fallbacks (D-88 live runs)', () => {
     expect(r.done.summary).toMatch(/Repaired: items 0: still of m1 at \d+ ms/);
   }, 120_000);
 
+  test('(a) a required panel picture left empty with no query gets a still of the source video', async () => {
+    // the live run of this fix (qwen3.5): `media: ""` everywhere and no imageQueries at all
+    const kit = await workflowKit();
+    offlineCutout(kit);
+    const panels = [
+      { template: 'vox/framed-portrait', variables: { media: '', frame: 'none', bg: 'dark' } },
+      { template: 'vox/stat', variables: { value: '20 Ribu', line2: 'yang kita keluarkan' } },
+    ];
+    const { r, p, scenes, mediaId, repairs } = await stylizePlan(
+      kit,
+      sceneStylist('vox/stack', { panels }),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(scenes.map((s) => s.template)).toEqual(['vox/stack']);
+    const vars = scenes[0]!.variables as { panels: { variables: Record<string, unknown> }[] };
+    const still = p.media.find((m) => m.id === vars.panels[0]!.variables['media']);
+    // framed-portrait's picture is an image slot: the still itself, no cutout
+    expect(still?.tags).toContain('still');
+    expect(still?.origin).toEqual(p.media.find((m) => m.id === mediaId)!.origin);
+    // the optional stat background was never asked for: it stays absent, with no note
+    expect(vars.panels[1]!.variables).toEqual(panels[1]!.variables);
+    expect(repairs).toMatch(/panel 0: media: still of m1 at \d+ ms \(no picture query\)/);
+    expect(repairs).not.toContain('bgPhoto');
+  }, 120_000);
+
+  test('(a) collage items left empty with no query get stills of the source video', async () => {
+    const kit = await workflowKit();
+    const cut = offlineCutout(kit);
+    const items = [
+      { media: '', x: 10, y: 10, scale: 0.8 },
+      { media: '', x: 90, y: 20, scale: 0.7 },
+    ];
+    const { r, p, scenes, repairs } = await stylizePlan(
+      kit,
+      sceneStylist('vox/paper-collage', { label: 'Rezeki Tak Terduga', items, bg: 'paper' }),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(scenes.map((s) => s.template)).toEqual(['vox/paper-collage']);
+    expect(p.media.filter((m) => m.tags.includes('still'))).toHaveLength(2);
+    expect(cut).toHaveLength(2);
+    expect(repairs).toMatch(/items 1: still of m1 at \d+ ms \(no picture query\)/);
+  }, 120_000);
+
+  test('(a) a picture asked for by a query that finds nothing is not replaced by a still', async () => {
+    const kit = await workflowKit();
+    const { r, scenes, p } = await stylizePlan(
+      kit,
+      sceneStylist('vox/paper-collage', { items: [{ media: '', x: 50, y: 50 }] }, ['a judge']),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(scenes.map((s) => [s.template, s.variables])).toEqual([
+      ['base/placeholder', { label: 'Picture: a judge' }],
+    ]);
+    expect(p.media.filter((m) => m.tags.includes('still'))).toEqual([]);
+  }, 120_000);
+
   test('(b) an optional top-level picture that is not found is left empty, not a placeholder', async () => {
     const kit = await workflowKit();
     const { r, scenes, repairs } = await stylizePlan(

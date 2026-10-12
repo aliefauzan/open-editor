@@ -322,8 +322,10 @@ async function stillOf(
 
 /**
  * A picture for one slot whose value is not a picture of the project: the next image query, else the
- * description written in the slot; when that finds nothing and the slot names a video of the project
- * (weak models write the source clip's id, D-88 live runs), a still of it at the slot's time.
+ * description written in the slot. When that finds nothing, a still at the slot's time (D-89) of the
+ * video the slot names (weak models write the source clip's id, D-88 live runs), or, for a slot that
+ * `needs` a picture and got no query at all (`media: ""`), of the sequence's own video there. A query
+ * that finds nothing is never answered with a still of something else: the caller makes a placeholder.
  * `q` is the query used, `still` the repair to note when a still filled the slot.
  */
 async function pictureFor(
@@ -333,17 +335,35 @@ async function pictureFor(
   queries: string[],
   kind: string,
   at: StillAt,
+  needs: boolean,
 ): Promise<{ id?: string; q?: string; still?: string }> {
   const known = imageNamed(run, p, value);
   if (known) return { id: known };
   const q = queries.shift() ?? describedQuery(value);
   const found = q === undefined ? undefined : await fillSlot(run, q, kind);
   if (found) return { id: found, q };
-  const video = mediaNamed(run, p, value);
-  const s = video?.kind === 'video' ? await stillOf(run, p, video.id, at, kind) : undefined;
+  const named = mediaNamed(run, p, value);
+  const video =
+    named?.kind === 'video'
+      ? named.id
+      : needs && q === undefined && named === undefined
+        ? sequenceVideoAt(p, at)
+        : undefined;
+  const s = video === undefined ? undefined : await stillOf(run, p, video, at, kind);
   if (!s) return q === undefined ? {} : { q };
-  const still = `still of ${run.aliases.aliasOf(video!.id)} at ${String(s.srcMs)} ms (${q === undefined ? 'no picture query' : `no picture for ${q}`})`;
+  const still = `still of ${run.aliases.aliasOf(video!)} at ${String(s.srcMs)} ms (${q === undefined ? 'no picture query' : `no picture for ${q}`})`;
   return { id: s.mediaId, still, ...(q !== undefined && { q }) };
+}
+
+/** The video the sequence shows at `at` (its `V1` clip there, else its first `V1` clip). */
+function sequenceVideoAt(p: Project, at: StillAt): string | undefined {
+  const v1 = p.sequences
+    .find((s) => s.id === at.sequenceId)
+    ?.videoTracks.find((t) => t.id === 'V1')
+    ?.items.flatMap((it) => (it.type === 'media' ? [it] : []))
+    .filter((it) => p.media.find((m) => m.id === it.mediaId)?.kind === 'video');
+  const clip = v1?.find((c) => at.atMs >= c.startMs && at.atMs < c.startMs + c.durationMs);
+  return (clip ?? v1?.[0])?.mediaId;
 }
 
 /** A beat's place in time, for stills: entry `k` of `n` sits at (k + 1) / (n + 1) of the beat. */
@@ -387,6 +407,7 @@ async function fillArrays(
         queries,
         kind,
         stillAt(span, k, list.length),
+        true,
       );
       if (!got.id) return { variables: out, missing: got.q ?? `${arr} ${field}` };
       if (got.still) note(`${arr} ${String(k)}: ${got.still}`);
@@ -416,7 +437,15 @@ async function fillTopSlots(
   const vars = { ...variables };
   const required = new Set((t.variables['required'] ?? []) as string[]);
   for (const [slot, kind] of fillableSlots(t)) {
-    const got = await pictureFor(run, p, vars[slot], queries, kind, stillAt(span));
+    const got = await pictureFor(
+      run,
+      p,
+      vars[slot],
+      queries,
+      kind,
+      stillAt(span),
+      required.has(slot),
+    );
     if (got.id) {
       if (got.still) note(`${slot}: ${got.still}`);
       vars[slot] = got.id;
