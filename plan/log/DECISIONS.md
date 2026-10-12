@@ -1918,3 +1918,15 @@ the four templates against the reel frames, then shows the owner a new sheet. A 
 gate again: the owner decides round 3.
 **Why**: the owner's own review overrides a delegated pass.
 **Alternatives**: keep D-65 and move the notes to the backlog (rejected by the owner).
+
+## D-68 · 2026-10-12 · phase 14d · Local image generation with mflux
+**Context**: 14d adds `mflux` with Z-Image-Turbo as the local default (engine spec "Image generation provider", app spec "Settings" v1.1).
+**Decision**:
+- `mflux==0.22.0` is pinned in `py/pyproject.toml`; `py/uv.lock` changes, so the app update resyncs `py-env` by the lock hash (D-12; test `pyenv-resync`). It adds transformers, opencv, tokenizers and others; torch was already locked.
+- Download source is the official Apache-2.0 repo at a pinned revision (Z-Image-Turbo `f332072a…`, FLUX.1-schnell `741f7c3c…`). About 33 GB come down once; the tool quantizes to 8 bits into `<tools>/models/mflux/<id>/` (about 10 GB kept) and the engine deletes the download folder. Generation always runs with `HF_HUB_OFFLINE=1`.
+- A pre-quantized community mirror (`filipstrand/Z-Image-Turbo-mflux-4bit`, 5.9 GB) is NOT the default: its card says `tongyi-qianwen-license`, which does not match the Apache-2.0 of the source model. It was used only to run the real generation check on this machine, because the 33 GB download kept failing on the shared network.
+- `ImageProvider` gets optional `available()` and `disposable` (see engine spec). `list()` and the default skip an unavailable provider, so the agent sees `generate_image` only after an install.
+- The app toggle needs no new `window.vox` method: state in `settings.get` (`imagegen`), install and remove through `jobs.start` (`imagegen.install`, `imagegen.remove`).
+- FLUX.1-schnell: terms and token explained by `vox doctor`; the token comes from `HF_TOKEN` only; Vox never stores or asks for it. The live FLUX install is an owner item.
+**Why**: keeps the licence clean, offline after install, and the contract additive (R2 frozen surfaces unchanged).
+**Alternatives**: the 4-bit mirror as default (licence tag unclear); bundling weights (size); a `window.vox` method per action (contract growth).

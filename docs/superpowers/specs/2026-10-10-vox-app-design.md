@@ -463,7 +463,11 @@ component instead (same store and ops, no library).
   Firefox; with the note that yt-dlp then sends that browser's login cookies to the
   site; engine `ingest.cookiesFromBrowser`, plan D-13).
 - v1.1: local image generation toggle (shows download size and licence before first
-  use).
+  use). Built in phase 14d (D-68) for Z-Image-Turbo: the switch opens a confirmation with the
+  download size (about 33 GB, about 10 GB kept) and the licence (Apache-2.0); "Download" runs the
+  `imagegen.install` job with progress, switching off asks, then runs `imagegen.remove`. State comes
+  in `settings.get` (`imagegen.models`); no new `window.vox` method. FLUX.1-schnell is set up in a
+  terminal (`vox doctor` explains the terms and the token).
 
 ### Style gallery
 
