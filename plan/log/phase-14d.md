@@ -52,3 +52,18 @@ Security: no shell use (argv arrays, JSON on stdin); download folder deleted by 
 - `py/uv.lock` changed: other phases that touch it must `uv lock`, never hand-merge.
 - First-run py-env sync after this update downloads transformers, opencv and others (torch was already there).
 - Fixture-dependent tests (`packages/engine/test/fixtures/out`) need `bash packages/engine/test/fixtures/make.sh` in a fresh worktree.
+
+## Install check (orchestrator, 2026-10-12, owner delegation)
+Run with the dev CLI against the GATE 5 test tools dir (`~/vox-gate5/tools`), machine load 7 to 14 (phase 15 running).
+- First try failed in 1 s with `PY_TOOL_FAILED` and no cause: the test env's py-env was synced from the 1.0.0 app's lock
+  (no `mflux`; the CLI does not re-sync, the app does on launch). The engine's `finally` then deleted the partial download
+  that had been placed in `.download-z-image-turbo` (about 32 GB). Both are fixed on `fix/imagegen-install`.
+- py-env re-synced from this lock (`uv sync --frozen --no-editable --reinstall-package vox_py`).
+- Download of the pinned official snapshot (`Tongyi-MAI/Z-Image-Turbo@f332072`, same patterns as the tool): 31 GB in
+  3:35 (08:38:36 to 08:42:11), no `.incomplete` files, no retry needed (the network was not shared this time).
+- `vox imagegen install z-image-turbo --json`: exit 0 in 32 s (8-bit quantize and save), `bytes` 10992100794 (11.0 GB);
+  max RSS 3.7 GB (`/usr/bin/time -l`); the download folder was removed after success.
+- `vox imagegen status --json`: `installed: true`, `sizeOnDisk` 10992100794.
+- `vox assets generate … "a vintage black and white photograph of a 1950s jet airliner in flight" --provider mflux`:
+  exit 0 in 5:03 at load about 10, 1080x1920 PNG, author `mflux`. Picture is clean and photographic (it drew a propeller
+  airliner, not a jet). Evidence: `docs/evidence/phase-14d/official-8bit-airliner.jpg` (640 px copy).
