@@ -140,7 +140,7 @@ describe('apple protocol: response', () => {
     if (!result.ok) expect(result.error.length).toBeGreaterThan(0);
   });
 
-  test('error codes are the six the helper can send', () => {
+  test('error codes are the seven the helper can send (assetsMissing: --embed, D-77)', () => {
     expect([...appleErrorCodes]).toEqual([
       'badRequest',
       'unavailable',
@@ -148,6 +148,7 @@ describe('apple protocol: response', () => {
       'guardrail',
       'generation',
       'visionUnavailable',
+      'assetsMissing',
     ]);
   });
 });

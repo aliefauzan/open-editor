@@ -20,6 +20,12 @@
 //     A malformed list exits 2 at start. A text answer to a schema request (or JSON to a text
 //     request) is sent as a `generation` error, so a mis-scripted test fails loudly.
 //   VOX_FAKE_APPLE_LOG      append every received request line to this file
+//   VOX_FAKE_APPLE_EMBED    1 | 0: --status reports embed true | false and --embed answers; unset:
+//                           no `embed` field and --embed is an unknown argument (a helper older
+//                           than D-77). With 1, --embed reads {"texts","language"?} on stdin and
+//                           answers 16-dimensional word-hash vectors (shared words → similar
+//                           vectors), language as sent or "en".
+//   VOX_FAKE_APPLE_EMBED_ERROR  an error code: --embed answers that error (exit 1) instead
 //
 // Like the real helper, lines are split on "\n" only (not with node:readline, which also splits
 // on U+2028/U+2029), and U+2028/U+2029 are escaped on output. A hang keeps the process alive
@@ -70,6 +76,39 @@ function badAnswer(a) {
   return null;
 }
 
+/** --embed answer: word-hash vectors (each word adds 1 to one of 16 slots), or an error. */
+function fakeEmbed(input) {
+  const fail = (code, message) => ({ error: { code, message } });
+  if (process.env.VOX_FAKE_APPLE_EMBED_ERROR)
+    return fail(process.env.VOX_FAKE_APPLE_EMBED_ERROR, 'scripted embed error');
+  if (embedEnv !== '1') return fail('unavailable', 'embeddings are off');
+  let req;
+  try {
+    req = JSON.parse(input);
+  } catch {
+    return fail('badRequest', 'embed request is not valid JSON');
+  }
+  if (!isObject(req) || Object.keys(req).some((k) => k !== 'texts' && k !== 'language'))
+    return fail('badRequest', 'embed request must be {texts, language?}');
+  const { texts, language } = req;
+  if (!Array.isArray(texts) || texts.length === 0 || texts.length > 512)
+    return fail('badRequest', 'texts must be an array of 1 to 512 strings');
+  if (texts.some((t) => typeof t !== 'string' || t.length > 4000))
+    return fail('badRequest', 'each text must be a string of at most 4000 characters');
+  const dim = 16;
+  const vectors = texts.map((t) => {
+    const v = new Array(dim).fill(0);
+    for (const w of t.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+      if (w.length < 3) continue;
+      let h = 0;
+      for (const c of w) h = (h * 31 + c.codePointAt(0)) % 9973;
+      v[h % dim] += 1;
+    }
+    return v;
+  });
+  return { vectors, dim, language: typeof language === 'string' ? language : 'en' };
+}
+
 let answers;
 try {
   answers = JSON.parse(process.env.VOX_FAKE_APPLE_ANSWERS ?? '[]');
@@ -82,11 +121,20 @@ try {
 }
 const logPath = process.env.VOX_FAKE_APPLE_LOG;
 
+const embedEnv = process.env.VOX_FAKE_APPLE_EMBED;
 const args = process.argv.slice(2);
 if (args.length === 1 && args[0] === '--status') {
   const line = visionEnv === undefined ? { status, contextSize } : { status, contextSize, vision };
+  if (embedEnv !== undefined) line.embed = embedEnv === '1';
   process.stdout.write(JSON.stringify(line) + '\n');
   await exitAfterFlush(0);
+}
+if (args.length === 1 && args[0] === '--embed' && embedEnv !== undefined) {
+  let input = '';
+  for await (const chunk of process.stdin) input += chunk;
+  const answer = fakeEmbed(input);
+  process.stdout.write(JSON.stringify(answer) + '\n');
+  await exitAfterFlush(answer.error ? 1 : 0);
 }
 if (args.length === 1 && (args[0] === '--help' || args[0] === '-h')) {
   process.stdout.write(USAGE);

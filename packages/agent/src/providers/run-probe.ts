@@ -109,6 +109,8 @@ export async function probeModel(
     }
     report.appleStatus = s.status;
     report.context = { contextTokens: s.contextSize, source: 'apple' };
+    // on-device embeddings (D-77) do not need Apple Intelligence: recorded whatever the status
+    report.capabilities = { embeddings: s.embed === true };
     if (s.status !== 'ready') return report;
     if (want('vision')) {
       report.vision =
