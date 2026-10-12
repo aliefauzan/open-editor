@@ -132,7 +132,11 @@ describe('get_transcript (steps 3, 15)', () => {
       { actor: 'user' },
     );
     const ctx = toolContext(f);
-    const out = await run(ctx, 'get_transcript', { mediaId: f.mediaId, sequenceId: f.sequenceId });
+    const out = await run(ctx, 'get_transcript', {
+      mediaId: f.mediaId,
+      sequenceId: f.sequenceId,
+      words: true,
+    });
     expect(out.untrusted).toBe('transcript');
     const words = (out.result as { words: Word[] }).words;
     expect(words[0]).toMatchObject({ key: 'm1:r1:0', text: 'Hello,', srcMs: 34, seqMs: 1034 });
@@ -148,6 +152,7 @@ describe('get_transcript (steps 3, 15)', () => {
       mediaId: f.mediaId,
       fromSrcMs: 5000,
       toSrcMs: 8000,
+      words: true,
     });
     const words = (out.result as { words: Word[] }).words;
     expect(words.length).toBeGreaterThan(0);
@@ -163,6 +168,7 @@ describe('get_transcript (steps 3, 15)', () => {
     while (cursor !== null) {
       const out = await run(ctx, 'get_transcript', {
         mediaId: f.mediaId,
+        words: true,
         ...(cursor > 0 && { cursor }),
       });
       const page = out.result as { words: Word[]; nextCursor: number | null; totalWords: number };

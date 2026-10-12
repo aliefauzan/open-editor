@@ -242,7 +242,7 @@ that `startMs`, `endMs` and `durationMs` are sequence time and `inMs` is source 
 |---|---|
 | `get_project_summary` | media list (id, kind, duration, tags, description), sequences with track/item summaries |
 | `get_sequence(sequenceId, itemIds?)` | the compact view `engine.view(projectId, sequenceId)`: flat `items[]` `{ id, track, startMs, endMs, kind, text \| template \| mediaId }`, caption chunk text and `version`; with `itemIds`, the full state of those items only. The agent never reads the full project. |
-| `get_transcript(mediaId, fromSrcMs?, toSrcMs?, sequenceId?)` | words or segments in a range (max 4k tokens per call; paginates), each with `srcMs`, its `kind` (`word`, `pause`, `repeat`, `filler`) and, when `sequenceId` is given, `seqMs` where that source time is placed in the sequence (`null` if it is not) |
+| `get_transcript(mediaId?, clipId?, sequenceId?, fromSrcMs?, toSrcMs?, cursor?, words?)` | compact lines by default (D-81): one `[startMs-endMs] text` line per sentence or pause-bounded phrase, in sequence ms when a clip or sequence is in scope (words not placed there are left out and counted in `unplacedWords`), else in source ms. `clipId` reads only the source span that media clip plays; `sequenceId` alone reads the span of that sequence's media clips; `fromSrcMs`/`toSrcMs` narrow either. `words: true` returns the per-word page instead: each word with `key`, `srcMs`, its `kind` (`word`, `pause`, `repeat`, `filler`) and, with a sequence, `seqMs` where that source time is placed (`null` if it is not). Max 4k tokens per call; paginates with `nextCursor` |
 | `search_transcript(query, mediaIds?)` | matching segments with times (keyword + fuzzy) |
 | `list_styles`, `get_style(styleId)` | tokens summary, `guide.md`, template list (active styles only) |
 | `get_template(id)` | description, `useWhen`, variables schema, duration bounds |
@@ -353,7 +353,11 @@ design; the settings screen says so next to each provider.
   is built from history entries after the last version the run saw whose `actor` is not
   `agent`, or whose `runId` belongs to another run; it lists the touched items by alias.
   Only the newest injection stays in the context. The agent works from this view, not
-  from the full project.
+  from the full project. With a prompt-caching editor (Anthropic models, D-76) the state
+  block of each step stays in the history and a step sends only what changed since the
+  previous block (changed or added items, removed item ids, caption lines removed and
+  added); a full block is sent at the start of each (sub-)run, after every compaction and
+  every 8 steps, or when the diff is not shorter (D-81).
 - **Context compaction**: the loop keeps a token budget of 70 % of the model's effective
   context. Tool results older than the last 8 steps are replaced by a one-line stub that
   carries the project version it read
@@ -382,7 +386,8 @@ design; the settings screen says so next to each provider.
 - **Run record**: `<projectsDir>/<id>/runs/<runId>.jsonl` holds the user message, model ids,
   mode, redacted tool calls, tool results truncated to 2 kB, token usage, cost, and
   history versions created, plus the alias table, each `update_todos` list and each
-  sub-run's summary. The UI's activity log reads it.
+  sub-run's summary, and with a caching editor a `state` line per step (`kind` full or
+  diff, `chars` sent, `fullChars` of the full block; D-81). The UI's activity log reads it.
 - **Restart** (plan D-15): a run that was paused when the app quit is not resumed. On
   the next launch it ends as `stopped` (an `agent.done` line is added to its run record);
   its edits stay and "Undo this run" still works.

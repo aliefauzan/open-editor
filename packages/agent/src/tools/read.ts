@@ -7,7 +7,7 @@ import { wrapData } from '../loop/envelope.ts';
 import { CARD_NOTE, presentCards } from './cards.ts';
 import { frameHealth, type FrameFlag } from './health.ts';
 import { downscalePng, STILL_MAX_EDGE } from './png.ts';
-import { searchTranscripts, transcriptPage } from './transcript.ts';
+import { searchTranscripts } from './transcript.ts';
 import type { AgentTool, ToolContext, ToolImage, ToolOutput } from './types.ts';
 
 const id = z.string().min(1);
@@ -181,31 +181,6 @@ export function readTools(): AgentTool[] {
         return {
           read: { version: v.version, label: `get_sequence ${ctx.aliases.aliasOf(a.sequenceId)}` },
           result: { ...v.view, captions: v.captions },
-        };
-      },
-    ),
-    tool(
-      'get_transcript',
-      'Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.',
-      z.strictObject({
-        mediaId: id,
-        fromSrcMs: ms.optional(),
-        toSrcMs: ms.optional(),
-        sequenceId: id.optional(),
-        cursor: z.int().min(0).optional(),
-      }),
-      async (ctx, a) => {
-        const page = await transcriptPage(ctx.engine, ctx.projectId, a);
-        const first = page.words[0]?.srcMs ?? a.fromSrcMs ?? 0;
-        const last = page.words.at(-1)?.srcEndMs ?? first;
-        const p = await project(ctx);
-        return {
-          untrusted: 'transcript',
-          read: {
-            version: p.version,
-            label: `get_transcript ${ctx.aliases.aliasOf(a.mediaId)} ${String(first)}–${String(last)} srcMs, ${String(page.words.length)} words`,
-          },
-          result: ctx.aliases.toModel(page),
         };
       },
     ),
