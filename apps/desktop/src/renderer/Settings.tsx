@@ -11,12 +11,13 @@ import {
   COOKIE_BROWSERS,
   SETTINGS_ROLES,
   type ErrorData,
+  type ImageGenData,
   type ProbedData,
   type SettingsData,
   type SettingsPatchData,
   type SettingsRole,
 } from '../shared/api.ts';
-import { useCtx } from './editor/context.tsx';
+import { useCtx, useJobs } from './editor/context.tsx';
 import { useSetup } from './setup-store.ts';
 
 const btn =
@@ -281,9 +282,143 @@ function AddProvider(props: {
   );
 }
 
+const gb = (bytes: number) => `${Math.round(bytes / 1e8) / 10} GB`;
+
+/**
+ * Local image generation (phase 14d): a switch that shows the download size and the licence before
+ * anything is fetched, then runs the `imagegen.install` job; switching it off removes the model.
+ * FLUX.1-schnell (gated on Hugging Face) is set up in a terminal: `vox doctor` explains the terms.
+ * A failed or cancelled install keeps its partial download for the next try (D-69): the row shows
+ * its size and offers to delete it (`imagegen.remove`), so the space is never hidden.
+ */
+function ImageGenSection(props: { data: ImageGenData; reload(): Promise<void> }) {
+  const { jobs } = useCtx();
+  const model = props.data.models.find((m) => m.id === 'z-image-turbo');
+  const [ask, setAsk] = useState<'install' | 'remove' | 'discard' | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const row = useJobs((s) => s.rows.find((r) => r.id === jobId));
+  const status = row?.status;
+  useEffect(() => {
+    if (status && status !== 'running') void props.reload();
+  }, [status]);
+  if (!model) return null;
+  const running = row?.status === 'running';
+  const start = (kind: 'imagegen.install' | 'imagegen.remove') => {
+    setAsk(null);
+    void jobs
+      .getState()
+      .start(
+        kind,
+        { model: model.id },
+        `${kind === 'imagegen.install' ? 'Installing' : 'Removing'} ${model.label}`,
+        setJobId,
+      );
+  };
+  return (
+    <div className="space-y-1">
+      <label className="flex items-center gap-2">
+        <input
+          id="imagegen-toggle"
+          type="checkbox"
+          checked={model.installed}
+          disabled={running}
+          onChange={() => setAsk(model.installed ? 'remove' : 'install')}
+        />
+        Local image generation ({model.label})
+      </label>
+      <p className="pl-6 text-[11px] text-neutral-400">
+        Makes pictures on this Mac with {model.label}; once installed it works offline. Licence:{' '}
+        {model.license}.{model.installed && ` Installed, ${gb(model.sizeOnDisk)} on disk.`}
+      </p>
+      {model.partialBytes > 0 && !running && (
+        <p className="pl-6 text-[11px] text-neutral-400">
+          {gb(model.partialBytes)} downloaded so far is kept, so the next install resumes it.{' '}
+          <button type="button" className={btn} onClick={() => setAsk('discard')}>
+            Delete partial download
+          </button>
+        </p>
+      )}
+      {ask === 'install' && (
+        <div
+          role="alertdialog"
+          aria-label="Download image model"
+          className="ml-6 space-y-1 rounded bg-neutral-800 p-2 text-[11px]"
+        >
+          <p>
+            Download about {gb(model.downloadBytes)} from Hugging Face ({model.label}, licence{' '}
+            {model.license}); about {gb(model.installedBytes)} stay on disk afterwards. You need
+            that much free space while it installs. It runs once and can take a while.
+            {model.partialBytes > 0 &&
+              ` It resumes the ${gb(model.partialBytes)} already downloaded.`}
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className={btn} onClick={() => start('imagegen.install')}>
+              Download {gb(model.downloadBytes)}
+            </button>
+            <button type="button" className={btn} onClick={() => setAsk(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {ask === 'remove' && (
+        <div
+          role="alertdialog"
+          aria-label="Remove image model"
+          className="ml-6 space-y-1 rounded bg-neutral-800 p-2 text-[11px]"
+        >
+          <p>
+            Remove {model.label} and free {gb(model.sizeOnDisk + model.partialBytes)}? You can
+            download it again later.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className={btn} onClick={() => start('imagegen.remove')}>
+              Remove
+            </button>
+            <button type="button" className={btn} onClick={() => setAsk(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {ask === 'discard' && (
+        <div
+          role="alertdialog"
+          aria-label="Delete partial download"
+          className="ml-6 space-y-1 rounded bg-neutral-800 p-2 text-[11px]"
+        >
+          <p>
+            Delete the {gb(model.partialBytes)} partial download of {model.label}? The next install
+            then starts from the beginning.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className={btn} onClick={() => start('imagegen.remove')}>
+              Delete
+            </button>
+            <button type="button" className={btn} onClick={() => setAsk(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {running && row && (
+        <p className="pl-6 text-[11px] text-neutral-300" role="status">
+          {row.label}: {Math.round(row.progress * 100)}%{row.message ? ` (${row.message})` : ''}
+        </p>
+      )}
+      {row?.status === 'failed' && row.error && (
+        <p className="pl-6 text-[11px] text-red-400" role="alert">
+          {row.error.message} {row.error.hint}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ToolsSection(props: {
   data: SettingsData;
   save(patch: SettingsPatchData): Promise<boolean>;
+  reload(): Promise<void>;
   focusCookies: boolean;
 }) {
   const { vox } = useCtx();
@@ -395,6 +530,7 @@ function ToolsSection(props: {
           login. Off by default; only this switch (or `vox config` in a terminal) turns it on.
         </p>
       </div>
+      {props.data.imagegen && <ImageGenSection data={props.data.imagegen} reload={props.reload} />}
     </section>
   );
 }
@@ -412,6 +548,13 @@ export function SettingsDialog(props: { onClose(): void; focus?: 'cookies' | nul
   useEffect(() => {
     vox.settings.get().then(load, (e: unknown) => setError(asError(e)));
   }, [vox]);
+  const reload = async () => {
+    try {
+      load(await vox.settings.get());
+    } catch (e) {
+      setError(asError(e));
+    }
+  };
   const save = async (patch: SettingsPatchData): Promise<boolean> => {
     setError(null);
     try {
@@ -571,7 +714,12 @@ export function SettingsDialog(props: { onClose(): void; focus?: 'cookies' | nul
                 </button>
               </form>
             </section>
-            <ToolsSection data={data} save={save} focusCookies={props.focus === 'cookies'} />
+            <ToolsSection
+              data={data}
+              save={save}
+              reload={reload}
+              focusCookies={props.focus === 'cookies'}
+            />
           </>
         )}
       </div>

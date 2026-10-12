@@ -29,7 +29,7 @@ import type {
   SettingsData,
   SettingsPatchData,
 } from '../../src/shared/api.ts';
-import { idle, testEditor, type TestEditor } from './ctx.ts';
+import { idle, settingsData, testEditor, type TestEditor } from './ctx.ts';
 import { fakeVox } from './fake-vox.ts';
 
 afterEach(cleanup);
@@ -47,30 +47,6 @@ const WORKFLOWS = join(
 );
 
 const RUN = 'run_uitest000001';
-
-function settingsData(over: Partial<SettingsData> = {}): SettingsData {
-  return {
-    providers: [],
-    presets: [
-      { id: 'openrouter', label: 'OpenRouter', key: 'required', local: false },
-      {
-        id: 'ollama',
-        label: 'Ollama',
-        key: 'none',
-        baseUrl: 'http://127.0.0.1:11434',
-        local: true,
-      },
-    ],
-    roles: {},
-    limits: { maxUsdPerRun: 3, maxStepsPerRun: 40 },
-    prices: {},
-    appleHelper: true,
-    probes: [],
-    ingest: { cookiesFromBrowser: null },
-    contact: null,
-    ...over,
-  };
-}
 
 function runRec(projectId: string, over: Partial<AgentRunData> = {}): AgentRunData {
   return {

@@ -1746,3 +1746,197 @@ anything found is fixed on a follow-up branch from main. PROGRESS row 13 stays [
 are recorded; the v1.0 milestone row is set only after them.
 **Why**: The checks left are release and install checks of a build that already passed Verify; waiting
 would hold eight phases behind them.
+
+## D-61 — Audio ducking: `duck` flag on audio tracks, one compressor per ducked track (phase 14f, 2026-10-12)
+**Context**: Engine spec "Audio" says ducking (v1.1) adds `sidechaincompress` per track; the plan puts it after
+each clip's gain-to-target and before `amix`, with an inspector toggle (D-15). The spec did not say where the
+switch lives, what drives the compressor, or what is never ducked.
+**Decision**:
+- **Model (additive)**: `AudioTrack.duck?: boolean` (absent = off). `updateTrack` takes `duck` (audio tracks
+  only, else `VALIDATION`; `false` removes the field). No `schemaVersion` bump: an older project loads
+  unchanged, and the field is optional.
+- **Mix graph**: the clips of a ducked track are mixed into one track bus, which goes through
+  `sidechaincompress=threshold=0.04:ratio=5:attack=20:release=400:makeup=1:link=average:detection=rms`,
+  keyed by the speech bus (every clip of the captions source tracks, after its gain-to-target, `volume`
+  and fades), then into the final `amix` and the limiter. So it ducks level-matched sources (D-15).
+- **What ducks**: only non-speech audio tracks with `duck: true`. Speech tracks (captions sources) and
+  SFX are never ducked; with no speech clip in the mix the flag changes nothing. Muted tracks stay out.
+- **Stems**: the `other` stem keeps the duck (the detector clips are read but not added to it), so the stems
+  still match what the mix hears; `speech` and `sfx` stems are unchanged. Audio QA thresholds are unchanged.
+- **Numbers**: real talking-head speech over pink-noise music: the music is 11.5 dB lower while speech is
+  active; 400 ms gaps reopen it partway (release 400 ms); synthetic speech-level noise ducks it 9.6 dB and
+  the music is back within 1 dB after the release.
+- **UI**: audio clip inspector row "Duck under speech" (the clip's whole track; disabled on a speech track).
+  Default off, so existing projects and the clipper output sound the same.
+**Why**: A track-level flag matches "per track"; keying on the captions source tracks needs no new
+setting and no second notion of "speech"; SFX stays under the existing `sfxUnderSpeech` check (its cue gain
+is the lever there, not ducking).
+**Alternatives**: duck each clip separately (many detector copies, same sound); key on the speech stem after
+`loudnorm` (the detector would not be level-matched); ducking SFX (changes the SFX stem the audio QA measures).
+
+## D-62 — Clip speed design, GATE 7 by owner delegation (phase 14e, 2026-10-12)
+**Context**: Engine spec "Non-goals" left clip speed for v1.1 with its own design (a `speed` field, duration
+rule `inMs + durationMs × speed`, audio `atempo`, a spike on HyperFrames `playbackRate`); GATE 7 asks whether
+the design is right before code. The owner delegated gates to the AI (D-49, D-58). The spike
+(`spike/bench/speed.ts`, evidence `docs/evidence/phase-14e/spike-playbackrate.json`, `atempo-timing.json`)
+rendered the 90 s barcode/flash/click fixture at 0.25×, 0.5×, 1×, 2× and 4× with `data-playback-rate`
+(HyperFrames 0.8.145, `--quality draft`, other phase agents running, load average 25).
+**Decision**: GATE 7 passes, after one revision round. The design is the engine spec section "Clip speed":
+- **Model**: `MediaClip.speed?: number` (absent = 1; 0.25–4 in 0.01 steps on video tracks, 0.5–2 on audio
+  tracks; never on images or scenes). Source span `round(durationMs × speed)`; the duration rule is
+  `inMs + durationMs × speed ≤ media duration`; time maps `src = inMs + (t − startMs) × speed`.
+- **Schema**: `schemaVersion` 3 with a load-time migration 2 → 3 that changes only the number (every v1.1
+  field is optional), after the existing `snapshots/auto-pre-migrate-v2.json` copy. Version 3 is the v1.1
+  schema: other optional v1.1 fields (14f `AudioTrack.duck`, D-61) belong to it, with no second bump before
+  v1.1 ships. A v1.0 engine refuses a v3 project with `SCHEMA_TOO_NEW` and writes nothing.
+- **Op**: `setClipSpeed { sequenceId, itemId, speed, unlinked?, onOverlap: 'error' | 'ripple' }` keeps
+  `startMs`, `inMs` and the source span (slower = longer); linked clips follow. Every op that touches
+  source offsets (trim from the start, split, ripple delete, replaceMedia clamp, fps re-snap, `NO_HANDLES`)
+  uses the span and the mapping; captions and word ranges map words through it.
+- **Render**: `<video data-playback-rate>` (and preview `<audio>`); `data-media-start` stays the source
+  offset. **Mix**: `atrim` with a 1024-sample (48 kHz) preroll → resample → denoise → `atempo` → `atrim` to
+  the timeline length → gains, fades, `adelay`. OTIO adds `LinearTimeWarp`. `engine.view` items carry
+  `speed` when it is not 1 (additive).
+- **Numbers**: picture 960/960 frames show the expected source frame at all five speeds. A/V (flash vs
+  click after the mux): plain `atempo` puts the sound early, max 33.31 ms at 0.5× in the render (one frame
+  is 33.33 ms; isolated runs: mean −45 ms at 0.5×, −11 ms at 2×), so the first design failed the bar.
+  Revision: `atempo` drops about 1024 input samples at its start; with that preroll the render measured
+  max 9.35 ms (10 pairs) and isolated runs stay within −14.5…+14.9 ms for 0.5–2×. Below 0.5× (two chained
+  stages) the error reaches 52.9 ms, and at 3–4× short clicks drop out, so sound clips stop at 0.5–2×.
+**Why**: `playbackRate` is frame exact in the pinned HyperFrames, so the risk fallback (ffmpeg pre-processing
+into a cached file) is not needed; sound stays within one frame only with the preroll and in 0.5–2×; an
+identity migration cannot lose data, and the pre-migrate copy is the way back for a v1.0 install.
+**Alternatives**: ffmpeg pre-rendered speed copies (the plan's fallback; cache and disk cost for no gain);
+`rubberband` (not in the Homebrew ffmpeg); allowing 0.25–4× sound (measured out of sync); storing `speed`
+without a version bump like D-61 (a v1.0 engine would fail `VALIDATION` instead of `SCHEMA_TOO_NEW`).
+**Open**: preview playback at speed is not measured (no GUI tool; the HyperFrames runtime sets the
+element's `playbackRate`); listed for the owner's screen check.
+
+## D-63 — Claude Code skill: CLI only, no new command; manual run done as a stand-in (phase 14c, 2026-10-12)
+**Context**: The agent spec says the skill uses `vox ... --json`, the shared workflow prompts and `vox frames`.
+The in-app tools `get_transcript` (sequence-time words) and the frame health flags have no CLI command. The
+MANUAL STEP asked for a run inside Claude Code, but the headless `claude -p` login is expired.
+**Decision**: (1) The skill adds no CLI command and copies no workflow text: it tells Claude to read
+`packages/agent/workflows/clipper.md`, `stylize.md` and `styles/vox/guide.md`, and gives a `jq` recipe that
+maps transcript words to sequence ms from the project files. It runs `vox` as `pnpm -s exec vox` from the repo
+root. (2) `.claude/skills/vox-studio/SKILL.md` is added with `git add -f` because the root checkout lists
+`.claude/` in the local `.git/info/exclude`. (3) The MANUAL STEP was done by the phase agent following SKILL.md
+step by step with the real commands on the owner's test video (3 clips, rendered, `vox audio-qa` pass after one
+fix round); that proves the commands and the steps, not that Claude Code's skill loader drives them. A real
+Claude Code run stays an optional TODO item. (4) `skill.test.ts` checks the skill against `vox --help --json`,
+the engine op names, the style's templates and the files it names.
+**Why**: A new CLI command would be a contract change for a v1.1 sub-phase that only needs a text file; the jq
+recipe works today and is tested by the run. The stand-in follows owner delegation (D-49, D-58).
+**Alternatives**: `vox transcript` and `vox frames --health` commands (listed as handoff for a later phase);
+copying the workflow prompts into the skill (would drift from `packages/agent/workflows/`).
+
+## D-64 — FCPXML export: `export-timeline --format fcpxml`, own layer folder, DTD plus structure check as the import stand-in (phase 14g, 2026-10-12)
+**Context**: Overview step 7 and the plan put FCPXML export (via `otio-fcpx-xml-adapter`) in 14g; GATE 2 did not need it (D-39), so the engine side did not exist. Done-when says "FCPXML imports in Final Cut Pro or Resolve (owner check)". Neither is installed (D-39).
+**Decision**:
+- **Engine**: `exportTimeline` takes `format: 'otio' | 'fcpxml'` (default `otio`, so nothing existing changes). The same tracks, layer MOVs and media references go through `py/vox_py/timeline.py` (`format`, `width`, `height`, per-clip `mediaDurationFrames` in the request), which writes FCPXML 1.8 with `otio-fcpx-xml-adapter==1.0.0` (pinned in `py/pyproject.toml`, `py/uv.lock`; Apache-2.0). Output extension `.fcpxml`; the export-target rules (`-o`, `--out-dir`, ` (2)`, `--overwrite`, S32) are the same.
+- **Layer folder**: `<name>-fcpxml-layers/` for FCPXML (OTIO keeps `<name>-layers/`), so one export of both formats into the same folder does not collide on the layer folder (it renders the layers twice; the cost of the simple rule).
+- **Adapter fixes** (`_write_fcpxml`): the adapter repeats every asset as a loose `asset-clip` at the document root, writes an empty project `uid` and gives the format no size. The writer drops the loose clips, drops the empty `uid`, puts the project inside an `<event>`, and sets the format `width`/`height` (canvas size) and a name. Asset duration is the whole source file (`mediaDurationFrames`), not the used part.
+- **CLI**: `vox export-timeline <project> [--format otio|fcpxml]`. **Dialog**: new checkbox "Final Cut Pro timeline (FCPXML)" next to "Editable timeline (OTIO)"; it starts `exportTimeline` with `format: 'fcpxml'`.
+- **Import check (owner-delegated manual step, honest result)**: `scripts/fcpxml-check.py` validates the file against Apple's FCPXML 1.8 DTD (`xmllint --dtdvalid`; the DTD is Apple's, not committed: `--fetch-dtd` caches it in `~/.cache/vox-studio/`, or `--dtd`/`VOX_FCPXML_DTD`) and checks the structure: asset files exist, every `ref`/`format` resolves, the spine is gap-free and ends at the sequence duration, lane clips lie inside their parent clip, no clip reads past its asset. Tests skip only the DTD part when the DTD is not cached. This is recorded as **"not imported in an NLE"**: DTD validity and structure do not prove that Final Cut Pro or Resolve opens the file. A real import stays an optional owner item in TODO.
+**Known limits** (adapter output left as is): the adapter does not write transitions, speed effects or effects (the layer MOVs carry the look anyway); audio lane clips wrap a `gap` whose duration is the asset length, longer than the parent clip.
+**Consequences**: spec edits with this entry: engine spec (`export-timeline` row, Stages note), app spec (Export dialog), R5 pin. A real FCP or Resolve import, when someone has one, replaces the stand-in; if it rejects the file, fix `_write_fcpxml` or the structure and keep the checker.
+
+## D-65 — vox v1.1 templates; GATE 6 by owner delegation (phase 14a, 2026-10-12)
+**Context**: 14a builds `year-card`, `framed-portrait`, `newspaper`, `stack`. The styles spec lists only their
+main variables. GATE 6 (side-by-side sheet against the reference reel) falls under the owner delegation of
+D-49 and D-58 (the AI reviews the evidence itself, up to 3 rounds).
+**Decision**:
+- Variables beyond the spec table (spec edited together with this entry): `framed-portrait` gets an optional
+  `tag` (the reel's yellow tag above the frame); `year-card.blueprint` is an `image` slot (a line drawing; absent =
+  a generic technical drawing that draws itself); `newspaper.language` is optional (default `en`, a BCP 47 language
+  tag that sets `lang` on the clipping so hyphenation follows the headline's language); `stack` has `bg` like every
+  scene. `year-card` and `framed-portrait` default to the dark board of the reel, `newspaper` to a paper board.
+- `stack` panels are scenes of the same style rendered full size and scaled into bands by the template: each band
+  shows the upper half of its panel (where v1 scenes keep their content), 2 panels fill the width, 3 panels are
+  centred and narrower (about 65 % of the width). Panels slide in from alternate sides; each panel keeps its own
+  entrance. The stack's own cue is `appear` at the entrance (nested panels move at different times, so a `move` cue
+  cannot be pinned to one peak).
+- Cues (one each, all measured by `vox style validate`): `year-card` `paper-pop` appear at the entrance;
+  `framed-portrait` `stamp` land at 2000 ms, the frame lifts and thuds down (the "GONE" stamp, when set, slams on
+  the same beat), so the cue is true with or without a `stamp`; `newspaper` `paper-slide` move at 120 ms; `stack`
+  `paper-pop` appear. No new sound files.
+- GATE 6: round 1 against `reel-007.5s`, `reel-008.6s`, `reel-009.6s` (the reel's three-panel split screen)
+  found: tag of `framed-portrait` pushed off screen (transform clash), frame cropped in a `stack` band, stack cue
+  peaks, newspaper too brown and landscape, blueprint too bright and too small, a tilted card hiding the year.
+  Fixed; round 2 passes by owner delegation. Open notes (backlog, not blockers): stand-in test pattern instead of
+  archive photos; the gold frame is a flat bevelled frame with a bead ring and corner bosses, not the reel's rococo
+  carving; a 3-panel `stack` is narrower than the reel's full-width landscape panels (v1 scenes are 9:16).
+- The contact sheet JPEG is written at quality 6 (was 3) so `styles/vox/previews/` stays under the 8 MB limit with
+  ten more cells.
+**Why**: the simplest option that keeps the done-when (validate passes with cue timing; the sheet matches the reel).
+**Alternatives**: a landscape-layout stack (would need panel-specific templates); a `move` cue on the stack (fails
+the timing check); a `hero` cue for the stamp (unmeasured, and a dud sound when no stamp is set).
+
+## D-66 — Screenplay match workflow: scoring bars, one use per clip, embed role, fixture without drawtext (phase 14b, 2026-10-12)
+**Context**: 14b adds the screenplay match workflow (parse, tag, match, lay out), its quick action and
+`vox agent --workflow screenplay`. The agent spec says "embedding similarity when an `embed` model is set, else LLM
+ranking" but not the score bars, the reuse rule, or how the `embed` role becomes a function (it was never wired).
+**Decision**:
+- Fixture: `scripts/make-screenplay-set.ts` makes the 6-scene `.fountain`, 6 shuffled clips (`say` voice Samantha
+  plus ffmpeg bitexact flags), `tags.json` and `expected.json`. The Homebrew ffmpeg has no `drawtext` (D-17), so the
+  scene number on each clip is a seven-segment digit drawn with `drawbox`. It runs as `node scripts/make-screenplay-set.ts`
+  (Node 24 runs TypeScript; `tsx` is not installed), not `pnpm exec tsx`. Two runs give identical sha256 for all 9 files.
+- The workflow has three new checkpoints, `tag`, `match`, `layout`, marked after the sequence exists. Ops go through
+  the engine as one `batch` (one undo entry; `undoRun` works).
+- Score bars: LLM score >= 0.5 (0-10 scale / 10), embedding cosine >= 0.3, word overlap >= 0.2. Below the bar a scene
+  gets a `base/placeholder` with its heading. Each clip is used at most once: pairs are taken from the highest
+  score down; ties go to the clip whose length is closest to the scene's estimated length, then to the smaller id.
+  The note reads "Scene N had K matching clips: used X (best take, score S); also matched: ...".
+- Ranking order: `embed` role, else the `fast` role, else the `editor` role (one JSON call per scene per batch of
+  12 clips), else per-scene word overlap with a note. The LLM prompt lists the spoken words of each clip after
+  "says:" and tells the model that repeated dialogue is the strongest sign (a first live run with no such hint scored
+  every clip 0 with `qwen3.5`).
+- Tagging: an editor model that sees images is the describer when no `vision` role is set. A clip with a
+  `description` counts as tagged (cache). Clips with audio and no transcript are transcribed first (not above 120 s).
+  Descriptions and tags from models are sanitised and capped before they are stored (S34).
+- `createEmbedder(entry, modelId, deps)` in the provider factory supports `ollama`, `openai`, and `openrouter` /
+  `openai-compatible` (`/embeddings`); other providers raise `CONFIG_INVALID`. `buildEmbedder` reads `roles.embed`.
+  Only fake-fetch and fake-embedder tests cover it: no embedding model is installed and no key is entered.
+- CLI: `--screenplay <file|mediaId>` (required with `--workflow screenplay`) and `--footage <mediaId>` (repeatable;
+  default: every video in the project). The app picks the workflow when a document is attached and the message says
+  screenplay, script or scene(s); the "Match screenplay" button sends it directly.
+**Why**: the bars are the simplest rule that avoids a wrong clip (a placeholder is better than a wrong take) and keeps
+a small local model usable; one use per clip stops two scenes from taking the same take.
+**Alternatives**: Hungarian assignment (no gain over greedy for <= 60 scenes and a visible tie rule); a per-scene
+best-of without the one-use rule (duplicates); `drawtext` via a new ffmpeg build (D-17 forbids the dependency).
+
+## D-67 — GATE 6 reopened by the owner (phase 14a, 2026-10-12)
+**Context**: D-65 passed GATE 6 by owner delegation after round 2. The owner looked at
+`docs/evidence/phase-14a/side-by-side.jpg` and wrote "its not look the same", and asked to use agent-reach to find
+Vox assets (also on Pinterest).
+**Decision**: GATE 6 and row 14a go back to open. The D-65 open notes are now blockers: test patterns instead of
+archive photos, a flat bevelled frame instead of the reel's carved rococo gilt frame, a 3-panel `stack` at about 65 %
+width instead of the reel's full-width landscape panels, a large clean newspaper card instead of the reel's small aged
+front page, and a generic circle drawing instead of the airliner side-view line drawing. Round 3 sources real assets
+(public domain or CC0 only for shipped files; Pinterest images are look references only, never shipped) and redoes
+the four templates against the reel frames, then shows the owner a new sheet. A delegated pass is not used for this
+gate again: the owner decides round 3.
+**Why**: the owner's own review overrides a delegated pass.
+**Alternatives**: keep D-65 and move the notes to the backlog (rejected by the owner).
+
+## D-68 · 2026-10-12 · phase 14d · Local image generation with mflux
+**Context**: 14d adds `mflux` with Z-Image-Turbo as the local default (engine spec "Image generation provider", app spec "Settings" v1.1).
+**Decision**:
+- `mflux==0.22.0` is pinned in `py/pyproject.toml`; `py/uv.lock` changes, so the app update resyncs `py-env` by the lock hash (D-12; test `pyenv-resync`). It adds transformers, opencv, tokenizers and others; torch was already locked.
+- Download source is the official Apache-2.0 repo at a pinned revision (Z-Image-Turbo `f332072a…`, FLUX.1-schnell `741f7c3c…`). About 33 GB come down once; the tool quantizes to 8 bits into `<tools>/models/mflux/<id>/` (about 10 GB kept) and the engine deletes the download folder. Generation always runs with `HF_HUB_OFFLINE=1`.
+- A pre-quantized community mirror (`filipstrand/Z-Image-Turbo-mflux-4bit`, 5.9 GB) is NOT the default: its card says `tongyi-qianwen-license`, which does not match the Apache-2.0 of the source model. It was used only to run the real generation check on this machine, because the 33 GB download kept failing on the shared network.
+- `ImageProvider` gets optional `available()` and `disposable` (see engine spec). `list()` and the default skip an unavailable provider, so the agent sees `generate_image` only after an install.
+- The app toggle needs no new `window.vox` method: state in `settings.get` (`imagegen`), install and remove through `jobs.start` (`imagegen.install`, `imagegen.remove`).
+- FLUX.1-schnell: terms and token explained by `vox doctor`; the token comes from `HF_TOKEN` only; Vox never stores or asks for it. The live FLUX install is an owner item.
+**Why**: keeps the licence clean, offline after install, and the contract additive (R2 frozen surfaces unchanged).
+**Alternatives**: the 4-bit mirror as default (licence tag unclear); bundling weights (size); a `window.vox` method per action (contract growth).
+
+## D-69 · 2026-10-12 · fix/imagegen-install · Image model install keeps its partial download; Python env checked first
+**Context**: The real `vox imagegen install z-image-turbo` showed two faults. (1) The install job deleted `<models>/mflux/.download-<id>/` in a `finally`, so any failure (network stall, Python error, cancel) threw away up to 33 GB already fetched and the next try started from zero. (2) With a py-env synced from an older `uv.lock` (no `mflux`), the install failed in about a second with `PY_TOOL_FAILED "Python tool imagegen failed (exit code 1)"` and no cause: the desktop re-syncs py-env on launch, the CLI does not, and the bridge kept the traceback only in `cause`, which the CLI and IPC never show.
+**Decision**:
+- The download cache is deleted only after a successful install. A failed or cancelled install keeps it (only the half-written `<id>.part` is deleted), and huggingface_hub resumes from its `.incomplete` files on the next install. Keeping it on cancel too is deliberate: cancel is how a user stops a slow download, and resuming is what they want next.
+- The space is never hidden: `imagegenStatus` reports `partialBytes`; `vox imagegen status` prints it with "the next install resumes it; vox imagegen remove deletes it"; the Settings row shows it with a "Delete partial download" button (asks first). `imagegen.remove` deletes the model, `.part` and the download cache, and returns `{ removed, partialBytes? }`. The free-space check subtracts what the partial download already holds.
+- `imagegen.install` and mflux generation first run the `vox doctor` `python-env-lock` check (now `pyEnvLockState` in `py.ts`, shared with doctor) and fail with `TOOL_MISSING` "the Python env was synced from a different uv.lock" (or "has no lock hash") and the fix "open Vox Studio (setup re-syncs it on launch) or Setup → Repair "Python env"", before anything is downloaded. Repo mode (no app py-env) is unchanged.
+- The Python bridge: when a tool exits without its D-21 error line, the last stderr line (cut to 300 characters, redacted) goes into the message and `details.stderr`; an import error (`ModuleNotFoundError`, `ImportError`, "No module named"), also inside a `TOOL_FAILED` error line, gets a hint about re-syncing the Python env.
+**Why**: a 33 GB download on a shaky network must survive a failure; a stale env must name its fix instead of a bare exit code.
+**Alternatives**: delete the cache on cancel (loses the resume the user most likely wants; remove frees it in one step instead); re-sync py-env from the CLI (needs the setup's uv paths and can take minutes; the app already does it on launch); a new error code for a stale env (codes are a frozen list; `TOOL_MISSING` with `details.check` is enough).

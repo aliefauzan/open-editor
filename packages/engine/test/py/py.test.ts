@@ -336,4 +336,72 @@ describe('tool error codes (D-21)', () => {
     expect(err.hint).toMatch(/password/);
     expect(err.details).toMatchObject({ toolCode: 'DOC_ENCRYPTED' });
   });
+
+  it('a TOOL_FAILED for a missing module points at the Python env (stale py-env)', async () => {
+    const err = await errorOf(
+      runPyTool(
+        't',
+        {
+          mode: 'tool-error',
+          code: 'TOOL_FAILED',
+          message: "ModuleNotFoundError: No module named 'mflux'",
+        },
+        Echo,
+        fake(),
+      ),
+    );
+    if (!isVoxError(err)) throw err;
+    expect(err.message).toContain("TOOL_FAILED: ModuleNotFoundError: No module named 'mflux'");
+    expect(err.hint).toMatch(/Python env/);
+    expect(err.hint).toMatch(/uv\.lock/);
+  });
+});
+
+describe('a tool that dies without its error line', () => {
+  it('names the exception line in the message and details.stderr, with a Python env hint for import errors', async () => {
+    const err = await errorOf(
+      runPyTool(
+        't',
+        {
+          mode: 'crash',
+          last: "ModuleNotFoundError: No module named 'vox_py.imagegen'",
+          trailing: true,
+        },
+        Echo,
+        fake(),
+      ),
+    );
+    expect(isVoxError(err) && err.code).toBe('PY_TOOL_FAILED');
+    if (!isVoxError(err)) return;
+    expect(err.message).toBe(
+      "Python tool t failed (exit code 1): ModuleNotFoundError: No module named 'vox_py.imagegen'",
+    );
+    expect(err.details).toMatchObject({
+      exitCode: 1,
+      stderr: "ModuleNotFoundError: No module named 'vox_py.imagegen'",
+    });
+    expect(err.hint).toMatch(/Python env/);
+    expect(err.hint).toMatch(/open Vox Studio|Setup → Repair/);
+    expect(String(err.cause)).toContain('Traceback');
+  });
+
+  it('any other last line is named too, with the generic hint', async () => {
+    const err = await errorOf(
+      runPyTool('t', { mode: 'crash', last: 'RuntimeError: out of memory' }, Echo, fake()),
+    );
+    if (!isVoxError(err)) throw err;
+    expect(err.message).toMatch(/failed \(exit code 1\): RuntimeError: out of memory$/);
+    expect(err.details).toMatchObject({ stderr: 'RuntimeError: out of memory' });
+    expect(err.hint).toMatch(/vox doctor/);
+    expect(err.hint).not.toMatch(/uv\.lock/);
+  });
+
+  it('a very long last line is cut in the message', async () => {
+    const err = await errorOf(
+      runPyTool('t', { mode: 'crash', last: `ValueError: ${'x'.repeat(2000)}` }, Echo, fake()),
+    );
+    if (!isVoxError(err)) throw err;
+    expect(err.message.length).toBeLessThan(400);
+    expect(String(err.details?.['stderr']).length).toBeLessThanOrEqual(301);
+  });
 });

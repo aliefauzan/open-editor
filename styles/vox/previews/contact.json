@@ -3,6 +3,26 @@
   "cells": [
     {
       "kind": "scene",
+      "template": "vox/framed-portrait",
+      "fixture": "bare"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/framed-portrait",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/framed-portrait",
+      "fixture": "mona"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/framed-portrait",
+      "fixture": "polaroid"
+    },
+    {
+      "kind": "scene",
       "template": "vox/kinetic-serif",
       "fixture": "longest"
     },
@@ -38,6 +58,21 @@
     },
     {
       "kind": "scene",
+      "template": "vox/newspaper",
+      "fixture": "headline-only"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/newspaper",
+      "fixture": "joconde"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/newspaper",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
       "template": "vox/paper-collage",
       "fixture": "clipping"
     },
@@ -63,6 +98,21 @@
     },
     {
       "kind": "scene",
+      "template": "vox/stack",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/stack",
+      "fixture": "three-panels"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/stack",
+      "fixture": "two-panels"
+    },
+    {
+      "kind": "scene",
       "template": "vox/stat",
       "fixture": "coffee"
     },
@@ -74,6 +124,21 @@
     {
       "kind": "scene",
       "template": "vox/stat",
+      "fixture": "longest"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/year-card",
+      "fixture": "blueprint-image"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/year-card",
+      "fixture": "comet"
+    },
+    {
+      "kind": "scene",
+      "template": "vox/year-card",
       "fixture": "longest"
     },
     {

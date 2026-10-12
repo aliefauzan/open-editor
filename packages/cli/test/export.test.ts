@@ -183,6 +183,19 @@ describe('vox render / export-* targets', () => {
     expect((await vox(['export-captions', projectId])).code).toBe(2);
   });
 
+  test('export-timeline --format fcpxml writes <name>.fcpxml next to its layers folder', async () => {
+    const dir = tmp();
+    const r = await vox(['export-timeline', projectId, '--format', 'fcpxml', '--out-dir', dir]);
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.stdout.split('\n').slice(0, 2)).toEqual([
+      join(dir, 'Cli-Main.fcpxml'),
+      join(dir, 'Cli-Main-fcpxml-layers'),
+    ]);
+    expect(readFileSync(join(dir, 'Cli-Main.fcpxml'), 'utf8')).toContain('<fcpxml version="1.8">');
+    const d = await vox(['export-timeline', projectId, '--out-dir', dir]);
+    expect(d.stdout.split('\n')[0]).toBe(join(dir, 'Cli-Main.otio'));
+  }, 120_000);
+
   test('usage errors exit 2', async () => {
     for (const args of [
       ['render', projectId, '--quality', 'looks'],
@@ -196,6 +209,7 @@ describe('vox render / export-* targets', () => {
       ['quick', '/tmp/x.mp4', '--out-dir', '/tmp'],
       ['quick', '/tmp/x.mp4', '--length', '8-4'],
       ['assets', 'resize', projectId, 'm_head'],
+      ['export-timeline', projectId, '--format', 'edl'],
     ]) {
       const r = await vox(args);
       expect(r.code, args.join(' ')).toBe(2);

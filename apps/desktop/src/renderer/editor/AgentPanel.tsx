@@ -547,6 +547,26 @@ export function AgentPanel() {
     const r = await agent.getState().send(text, { selection });
     if (r) setText('');
   };
+  // 14b: runs the screenplay workflow on the attached (or the project's first) screenplay document
+  const matchScreenplay = async () => {
+    const st = editor.getState();
+    const docs = (media ?? []).filter((m) => m.kind === 'document');
+    const doc = attachments.find((id) => docs.some((d) => d.id === id)) ?? docs[0]?.id;
+    if (doc === undefined) {
+      setText('Match the screenplay to the footage');
+      st.toast(
+        new Error(
+          'Drop a screenplay (.fountain, .txt, .md or .pdf) on the chat first, then press Match screenplay.',
+        ),
+      );
+      return;
+    }
+    if (!attachments.includes(doc)) agent.getState().attach(doc);
+    await agent.getState().send('Match each scene of the screenplay to the right clip', {
+      selection: st.sequenceId ? [st.sequenceId] : [],
+      workflow: 'screenplay',
+    });
+  };
   const onDrop = (e: DragEvent) => {
     const raw = e.dataTransfer.getData(DRAG_MEDIA);
     if (raw) {
@@ -636,6 +656,9 @@ export function AgentPanel() {
           onClick={() => ui.getState().set({ galleryOpen: true, galleryExtract: true })}
         >
           Extract style
+        </button>
+        <button type="button" className={btn} onClick={() => void matchScreenplay()}>
+          Match screenplay
         </button>
       </div>
       <form

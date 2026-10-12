@@ -80,6 +80,8 @@ export interface MediaClip extends ItemBase {
   type: 'media';
   mediaId: string;
   inMs: number;
+  /** Clip speed (engine spec "Clip speed", plan D-62); absent = 1. The clip shows durationMs × speed of source. */
+  speed?: number;
   frame?: Frame;
   motion?: Motion;
   volume?: number;
@@ -98,6 +100,9 @@ export interface SceneClip extends ItemBase {
 
 export type Item = MediaClip | SceneClip;
 
+/** Source ms a media clip plays: its timeline length × its speed (plan D-62). */
+export const sourceSpanMs = (c: MediaClip): number => Math.round(c.durationMs * (c.speed ?? 1));
+
 export interface Track {
   id: string;
   name?: string;
@@ -105,6 +110,8 @@ export interface Track {
   hidden: boolean;
   muted: boolean;
   syncLock: boolean;
+  /** Audio tracks only: lowered under the speech tracks in the mix (plan 14f). */
+  duck?: boolean;
   items: Item[];
 }
 

@@ -1,0 +1,30 @@
+{
+  "panels": [
+    {
+      "template": "vox/year-card",
+      "variables": {
+        "year": "c. 1850-1860",
+        "tag": "The first transatlantic cable",
+        "photo": "m_img"
+      }
+    },
+    {
+      "template": "vox/stat",
+      "variables": {
+        "value": "2,000,000,000 cups a day",
+        "line2": "Every single day, in every country of the world!",
+        "tag": "The world's coffee habit in 2024"
+      }
+    },
+    {
+      "template": "vox/framed-portrait",
+      "variables": {
+        "media": "m_img",
+        "frame": "polaroid",
+        "stamp": "UNFOUND 1911",
+        "tag": "The Louvre, August 21, 1911!!"
+      }
+    }
+  ],
+  "bg": "dark"
+}

@@ -226,6 +226,27 @@ describe('view_frames (step 15)', () => {
     expect(out.images).toBeUndefined();
   });
 
+  test('srcMs follows the clip speed (D-62)', async () => {
+    const f = await fixtureProject();
+    await f.engine.applyOp(
+      f.projectId,
+      {
+        op: 'setClipSpeed',
+        args: { sequenceId: f.sequenceId, itemId: f.v1, speed: 2, onOverlap: 'ripple' },
+      },
+      { actor: 'user' },
+    );
+    const ctx = toolContext(f, {
+      engine: withFrames(f, [normal]),
+      readImage: () => Promise.resolve(normal),
+    });
+    const out = await run(ctx, 'view_frames', { sequenceId: f.sequenceId, atSeqMs: [1000] });
+    const clip = (await f.engine.getProject(f.projectId)).sequences[0]!.videoTracks[0]!.items[0]!;
+    expect(clip).toMatchObject({ speed: 2 });
+    const res = out.result as { frames: { srcMs: number | null }[] };
+    expect(res.frames[0]!.srcMs).toBe((1000 - clip.startMs) * 2 + (clip as { inMs: number }).inMs);
+  });
+
   test('an editor with vision gets the images; else the vision description, wrapped as data', async () => {
     const f = await fixtureProject();
     const pngs = [normal];

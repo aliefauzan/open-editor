@@ -10,10 +10,26 @@ import { z } from 'zod';
 import { VoxError } from '../errors.ts';
 import { ROLES } from '../providers/roles.ts';
 
-export const WORKFLOW_NAMES = ['clipper', 'stylize', 'edit', 'style-extract'] as const;
+export const WORKFLOW_NAMES = [
+  'clipper',
+  'stylize',
+  'edit',
+  'screenplay',
+  'style-extract',
+] as const;
 export type WorkflowName = (typeof WORKFLOW_NAMES)[number];
 
-export const CHECKPOINTS = ['ranges', 'tighten', 'storyboard', 'fill', 'review', 'sound'] as const;
+export const CHECKPOINTS = [
+  'ranges',
+  'tighten',
+  'storyboard',
+  'fill',
+  'review',
+  'sound',
+  'tag',
+  'match',
+  'layout',
+] as const;
 export type Checkpoint = (typeof CHECKPOINTS)[number];
 
 const unique = <T extends z.ZodType>(item: T, what: string) =>

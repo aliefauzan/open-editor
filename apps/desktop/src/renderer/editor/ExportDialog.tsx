@@ -1,5 +1,5 @@
 // Export dialog (app spec "Export dialog"; plan D-11, D-13, D-14, D-15): MP4 (quality, range,
-// subtitles burned in or not, this sequence or all), SRT / VTT with the subtitle edits, OTIO; "Save
+// subtitles burned in or not, this sequence or all), SRT / VTT with the subtitle edits, OTIO or FCPXML timeline; "Save
 // to" (one file → save dialog, several → folder; default = the folder last used for this project,
 // else ~/Movies) through `exports.chooseTarget`, so the renderer only holds a `targetId`; loudness
 // target (sent to `render` and `audioQa`); the audio check before an MP4 export (warns on FAIL, never
@@ -9,7 +9,7 @@ import type { ErrorData } from '../../shared/api.ts';
 import { useCtx, useEditor, useUi } from './context.tsx';
 import type { JobRow } from './jobs.ts';
 
-export type Format = 'mp4' | 'srt' | 'vtt' | 'otio';
+export type Format = 'mp4' | 'srt' | 'vtt' | 'otio' | 'fcpxml';
 export type Loudness = 'youtube' | 'tiktok' | 'broadcast';
 
 export const LOUDNESS: { id: Loudness; label: string }[] = [
@@ -78,6 +78,7 @@ export function ExportDialog() {
     srt: true,
     vtt: false,
     otio: false,
+    fcpxml: false,
   });
   const [all, setAll] = useState(false);
   const [quality, setQuality] = useState<'draft' | 'standard' | 'high'>('standard');
@@ -208,6 +209,8 @@ export function ExportDialog() {
           start('exportCaptions', { sequenceId: s.id, format: f }, `${f.toUpperCase()}: ${s.name}`);
       }
       if (formats.otio) start('exportTimeline', { sequenceId: s.id }, `OTIO: ${s.name}`);
+      if (formats.fcpxml)
+        start('exportTimeline', { sequenceId: s.id, format: 'fcpxml' }, `FCPXML: ${s.name}`);
     }
     await Promise.all(started);
     setBusy(null);
@@ -242,6 +245,7 @@ export function ExportDialog() {
               ['srt', 'SRT captions'],
               ['vtt', 'VTT captions'],
               ['otio', 'Editable timeline (OTIO)'],
+              ['fcpxml', 'Final Cut Pro timeline (FCPXML)'],
             ] as const
           ).map(([f, label]) => (
             <label key={f} className="flex items-center gap-1">

@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Engine } from '@vox/engine';
 import { createEditorContext, type EditorContext } from '../../src/renderer/editor/context.tsx';
+import type { SettingsData } from '../../src/shared/api.ts';
 import type { Project } from '../../src/shared/project.ts';
 import { editorProject, tempEngine } from './engine-fixture.ts';
 import { fakeVox, type FakeVox } from './fake-vox.ts';
@@ -36,4 +37,29 @@ export async function testEditor(
 export async function idle(t: TestEditor): Promise<void> {
   await t.ctx.editor.getState().whenIdle();
   await t.fake.settle();
+}
+
+/** `settings.get` data: no providers and no roles (so no editor model), with overrides. */
+export function settingsData(over: Partial<SettingsData> = {}): SettingsData {
+  return {
+    providers: [],
+    presets: [
+      { id: 'openrouter', label: 'OpenRouter', key: 'required', local: false },
+      {
+        id: 'ollama',
+        label: 'Ollama',
+        key: 'none',
+        baseUrl: 'http://127.0.0.1:11434',
+        local: true,
+      },
+    ],
+    roles: {},
+    limits: { maxUsdPerRun: 3, maxStepsPerRun: 40 },
+    prices: {},
+    appleHelper: true,
+    probes: [],
+    ingest: { cookiesFromBrowser: null },
+    contact: null,
+    ...over,
+  };
 }

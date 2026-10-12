@@ -12,7 +12,7 @@ export function toolNameOf(op: string): string {
 }
 
 const TIME_NOTE =
-  'Times are integer ms: startMs, endMs and durationMs are sequence (timeline) time; inMs is source time.';
+  'Times are integer ms: startMs, endMs and durationMs are sequence (timeline) time; inMs is source time. A clip with speed s plays durationMs × s of source.';
 
 const OP_DESCRIPTIONS: Readonly<Record<OpName, string>> = {
   addMedia: 'Register a media item that already exists in the project folder.',
@@ -24,7 +24,8 @@ const OP_DESCRIPTIONS: Readonly<Record<OpName, string>> = {
   duplicateSequence: 'Copy a sequence with all its tracks and items.',
   removeSequence: 'Remove a sequence.',
   addTrack: 'Add a video (V) or audio (A) track to a sequence.',
-  updateTrack: 'Lock, hide, mute or change a track.',
+  updateTrack:
+    'Lock, hide, mute or rename a track; duck: true lowers an audio track under the speech tracks.',
   removeTrack: 'Remove an empty track.',
   reorderTracks: 'Reorder the video or audio tracks of a sequence.',
   placeClip: 'Place a media clip on a track (with its linked audio when withAudio).',
@@ -34,6 +35,8 @@ const OP_DESCRIPTIONS: Readonly<Record<OpName, string>> = {
   moveItem: 'Move an item (and its linked items) to a new start time or track.',
   trimItem: 'Trim an item’s start or end.',
   splitItem: 'Split an item in two at a sequence time.',
+  setClipSpeed:
+    'Set a media clip’s speed (0.25–4 picture, 0.5–2 with sound; 1 = normal); the source range stays, so the clip gets shorter or longer. onOverlap: "ripple" shifts later items.',
   removeItem: 'Remove an item (and its linked items unless unlinked).',
   rippleDelete: 'Cut a time range out of a track and close the gap.',
   link: 'Link items so they move and trim together.',

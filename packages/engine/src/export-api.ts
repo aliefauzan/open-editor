@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, extname, join } from 'node:path';
 import { z } from 'zod';
 import type { MixRequest } from './api.ts';
 import type { MixResult } from './audio/graph.ts';
@@ -19,9 +19,10 @@ import { prepareExport, writeExport, type ExportTarget } from './export/target.t
 import type { JobContext, JobRunner } from './jobs.ts';
 import { captionsToSrt, captionsToVtt, type CaptionChunk } from './model/captions.ts';
 import { blendHalf, frame, snap, type Fps } from './model/fps.ts';
-import type { MediaItem, Project, Sequence } from './model/schema.ts';
+import type { MediaClip, MediaItem, Project, Sequence } from './model/schema.ts';
 import { findSeq } from './ops/core.ts';
 import type { ProjectStore } from './history/store.ts';
+import { speedOf } from './model/speed.ts';
 import { repoPyProject, runPyTool } from './py.ts';
 import type { Redactor } from './redact.ts';
 import { fpsArg, hyperframesBin } from './render/layers.ts';
@@ -191,7 +192,11 @@ export const ExportCaptionsJobArgsSchema = z.strictObject({
   ...exportBase,
   format: z.enum(['srt', 'vtt']).default('srt'),
 });
-export const ExportTimelineJobArgsSchema = z.strictObject(exportBase);
+export const ExportTimelineJobArgsSchema = z.strictObject({
+  ...exportBase,
+  /** `otio` (default) or `fcpxml` (Final Cut Pro, via otio-fcpx-xml-adapter); the layer MOVs are the same. */
+  format: z.enum(['otio', 'fcpxml']).default('otio'),
+});
 export const AudioQaJobArgsSchema = z
   .strictObject({
     projectId: z.string(),
@@ -637,13 +642,21 @@ interface OtioClip {
   durationFrames: number;
   sourceFrame: number;
   sourceDurationFrames?: number;
+  /** Whole source file length in `mediaRate` frames (FCPXML assets). */
+  mediaDurationFrames?: number;
   mediaRate?: { num: number; den: number };
+  /** Clip speed (plan D-62): the OTIO `LinearTimeWarp` scalar; the source range keeps the timeline length. */
+  timeScalar?: number;
 }
 interface OtioTrack {
   kind: 'video' | 'audio';
   name: string;
   clips: OtioClip[];
 }
+
+/** `timeScalar` for a sped clip (none at 1×). */
+const timeScalar = (it: MediaClip): { timeScalar?: number } =>
+  speedOf(it) === 1 ? {} : { timeScalar: speedOf(it) };
 
 const TimelineToolResultSchema = z.strictObject({
   output: z.string(),
@@ -706,10 +719,15 @@ async function exportTimeline(
     target: args.target as ExportTarget | undefined,
     defaultDir: join(dir, 'renders'),
     stem: stemOf(p, s),
-    ext: 'otio',
+    ext: args.format,
     overwrite: args.overwrite,
   });
-  const layersFor = (otio: string) => join(dirname(otio), `${basename(otio, '.otio')}-layers`);
+  // The FCPXML export keeps its own layer folder, so both formats can go to the same folder.
+  const layersFor = (file: string) =>
+    join(
+      dirname(file),
+      `${basename(file, extname(file))}${args.format === 'fcpxml' ? '-fcpxml' : ''}-layers`,
+    );
   const plannedLayers = layersFor(prepared.finalPath);
   const tmpLayers = join(
     dirname(prepared.finalPath),
@@ -745,6 +763,15 @@ async function exportTimeline(
             Math.round((it.durationMs * rate.num) / rate.den / 1000),
           ),
           mediaRate: { num: rate.num, den: rate.den },
+          ...timeScalar(it),
+          ...(m.durationMs
+            ? {
+                mediaDurationFrames: Math.max(
+                  1,
+                  Math.round((m.durationMs * rate.num) / rate.den / 1000),
+                ),
+              }
+            : {}),
         });
       }
       if (clips.length) tracks.push({ kind: 'video', name: t.id, clips });
@@ -804,6 +831,15 @@ async function exportTimeline(
             Math.round((it.durationMs * rate.num) / rate.den / 1000),
           ),
           mediaRate: { num: rate.num, den: rate.den },
+          ...timeScalar(it),
+          ...(m.durationMs
+            ? {
+                mediaDurationFrames: Math.max(
+                  1,
+                  Math.round((m.durationMs * rate.num) / rate.den / 1000),
+                ),
+              }
+            : {}),
         });
       }
       if (clips.length) tracks.push({ kind: 'audio', name: t.id, clips });
@@ -814,13 +850,16 @@ async function exportTimeline(
         c.path.startsWith(plannedLayers) ? { ...c, path: join(layersDir, basename(c.path)) } : c;
       const tmpOut = join(
         dirname(prepared.tempPath),
-        `.vox-otio-${randomBytes(6).toString('hex')}.otio`,
+        `.vox-timeline-${randomBytes(6).toString('hex')}.${args.format}`,
       );
       try {
         await runPyTool(
           'timeline',
           {
             mode: 'write',
+            format: args.format,
+            width: s.canvas.width,
+            height: s.canvas.height,
             output: tmpOut,
             name: `${p.name} – ${s.name}`,
             rate: { num: fps.num, den: fps.den },

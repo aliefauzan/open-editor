@@ -11,6 +11,8 @@ import { selfTest } from './self-test.ts';
 import {
   isVoxError,
   classifyUrl,
+  IMAGE_MODEL_IDS,
+  imagegenStatus,
   openEngine,
   readConfig,
   resolveProjectsDir,
@@ -125,6 +127,9 @@ const USAGE = `usage:
   vox assets fetch <project> <candidateId>
   vox assets cutout <project> <mediaId>
   vox assets generate <project> "<prompt>" [--style id] [--provider id]
+  vox imagegen status                     local image models: installed, size, licence
+  vox imagegen install [--model z-image-turbo|flux1-schnell]   download + quantize (FLUX needs HF_TOKEN)
+  vox imagegen remove [--model ...]       delete an installed model and any partial download
   vox compile <project> [--seq id] [--mode preview|render]   writes build/
   vox preview <project> [--seq id]        compile + npx hyperframes play
   vox frames <project> [--seq id] --at-ms <ms>[,<ms>...]     compiled stills (paths)
@@ -132,7 +137,7 @@ const USAGE = `usage:
        [--captions burn|none] [--loudness youtube|tiktok|broadcast] [-o file | --out-dir dir] [--overwrite]
   vox audio-qa <project> [--seq id] [--loudness youtube|tiktok|broadcast] [--kit styleId]
   vox export-captions <project> [--seq id] --format srt|vtt [-o file | --out-dir dir] [--overwrite]
-  vox export-timeline <project> [--seq id] [-o file | --out-dir dir] [--overwrite]
+  vox export-timeline <project> [--seq id] [--format otio|fcpxml] [-o file | --out-dir dir] [--overwrite]
   vox credits <project>                   licence and attribution of the archive assets used
   vox style validate <style> [--no-render] [--no-dom]   check a style; writes its previews/
   vox style new <id> [--extends <style>] [--name <name>]   scaffold a draft user style
@@ -146,9 +151,10 @@ const USAGE = `usage:
   vox config roles set <role> <provider>:<model> [--mode tools|plan]   probes first; refuses a failed role
   vox config prices set <model> --in <usd> --out <usd> | --free        per million tokens
   vox config probe [<provider>:<model>...]   probe the role models (or the named ones)
-  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit|style-extract] [--seq id]... [--style id]
+  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit|screenplay|style-extract] [--seq id]... [--style id]
        [--layout full-collage|hybrid] [--mode tools|plan] [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan]
        [--count n] [--length 30-60]   (clipper: number of clips, length in seconds)
+       [--screenplay <file|mediaId>] [--footage <mediaId>]...   (screenplay: the document; default: every video)
   vox agent undo <project> <runId>        undo every edit of an agent run
 common options: --json, --projects-dir <dir>; <project> is an id or a unique name
 `;
@@ -203,6 +209,7 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     style: { type: 'string' },
     provider: { type: 'string' },
   },
+  imagegen: { ...COMMON, model: { type: 'string' } },
   compile: { ...COMMON, seq: { type: 'string' }, mode: { type: 'string' } },
   preview: { ...COMMON, seq: { type: 'string' } },
   frames: { ...COMMON, seq: { type: 'string' }, 'at-ms': { type: 'string' } },
@@ -235,6 +242,7 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
   'export-timeline': {
     ...COMMON,
     seq: { type: 'string' },
+    format: { type: 'string' },
     output: { type: 'string', short: 'o' },
     'out-dir': { type: 'string' },
     overwrite: { type: 'boolean' },
@@ -253,6 +261,8 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     'confirm-plan': { type: 'boolean' },
     count: { type: 'string' },
     length: { type: 'string' },
+    screenplay: { type: 'string' },
+    footage: { type: 'string', multiple: true },
   },
   config: {
     json: { type: 'boolean' },
@@ -729,6 +739,60 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       out(project ? { ...report, project } : report, lines.join(''));
       return report.ok ? 0 : 1;
     }
+    case 'imagegen': {
+      need(positionals, 1, '<status|install|remove>');
+      const sub = positionals[0]!;
+      const e = await engineFor(values, io);
+      const model = oneOf(values['model'], 'model', IMAGE_MODEL_IDS) ?? 'z-image-turbo';
+      if (sub === 'status') {
+        const st = await imagegenStatus(e.tools['models']);
+        const gb = (n: number) => `${(n / 1e9).toFixed(1)} GB`;
+        // a failed or cancelled install keeps its download for the next try (D-69): never hidden
+        const partial = (n: number) =>
+          n > 0
+            ? `; ${gb(n)} partial download kept, the next install resumes it; vox imagegen remove deletes it`
+            : '';
+        out(
+          st,
+          st
+            .map(
+              (m) =>
+                `${m.id}\t${m.installed ? `installed (${gb(m.sizeOnDisk)}${partial(m.partialBytes)})` : `not installed (${gb(m.downloadBytes)} download${partial(m.partialBytes)})`}\t${m.license}${m.gated ? '\tgated on Hugging Face' : ''}\n`,
+            )
+            .join(''),
+        );
+        return 0;
+      }
+      if (sub === 'install') {
+        const r = await runJob<{ providerId: string; bytes: number }>(
+          e,
+          'imagegen.install',
+          { model },
+          io,
+          json,
+        );
+        out(
+          r,
+          `${model} installed; use: vox assets generate <project> "<prompt>" --provider ${r.providerId}\n`,
+        );
+        return 0;
+      }
+      if (sub === 'remove') {
+        const r = await runJob<{ removed: boolean; partialBytes?: number }>(
+          e,
+          'imagegen.remove',
+          { model },
+          io,
+          json,
+        );
+        const freed = r.partialBytes
+          ? `; deleted its partial download (${(r.partialBytes / 1e9).toFixed(1)} GB)`
+          : '';
+        out(r, `${model} ${r.removed ? 'removed' : 'was not installed'}${freed}\n`);
+        return 0;
+      }
+      throw new UsageError(`unknown imagegen command ${JSON.stringify(sub)}`);
+    }
     case 'assets': {
       need(positionals, 3, '<search|fetch|cutout|generate> <project> <argument>');
       const [sub, ref, arg] = positionals as [string, string, string];
@@ -933,7 +997,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const format =
         cmd === 'export-captions'
           ? oneOf(values['format'], 'format', ['srt', 'vtt'] as const)
-          : undefined;
+          : oneOf(values['format'], 'format', ['otio', 'fcpxml'] as const);
       if (cmd === 'export-captions' && !format)
         throw new UsageError('--format srt|vtt is required');
       const e = await engineFor(values, io);

@@ -54,8 +54,9 @@ export function toRows(
       const limits =
         i.type === 'media' && m?.durationMs !== undefined && m.kind !== 'image'
           ? {
-              minStart: sec(Math.max(0, i.startMs - i.inMs)),
-              maxEnd: sec(i.startMs - i.inMs + m.durationMs),
+              // source ms turn into timeline ms at the clip's speed (plan D-62)
+              minStart: sec(Math.max(0, i.startMs - i.inMs / (i.speed ?? 1))),
+              maxEnd: sec(i.startMs + (m.durationMs - i.inMs) / (i.speed ?? 1)),
             }
           : {};
       return {

@@ -1,0 +1,59 @@
+{
+  "name": "year-card",
+  "version": "1.0.0",
+  "kind": "scene",
+  "description": "A year in big serif type, a framed archive photo tilted on a dark blueprint sheet, and a yellow mono tag naming the subject. Like \"1952 / DE HAVILLAND COMET\" in the reference reel. The blueprint is a technical drawing that draws itself; an optional `blueprint` line-art picture replaces the generic drawing.",
+  "useWhen": [
+    "the speaker names a year, decade or date for an event",
+    "an invention, building or machine is introduced with the year it appeared",
+    "a before and after, where the year anchors the scene"
+  ],
+  "durationMs": {
+    "min": 1500,
+    "default": 3000,
+    "max": 5000
+  },
+  "variables": {
+    "type": "object",
+    "properties": {
+      "year": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 12
+      },
+      "tag": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32
+      },
+      "photo": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "blueprint": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "bg": {
+        "enum": ["paper", "dark", "highlight"]
+      }
+    },
+    "required": ["year", "tag", "photo"],
+    "additionalProperties": false
+  },
+  "slots": {
+    "photo": "image",
+    "blueprint": "image"
+  },
+  "sfxCues": [
+    {
+      "name": "year-in",
+      "atMs": "entrance",
+      "sfx": "paper-pop",
+      "type": "appear"
+    }
+  ],
+  "minEntranceMs": 1800
+}

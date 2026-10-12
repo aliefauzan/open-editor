@@ -21,6 +21,7 @@ import type {
 } from './history/types.ts';
 import { newId } from './model/ids.ts';
 import { SCHEMA_VERSION, type Project } from './model/schema.ts';
+import { spanMs, speedOf } from './model/speed.ts';
 import { findSeq, tracksOf } from './ops/core.ts';
 import type { OpCall } from './ops/index.ts';
 import type { TemplateLookup } from './ops/templates.ts';
@@ -53,7 +54,20 @@ import {
   type TrackPath,
   type TrackPathOptions,
 } from './stages/facetrack.ts';
+import { createMfluxProviders, registerImagegenJobs } from './imagegen.ts';
 import { createImageProviders, registerAssetJobs, type ImageProvider } from './assets-api.ts';
+export {
+  IMAGE_MODELS,
+  IMAGE_MODEL_IDS,
+  hfTokenPresent,
+  imagegenStatus,
+  isInstalled as isImageModelInstalled,
+  type ImageModelId,
+  type ImageModelInfo,
+  type ImageModelStatus,
+  type ImagegenInstallResult,
+  type ImagegenRemoveResult,
+} from './imagegen.ts';
 import type { GetJson } from './stages/assets.ts';
 import {
   registerExportJobs,
@@ -440,6 +454,8 @@ export interface EngineOptions {
     ca?: string;
     sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   };
+  /** Test seams for the local image model install: free disk space and the environment (HF_TOKEN). */
+  imagegen?: { freeBytes?: (dir: string) => number; env?: NodeJS.ProcessEnv };
   /** Test seam: runs the HyperFrames CLI (render, snapshot). */
   hyperframes?: HyperframesRun;
 }
@@ -461,6 +477,8 @@ export interface SequenceViewItem {
   template?: string;
   /** First string variable of a scene, if any. */
   text?: string;
+  /** Media clips with a speed other than 1 (v1.1, plan D-62). */
+  speed?: number;
 }
 
 /** Compact read of one sequence for the agent (plan D-15). */
@@ -593,7 +611,8 @@ export function sequenceView(
         });
       } else {
         const kind = audio ? 'audio' : media.get(it.mediaId)?.kind === 'image' ? 'image' : 'video';
-        items.push({ ...base, kind, mediaId: it.mediaId, order });
+        const speed = it.speed !== undefined && it.speed !== 1 ? { speed: it.speed } : {};
+        items.push({ ...base, kind, mediaId: it.mediaId, ...speed, order });
       }
     }
   });
@@ -724,6 +743,12 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.net ? { net: opts.net } : {}),
   });
   const imageProviders = createImageProviders();
+  if (opts.tools?.['models']) {
+    // Local mflux models (phase 14d): each provider shows up once its model is installed.
+    for (const p of createMfluxProviders({ tools: opts.tools, redactor }))
+      imageProviders.register(p);
+    registerImagegenJobs(jobs, { tools: opts.tools, redactor, ...opts.imagegen });
+  }
   registerAssetJobs(jobs, {
     tools: opts.tools ?? {},
     redactor,
@@ -799,11 +824,19 @@ export function openEngine(opts: EngineOptions): Engine {
         if (!area || !m.width || !m.height) return undefined;
         path = staticTrackPath({ width: m.width, height: m.height }, o.aspect, area, clip.frame);
       }
-      return applyClipFraming(path, {
+      // the tracked path is in source time: frame the source span, then bring the keyframe times
+      // back to item-relative timeline time (clip speed, plan D-62)
+      const sp = speedOf(clip);
+      const kfs = applyClipFraming(path, {
         inMs: clip.inMs,
-        durationMs: clip.durationMs,
-        ...(clip.frame.keyframes ? { keyframes: clip.frame.keyframes } : {}),
+        durationMs: spanMs(clip),
+        ...(clip.frame.keyframes
+          ? {
+              keyframes: clip.frame.keyframes.map((k) => ({ ...k, atMs: Math.round(k.atMs * sp) })),
+            }
+          : {}),
       });
+      return sp === 1 ? kfs : kfs.map((k) => ({ ...k, atMs: Math.round(k.atMs / sp) }));
     };
   }
 

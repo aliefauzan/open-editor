@@ -156,6 +156,17 @@ describe('tracks', () => {
     p = ap(p, 'updateTrack', { sequenceId: 'seq_1', trackId: 'A2', name: null });
     expect(seq(p).audioTracks[1]).not.toHaveProperty('name');
   });
+  test('updateTrack duck: audio tracks only; false clears the flag', () => {
+    let p = ap(baseProject(), 'updateTrack', { sequenceId: 'seq_1', trackId: 'A2', duck: true });
+    expect(seq(p).audioTracks[1]!.duck).toBe(true);
+    expect(seq(p).audioTracks[0]).not.toHaveProperty('duck');
+    p = ap(p, 'updateTrack', { sequenceId: 'seq_1', trackId: 'A2', duck: false });
+    expect(seq(p).audioTracks[1]).not.toHaveProperty('duck');
+    expectCode(
+      () => ap(baseProject(), 'updateTrack', { sequenceId: 'seq_1', trackId: 'V1', duck: true }),
+      'VALIDATION',
+    );
+  });
   test('removeTrack: empty only (TRACK_NOT_EMPTY), drops it from caption sources', () => {
     expectCode(
       () => ap(richProject(), 'removeTrack', { sequenceId: 'seq_1', trackId: 'V1' }),

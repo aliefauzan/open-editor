@@ -1,0 +1,134 @@
+{
+  "frames": 960,
+  "picture": {
+    "checked": 960,
+    "minMargin": 116,
+    "byClip": {
+      "it_x2": {
+        "checked": 180,
+        "mismatches": 0,
+        "maxAbsOff": 0
+      },
+      "it_x05": {
+        "checked": 480,
+        "mismatches": 0,
+        "maxAbsOff": 0
+      },
+      "it_x1": {
+        "checked": 90,
+        "mismatches": 0,
+        "maxAbsOff": 0
+      },
+      "it_x4": {
+        "checked": 90,
+        "mismatches": 0,
+        "maxAbsOff": 0
+      },
+      "it_x025": {
+        "checked": 120,
+        "mismatches": 0,
+        "maxAbsOff": 0
+      }
+    },
+    "mismatches": []
+  },
+  "sync": {
+    "frameMs": 33.333333333333336,
+    "pairs": [
+      {
+        "clip": "it_x2",
+        "srcF": 60,
+        "expectedF": 15,
+        "flashF": 15,
+        "onsetMs": 502.38,
+        "offsetMs": 2.38,
+        "audioErrMs": 2.38
+      },
+      {
+        "clip": "it_x2",
+        "srcF": 120,
+        "expectedF": 45,
+        "flashF": 45,
+        "onsetMs": 1498.71,
+        "offsetMs": -1.29,
+        "audioErrMs": -1.29
+      },
+      {
+        "clip": "it_x2",
+        "srcF": 180,
+        "expectedF": 75,
+        "flashF": 75,
+        "onsetMs": 2499.46,
+        "offsetMs": -0.54,
+        "audioErrMs": -0.54
+      },
+      {
+        "clip": "it_x2",
+        "srcF": 240,
+        "expectedF": 105,
+        "flashF": 105,
+        "onsetMs": 3501.38,
+        "offsetMs": 1.37,
+        "audioErrMs": 1.37
+      },
+      {
+        "clip": "it_x2",
+        "srcF": 300,
+        "expectedF": 135,
+        "flashF": 135,
+        "onsetMs": 4498.71,
+        "offsetMs": -1.29,
+        "audioErrMs": -1.29
+      },
+      {
+        "clip": "it_x2",
+        "srcF": 360,
+        "expectedF": 165,
+        "flashF": 165,
+        "onsetMs": 5496.04,
+        "offsetMs": -3.96,
+        "audioErrMs": -3.96
+      },
+      {
+        "clip": "it_x05",
+        "srcF": 660,
+        "expectedF": 300,
+        "flashF": 300,
+        "onsetMs": 9984.08,
+        "offsetMs": -15.92,
+        "audioErrMs": -15.92
+      },
+      {
+        "clip": "it_x05",
+        "srcF": 720,
+        "expectedF": 420,
+        "flashF": 420,
+        "onsetMs": 14002.92,
+        "offsetMs": 2.92,
+        "audioErrMs": 2.92
+      },
+      {
+        "clip": "it_x05",
+        "srcF": 780,
+        "expectedF": 540,
+        "flashF": 540,
+        "onsetMs": 17984.08,
+        "offsetMs": -15.92,
+        "audioErrMs": -15.92
+      },
+      {
+        "clip": "it_x1",
+        "srcF": 1260,
+        "expectedF": 720,
+        "flashF": 720,
+        "onsetMs": 24000.04,
+        "offsetMs": 0.04,
+        "audioErrMs": 0.04
+      }
+    ],
+    "maxAbsOffsetMs": 15.92,
+    "maxAbsAudioErrMs": 15.92,
+    "missingFlash": 0,
+    "missingClick": 0
+  }
+}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>speed</title>
+    <script src="vendor/gsap.min.js"></script>
+    <script src="vendor/vox-runtime.js"></script>
+    <style>
+
+      html, body { margin: 0; padding: 0; background: #000000; }
+      #root { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #000000; }
+      .layer { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; }
+      .host { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+      .img-wrap { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-width="1080" data-height="1920" data-duration="32" data-fps="30">
+      <div id="track-V1" class="layer">
+        <video id="it_x2" data-playback-rate="2" src="media/m_spike.mp4" style="position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: contain;" data-start="0" data-duration="6" data-media-start="1" data-track-index="1" muted playsinline></video>
+        <video id="it_x05" data-playback-rate="0.5" src="media/m_spike.mp4" style="position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: contain;" data-start="6" data-duration="16" data-media-start="20" data-track-index="1" muted playsinline></video>
+        <video id="it_x1" src="media/m_spike.mp4" style="position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: contain;" data-start="22" data-duration="3" data-media-start="40" data-track-index="1" muted playsinline></video>
+        <video id="it_x4" data-playback-rate="4" src="media/m_spike.mp4" style="position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: contain;" data-start="25" data-duration="3" data-media-start="50" data-track-index="1" muted playsinline></video>
+        <video id="it_x025" data-playback-rate="0.25" src="media/m_spike.mp4" style="position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: contain;" data-start="28" data-duration="4" data-media-start="70" data-track-index="1" muted playsinline></video>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var byId = function (id) { return document.getElementById(id); };
+        var tl = gsap.timeline({ paused: true });
+        var voxPath = function (id, steps) {
+          var el = byId(id);
+          steps.forEach(function (s) {
+            var v = { x: s[1], y: s[2], scale: s[3] };
+            if (s[4] > 0) { v.duration = s[4]; v.ease = 'none'; tl.to(el, v, s[0]); }
+            else tl.set(el, v, s[0]);
+          });
+        };
+
+        window.__timelines['main'] = tl;
+      })();
+    </script>
+
+  </body>
+</html>

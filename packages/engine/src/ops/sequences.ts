@@ -11,6 +11,7 @@ import {
   type Sequence,
   type Track,
 } from '../model/schema.ts';
+import { spanMs, speedOf } from '../model/speed.ts';
 import { endOf, fail, findSeq, findTrack, snapDown, tracksOf, type OpContext } from './core.ts';
 
 const name = () => z.string().min(1).max(200);
@@ -61,6 +62,8 @@ export const updateTrackArgs = z.strictObject({
   hidden: z.boolean().optional(),
   muted: z.boolean().optional(),
   syncLock: z.boolean().optional(),
+  /** Audio tracks only: duck the track under the speech tracks (false clears the flag). */
+  duck: z.boolean().optional(),
 });
 export const removeTrackArgs = z.strictObject({
   sequenceId: SequenceIdSchema,
@@ -122,8 +125,8 @@ function resnap(p: Project, s: Sequence, fps: Fps): void {
       const media = p.media.find((m) => m.id === it.mediaId);
       if (!media || media.kind === 'image') continue;
       if (!media.fps) it.inMs = snap(it.inMs, fps);
-      if (media.durationMs !== undefined && it.inMs + it.durationMs > media.durationMs) {
-        it.durationMs = snapDown(start + media.durationMs - it.inMs, fps) - start;
+      if (media.durationMs !== undefined && it.inMs + spanMs(it) > media.durationMs) {
+        it.durationMs = snapDown(start + (media.durationMs - it.inMs) / speedOf(it), fps) - start;
       }
     }
   }
@@ -202,6 +205,17 @@ export function updateTrack(p: Project, a: z.infer<typeof updateTrackArgs>): voi
   if (a.hidden !== undefined) t.hidden = a.hidden;
   if (a.muted !== undefined) t.muted = a.muted;
   if (a.syncLock !== undefined) t.syncLock = a.syncLock;
+  if (a.duck !== undefined) {
+    if (!t.id.startsWith('A')) {
+      fail(
+        'VALIDATION',
+        `Track ${t.id} is not an audio track, so it cannot duck`,
+        'Set duck on an audio track like A2',
+      );
+    }
+    if (a.duck) t.duck = true;
+    else delete t.duck;
+  }
 }
 
 export function removeTrack(p: Project, a: z.infer<typeof removeTrackArgs>): void {

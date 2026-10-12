@@ -9,8 +9,17 @@ import { dirname, join } from 'node:path';
 import { LOCK_FILE, type LockInfo } from './history/lock.ts';
 import { FACE_MODEL, sha256File } from './media-api.ts';
 import type { Project, Transcript } from './model/schema.ts';
+import { PY_ENV_LOCK_FIX, pyEnvLockState } from './py.ts';
 import { moduleRequire } from './resources.ts';
 import { WHISPER_DIR, WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
+
+import {
+  IMAGE_MODEL_IDS,
+  IMAGE_MODELS,
+  hfTokenPresent,
+  isInstalled,
+  modelDir,
+} from './imagegen.ts';
 
 export type CheckLevel = 'ok' | 'warn' | 'error';
 
@@ -100,6 +109,8 @@ export interface DoctorOptions {
   exec?: Exec;
   /** HOME for caches (HF, puppeteer); default the user's home. */
   home?: string;
+  /** Environment for the Hugging Face token check; default `process.env`. */
+  env?: NodeJS.ProcessEnv;
   /** Skip the Python import check (it takes a few seconds). */
   quick?: boolean;
 }
@@ -195,27 +206,26 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
   const uv = o.tools['uv'];
   const py = o.tools['py'];
   // App-installed env (D-12): it must come from the uv.lock this build ships, else it is re-synced.
-  const env = o.tools['pyEnv'];
-  if (env && py) {
-    const want = await sha256File(join(py, 'uv.lock'));
-    const have = (await readFile(join(env, '.vox-lock-hash'), 'utf8').catch(() => '')).trim();
+  // The same check runs before `imagegen.install` and mflux generation (D-69).
+  const lock = await pyEnvLockState(o.tools);
+  if (lock) {
     add(
-      want !== undefined && have === want
+      lock.state === 'current'
         ? {
             name: 'python-env-lock',
             level: 'ok',
             detail: "synced from this build's uv.lock",
-            path: env,
+            path: lock.pyEnv,
           }
         : {
             name: 'python-env-lock',
             level: 'error',
             detail:
-              have === ''
+              lock.state === 'unsynced'
                 ? 'the Python env has no lock hash (not synced by setup)'
                 : 'the Python env was synced from a different uv.lock',
-            path: env,
-            fix: 'open Vox Studio (setup re-syncs it on launch) or Setup → Repair "Python env"',
+            path: lock.pyEnv,
+            fix: PY_ENV_LOCK_FIX,
           },
     );
   }
@@ -373,6 +383,35 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
           licence: 'MIT',
         },
   );
+
+  // Local image generation (phase 14d): optional, so a missing model is not a warning.
+  for (const id of IMAGE_MODEL_IDS) {
+    const info = IMAGE_MODELS[id];
+    const installed = isInstalled(models, id);
+    const gb = (n: number) => `${Math.round(n / 1e9)} GB`;
+    const base = {
+      name: `image-${id}`,
+      licence: info.license,
+      ...(installed && models ? { path: modelDir(models, id) } : {}),
+    };
+    if (installed) {
+      add({ ...base, level: 'ok', detail: `${info.label} installed (${info.repo})` });
+    } else if (info.gated) {
+      add({
+        ...base,
+        level: 'ok',
+        detail: `${info.label} not installed (optional, ${gb(info.downloadBytes)} download). It is gated on Hugging Face: ${hfTokenPresent(o.env) ? 'a token is set' : 'no HF_TOKEN is set'}`,
+        fix: `accept the terms at ${info.licenseUrl}, create a read token, then: HF_TOKEN=<token> vox imagegen install --model ${id}. Vox never stores the token.`,
+      });
+    } else {
+      add({
+        ...base,
+        level: 'ok',
+        detail: `${info.label} not installed (optional local image generation, ${gb(info.downloadBytes)} download, about ${gb(info.installedBytes)} kept)`,
+        fix: 'vox imagegen install, or turn it on in Settings',
+      });
+    }
+  }
 
   add(
     o.config.contact

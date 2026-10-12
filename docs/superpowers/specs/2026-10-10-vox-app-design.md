@@ -46,7 +46,7 @@ It is built in two phases (overview build order):
 - Windows and Linux builds; Intel Macs (mlx-whisper needs Apple Silicon).
 - Multiplayer, accounts, cloud hosting, mobile.
 - Colour grading and advanced audio mixing (the "Color" / "Audio" tabs in the
-  reference). Clip volume, fades and track mute exist; ducking is v1.1.
+  reference). Clip volume, fades and track mute exist; ducking is a track toggle in the audio clip inspector (v1.1, plan D-61).
 - Keyframe editing of arbitrary properties (scene animation is the template's job).
   Framing keyframes are the one exception: "Pin frame here" in the inspector (plan D-15).
 - v1: Developer ID signing, notarization and auto-update (see "Packaging").
@@ -387,7 +387,8 @@ lists recent projects and "New empty project".
   - Caption lane under the video tracks showing caption chunks, with emphasis words
     marked; double-click a word to edit it; "break here" on a word sets `breakAfter`.
 - **Inspector (right, collapsible)**:
-  - Media clip (video track): in/out, framing mode (cover/contain/auto/facetrack with
+  - Media clip (video track): in/out (source time), speed (0.25–4×, not on images; plan
+    D-62, engine "Clip speed": one `setClipSpeed` with `onOverlap: 'ripple'`), framing mode (cover/contain/auto/facetrack with
     face picker/manual with a drag handle on the preview), image motion, transition in.
     For `auto` and `facetrack`: stability (locked / smooth / follow, default
     smooth) and track speed (slow / normal / fast, default normal). "Pin frame here"
@@ -395,7 +396,7 @@ lists recent projects and "New empty project".
     item start) from the current crop, which the user then drags on the preview; in
     `auto`/`facetrack` it pins the track there, in `manual` it is the crop. Pins are
     listed with their time and a remove button.
-  - Media clip (audio track): in/out, volume, fade in/out, denoise (off / light /
+  - Media clip (audio track): in/out, speed (0.5–2×), volume, fade in/out, denoise (off / light /
     strong, default off).
   - Scene clip: a form generated from the template's variables JSON Schema (text fields
     with `maxLength` counters, media pickers for image slots, place search for `geo`
@@ -443,8 +444,8 @@ component instead (same store and ops, no library).
   the five listen timecodes as buttons that seek the preview there. A failing check
   warns but does not block the export.
 - Captions as SRT or VTT, including the user's edits.
-- "Editable timeline" as OTIO for DaVinci Resolve (FCPXML is v1.1, or v1 if GATE 2 needed it, plan
-  D-10).
+- "Editable timeline" as OTIO for DaVinci Resolve, and "Final Cut Pro timeline" as FCPXML 1.8 (v1.1, plan D-64);
+  each is its own checkbox and writes its own layer folder.
 - Shows job progress; finished files can be revealed in Finder (each written path).
 
 ### Settings
@@ -462,7 +463,14 @@ component instead (same store and ops, no library).
   Firefox; with the note that yt-dlp then sends that browser's login cookies to the
   site; engine `ingest.cookiesFromBrowser`, plan D-13).
 - v1.1: local image generation toggle (shows download size and licence before first
-  use).
+  use). Built in phase 14d (D-68) for Z-Image-Turbo: the switch opens a confirmation with the
+  download size (about 33 GB, about 10 GB kept) and the licence (Apache-2.0); "Download" runs the
+  `imagegen.install` job with progress, switching off asks, then runs `imagegen.remove`. State comes
+  in `settings.get` (`imagegen.models`); no new `window.vox` method. FLUX.1-schnell is set up in a
+  terminal (`vox doctor` explains the terms and the token). A failed or cancelled install keeps
+  its partial download so the next "Download" resumes it (D-69): the row says how much is kept,
+  the install confirmation says it resumes, and "Delete partial download" (asks first) runs
+  `imagegen.remove`, which also frees it when the model is switched off.
 
 ### Style gallery
 
