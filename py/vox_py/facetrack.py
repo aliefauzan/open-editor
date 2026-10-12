@@ -260,25 +260,36 @@ def vision_detect(frame: np.ndarray) -> tuple[list[dict], dict | None]:
         if not ok:
             raise _tool.ToolError("VISION_FAILED", f"Apple Vision request failed: {err}")
 
-        def rect(obs) -> dict:
-            r = obs.boundingBox()
-            return from_vision_rect(
-                r.origin.x, r.origin.y, r.size.width, r.size.height, float(obs.confidence())
-            )
-
-        bodies = sorted((rect(o) for o in (bodies_req.results() or [])), key=lambda b: -b["score"])
-        saliency = None
-        objects = [
-            rect(s) for o in (saliency_req.results() or []) for s in (o.salientObjects() or [])
-        ]
-        if objects:
-            x0 = min(b["x"] for b in objects)
-            y0 = min(b["y"] for b in objects)
-            x1 = max(b["x"] + b["w"] for b in objects)
-            y1 = max(b["y"] + b["h"] for b in objects)
-            score = max(b["score"] for b in objects)
-            saliency = clamp_box({"x": x0, "y": y0, "w": x1 - x0, "h": y1 - y0, "score": score})
+        bodies = sorted(
+            (vision_box(o) for o in (bodies_req.results() or [])), key=lambda b: -b["score"]
+        )
+        saliency = saliency_box(saliency_req)
     return bodies, saliency
+
+
+def vision_box(obs) -> dict:
+    """A Vision observation's box, top-left origin, with its confidence as `score`."""
+    r = obs.boundingBox()
+    return from_vision_rect(
+        r.origin.x, r.origin.y, r.size.width, r.size.height, float(obs.confidence())
+    )
+
+
+def saliency_box(saliency_req) -> dict | None:
+    """The union of the salient objects of a performed attention saliency request, or None.
+
+    Shared with `framecard`."""
+    objects = [
+        vision_box(s) for o in (saliency_req.results() or []) for s in (o.salientObjects() or [])
+    ]
+    if not objects:
+        return None
+    x0 = min(b["x"] for b in objects)
+    y0 = min(b["y"] for b in objects)
+    x1 = max(b["x"] + b["w"] for b in objects)
+    y1 = max(b["y"] + b["h"] for b in objects)
+    score = max(b["score"] for b in objects)
+    return clamp_box({"x": x0, "y": y0, "w": x1 - x0, "h": y1 - y0, "score": score})
 
 
 # ---- parallel detection ----

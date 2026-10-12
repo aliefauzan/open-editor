@@ -411,6 +411,12 @@ export { SILERO_SHA256 } from './doctor.ts';
 export { LOGIN_REQUIRED_HINT } from './stages/ytdlp.ts';
 export { WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
 export type { TrackPath, TrackPathOptions, ShotFraming } from './stages/facetrack.ts';
+export {
+  FRAME_CARD_VERSION,
+  MAX_FRAME_CARDS,
+  type FrameCard,
+  type FrameCardBody,
+} from './stages/framecard.ts';
 
 /** External tool paths (ffmpeg, ffprobe, yt-dlp, deno, uv, py env, Chrome); filled in by phase 04. */
 export type ToolPaths = Readonly<Record<string, string | undefined>>;
@@ -521,6 +527,7 @@ export interface Engine {
   /** Compiles and writes the preview build; returns the `npx hyperframes play <buildDir>` call. */
   preview: ExportApi['preview'];
   mediaFrames: MediaApi['mediaFrames'];
+  frameCards: MediaApi['frameCards'];
   /** Tool, model and config checks (`vox doctor`); `quick` skips the Python import check. */
   doctor(opts?: { quick?: boolean }): Promise<DoctorReport>;
   /** Project checks (`vox doctor <project>`); `unlock` removes `project.lock`. */
@@ -862,6 +869,7 @@ export function openEngine(opts: EngineOptions): Engine {
       scorers: () => quick.scorers(),
     },
     mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
+    frameCards: (projectId, paths, o) => media.frameCards(projectId, paths, o),
     async doctor(o = {}) {
       return doctor({
         tools: opts.tools ?? {},

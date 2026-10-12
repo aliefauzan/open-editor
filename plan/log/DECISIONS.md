@@ -2009,6 +2009,44 @@ existing tool with no new binary or IPC, and the helper stays optional (`dist:no
 then retry" (codes are a frozen list and `MODEL_MISSING` is unambiguous on the first run); fetching u2net at setup (176
 MB that most users never need).
 
+## D-73 — Frame cards: Apple Vision text instead of pixels for view_frames / view_media (feat/native-frame-cards, 2026-10-12)
+**Context**: `view_frames` / `view_media` send up to 8 stills per call: as images when the editor model has vision
+(about 1,800 tokens per 1080p still after the 1,568 px resize, so about 14,800 per call), else through the `vision`
+role, a paid model call. Apple Vision on this Mac (macOS 27.0.1) reads a still in tens of milliseconds.
+**Decision**:
+- Python tool `vox_py.framecard` (request `{ images, textLevel? }`, schemas in `py/tests/schemas/framecard.*`): one
+  Vision handler per image runs `VNClassifyImageRequest` (labels above 0.3, at most 6), `VNRecognizeTextRequest`
+  (`ocr.text_request` / `ocr.text_lines`, shared, not copied), `VNDetectFaceRectanglesRequest` (count and boxes),
+  attention saliency (`facetrack.saliency_box`, shared) and `VNCalculateImageAestheticsScoresRequest` (looked up at
+  run time; left out on macOS 14). A missing, unreadable or 0×0 image, or a Vision failure, is a per-image `error`;
+  only a bad request fails the call. Decode limit 150 MP, as in `cutout`.
+- Text level `accurate`. Measured on 16 stills (8 caption frames 1080×1920, 8 test-pattern frames 1920×1080): fast
+  31 ms median per still, accurate 97 ms; both read the 8 burnt-in captions the same, fast missed every small line
+  (timecode and frame counter at 1.3 % of the height) that accurate read. 8 stills cost under 1 s either way.
+- Engine `frameCards(projectId, paths)` (media-api, `stages/framecard.ts`): only stills inside the project folder;
+  APPLE_UNAVAILABLE off macOS before any process starts. Cards are cached as
+  `<project>/cache/cards/<sha256("framecard v<version>\0" + still bytes)>.json`, so a re-rendered still (new build
+  hash or new content) gets a new card and a repeat call runs no Vision request. Error cards are not cached. A tool
+  that answers with another card version is refused (PY_OUTPUT_INVALID).
+- Agent: `view_frames` and `view_media` take `detail: "card" | "pixels"`, default `card`: one text block per still
+  (labels, text lines of confidence 0.5 or more with their vertical span, faces, salient box, aesthetics) inside
+  `<data source="framecard">`, plus a note that `detail: "pixels"` shows the images. Frame-health flags stay in
+  `frames` in both modes. `pixels` is the old behaviour unchanged. When cards fail (not macOS, Python tool error)
+  the tool takes the pixels path; cancellation is rethrown. Cards also work with no vision model at all (before:
+  flags only for `view_frames`, PROVIDER_MISSING for `view_media`). The stylize and edit workflow prompts say cards
+  first, pixels only for framing, caption look and colour.
+- Measured (`estimateTokens` for text, width×height/750 after the 1,568 px resize for images): one 8-still
+  `view_frames` call on 1080×1920 caption frames is about 700 tokens as cards against about 14,860 as pixels.
+- The quick-clip path (`vox quick`, the app's `makeClips`) never calls `view_frames` / `view_media` (its LLM
+  scorer reads transcripts only), so it is unchanged and was not re-run for this item.
+**Why**: the agent mostly needs to know what is in a frame (text overflow, empty slot, a face, a black frame), which
+text answers at about a twentieth of the tokens and without a paid vision call; pixels stay one argument away for
+judgments text cannot make.
+**Alternatives**: a Swift command in `vox-apple-llm` (D-16 helper): every request used here is in pyobjc, which is
+already a v1 dependency for `facetrack` and `ocr`, so no new binary code or weak linking is needed; caching by
+media id and time (the compiled still already encodes build and time, and its bytes are the safest key); the fast
+text level (cheaper, but it drops small text such as lower thirds).
+
 ## D-74 · 2026-10-12 · feat/apple-vision-input · The Apple on-device model fills the `vision` role on macOS 27
 **Context**: on macOS 27, Foundation Models' on-device `SystemLanguageModel` accepts images (`Attachment(imageURL:)` in a `Prompt`, gated by `capabilities.contains(.vision)`). On the dev Mac (macOS 27.0.1, SDK 27.0) it reports vision and an 8,192-token context and describes a 1080p frame in about 2–3.5 s for about 220 input tokens. Until now `roles.ts` refused `apple` for `vision`, so frame descriptions (`view_frames`, `view_media` when the editor cannot see) always needed a paid or Ollama model.
 **Decision**:

@@ -67,6 +67,47 @@ def letter_case(text: str) -> str:
     return "asis"
 
 
+def text_request(accurate: bool = True):
+    """A configured Apple Vision text request (accurate or fast level, language correction on).
+
+    Shared with `framecard`, which runs it next to its other requests on one image handler."""
+    import Vision
+
+    req = Vision.VNRecognizeTextRequest.alloc().init()
+    req.setRecognitionLevel_(
+        Vision.VNRequestTextRecognitionLevelAccurate
+        if accurate
+        else Vision.VNRequestTextRecognitionLevelFast
+    )
+    req.setUsesLanguageCorrection_(True)
+    return req
+
+
+def text_lines(req) -> list[dict]:
+    """The lines a performed text request found, boxes normalised with a top-left origin."""
+    lines = []
+    for obs in req.results() or []:
+        cands = obs.topCandidates_(1)
+        if not cands:
+            continue
+        r = obs.boundingBox()
+        x, y, w, h = r.origin.x, r.origin.y, r.size.width, r.size.height
+        lines.append(
+            {
+                "text": str(cands[0].string()),
+                "box": {
+                    "x": round(min(max(x, 0.0), 1.0), 4),
+                    "y": round(min(max(1.0 - y - h, 0.0), 1.0), 4),
+                    "w": round(min(max(w, 0.0), 1.0), 4),
+                    "h": round(min(max(h, 0.0), 1.0), 4),
+                },
+                "confidence": round(float(cands[0].confidence()), 4),
+            }
+        )
+    lines.sort(key=lambda ln: (ln["box"]["y"], ln["box"]["x"]))
+    return lines
+
+
 def recognise(frame) -> list[dict]:
     """Text lines of one RGB frame (Apple Vision accurate), boxes normalised with a top-left origin."""
     import objc
@@ -78,33 +119,11 @@ def recognise(frame) -> list[dict]:
         handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
             _cgimage(frame), None
         )
-        req = Vision.VNRecognizeTextRequest.alloc().init()
-        req.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
-        req.setUsesLanguageCorrection_(True)
+        req = text_request(accurate=True)
         ok, err = handler.performRequests_error_([req], None)
         if not ok:
             raise _tool.ToolError("VISION_FAILED", f"Apple Vision text request failed: {err}")
-        lines = []
-        for obs in req.results() or []:
-            cands = obs.topCandidates_(1)
-            if not cands:
-                continue
-            r = obs.boundingBox()
-            x, y, w, h = r.origin.x, r.origin.y, r.size.width, r.size.height
-            lines.append(
-                {
-                    "text": str(cands[0].string()),
-                    "box": {
-                        "x": round(min(max(x, 0.0), 1.0), 4),
-                        "y": round(min(max(1.0 - y - h, 0.0), 1.0), 4),
-                        "w": round(min(max(w, 0.0), 1.0), 4),
-                        "h": round(min(max(h, 0.0), 1.0), 4),
-                    },
-                    "confidence": round(float(cands[0].confidence()), 4),
-                }
-            )
-        lines.sort(key=lambda ln: (ln["box"]["y"], ln["box"]["x"]))
-        return lines
+        return text_lines(req)
 
 
 def static_texts(frame_lines: list[list[dict]]) -> set[str]:

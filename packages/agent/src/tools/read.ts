@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { VoxError } from '../errors.ts';
 import { wrapData } from '../loop/envelope.ts';
+import { CARD_NOTE, presentCards } from './cards.ts';
 import { frameHealth, type FrameFlag } from './health.ts';
 import { searchTranscripts, transcriptPage } from './transcript.ts';
 import type { AgentTool, ToolContext, ToolImage, ToolOutput } from './types.ts';
@@ -12,6 +13,15 @@ const id = z.string().min(1);
 const ms = z.int().min(0);
 /** At most this many stills per call (each one is an image or a vision request). */
 export const MAX_STILLS = 8;
+/**
+ * `card` (default): Apple Vision text per still, about 100 tokens each (D-73); `pixels`: the
+ * images themselves (or the vision role's description), about 1,800 tokens per still.
+ */
+const detail = z.enum(['card', 'pixels']).optional();
+const DETAIL_HELP =
+  'detail "card" (default) gives a short Apple Vision text card per still (labels, on-screen text, ' +
+  'faces, salient region, aesthetics); use detail "pixels" only for visual judgments (framing, ' +
+  'caption look, colour).';
 
 /** The prompt the `vision` role gets with every image (S34). */
 export const VISION_RULE =
@@ -256,8 +266,8 @@ export function readTools(): AgentTool[] {
     ),
     tool(
       'view_frames',
-      `Rendered stills of a sequence at sequence times (max ${String(MAX_STILLS)}). Each comes with seqMs, the srcMs of the V1 media there (or null) and frame-health flags (mostlyBlack, mostlyWhite, blank, lowLuma).`,
-      z.strictObject({ sequenceId: id, atSeqMs: z.array(ms).min(1).max(MAX_STILLS) }),
+      `Rendered stills of a sequence at sequence times (max ${String(MAX_STILLS)}). Each comes with seqMs, the srcMs of the V1 media there (or null) and frame-health flags (mostlyBlack, mostlyWhite, blank, lowLuma). ${DETAIL_HELP}`,
+      z.strictObject({ sequenceId: id, atSeqMs: z.array(ms).min(1).max(MAX_STILLS), detail }),
       async (ctx, a) => {
         const p = await project(ctx);
         const s = sequenceOf(p, a.sequenceId);
@@ -276,16 +286,29 @@ export function readTools(): AgentTool[] {
               : null;
           frames.push({ seqMs: at, srcMs, health: frameHealth(img.data) });
         }
+        const read = {
+          version: p.version,
+          label: `view_frames ${ctx.aliases.aliasOf(a.sequenceId)} ${String(frames.length)} frames`,
+        };
+        if (a.detail !== 'pixels') {
+          // Cards first; where they cannot be made (not macOS), the pixels path below as before.
+          const cards = await presentCards(
+            ctx,
+            a.atSeqMs.map((_, i) => paths[i] as string),
+            frames.map(
+              (f) =>
+                `seqMs ${String(f.seqMs)}${f.srcMs === null ? '' : ` srcMs ${String(f.srcMs)}`}`,
+            ),
+          );
+          if (cards !== null) return { read, result: { frames, cards, note: CARD_NOTE } };
+        }
         const shown = await presentImages(
           ctx,
           images,
           'Describe each frame for a video editor: layout, text overflow, empty slots, anything broken.',
         );
         return {
-          read: {
-            version: p.version,
-            label: `view_frames ${ctx.aliases.aliasOf(a.sequenceId)} ${String(frames.length)} frames`,
-          },
+          read,
           result: {
             frames,
             ...(shown?.description !== undefined && { description: shown.description }),
@@ -297,10 +320,19 @@ export function readTools(): AgentTool[] {
     ),
     tool(
       'view_media',
-      `Stills of a source media item at source times (max ${String(MAX_STILLS)}).`,
-      z.strictObject({ mediaId: id, atSrcMs: z.array(ms).min(1).max(MAX_STILLS) }),
+      `Stills of a source media item at source times (max ${String(MAX_STILLS)}). ${DETAIL_HELP}`,
+      z.strictObject({ mediaId: id, atSrcMs: z.array(ms).min(1).max(MAX_STILLS), detail }),
       async (ctx, a) => {
         const paths = await ctx.engine.mediaFrames(ctx.projectId, a.mediaId, a.atSrcMs);
+        const stills = a.atSrcMs.map((srcMs) => ({ srcMs }));
+        if (a.detail !== 'pixels') {
+          const cards = await presentCards(
+            ctx,
+            a.atSrcMs.map((_, i) => paths[i] as string),
+            a.atSrcMs.map((at) => `srcMs ${String(at)}`),
+          );
+          if (cards !== null) return { result: { stills, cards, note: CARD_NOTE } };
+        }
         const images = await Promise.all(
           a.atSrcMs.map((at, i) => readStill(ctx, paths[i] as string, `srcMs ${String(at)}`)),
         );
@@ -314,7 +346,7 @@ export function readTools(): AgentTool[] {
         }
         return {
           result: {
-            stills: a.atSrcMs.map((srcMs) => ({ srcMs })),
+            stills,
             ...(shown.description !== undefined && { description: shown.description }),
           },
           ...(shown.images && { images: shown.images }),

@@ -245,13 +245,21 @@ that `startMs`, `endMs` and `durationMs` are sequence time and `inMs` is source 
 | `list_styles`, `get_style(styleId)` | tokens summary, `guide.md`, template list (active styles only) |
 | `get_template(id)` | description, `useWhen`, variables schema, duration bounds |
 | `search_places(query)` | `engine.geo.search` results for `geo` slots |
-| `view_frames(sequenceId, atSeqMs[])` | rendered stills, each with `seqMs`, the `srcMs` of the `V1` media at that point (or `null`) and frame-health flags (below) |
-| `view_media(mediaId, atSrcMs[])` | source stills |
+| `view_frames(sequenceId, atSeqMs[], detail?)` | rendered stills (frame cards by default, below), each with `seqMs`, the `srcMs` of the `V1` media at that point (or `null`) and frame-health flags (below) |
+| `view_media(mediaId, atSrcMs[], detail?)` | source stills (frame cards by default, below) |
 | `check_audio(sequenceId)` | runs the engine audio QA (job `audioQa`, plan D-14): the check table with numbers, the cue list with drops, the five listen timecodes, and `qa.png` |
 
-`view_frames`, `view_media` and the `qa.png` of `check_audio` return images when the `editor` model has vision;
-otherwise the `vision` model describes them and the tool returns text; with neither,
-`view_media` and `check_audio`'s image return an error the agent can report, and
+**Frame cards** (plan D-73): by default (`detail: "card"`) `view_frames` and `view_media` return
+one short Apple Vision text block per still instead of the still: labels with confidence, on-screen
+text with its vertical span, face count and boxes, the salient region and (macOS 15+) the aesthetics
+score, inside `<data source="framecard">` (on-screen text is untrusted). About 90 tokens per still
+against about 1,800 for a 1080p image. The engine (`engine.frameCards`, Python `framecard`) caches
+each card per still content and card version under `<project>/cache/cards/`. Where cards cannot be
+made (not macOS, the Python tool fails) the tool takes the pixels path below.
+
+With `detail: "pixels"`, `view_frames`, `view_media` and the `qa.png` of `check_audio` return images
+when the `editor` model has vision; otherwise the `vision` model describes them and the tool returns
+text; with neither, `view_media` and `check_audio`'s image return an error the agent can report, and
 `view_frames` returns the times and frame-health flags only.
 
 **Frame health** (plan D-15): `view_frames` runs model-free checks on every still before
