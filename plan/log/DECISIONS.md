@@ -2434,3 +2434,47 @@ qwen3.5 did not plan a stack with a panel picture query in these runs; the panel
 **Why**: a placeholder in a finished clip is the worst outcome; the scene's own words on a text-led template still carry the beat.
 **Alternatives**: making collage items from the label with archive pictures (more searches; the fallback still needs a text-led path when the archive finds nothing).
 **Open**: the editor model planning empty collages is not fixed at the source (prompt); the newspaper template's body columns are seeded greeked text by design (`styles/vox/templates/newspaper/template.html`), not a fallback.
+
+## D-96 · 2026-10-13 · fix/clip-defects · plan mode: scene text clear of the captions, in the speaker's language
+**Context**: demo clip run 3 (clipper `--style attention-compound-r3b`, ollama qwen3.5): a `base/text-overlay` scene at 0:26 used its default position `bottom` (band from 56 %) and sat on top of the two-tier captions at 50 %; its label was English over Indonesian speech.
+**Decision** (`packages/agent/src/loop/plan-repair.ts`, `plan.ts`, `workflows/stylize.md`):
+- `clearOfCaptions`: for a template with a `position` choice (top 12 %, middle 42 %, bottom 56 %, each band 12 % tall, `templates/text-overlay/template.html`), when the band comes within `CAPTION_HALF_PCT` (9 %) of the caption block's centre (`seq.captions.position.yPct`), the position moves to the clear choice farthest from the captions, with the repair note `position <from> → <to> (clear of the captions at <y> %)`. A position already clear, a template with no position choice, or a sequence without captions is left as it is. Runs after `fitVariables`.
+- The plan prompt and the stylize workflow say: write all scene text in the language the speaker speaks, in their own words where possible; only image queries are English.
+- Tests: `plan-repair.test.ts` "text clear of the captions (D-96)" (4).
+**Verify**: see D-99 (one branch).
+**Review**: self-review (token budget).
+**Why**: the caption position is known before the plan is turned into ops, so the clash is fixed deterministically; the language rule is a prompt fix (the model wrote English labels because the prompt's examples and image queries are English).
+**Alternatives**: moving the captions instead (the preset's position is the style's choice); translating labels in code (no translator in the loop).
+**Open**: the language rule is a prompt instruction; a weak model can still write English text.
+
+## D-97 · 2026-10-13 · fix/clip-defects · two-tier captions: tier 1 words keep a fixed gap
+**Context**: demo clip run 3: the italic tier 1 words of the two-tier preset looked run together: the preset's negative letter spacing also shrank the space between words.
+**Decision** (`packages/engine/data/captions/two-tier.html`): words and runs on a line are joined by a `span.c-gap` of `GAP_EM` (0.3 em of the tier 1 size, `letter-spacing: 0`), not a space character; boxed emphasis runs keep their own spacing. The width measure counts the same gap so line fitting is unchanged in kind.
+**Verify**: new test in `packages/engine/test/styles/extract-fonts.test.ts`; the two-tier preset check in `validate.slow` passes (the sfx-kit `pop.wav` failure there is the known flake).
+**Review**: self-review (token budget).
+**Why**: a fixed gap does not depend on the font's space glyph or the preset's tracking.
+**Alternatives**: `word-spacing` (also scaled down by negative tracking in WebKit captures).
+**Open**: none.
+
+## D-98 · 2026-10-13 · fix/clip-defects · behind-subject: a word on the face stays in front
+**Context**: demo clip runs 2 and 3: with `behindSubject` the subject was put over captions whose words sat on the face, so whole words were hidden. The beat test was only the share of all caption pixels covered (8-65 %); a centred word fully on the face and two edge words clear gave about 30 %.
+**Decision** (`py/vox_py/behind.py`):
+- Caption pixels are only those brighter than the plain frame by more than `INK` (24) in some channel: the two-tier scrim (darker) is not caption text.
+- `words_of`: column spans of the caption ink, split where `WORD_GAP` (1.1 % of the frame width) has no ink. `worst_word`: the largest share of one word the subject covers.
+- Auto mode puts the subject in front only when the overall cover is within `COVER` and no word is more than `WORD_MAX` (50 %) covered.
+- Tests (`py/tests/test_behind.py`): fixtures are word blocks with a dark scrim; new "a word on the face stays in front" and the word split unit test. The existing behind test (words at the edges of the face) still composites.
+**Verify**: `uv run --project py pytest py/tests/test_behind.py` 5 passed.
+**Review**: self-review (token budget).
+**Why**: the look is meant for the subject passing in front of the edge of a caption, never for hiding a word the viewer must read.
+**Alternatives**: a per-word mask that keeps covered words in front while the rest go behind (needs word boxes from the caption render; more work for a small gain).
+**Open**: none.
+
+## D-99 · 2026-10-13 · fix/clip-defects · a burned-in caption that repeats the scene on screen is left out
+**Context**: demo clip run 3: a scene showed the same words the caption showed at the same time (D-92 places scenes when their words are spoken, so this is now common).
+**Decision** (`packages/engine/src/model/captions.ts`, `compile/compile.ts`): `withoutSceneEchoes` drops a chunk from the burned-in captions layer while a scene covers at least half of its time and the scene's strings (`sceneStrings`: every string in its variables, nested panels and items too) hold `ECHO_SHARE` (60 %) of the chunk's words (normalised: case, accents, punctuation), for chunks of two words or more or one word of 4+ letters. The build's `captions`, its `captions.srt` and the SRT/VTT exports keep every chunk.
+- Tests: `captions.test.ts` "captions that repeat a scene (D-99)" (4); `compile.test.ts` "a caption chunk that repeats the scene on screen is not burned in; the SRT keeps it".
+**Verify** (branch with D-96..D-99): `vitest run packages/agent packages/engine apps/desktop/test/renderer` 2530 passed, 1 skipped, 3 failed (`framing-provider.local`, `media-chain.local` x2: fixture outputs not built in the worktree, known); `pytest py/tests/test_behind.py` 5 passed; `pnpm -r typecheck` and `pnpm lint` clean. The D-94 r3 plan test now expects the converted text-overlay at `position: top` (D-96) and its repair note.
+**Review**: self-review (token budget).
+**Why**: two copies of the same words at once read as a mistake; the scene already carries them.
+**Alternatives**: hiding the scene text instead (the scene is the designed beat); dropping only the repeated words (a caption with holes reads worse than none for one chunk).
+**Open**: a paraphrased scene (under 60 % of the words) still runs with its caption.

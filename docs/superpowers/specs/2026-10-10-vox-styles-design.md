@@ -191,7 +191,13 @@ CaptionPreset {
   pixels and takes the Apple Vision subject matte; when the subject covers 8-65 % of the
   caption, every frame of that beat gets the subject over the caption (mattes cached per
   frame in the project cache). Preview and SRT/VTT are not affected. Without Apple Vision
-  the step is skipped and the captions stay in front.
+  the step is skipped and the captions stay in front. Only pixels brighter than the plain
+  frame count as caption (a darker scrim does not), and the subject is never put over a
+  beat where it would cover more than half of any one word (D-98).
+
+- **Scene echoes** (D-99): the burned-in captions layer leaves out a chunk while a scene
+  covers at least half its time and the scene's text holds 60 % of its words; the build's
+  captions, `captions.srt` and SRT/VTT exports keep every chunk.
 
 - **Preset settings** (additive, D-93): when `setCaptions` changes a sequence's preset, the
   sequence takes the preset's `position` and `track` settings; fields the call gives itself
