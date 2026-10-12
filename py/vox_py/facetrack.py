@@ -3,21 +3,32 @@
 Run as `python -I -m vox_py.facetrack`. Request: `{ videoPath, faceModelPath, ffmpeg?, ffprobe?,
 formatWhitelist?, sampleFps? (12), shortSide? (360), minFaceScore? (0.5) }`. Result (written by the
 engine as `facetracks/<mediaId>.json`): `{ sampleFps, width, height, durationMs, faceModel,
-samples: { atMs, faces: Box[], bodies: Box[], saliency: Box | null }[] }`, where a Box is
+detector?, samples: { atMs, faces: Box[], bodies: Box[], saliency: Box | null }[] }`, where a Box is
 `{ x, y, w, h, score }` normalised to the frame with the origin top-left.
 
 - Frames: ffmpeg samples the video at `sampleFps` and scales its short side to `shortSide`.
-- Faces: MediaPipe Tasks `FaceDetector` with the full-range BlazeFace model (pinned URL + SHA-256
-  below). The detector squeezes the whole frame into its 192 px input, which loses small faces in a
-  wide frame, so it also runs on square tiles along the long side; overlapping boxes are merged.
+- Faces (decision D-82, superseding the tiles of D-21 as the main path): Apple Vision
+  `VNDetectFaceRectanglesRequest` (revision 3 where the system has it). Vision finds small faces on
+  the whole frame, so it needs no tiles. On a frame where Vision finds no face, or when Vision is
+  not available at all, MediaPipe Tasks `FaceDetector` with the full-range BlazeFace model (pinned
+  URL + SHA-256 below) runs as before: it squeezes the whole frame into its 192 px input, which loses
+  small faces in a wide frame, so it also runs on square tiles along the long side, and overlapping
+  boxes are merged. The fallback is per frame, so a clip never has fewer faces than BlazeFace alone
+  would give on the frames where Vision misses.
 - Bodies: Apple Vision `VNDetectHumanRectanglesRequest` (upper body). Saliency: Vision
-  `VNGenerateAttentionBasedSaliencyImageRequest`, the union of its salient objects.
+  `VNGenerateAttentionBasedSaliencyImageRequest`, the union of its salient objects. Faces, bodies and
+  saliency share one Vision request handler per frame. Without Vision, bodies are empty and saliency
+  is null.
+- `detector` (optional in the contract; files from before D-82 have none): `{ version, faces,
+  fallbackSamples }`. `version` is `DETECTOR_VERSION`; the engine re-detects a cached file with an
+  older version. `faces` is the main face detector (`vision` or `blazeface`) and `fallbackSamples`
+  the number of samples where BlazeFace ran.
 The engine builds the crop path from these detections and the shot list (`stages/facetrack.ts`).
 
-Speed (decision "Quick clips speed"): MediaPipe runs on the CPU and Vision on the Neural Engine, and
-both release the GIL. Faces are found on `WORKERS` threads (a FaceDetector each) and Vision runs on
-its own `VISION_WORKERS` threads at the same time, so the Neural Engine work overlaps the CPU work
-instead of following it. Results come back in frame order and are the same as a single-threaded run.
+Speed: Vision runs on the Neural Engine and releases the GIL, so frames run on `VISION_WORKERS`
+threads; the BlazeFace fallback runs on the same thread as its frame (a FaceDetector per thread,
+created only when a thread first needs it). Results come back in frame order and are the same as a
+single-threaded run.
 """
 
 from __future__ import annotations
@@ -51,9 +62,15 @@ FACE_MODEL_SHA256 = "3698b18f063835bc609069ef052228fbe86d9c9a6dc8dcb7c7c2d69aed2
 DEFAULT_SAMPLE_FPS = 12
 DEFAULT_SHORT_SIDE = 360
 DEFAULT_MIN_FACE_SCORE = 0.5
-# Face detection threads: the performance cores of an M-series Mac; more gives nothing (measured).
+# Detector output version (D-82: Vision faces first). The engine re-detects a cached detections
+# file whose `detector.version` differs; bump it whenever the boxes change.
+DETECTOR_VERSION = 2
+# Vision face rectangles revision: 3 on macOS 14+; older systems use their default.
+VISION_FACE_REVISION = 3
+# Threads: the performance cores of an M-series Mac (the BlazeFace fallback is CPU work); 1 runs
+# every frame on the calling thread.
 WORKERS = max(1, min(4, (os.cpu_count() or 1) // 2))
-# Vision threads beside them: Vision mostly waits on the Neural Engine; 3 keeps it busy (measured).
+# Frame threads when WORKERS > 1: Vision mostly waits on the Neural Engine; 3 keeps it busy (measured).
 VISION_WORKERS = 3
 SAME_FACE_IOU = 0.3
 SAME_FACE_INSIDE = 0.6
@@ -245,8 +262,21 @@ def _cgimage(frame: np.ndarray):
     )
 
 
-def vision_detect(frame: np.ndarray) -> tuple[list[dict], dict | None]:
-    """Upper-body boxes and the attention saliency box of one RGB frame (Apple Vision)."""
+def face_request():
+    """A `VNDetectFaceRectanglesRequest` at `VISION_FACE_REVISION` when the system supports it."""
+    import Vision
+
+    req = Vision.VNDetectFaceRectanglesRequest.alloc().init()
+    if VISION_FACE_REVISION in list(Vision.VNDetectFaceRectanglesRequest.supportedRevisions()):
+        req.setRevision_(VISION_FACE_REVISION)
+    return req
+
+
+def vision_detect(
+    frame: np.ndarray, min_face_score: float = DEFAULT_MIN_FACE_SCORE
+) -> tuple[list[dict], list[dict], dict | None]:
+    """Face boxes (merged, by score), upper-body boxes and the attention saliency box of one RGB
+    frame, from one Apple Vision request handler."""
     import objc
     import Vision
 
@@ -254,17 +284,25 @@ def vision_detect(frame: np.ndarray) -> tuple[list[dict], dict | None]:
         handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
             _cgimage(frame), None
         )
+        faces_req = face_request()
         bodies_req = Vision.VNDetectHumanRectanglesRequest.alloc().init()
         saliency_req = Vision.VNGenerateAttentionBasedSaliencyImageRequest.alloc().init()
-        ok, err = handler.performRequests_error_([bodies_req, saliency_req], None)
+        ok, err = handler.performRequests_error_([faces_req, bodies_req, saliency_req], None)
         if not ok:
             raise _tool.ToolError("VISION_FAILED", f"Apple Vision request failed: {err}")
 
+        faces = merge_boxes(
+            [
+                b
+                for b in (vision_box(o) for o in (faces_req.results() or []))
+                if b["score"] >= min_face_score and b["w"] > 0 and b["h"] > 0
+            ]
+        )
         bodies = sorted(
             (vision_box(o) for o in (bodies_req.results() or [])), key=lambda b: -b["score"]
         )
         saliency = saliency_box(saliency_req)
-    return bodies, saliency
+    return faces, bodies, saliency
 
 
 def vision_box(obs) -> dict:
@@ -340,11 +378,16 @@ def ordered_run[T](
 
 
 class Detector:
-    """Faces + Vision for one frame, safe to call from several threads (a FaceDetector each)."""
+    """Faces, bodies and saliency of one frame, safe to call from several threads.
 
-    def __init__(self, model_path: Path, min_score: float):
+    With `vision` on, Vision finds the faces and BlazeFace (a FaceDetector per thread, created on
+    first use) runs only on a frame where Vision finds none. With `vision` off, BlazeFace finds every
+    frame's faces and bodies/saliency are empty."""
+
+    def __init__(self, model_path: Path, min_score: float, vision: bool = True):
         self.model_path = model_path
         self.min_score = min_score
+        self.vision = vision
         self._local = threading.local()
         self._finders: list[FaceFinder] = []
         self._lock = threading.Lock()
@@ -359,7 +402,17 @@ class Detector:
         return finder
 
     def faces(self, frame: np.ndarray) -> list[dict]:
+        """BlazeFace on the frame and its tiles (the fallback path)."""
         return self._finder().find(frame)
+
+    def detect(self, frame: np.ndarray) -> tuple[list[dict], list[dict], dict | None, bool]:
+        """(faces, bodies, saliency, BlazeFace ran) of one frame."""
+        if not self.vision:
+            return self.faces(frame), [], None, True
+        faces, bodies, saliency = vision_detect(frame, self.min_score)
+        if faces:
+            return faces, bodies, saliency, False
+        return self.faces(frame), bodies, saliency, True
 
     def close(self) -> None:
         with self._lock:
@@ -449,6 +502,32 @@ def frames(path: Path, ffmpeg: str, formats: str, fps: float, width: int, height
             raise _tool.ToolError("MEDIA_UNREADABLE", f"ffmpeg frame decode failed: {tail}")
 
 
+def vision_available() -> bool:
+    """True when PyObjC's Vision and its face request load (macOS 10.13+; the app needs 14+)."""
+    try:
+        import Vision
+
+        return hasattr(Vision, "VNDetectFaceRectanglesRequest")
+    except ImportError:
+        return False
+
+
+def first_frame(
+    detect: Detector, frame: np.ndarray
+) -> tuple[list[dict], list[dict], dict | None, bool]:
+    """The first frame, on the calling thread: PyObjC loads the Quartz/Vision names lazily, and that
+    first lookup is not thread-safe. A Vision failure here (no inference context, e.g. on a VM)
+    turns Vision off for the whole clip and BlazeFace finds the faces; a later failure is an error."""
+    if detect.vision:
+        try:
+            return detect.detect(frame)
+        except _tool.ToolError as exc:
+            if exc.code != "VISION_FAILED":
+                raise
+            detect.vision = False
+    return detect.detect(frame)
+
+
 def handle(raw: dict) -> dict:
     req = _tool.check_request(raw, REQUEST)
     fps = _tool.number_in(req, "sampleFps", DEFAULT_SAMPLE_FPS, 0.0, 60.0001)
@@ -463,23 +542,23 @@ def handle(raw: dict) -> dict:
     src_w, src_h, duration_ms = probe(video, req.get("ffprobe", "ffprobe"), formats)
     width, height = scaled_size(src_w, src_h, short_side)
     expected = max(1, round(duration_ms / 1000 * fps))
-    detect = Detector(model_path, min_score)
+    detect = Detector(model_path, min_score, vision=vision_available())
     samples = []
+    fallback = 0
     step = max(1, expected // 50)
     source = frames(video, ffmpeg, formats, fps, width, height)
     rest: Iterator[tuple[Any, ...]] = iter(())
     results: Iterator[tuple[Any, ...]] = iter(())
     try:
-        # The first frame runs on this thread: PyObjC loads the Quartz/Vision names lazily, and that
-        # first lookup is not thread-safe.
         first = next(source, None)
         if first is not None:
-            head = (vision_detect(first), detect.faces(first))
-            # Vision then faces of each frame; one face worker runs everything on this thread.
-            workers = (VISION_WORKERS, WORKERS) if WORKERS > 1 else (1, 1)
-            rest = ordered_run(source, list(zip((vision_detect, detect.faces), workers)))
-            results = itertools.chain([head], rest)
-        for i, ((bodies, saliency), faces) in enumerate(results):
+            head = first_frame(detect, first)
+            # One worker runs every frame on this thread.
+            workers = max(VISION_WORKERS, WORKERS) if WORKERS > 1 else 1
+            rest = ordered_run(source, [(detect.detect, workers)])
+            results = itertools.chain([(head,)], rest)
+        for i, ((faces, bodies, saliency, blazeface),) in enumerate(results):
+            fallback += blazeface
             samples.append(
                 {
                     "atMs": round(i * 1000 / fps),
@@ -507,6 +586,11 @@ def handle(raw: dict) -> dict:
         "height": height,
         "durationMs": duration_ms,
         "faceModel": {"name": FACE_MODEL_NAME, "sha256": FACE_MODEL_SHA256},
+        "detector": {
+            "version": DETECTOR_VERSION,
+            "faces": "vision" if detect.vision else "blazeface",
+            "fallbackSamples": fallback,
+        },
         "samples": samples,
     }
 

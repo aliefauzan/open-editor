@@ -54,20 +54,47 @@ export const DetectionsSchema = z.strictObject({
     name: z.string().min(1),
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
   }),
+  /** D-82: which detector found the faces; absent in files written before it. */
+  detector: z
+    .strictObject({
+      version: z.int().positive(),
+      faces: z.enum(['vision', 'blazeface']),
+      fallbackSamples: z.int().nonnegative(),
+    })
+    .optional(),
   samples: z.array(DetectionSampleSchema),
 });
 export type Detections = z.infer<typeof DetectionsSchema>;
 
 // ---- tuning (D-24) ----
 
-/** Path algorithm version; part of the cache key, bump it when the output changes. */
-export const PATH_VERSION = 1;
+/**
+ * Detections version (`vox_py.facetrack` DETECTOR_VERSION). A cached detections file with another
+ * version (or none: written before D-82) is detected again. 2: Apple Vision faces first (D-82).
+ */
+export const DETECTOR_VERSION = 2;
+/**
+ * Path algorithm version; part of the cache key, bump it when the output changes. 2: the boxes come
+ * from Apple Vision faces (D-82), so paths built from BlazeFace boxes are not reused.
+ */
+export const PATH_VERSION = 2;
+
+/** A cached detections file is reused only when the current detector wrote it (D-82). */
+export function isCurrentDetections(det: Detections | undefined): det is Detections {
+  return det?.detector?.version === DETECTOR_VERSION;
+}
 /** Hysteresis: another face must be more than 30 % larger (area) … */
 export const HYSTERESIS_RATIO = 1.3;
 /** … for at least 1 s. */
 export const HYSTERESIS_MS = 1000;
 /** A subject unmatched for this long is dropped and the largest box is picked again. */
 export const REACQUIRE_MS = 1000;
+/**
+ * Boxes within 5 % of the largest area count as the same size, and the leftmost of them is the
+ * largest (D-82). Two equal faces never give exactly equal boxes from a detector (Apple Vision
+ * boxes of the same-size faces differ by about 1 %), so an exact tie alone would pick by noise.
+ */
+export const EQUAL_AREA = 0.05;
 /** `locked`: the subject centre may move up to 10 % of the crop size from the locked centre. */
 export const DEAD_ZONE = 0.1;
 /** A subject class counts for a shot when present in at least this share of its samples. */
@@ -251,10 +278,10 @@ export function sampleKeyframes(
 }
 
 function largest(boxes: readonly Box[]): Box | undefined {
+  const floor = Math.max(0, ...boxes.map(area)) * (1 - EQUAL_AREA);
   let best: Box | undefined;
   for (const b of boxes) {
-    if (best === undefined || area(b) > area(best) || (area(b) === area(best) && cx(b) < cx(best)))
-      best = b;
+    if (area(b) >= floor && (best === undefined || cx(b) < cx(best))) best = b;
   }
   return best;
 }
@@ -279,7 +306,8 @@ interface Tracked {
 }
 
 /**
- * Follows one box through a shot. The first subject is the largest box (or the pinned index);
+ * Follows one box through a shot. The first subject is the largest box (`largest`: the leftmost
+ * of the boxes within `EQUAL_AREA` of the biggest), or the pinned index;
  * each sample keeps the nearest box to the current one. Hysteresis: another box more than 30 %
  * larger for at least 1 s takes over. A subject lost for 1 s is replaced by the largest box.
  * Samples before the first box take the first subject (no drift into the shot).

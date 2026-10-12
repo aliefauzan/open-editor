@@ -1,15 +1,20 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, test } from 'vitest';
 import { VoxError } from '../../src/errors.ts';
 import { KeyframeSchema } from '../../src/model/schema.ts';
 import {
   DEAD_ZONE,
+  DETECTOR_VERSION,
   DetectionsSchema,
+  EQUAL_AREA,
+  PATH_VERSION,
   PIN_BLEND_MS,
   TRACK_SPEED,
   applyClipFraming,
   buildTrackPath,
   cropSize,
   facetrackCacheKey,
+  isCurrentDetections,
   sampleKeyframes,
   type FrameKeyframe,
   type TrackPathOptions,
@@ -395,10 +400,74 @@ describe('facetrackCacheKey', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  test('path version 2 (D-82, Vision faces) is in the key, so paths built on BlazeFace boxes miss', () => {
+    expect(PATH_VERSION).toBe(2);
+    const keyOf = (version: number) =>
+      createHash('sha256')
+        .update(
+          JSON.stringify([
+            'facetrack-path',
+            version,
+            k.mediaHash,
+            '9:16',
+            'auto',
+            'smooth',
+            'normal',
+            null,
+            null,
+          ]),
+        )
+        .digest('hex');
+    expect(facetrackCacheKey(k)).toBe(keyOf(2));
+    expect(facetrackCacheKey(k)).not.toBe(keyOf(1));
+  });
+
   test('defaults: absent stability/trackSpeed equal smooth/normal', () => {
     expect(facetrackCacheKey({ mediaHash: k.mediaHash, aspect: k.aspect, mode: 'auto' })).toBe(
       facetrackCacheKey(k),
     );
+  });
+});
+
+describe('detector version (D-82)', () => {
+  const det = synth(1000, () => ({ faces: [box(0.5, 0.5, 0.2, 0.3)] }));
+
+  test('only a detections file from the current detector is reused', () => {
+    expect(DETECTOR_VERSION).toBe(2);
+    expect(isCurrentDetections(undefined)).toBe(false);
+    expect(isCurrentDetections(det)).toBe(false); // written before D-82: no detector field
+    const at = (version: number) => ({
+      ...det,
+      detector: { version, faces: 'vision' as const, fallbackSamples: 0 },
+    });
+    expect(isCurrentDetections(DetectionsSchema.parse(at(1)))).toBe(false);
+    expect(isCurrentDetections(DetectionsSchema.parse(at(2)))).toBe(true);
+    expect(
+      isCurrentDetections({
+        ...det,
+        detector: { version: 2, faces: 'blazeface', fallbackSamples: 12 },
+      }),
+    ).toBe(true);
+  });
+
+  test('the detector field is strict', () => {
+    const bad = (detector: unknown) => DetectionsSchema.safeParse({ ...det, detector }).success;
+    expect(bad({ version: 2, faces: 'vision', fallbackSamples: 0 })).toBe(true);
+    expect(bad({ version: 2, faces: 'mediapipe', fallbackSamples: 0 })).toBe(false);
+    expect(bad({ version: 0, faces: 'vision', fallbackSamples: 0 })).toBe(false);
+    expect(bad({ version: 2, faces: 'vision', fallbackSamples: -1 })).toBe(false);
+    expect(bad({ version: 2, faces: 'vision', fallbackSamples: 0, extra: 1 })).toBe(false);
+  });
+
+  test('faces within EQUAL_AREA of the largest count as equal: the leftmost is picked', () => {
+    expect(EQUAL_AREA).toBe(0.05);
+    const two = (k: number) =>
+      synth(4000, () => ({ faces: [box(0.3, 0.5, 0.2, 0.36), box(0.75, 0.5, 0.2 * k, 0.36)] }));
+    const one = [{ startMs: 0, endMs: 4000 }];
+    // the right face 4 % larger (Apple Vision boxes of equal faces differ by about 1 %): left
+    expect(xAt(buildTrackPath(two(1.04), one, opts()).keyframes, 0)).toBeLessThan(0.5);
+    // 10 % larger: the larger face, as before
+    expect(xAt(buildTrackPath(two(1.1), one, opts()).keyframes, 0)).toBeGreaterThan(0.5);
   });
 });
 

@@ -34,6 +34,7 @@ import {
   DetectionsSchema,
   buildTrackPath,
   facetrackCacheKey,
+  isCurrentDetections,
   type Area,
   type Detections,
   type TrackPath,
@@ -626,6 +627,8 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
       const file = join(dir, facetrackPath);
       const src = await detectionInput(dir, media);
       let det = await readParsed<Detections>(file, DetectionsSchema);
+      // a file from an older detector (D-82: none before Apple Vision faces) is detected again
+      if (!isCurrentDetections(det)) det = undefined;
       const cached = det !== undefined;
       if (!det) {
         const models = tools['models'];
