@@ -25,7 +25,12 @@ def clip(png, out):
     return out
 
 
-def renders(tmp_path):
+# caption words at mid height (x spans); the face's matte spans about x 100-280 there
+EDGE_WORDS = ((20, 130), (250, 350))  # the face covers the inner end of each word (about 30 %)
+FACE_WORD = ((150, 230),)  # one word on the face
+
+
+def renders(tmp_path, words=EDGE_WORDS):
     from PIL import Image, ImageDraw
 
     with Image.open(FACE) as im:
@@ -33,8 +38,11 @@ def renders(tmp_path):
     plain_png = tmp_path / "plain.png"
     face.save(plain_png)
     cap = face.copy()
-    # a caption bar across the whole width at mid height: the face covers its middle
-    ImageDraw.Draw(cap).rectangle((0, 220, 359, 260), fill=(255, 220, 0))
+    draw = ImageDraw.Draw(cap)
+    for x0, x1 in words:
+        draw.rectangle((x0, 220, x1, 260), fill=(255, 220, 0))
+    # the dark scrim of a two-tier preset around the words is not caption text (D-98)
+    draw.rectangle((0, 262, 359, 300), fill=(20, 20, 20))
     cap_png = tmp_path / "cap.png"
     cap.save(cap_png)
     return clip(cap_png, tmp_path / "cap.mp4"), clip(plain_png, tmp_path / "plain.mp4")
@@ -83,13 +91,45 @@ def test_behind_puts_the_face_over_the_caption_and_caches_mattes(tmp_path):
     assert result["beats"][0]["behind"] is True
     assert 0.08 <= result["beats"][0]["overlap"] <= 0.65
     assert result["composited"] == 10
-    # the face is in front: the bar's yellow is gone at the centre, kept at the edges
+    # the face is in front: the words' yellow is gone where the face covers them, kept elsewhere
     px = behind.frame_at("ffmpeg", out, 500, 360, 480, "bt601").astype(int)
-    centre, edge = px[240, 180], px[240, 5]
+    covered, edge = px[240, 120], px[240, 30]
     assert edge[2] < 80 and edge[0] > 200  # yellow
-    assert not (centre[2] < 80 and centre[0] > 200 and centre[1] > 180)
+    assert not (covered[2] < 80 and covered[0] > 200 and covered[1] > 180)
     # again: every matte comes from the cache
     code, again, err = run_tool("behind", req, timeout=600)
     assert code == 0, err
     assert again["mattes"]["computed"] == 0 and again["mattes"]["cached"] > 0
     assert np.isclose(again["beats"][0]["overlap"], result["beats"][0]["overlap"])
+
+
+@needs_vision
+@needs_ffmpeg
+def test_behind_keeps_a_word_on_the_face_in_front(tmp_path):
+    # D-98 (owner demo, run 2): words centred on the face were hidden behind it
+    cap, plain = renders(tmp_path, FACE_WORD)
+    req = {
+        "captioned": str(cap),
+        "plain": str(plain),
+        "output": str(tmp_path / "out.mp4"),
+        "beats": [{"startMs": 0, "endMs": 1000}],
+        "mode": "auto",
+        "encoder": {"codec": "libx264", "crf": 12},
+    }
+    code, result, err = run_tool("behind", req, timeout=600)
+    assert code == 0, err
+    assert result["beats"][0]["overlap"] > 0.9
+    assert result["beats"][0]["behind"] is False
+    assert result["composited"] == 0
+
+
+def test_words_split_at_gaps_and_the_worst_word_counts():
+    cap = np.zeros((20, 300), bool)
+    cap[5:15, 10:60] = True
+    cap[5:15, 62:90] = True  # 2 columns apart: letters of one word
+    cap[5:15, 150:250] = True  # far apart: a second word
+    assert behind.words_of(cap) == [(10, 90), (150, 250)]
+    subj = np.zeros_like(cap)
+    subj[:, 150:230] = True  # 80 % of the second word
+    assert behind.worst_word(cap, subj) == pytest.approx(0.8)
+
