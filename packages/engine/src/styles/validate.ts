@@ -1238,6 +1238,12 @@ async function presetChecks(
       await pg.seek(600);
       if (!(await pg.screenshot()).equals(fwd))
         fail('caption-seek', 'frame at 600 ms differs when reached by seeking backwards');
+      // nothing of chunk 1 is left on screen in the gap before chunk 2 (1500-1700 ms)
+      count('caption-gap');
+      await pg.seek(1600);
+      const left = await pg.textBoxes();
+      if (left.length > 0)
+        fail('caption-gap', `"${left[0]!.text}" is still shown at 1600 ms, after its chunk ended`);
       for (const e of pg.errors) fail('caption-preset', `page error: ${e}`);
     } finally {
       await pg.close();

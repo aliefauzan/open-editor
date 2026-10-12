@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/fontmatch.result",
+  "title": "vox_py.fontmatch result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["width", "height", "occlusion", "frames", "candidates", "lines", "tiers", "twoTier"],
+  "properties": {
+    "width": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "occlusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "frames", "decided", "behind", "atMs"],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "frames": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "decided": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "behind": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "atMs": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "frames": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "candidates": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "case",
+          "tier",
+          "yPct",
+          "sizePct",
+          "separation",
+          "axisNative",
+          "look",
+          "atMs",
+          "best"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "case": {
+            "enum": ["asis", "upper", "lower"]
+          },
+          "tier": {
+            "enum": [1, 2]
+          },
+          "yPct": {
+            "type": "number"
+          },
+          "sizePct": {
+            "type": "number"
+          },
+          "separation": {
+            "type": "number"
+          },
+          "axisNative": {
+            "type": "number"
+          },
+          "look": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["textLight", "boxed", "box", "fringePx", "fringeSplit", "glow"],
+            "properties": {
+              "textLight": {
+                "type": "boolean"
+              },
+              "boxed": {
+                "type": "boolean"
+              },
+              "box": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "fill",
+                      "fillLightness",
+                      "padXEm",
+                      "padYEm",
+                      "outline",
+                      "rule",
+                      "knockout"
+                    ],
+                    "properties": {
+                      "fill": {
+                        "type": "string",
+                        "pattern": "^#[0-9A-F]{6}$"
+                      },
+                      "fillLightness": {
+                        "type": "number"
+                      },
+                      "padXEm": {
+                        "type": "number"
+                      },
+                      "padYEm": {
+                        "type": "number"
+                      },
+                      "outline": {
+                        "type": "boolean"
+                      },
+                      "rule": {
+                        "type": "boolean"
+                      },
+                      "knockout": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "fringePx": {
+                "type": "number"
+              },
+              "fringeSplit": {
+                "type": "number"
+              },
+              "glow": {
+                "type": "boolean"
+              }
+            }
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "best": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["font", "weight", "score", "iou", "trackingEm", "stretch"],
+              "properties": {
+                "font": {
+                  "type": "string"
+                },
+                "weight": {
+                  "type": ["integer", "null"]
+                },
+                "score": {
+                  "type": "number"
+                },
+                "iou": {
+                  "type": "number"
+                },
+                "trackingEm": {
+                  "type": "number"
+                },
+                "stretch": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "tiers": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tier",
+          "lines",
+          "ranking",
+          "pick",
+          "refAxis",
+          "yPct",
+          "boxedShare",
+          "box",
+          "textLightShare",
+          "fringePx",
+          "fringeSplit",
+          "fringeShare",
+          "glowShare"
+        ],
+        "properties": {
+          "tier": {
+            "enum": [1, 2]
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "ranking": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "font",
+                "weight",
+                "score",
+                "iou",
+                "trackingEm",
+                "stretch",
+                "advanceEm",
+                "axisNative",
+                "sizePct",
+                "eligible"
+              ],
+              "properties": {
+                "font": {
+                  "type": "string"
+                },
+                "weight": {
+                  "type": ["integer", "null"]
+                },
+                "score": {
+                  "type": "number"
+                },
+                "iou": {
+                  "type": "number"
+                },
+                "trackingEm": {
+                  "type": "number"
+                },
+                "stretch": {
+                  "type": "number"
+                },
+                "advanceEm": {
+                  "type": "number"
+                },
+                "axisNative": {
+                  "type": "number"
+                },
+                "sizePct": {
+                  "type": "number"
+                },
+                "eligible": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "pick": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "font",
+                  "weight",
+                  "score",
+                  "iou",
+                  "trackingEm",
+                  "stretch",
+                  "advanceEm",
+                  "axisNative",
+                  "sizePct",
+                  "eligible"
+                ],
+                "properties": {
+                  "font": {
+                    "type": "string"
+                  },
+                  "weight": {
+                    "type": ["integer", "null"]
+                  },
+                  "score": {
+                    "type": "number"
+                  },
+                  "iou": {
+                    "type": "number"
+                  },
+                  "trackingEm": {
+                    "type": "number"
+                  },
+                  "stretch": {
+                    "type": "number"
+                  },
+                  "advanceEm": {
+                    "type": "number"
+                  },
+                  "axisNative": {
+                    "type": "number"
+                  },
+                  "sizePct": {
+                    "type": "number"
+                  },
+                  "eligible": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refAxis": {
+            "type": "number"
+          },
+          "yPct": {
+            "type": "number"
+          },
+          "boxedShare": {
+            "type": "number"
+          },
+          "box": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "fill",
+                  "fillLightness",
+                  "padXEm",
+                  "padYEm",
+                  "outlineShare",
+                  "ruleShare",
+                  "knockoutShare"
+                ],
+                "properties": {
+                  "fill": {
+                    "type": ["string", "null"],
+                    "pattern": "^#[0-9A-F]{6}$"
+                  },
+                  "fillLightness": {
+                    "type": "number"
+                  },
+                  "padXEm": {
+                    "type": "number"
+                  },
+                  "padYEm": {
+                    "type": "number"
+                  },
+                  "outlineShare": {
+                    "type": "number"
+                  },
+                  "ruleShare": {
+                    "type": "number"
+                  },
+                  "knockoutShare": {
+                    "type": "number"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "textLightShare": {
+            "type": "number"
+          },
+          "fringePx": {
+            "type": "number"
+          },
+          "fringeSplit": {
+            "type": "number"
+          },
+          "fringeShare": {
+            "type": "number"
+          },
+          "glowShare": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "twoTier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frames", "share"],
+      "properties": {
+        "frames": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

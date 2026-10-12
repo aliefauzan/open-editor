@@ -1,0 +1,18 @@
+{
+  "id": "vgap",
+  "name": "vgap",
+  "version": "0.1.0",
+  "description": "Test style for vox style validate (GATE 8 round 3): caption-gap.",
+  "status": "active",
+  "extends": "base",
+  "source": {
+    "type": "user"
+  },
+  "trusted": false,
+  "templates": [],
+  "transitions": [],
+  "captions": {
+    "default": "base/plain",
+    "presets": ["base/plain", "vgap/stuck"]
+  }
+}

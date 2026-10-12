@@ -1,0 +1,10 @@
+{
+  "name": "reference",
+  "description": "Measured from the reference: two tiers at 50 % height: Instrument Serif italic lines, emphasis words in VT323 upper case in a cut-out box, a red/cyan fringe, single words tightening in, behind the subject where it overlaps.",
+  "case": "asis",
+  "stripPunctuation": false,
+  "position": {
+    "yPct": 50
+  },
+  "behindSubject": true
+}

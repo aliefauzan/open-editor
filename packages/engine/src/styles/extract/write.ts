@@ -50,6 +50,10 @@ export function writeDraftStyle(
       copyFileSync(f.from, join(tmp, f.to));
     }
     if (draft.captionPreset) {
+      if (draft.captionPreset.html !== undefined) {
+        mkdirSync(join(tmp, 'captions'), { recursive: true });
+        writeFileSync(join(tmp, 'captions', 'reference.html'), draft.captionPreset.html);
+      }
       writeFileSync(
         join(tmp, 'captions', 'reference.json'),
         `${JSON.stringify(draft.captionPreset.json, null, 2)}\n`,

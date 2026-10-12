@@ -1,0 +1,70 @@
+{
+  "reference": {
+    "palette": [
+      "#151517",
+      "#493428",
+      "#745746",
+      "#C3B4A1",
+      "#B97F56"
+    ],
+    "captions": {
+      "detected": true,
+      "captionCount": 88,
+      "wordsPerCaption": 3,
+      "yPct": 49.69,
+      "case": "asis",
+      "revealShare": 0.3636,
+      "medianCaptionMs": 500
+    },
+    "medianShotMs": 867
+  },
+  "clips": {
+    "clip-1": {
+      "paletteDeltaE": 15.9,
+      "captionDetected": true,
+      "captionCaseMatch": false,
+      "captionCase": "upper",
+      "captionYPctDiff": 0.45000000000000284,
+      "wordsPerCaptionDiff": 0,
+      "medianShotRatio": 6.27,
+      "palette": [
+        "#CCCCCB",
+        "#F2F2F3",
+        "#211F1F",
+        "#6E5648",
+        "#EBDF05"
+      ]
+    },
+    "clip-2": {
+      "paletteDeltaE": 17.2,
+      "captionDetected": true,
+      "captionCaseMatch": true,
+      "captionCase": "asis",
+      "captionYPctDiff": 0.39000000000000057,
+      "wordsPerCaptionDiff": 0,
+      "medianShotRatio": 6.27,
+      "palette": [
+        "#C9C8C8",
+        "#F0F0F1",
+        "#292523",
+        "#8B6E5F",
+        "#E9DE05"
+      ]
+    }
+  },
+  "beatsMs": {
+    "twoTier": 5150,
+    "plain": 3500,
+    "behind": 7650,
+    "reveal": 14440
+  },
+  "behindSubject": {
+    "beats": 3,
+    "of": 22,
+    "atMs": [
+      6734,
+      7350,
+      18700
+    ]
+  }
+}

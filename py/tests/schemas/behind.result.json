@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/behind.result",
+  "title": "vox_py.behind result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["frames", "composited", "beats", "behind", "mattes"],
+  "properties": {
+    "frames": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "composited": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "beats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["startMs", "endMs", "overlap", "behind"],
+        "properties": {
+          "startMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "overlap": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "behind": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "behind": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mattes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["computed", "cached", "msPerMatte"],
+      "properties": {
+        "computed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cached": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "msPerMatte": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

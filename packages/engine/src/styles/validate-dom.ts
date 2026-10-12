@@ -218,10 +218,12 @@ html, body { margin: 0; background: ${o.bg ?? '#000000'}; }
           if (!n.textContent.trim()) continue;
           const el = n.parentElement;
           if (!el || el.closest('script,style,template')) continue;
-          let op = 1;
-          for (let e = el; e && e !== host.parentElement; e = e.parentElement) {
+          // visibility is inherited and a child can set it back to visible: only the text's own
+          // element's computed value counts; display and opacity apply from every ancestor
+          let op = getComputedStyle(el).visibility === 'visible' ? 1 : 0;
+          for (let e = el; op > 0 && e && e !== host.parentElement; e = e.parentElement) {
             const cs = getComputedStyle(e);
-            if (cs.display === 'none' || cs.visibility === 'hidden') { op = 0; break; }
+            if (cs.display === 'none') { op = 0; break; }
             op *= parseFloat(cs.opacity);
           }
           if (op < 0.01) continue;

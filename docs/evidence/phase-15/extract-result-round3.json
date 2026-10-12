@@ -1,0 +1,14 @@
+{
+  "styleId": "attention-compound",
+  "extends": "vox",
+  "describedBy": "Ollama qwen3.5:latest",
+  "validate": {
+    "ok": false,
+    "why": "the HyperFrames preview render timed out under load (Page.captureScreenshot timed out); vox style validate --no-render on the draft: ok"
+  },
+  "limits": "An extracted style approximates the reference: it re-skins existing templates with measured colours, pacing and captions and the closest free fonts. It copies no footage, images, brand marks or sound, and layouts no template matches are listed in the report, not built.",
+  "notes": [],
+  "unmatchedLayouts": [
+    "Recurring Eye-Portal"
+  ]
+}

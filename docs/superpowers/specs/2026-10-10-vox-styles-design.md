@@ -176,8 +176,19 @@ CaptionPreset {
   stripPunctuation: boolean
   safeArea: { bottomPct: number; rightPct: number }   // default 20 / 12 on 9:16, 0 / 0 otherwise
   position: { yPct: number }                         // default for CaptionTrack.position
+  behindSubject?: boolean                            // render only: on beats where the subject
+                                                     // overlaps the caption, the subject is
+                                                     // composited over it (D-91)
 }
 ```
+
+- **Behind the subject** (additive, D-91): with `behindSubject: true` and burned-in
+  captions, the final render also renders the picture without captions and runs
+  `vox_py.behind`: at each caption beat it compares the two renders to find the caption
+  pixels and takes the Apple Vision subject matte; when the subject covers 8-65 % of the
+  caption, every frame of that beat gets the subject over the caption (mattes cached per
+  frame in the project cache). Preview and SRT/VTT are not affected. Without Apple Vision
+  the step is skipped and the captions stay in front.
 
 - **Input**: compile mounts the preset once per sequence as the captions
   sub-composition (engine "Compile") and injects the sequence's `CaptionChunk[]` (engine
@@ -453,6 +464,7 @@ reference repair loops. They would run untrusted (no `build.mjs`).
     plus a pixel check of the word boxes); the same frame reached by seeking backwards
     is byte-identical;
   - emphasis: the emphasis word has its own look at every state;
+  - gap: in the 200 ms gap after chunk 1 no caption text is visible (D-91);
   - safe area: every word box stays above `100 − bottomPct` and inside the
     `rightPct` margins, also with `position.yPct` set to 95;
   - `case` and `stripPunctuation` change the injected text and SRT export does not
