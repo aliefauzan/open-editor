@@ -2147,6 +2147,66 @@ text level (cheaper, but it drops small text such as lower thirds).
 **Why**: a report whose total is the wall time cannot hide a slow step again, and a separate scorer row shows how much of quickClips is the model. Re-reading on focus covers the CLI case without a file watcher; the reads are one small IPC call.
 **Alternatives**: a file watcher on `config.json` (another moving part across two writers, for a label); timing jobs from the job runner (the CLI would still miss setup and the gaps between jobs); registering the fast-model scorer in `vox quick` (a behaviour and cost change, not a report fix; left as is).
 
+## D-82 · 2026-10-12 · feat/facetrack-vision · Facetrack finds faces with Apple Vision; BlazeFace is a per-frame fallback
+**Context**: `vox_py.facetrack` ran MediaPipe BlazeFace on every sampled frame plus three square tiles (D-21: the
+full-range model squeezes the frame into 192 px and misses a 30 px face at 360p), four CPU runs per frame, beside Apple
+Vision for bodies and saliency on its own threads (D-57). Facetrack was 40 s of the 226.6 s quick gate (D-75). The
+native deep dive (`docs/research/2026-10-12-native-deepdive.md`, "Facetrack") measured Vision
+`VNDetectFaceRectanglesRequest` at 3.9 ms per frame with the face found on 360 of 360 frames. This supersedes D-21's
+tiles as the main face path (the tiles stay for the fallback).
+**Decision**:
+- Faces, upper bodies and attention saliency run as three requests on one `VNImageRequestHandler` per frame. The face
+  request uses revision 3 when the system lists it (macOS 14+; the app's floor); faces below `minFaceScore` are dropped
+  (Vision scores 0.81-0.95 on the fixtures) and overlapping boxes are merged as before.
+- Fallback is per frame: BlazeFace with the tiles runs only on a frame where Vision finds no face, so a clip never has
+  fewer faces than BlazeFace alone would give there. Without Vision (no PyObjC Vision, or a `VISION_FAILED` on the
+  first frame, e.g. "Could not create inference context" on a VM) BlazeFace finds every frame's faces, bodies are empty
+  and saliency is null; a Vision failure after the first frame is still `VISION_FAILED`. A FaceDetector is created per
+  thread only when that thread first needs the fallback; `faceModelPath` stays required and checked (the contract and
+  the engine's model fetch are unchanged; the model is 1 MB).
+- Frames run on `VISION_WORKERS = 6` threads (one when `WORKERS` is 1). In-process on 1440 frames of the test video's
+  proxy (Apple M5, quiet rounds): before 9.5-9.6 s; after 6.6-7.5 s with 4 threads, 5.9-6.1 s with 6, 5.4-5.8 s with 8.
+- Result: optional `detector { version: 2, faces: "vision" | "blazeface", fallbackSamples }` (schema
+  `py/tests/schemas/facetrack.result.json`, engine `DetectionsSchema`). The engine reuses a cached
+  `facetracks/<mediaId>.json` only when `detector.version` equals its `DETECTOR_VERSION` (2), so files from before D-82
+  are detected again; `PATH_VERSION` is 2, so crop paths cached from BlazeFace boxes miss.
+- Subject pick: boxes within `EQUAL_AREA` (5 %) of the largest count as equal and the leftmost wins (the old rule only
+  broke exact ties). On `podcast-2face` ("equal faces") Vision's two boxes differ by 1 % and the right face won, so the
+  hysteresis test lost its switch; BlazeFace's boxes differed by 12 % (the left face, as before).
+- A/B on the fixtures (old = main's module, same frames): face count equal on every sample of all six fixtures; IoU of
+  matched faces (mean / min) talking-head-20s 0.838 / 0.582, face-2people 0.884 / 0.754 (both faces on 60 of 60, no
+  tiles), cuts-2shot 0.864 / 0.772, podcast-2face 0.892 / 0.875, style-extract-10s 0.898 / 0.890; centre drift mean
+  0.004-0.009, max 0.032 of the frame; Vision boxes are 0.85-1.02× the BlazeFace area. Crop paths (9:16, facetrack and
+  auto, same engine): x differs by 0.0009-0.0019 on average, at most 0.0172; y and scale identical; shot subjects
+  identical. The fallback ran on the no-face samples only (cuts-2shot shot 3: 36; phone-vfr-20s: all 240; none on
+  face frames). Test video (8012 samples): face count equal on 7986, IoU mean 0.849 (p5 0.790), drift mean 0.006, max
+  0.028, fallback 0. The quick heuristic picks the same clips from either detection file (with and without highlights).
+- Quick gate (`vox quick --render` on one downloaded copy of rtcMRI3ARck, main 8612604 vs branch, gate lock):
+  total 224.3 s -> 180.2 s; ingest 30.7 / 28.0, shots 3.1 / 3.7, transcribe 43.5 / 43.6, facetrack 44.2 / 33.5,
+  quickClips 0.1 / 0.1, render 102.3 / 70.8 (render is unchanged code: the machine was shared with other agents, load
+  7-30). The facetrack tool alone on the same 810x540 proxy, main and branch alternating: 70.2 / 52.2 s, 45.7 / 28.4 s.
+  Branch clips: 3 of 3 at 1080x1920, no black bands (cropdetect 1080:1920:0:0 on every sampled second), face framed,
+  styled captions (vidprep sheets). Clip 2 differs from main's only because the branch checkout's helper had video
+  highlights (D-75) and main's did not.
+  Each gate run first re-synced its tools copy's Python env from the checkout under test (`uv sync --frozen
+  --reinstall-package vox_py`, editable install of that checkout's `py/`); main's detections have no `detector`, the
+  branch's have `{ version: 2, faces: "vision", fallbackSamples: 0 }`.
+- The "before" run is also the first quick gate on D-73's facetrack (shared `vision_box`/`saliency_box`) with Python
+  synced from main: 3 of 3 clips at 1080x1920, no black bands (cropdetect), face framed, styled captions; facetrack
+  44.2 s, total 224.3 s (D-75 baseline 40.0 s, 226.6 s).
+- Seeds: the test-build seed `fixtures/facetracks/talking-head-20s.json` keeps its BlazeFace boxes (valid without
+  `detector`; seeding bypasses the facetrack job).
+- Verify (after merging main 5f9dced): engine 1504 pass, 0 fail; pytest 198 pass, 1 fail (`test_imagegen`, model not
+  installed), facetrack 30/30; typecheck and lint clean. Review: self-review (token budget).
+**Why**: One Vision handler per frame does the face work the Neural Engine already did half of, with no CPU tiles, and
+finds the small faces BlazeFace needed tiles for. The per-frame fallback keeps recall where Vision misses and keeps
+facetrack working where Vision cannot run. The version fields make every old detection and path rebuild once.
+**Alternatives**: BlazeFace beside Vision on every frame, merged (no speed gain); a per-clip switch (a clip where Vision
+misses some faces would lose them); detecting at 4 fps with `VNTrackObjectRequest` between (fewer requests, but new
+tracking behaviour and box semantics; not needed for this gain); bodies and saliency only on frames without a face
+(fewer requests, but changes the body/saliency presence the auto subject rule reads); a Swift command in
+`vox-apple-llm` (PyObjC already reaches Vision from the existing tool, D-72).
+
 ## D-85 · 2026-10-12 · fix/quick-highlights-wait · `vox quick` waits at most 30 s for highlights
 **Context**: the app's quick flow waits at most 30 s for video highlights once shots, transcribe and facetrack are done, then goes on without them (D-75). The D-75 commit said `vox quick` does the same, but the CLI waited for the highlights job with no limit: the D-84 gate on the test video showed `highlights wait 43.7 s` of 311.9 s.
 **Decision**:
