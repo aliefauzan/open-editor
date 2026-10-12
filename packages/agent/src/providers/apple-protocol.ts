@@ -16,17 +16,39 @@ export const appleStatusValues = [
 export const AppleStatusValue = z.enum(appleStatusValues);
 export type AppleStatusValue = z.infer<typeof AppleStatusValue>;
 
-/** `--status` output: availability plus the model's context size in tokens (4,096 when unknown). */
+/**
+ * `--status` output: availability, the model's context size in tokens (4,096 when unknown) and
+ * whether it accepts images (macOS 27+, D-74). A helper older than D-74 sends no `vision`: read it
+ * as false.
+ */
 export const AppleStatus = z.strictObject({
   status: AppleStatusValue,
   contextSize: z.number().int().positive(),
+  vision: z.boolean().optional(),
 });
 export type AppleStatus = z.infer<typeof AppleStatus>;
 
-export const AppleMessage = z.strictObject({
-  role: z.enum(['user', 'assistant']),
-  content: z.string(),
-});
+/** Most images one request may carry (the agent's tools send at most 8 stills per call). */
+export const APPLE_MAX_IMAGES = 16;
+
+/**
+ * One turn. `images` (user messages only, D-74) lists absolute paths of image files the caller
+ * wrote for this request; the helper reads them and the caller deletes them after the answer.
+ */
+export const AppleMessage = z
+  .strictObject({
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+    images: z
+      .array(z.string().startsWith('/', 'each image must be an absolute file path'))
+      .min(1)
+      .max(APPLE_MAX_IMAGES)
+      .optional(),
+  })
+  .refine((m) => m.images === undefined || m.role === 'user', {
+    message: 'only user messages may have images',
+    path: ['images'],
+  });
 export type AppleMessage = z.infer<typeof AppleMessage>;
 
 /**
@@ -46,6 +68,10 @@ export const AppleRequest = z
   .refine((r) => r.messages.at(-1)?.role === 'user', {
     message: 'the last message must be from the user',
     path: ['messages'],
+  })
+  .refine((r) => r.messages.reduce((n, m) => n + (m.images?.length ?? 0), 0) <= APPLE_MAX_IMAGES, {
+    message: `a request may carry at most ${String(APPLE_MAX_IMAGES)} images`,
+    path: ['messages'],
   });
 export type AppleRequest = z.infer<typeof AppleRequest>;
 export type AppleRequestInput = z.input<typeof AppleRequest>;
@@ -64,6 +90,8 @@ export const appleErrorCodes = [
   'contextOverflow',
   'guardrail',
   'generation',
+  /** The request has images but the model cannot see them (before macOS 27, or no `vision`). */
+  'visionUnavailable',
 ] as const;
 export const AppleErrorCode = z.enum(appleErrorCodes);
 export type AppleErrorCode = z.infer<typeof AppleErrorCode>;

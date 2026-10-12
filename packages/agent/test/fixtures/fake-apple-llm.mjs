@@ -6,6 +6,10 @@
 // Environment:
 //   VOX_FAKE_APPLE_STATUS   ready (default) | notEnabled | notEligible | modelNotReady | unsupportedOS
 //   VOX_FAKE_APPLE_CONTEXT  context size for --status (default 4096)
+//   VOX_FAKE_APPLE_VISION   1 | 0: --status reports vision true | false; unset: no `vision` field
+//                           (a helper older than D-74). A request with images gets
+//                           `visionUnavailable` unless this is 1, and `badRequest` when an image
+//                           file is not readable.
 //   VOX_FAKE_APPLE_ANSWERS  JSON array, one entry consumed per valid request, in order:
 //     { "text": "..." }                 text answer
 //     { "json": <any> }                 JSON answer (for schema requests)
@@ -20,7 +24,7 @@
 // Like the real helper, lines are split on "\n" only (not with node:readline, which also splits
 // on U+2028/U+2029), and U+2028/U+2029 are escaped on output. A hang keeps the process alive
 // after stdin closes, as a stuck real helper would; the caller must kill it.
-import { appendFileSync } from 'node:fs';
+import { accessSync, appendFileSync, constants } from 'node:fs';
 
 // Exit only after stdout and stderr are flushed (pipes are asynchronous on macOS).
 const exitAfterFlush = (code) =>
@@ -39,7 +43,17 @@ if (!STATUSES.includes(status)) {
   await exitAfterFlush(2);
 }
 const contextSize = Number(process.env.VOX_FAKE_APPLE_CONTEXT ?? '4096');
-const ERROR_CODES = ['badRequest', 'unavailable', 'contextOverflow', 'guardrail', 'generation'];
+const visionEnv = process.env.VOX_FAKE_APPLE_VISION;
+const vision = visionEnv === '1';
+const ERROR_CODES = [
+  'badRequest',
+  'unavailable',
+  'contextOverflow',
+  'guardrail',
+  'generation',
+  'visionUnavailable',
+];
+const MAX_IMAGES = 16;
 
 /** Returns why a scripted answer is malformed, or null. */
 function badAnswer(a) {
@@ -70,7 +84,8 @@ const logPath = process.env.VOX_FAKE_APPLE_LOG;
 
 const args = process.argv.slice(2);
 if (args.length === 1 && args[0] === '--status') {
-  process.stdout.write(JSON.stringify({ status, contextSize }) + '\n');
+  const line = visionEnv === undefined ? { status, contextSize } : { status, contextSize, vision };
+  process.stdout.write(JSON.stringify(line) + '\n');
   await exitAfterFlush(0);
 }
 if (args.length === 1 && (args[0] === '--help' || args[0] === '-h')) {
@@ -96,15 +111,24 @@ function invalid(req) {
   if (typeof req.system !== 'string') return 'system must be a string';
   if (!Array.isArray(req.messages) || req.messages.length === 0)
     return 'messages must be a non-empty array';
+  let images = 0;
   for (const m of req.messages) {
     if (
       !isObject(m) ||
-      Object.keys(m).some((k) => k !== 'role' && k !== 'content') ||
+      Object.keys(m).some((k) => k !== 'role' && k !== 'content' && k !== 'images') ||
       !['user', 'assistant'].includes(m.role) ||
       typeof m.content !== 'string'
     )
       return 'each message needs role user|assistant and string content';
+    if (m.images === undefined) continue;
+    if (m.role !== 'user') return 'only user messages may have images';
+    if (!Array.isArray(m.images) || m.images.length === 0 || m.images.length > MAX_IMAGES)
+      return `images must be an array of 1 to ${MAX_IMAGES} paths`;
+    if (m.images.some((p) => typeof p !== 'string' || !p.startsWith('/')))
+      return 'each image must be an absolute file path';
+    images += m.images.length;
   }
+  if (images > MAX_IMAGES) return `a request may carry at most ${MAX_IMAGES} images`;
   if (req.messages.at(-1).role !== 'user') return 'the last message must be from the user';
   if (req.schema !== undefined && !isObject(req.schema)) return 'schema must be a JSON object';
   if (!Number.isSafeInteger(req.maxTokens) || req.maxTokens <= 0)
@@ -144,6 +168,31 @@ async function handle(line) {
   if (status !== 'ready') {
     write(
       withId(id, { error: { code: 'unavailable', message: `Apple on-device model: ${status}` } }),
+    );
+    return;
+  }
+  const imagePaths = req.messages.flatMap((m) => m.images ?? []);
+  if (imagePaths.length > 0 && !vision) {
+    write(
+      withId(id, {
+        error: { code: 'visionUnavailable', message: 'fake: no vision on this model' },
+      }),
+    );
+    return;
+  }
+  const unreadable = imagePaths.find((p) => {
+    try {
+      accessSync(p, constants.R_OK);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  if (unreadable !== undefined) {
+    write(
+      withId(id, {
+        error: { code: 'badRequest', message: `image file not readable: ${unreadable}` },
+      }),
     );
     return;
   }

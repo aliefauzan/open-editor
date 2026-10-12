@@ -32,6 +32,43 @@ export const invalidRequests: Array<[name: string, request: Record<string, unkno
   ['temperature as a string', { ...base, temperature: '0' }],
   ['messages not an array', { ...base, messages: { role: 'user', content: 'a' } }],
   ['a null schema', { ...base, schema: null }],
+  [
+    'images on an assistant message',
+    {
+      ...base,
+      messages: [
+        { role: 'assistant', content: 'a', images: ['/a.png'] },
+        { role: 'user', content: 'b' },
+      ],
+    },
+  ],
+  ['an empty image list', { ...base, messages: [{ role: 'user', content: 'a', images: [] }] }],
+  [
+    'a relative image path',
+    { ...base, messages: [{ role: 'user', content: 'a', images: ['a.png'] }] },
+  ],
+  ['a non-string image', { ...base, messages: [{ role: 'user', content: 'a', images: [1] }] }],
+  ['images as a string', { ...base, messages: [{ role: 'user', content: 'a', images: '/a.png' }] }],
+  [
+    '17 images in one message',
+    {
+      ...base,
+      messages: [
+        { role: 'user', content: 'a', images: Array.from({ length: 17 }, (_, i) => `/${i}.png`) },
+      ],
+    },
+  ],
+  [
+    '17 images over two messages',
+    {
+      ...base,
+      messages: [
+        { role: 'user', content: 'a', images: Array.from({ length: 9 }, (_, i) => `/${i}.png`) },
+        { role: 'assistant', content: 'b' },
+        { role: 'user', content: 'c', images: Array.from({ length: 8 }, (_, i) => `/${i}.png`) },
+      ],
+    },
+  ],
 ];
 
 /**

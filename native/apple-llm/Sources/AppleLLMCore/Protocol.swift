@@ -1,10 +1,14 @@
 // The JSON-lines protocol (agent spec "Apple on-device model"). Mirrors the zod schemas in
 // packages/agent/src/providers/apple-protocol.ts; field names and codes must stay identical.
 //
-//   stdin  {"id"?, "system", "messages":[{"role":"user"|"assistant","content"}], "schema"?,
-//           "maxTokens", "temperature"}
+//   stdin  {"id"?, "system", "messages":[{"role":"user"|"assistant","content","images"?}],
+//           "schema"?, "maxTokens", "temperature"}
 //   stdout {"id"?, "text", "usage"} | {"id"?, "json", "usage"} | {"id"?, "error":{"code","message"}}
-//   --status → {"status", "contextSize"}
+//   --status → {"status", "contextSize", "vision"}
+//
+// `images` (user messages only, D-74) lists absolute paths of image files the caller wrote; the
+// helper reads them only when the model can see images (macOS 27, `vision` capability) and
+// otherwise answers `visionUnavailable`.
 
 /// `--status` availability values, in the agent spec's order.
 public enum Status: String, CaseIterable, Sendable {
@@ -13,19 +17,27 @@ public enum Status: String, CaseIterable, Sendable {
 
 public enum ErrorCode: String, CaseIterable, Sendable {
   case badRequest, unavailable, contextOverflow, guardrail, generation
+  /// The request has images but the model cannot see them (before macOS 27, or no `vision`).
+  case visionUnavailable
 }
 
 /// Context size reported when the framework gives none (agent spec, plan phase 11).
 public let defaultContextSize = 4096
 
+/// Most images one request may carry (the agent sends at most 8 stills per call).
+public let maxImagesPerRequest = 16
+
 public struct Message: Equatable, Sendable {
   public enum Role: String, Sendable { case user, assistant }
   public let role: Role
   public let content: String
+  /// Absolute paths of image files (user messages only).
+  public let images: [String]
 
-  public init(role: Role, content: String) {
+  public init(role: Role, content: String, images: [String] = []) {
     self.role = role
     self.content = content
+    self.images = images
   }
 }
 
@@ -42,6 +54,9 @@ public struct Request: Equatable, Sendable {
 
   /// `maxTokens`, at most the model's context size (an answer cannot be longer).
   public func maxTokens(cappedAt contextSize: Int) -> Int { min(maxTokens, contextSize) }
+
+  /// Every image path, in message order.
+  public var imagePaths: [String] { messages.flatMap(\.images) }
 
   /// Every input text, for the token estimate (same rule as the fake helper).
   public var inputText: String { system + messages.map(\.content).joined() }
@@ -82,11 +97,28 @@ public struct Request: Equatable, Sendable {
     }
     var messages: [Message] = []
     for raw in rawMessages {
-      guard case .object(let m) = raw, m.allSatisfy({ $0.0 == "role" || $0.0 == "content" }),
+      guard case .object(let m) = raw,
+        m.allSatisfy({ $0.0 == "role" || $0.0 == "content" || $0.0 == "images" }),
         let roleName = raw["role"]?.stringValue, let role = Message.Role(rawValue: roleName),
         let content = raw["content"]?.stringValue
       else { return fail("each message needs role user|assistant and string content") }
-      messages.append(Message(role: role, content: content))
+      var images: [String] = []
+      if let rawImages = raw["images"] {
+        guard role == .user else { return fail("only user messages may have images") }
+        guard case .array(let list) = rawImages, !list.isEmpty,
+          list.count <= maxImagesPerRequest
+        else { return fail("images must be an array of 1 to \(maxImagesPerRequest) paths") }
+        for item in list {
+          guard let path = item.stringValue, path.hasPrefix("/") else {
+            return fail("each image must be an absolute file path")
+          }
+          images.append(path)
+        }
+      }
+      messages.append(Message(role: role, content: content, images: images))
+    }
+    if messages.reduce(0, { $0 + $1.images.count }) > maxImagesPerRequest {
+      return fail("a request may carry at most \(maxImagesPerRequest) images")
     }
     guard messages[messages.count - 1].role == .user else {
       return fail("the last message must be from the user")
@@ -159,9 +191,11 @@ public func encodeError(id: String?, code: ErrorCode, message: String) -> String
   line(id: id, [("error", .object([("code", .string(code.rawValue)), ("message", .string(message))]))])
 }
 
-public func encodeStatus(_ status: Status, contextSize: Int) -> String {
-  JSONValue.object([("status", .string(status.rawValue)), ("contextSize", .int(contextSize))])
-    .encoded()
+public func encodeStatus(_ status: Status, contextSize: Int, vision: Bool) -> String {
+  JSONValue.object([
+    ("status", .string(status.rawValue)), ("contextSize", .int(contextSize)),
+    ("vision", .bool(vision)),
+  ]).encoded()
 }
 
 /// Command-line modes.
@@ -185,7 +219,7 @@ public enum Command: Equatable, Sendable {
   public static let usage = """
     usage: vox-apple-llm [--status]
       reads JSON-lines requests on stdin and answers one line each on stdout
-      --status  print {"status","contextSize"} and exit
+      --status  print {"status","contextSize","vision"} and exit
 
     """
 }
