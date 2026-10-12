@@ -30,6 +30,7 @@ const model = (
   downloadBytes: 32_800_000_000,
   installedBytes: 10_000_000_000,
   sizeOnDisk: 0,
+  partialBytes: 0,
   ...over,
 });
 
@@ -164,6 +165,35 @@ describe('Settings: local image generation', () => {
   });
 });
 
+// D-69: a failed or cancelled install keeps its partial download so the next install resumes it.
+// The row shows its size (the space is never hidden) and offers to delete it.
+describe('Settings: a kept partial download', () => {
+  it('shows its size, the install dialog says it resumes, and deleting it asks first', async () => {
+    const { box } = await dialog({ models: [model({ partialBytes: 12_300_000_000 })] });
+    const note = screen.getByText(/12\.3 GB downloaded so far is kept/);
+    expect(note.textContent).toMatch(/next install resumes it/);
+    fireEvent.click(screen.getByLabelText(/Local image generation/));
+    const ask = screen.getByRole('alertdialog', { name: 'Download image model' });
+    expect(ask.textContent).toMatch(/resumes the 12\.3 GB already downloaded/);
+    fireEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete partial download' }));
+    const del = screen.getByRole('alertdialog', { name: 'Delete partial download' });
+    expect(del.textContent).toMatch(/12\.3 GB/);
+    expect(box.started).toEqual([]);
+    fireEvent.click(within(del).getByRole('button', { name: 'Delete' }));
+    await waitFor(() =>
+      expect(box.started).toEqual([['imagegen.remove', { model: 'z-image-turbo' }]]),
+    );
+  });
+
+  it('without a partial download there is no such note or button', async () => {
+    await dialog();
+    expect(screen.queryByText(/downloaded so far/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete partial download' })).toBeNull();
+  });
+});
+
 describe('SettingsHost: image models', () => {
   it('lists both models from the engine, installed state and size on disk', async () => {
     const models = tmp('vox-imagegen-models');
@@ -183,6 +213,14 @@ describe('SettingsHost: image models', () => {
     const after = (await host.get()).imagegen!.models[0]!;
     expect(after.installed).toBe(true);
     expect(after.sizeOnDisk).toBeGreaterThanOrEqual(4096);
+    expect(after.partialBytes).toBe(0);
+    // a kept partial download (D-69) is reported with its size
+    mkdirSync(join(models, 'mflux', '.download-z-image-turbo'), { recursive: true });
+    writeFileSync(
+      join(models, 'mflux', '.download-z-image-turbo', 'x.incomplete'),
+      Buffer.alloc(2048),
+    );
+    expect((await host.get()).imagegen!.models[0]!.partialBytes).toBeGreaterThanOrEqual(2048);
     // without the dep the field is absent (the dialog hides the toggle)
     const bare = new SettingsHost({ cfg: configDeps(), appleHelper: false });
     expect((await bare.get()).imagegen).toBeUndefined();

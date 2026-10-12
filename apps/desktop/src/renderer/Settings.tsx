@@ -288,11 +288,13 @@ const gb = (bytes: number) => `${Math.round(bytes / 1e8) / 10} GB`;
  * Local image generation (phase 14d): a switch that shows the download size and the licence before
  * anything is fetched, then runs the `imagegen.install` job; switching it off removes the model.
  * FLUX.1-schnell (gated on Hugging Face) is set up in a terminal: `vox doctor` explains the terms.
+ * A failed or cancelled install keeps its partial download for the next try (D-69): the row shows
+ * its size and offers to delete it (`imagegen.remove`), so the space is never hidden.
  */
 function ImageGenSection(props: { data: ImageGenData; reload(): Promise<void> }) {
   const { jobs } = useCtx();
   const model = props.data.models.find((m) => m.id === 'z-image-turbo');
-  const [ask, setAsk] = useState<'install' | 'remove' | null>(null);
+  const [ask, setAsk] = useState<'install' | 'remove' | 'discard' | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const row = useJobs((s) => s.rows.find((r) => r.id === jobId));
   const status = row?.status;
@@ -328,6 +330,14 @@ function ImageGenSection(props: { data: ImageGenData; reload(): Promise<void> })
         Makes pictures on this Mac with {model.label}; once installed it works offline. Licence:{' '}
         {model.license}.{model.installed && ` Installed, ${gb(model.sizeOnDisk)} on disk.`}
       </p>
+      {model.partialBytes > 0 && !running && (
+        <p className="pl-6 text-[11px] text-neutral-400">
+          {gb(model.partialBytes)} downloaded so far is kept, so the next install resumes it.{' '}
+          <button type="button" className={btn} onClick={() => setAsk('discard')}>
+            Delete partial download
+          </button>
+        </p>
+      )}
       {ask === 'install' && (
         <div
           role="alertdialog"
@@ -338,6 +348,8 @@ function ImageGenSection(props: { data: ImageGenData; reload(): Promise<void> })
             Download about {gb(model.downloadBytes)} from Hugging Face ({model.label}, licence{' '}
             {model.license}); about {gb(model.installedBytes)} stay on disk afterwards. You need
             that much free space while it installs. It runs once and can take a while.
+            {model.partialBytes > 0 &&
+              ` It resumes the ${gb(model.partialBytes)} already downloaded.`}
           </p>
           <div className="flex gap-2">
             <button type="button" className={btn} onClick={() => start('imagegen.install')}>
@@ -356,11 +368,32 @@ function ImageGenSection(props: { data: ImageGenData; reload(): Promise<void> })
           className="ml-6 space-y-1 rounded bg-neutral-800 p-2 text-[11px]"
         >
           <p>
-            Remove {model.label} and free {gb(model.sizeOnDisk)}? You can download it again later.
+            Remove {model.label} and free {gb(model.sizeOnDisk + model.partialBytes)}? You can
+            download it again later.
           </p>
           <div className="flex gap-2">
             <button type="button" className={btn} onClick={() => start('imagegen.remove')}>
               Remove
+            </button>
+            <button type="button" className={btn} onClick={() => setAsk(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {ask === 'discard' && (
+        <div
+          role="alertdialog"
+          aria-label="Delete partial download"
+          className="ml-6 space-y-1 rounded bg-neutral-800 p-2 text-[11px]"
+        >
+          <p>
+            Delete the {gb(model.partialBytes)} partial download of {model.label}? The next install
+            then starts from the beginning.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className={btn} onClick={() => start('imagegen.remove')}>
+              Delete
             </button>
             <button type="button" className={btn} onClick={() => setAsk(null)}>
               Cancel

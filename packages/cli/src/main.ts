@@ -30,6 +30,7 @@ import {
 } from '@vox/engine';
 import { appleHelper, configCommand, ConfigUsageError, type AgentCliDeps } from './config.ts';
 import { agentCommand, AgentUsageError } from './agent.ts';
+import { styleExtractCommand, StyleExtractUsageError } from './style-extract.ts';
 
 export interface Io {
   stdout: (s: string) => void;
@@ -128,7 +129,7 @@ const USAGE = `usage:
   vox assets generate <project> "<prompt>" [--style id] [--provider id]
   vox imagegen status                     local image models: installed, size, licence
   vox imagegen install [--model z-image-turbo|flux1-schnell]   download + quantize (FLUX needs HF_TOKEN)
-  vox imagegen remove [--model ...]       delete an installed model
+  vox imagegen remove [--model ...]       delete an installed model and any partial download
   vox compile <project> [--seq id] [--mode preview|render]   writes build/
   vox preview <project> [--seq id]        compile + npx hyperframes play
   vox frames <project> [--seq id] --at-ms <ms>[,<ms>...]     compiled stills (paths)
@@ -142,13 +143,15 @@ const USAGE = `usage:
   vox style new <id> [--extends <style>] [--name <name>]   scaffold a draft user style
   vox style trust <id> [--yes]            allow a user style's build.mjs hook to run
   vox style accept <id> | remove <id>     mark a draft active | delete a user style
+  vox style extract <link|file> --name <name> [--max-usd n] [--no-render]
+                                          draft style + report.html from a reference video
   vox config providers add <preset> [--key env:NAME] [--id id] [--base-url url]
        [--context <model>=<tokens>]... [--num-ctx n]   (no --key: the key is asked for, hidden)
   vox config providers list | remove <id>
   vox config roles set <role> <provider>:<model> [--mode tools|plan]   probes first; refuses a failed role
   vox config prices set <model> --in <usd> --out <usd> | --free        per million tokens
   vox config probe [<provider>:<model>...]   probe the role models (or the named ones)
-  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit|screenplay] [--seq id]... [--style id]
+  vox agent <project> ["<instruction>"] [--workflow clipper|stylize|edit|screenplay|style-extract] [--seq id]... [--style id]
        [--layout full-collage|hybrid] [--mode tools|plan] [--max-usd 2] [--yes-sources] [--yes] [--confirm-plan]
        [--count n] [--length 30-60]   (clipper: number of clips, length in seconds)
        [--screenplay <file|mediaId>] [--footage <mediaId>]...   (screenplay: the document; default: every video)
@@ -744,12 +747,17 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       if (sub === 'status') {
         const st = await imagegenStatus(e.tools['models']);
         const gb = (n: number) => `${(n / 1e9).toFixed(1)} GB`;
+        // a failed or cancelled install keeps its download for the next try (D-69): never hidden
+        const partial = (n: number) =>
+          n > 0
+            ? `; ${gb(n)} partial download kept, the next install resumes it; vox imagegen remove deletes it`
+            : '';
         out(
           st,
           st
             .map(
               (m) =>
-                `${m.id}\t${m.installed ? `installed (${gb(m.sizeOnDisk)})` : `not installed (${gb(m.downloadBytes)} download)`}\t${m.license}${m.gated ? '\tgated on Hugging Face' : ''}\n`,
+                `${m.id}\t${m.installed ? `installed (${gb(m.sizeOnDisk)}${partial(m.partialBytes)})` : `not installed (${gb(m.downloadBytes)} download${partial(m.partialBytes)})`}\t${m.license}${m.gated ? '\tgated on Hugging Face' : ''}\n`,
             )
             .join(''),
         );
@@ -770,8 +778,17 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         return 0;
       }
       if (sub === 'remove') {
-        const r = await runJob<{ removed: boolean }>(e, 'imagegen.remove', { model }, io, json);
-        out(r, r.removed ? `${model} removed\n` : `${model} was not installed\n`);
+        const r = await runJob<{ removed: boolean; partialBytes?: number }>(
+          e,
+          'imagegen.remove',
+          { model },
+          io,
+          json,
+        );
+        const freed = r.partialBytes
+          ? `; deleted its partial download (${(r.partialBytes / 1e9).toFixed(1)} GB)`
+          : '';
+        out(r, `${model} ${r.removed ? 'removed' : 'was not installed'}${freed}\n`);
         return 0;
       }
       throw new UsageError(`unknown imagegen command ${JSON.stringify(sub)}`);
@@ -1125,7 +1142,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
   }
 }
 
-/** `vox style validate|new|trust|accept|remove` (phase 06). */
+/** `vox style validate|new|trust|accept|remove` (phase 06) and `extract` (phase 15). */
 async function styleCommand(
   positionals: string[],
   values: Parsed['values'],
@@ -1133,11 +1150,19 @@ async function styleCommand(
   out: (v: unknown, text: string) => void,
 ): Promise<number> {
   const [sub, id] = positionals;
-  if (!sub || !['validate', 'new', 'trust', 'accept', 'remove'].includes(sub)) {
-    throw new UsageError(`style needs validate, new, trust, accept or remove`);
+  if (!sub || !['validate', 'new', 'trust', 'accept', 'remove', 'extract'].includes(sub)) {
+    throw new UsageError(`style needs validate, new, trust, accept, remove or extract`);
   }
-  need(positionals, 2, 'style id');
+  need(positionals, 2, sub === 'extract' ? '<link or file>' : 'style id');
   const e = await engineFor(values, io);
+  if (sub === 'extract') {
+    try {
+      return await styleExtractCommand(e, id!, values, io);
+    } catch (err) {
+      if (err instanceof StyleExtractUsageError) throw new UsageError(err.message);
+      throw err;
+    }
+  }
   const json = values['json'] === true;
   switch (sub) {
     case 'validate': {

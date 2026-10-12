@@ -1931,6 +1931,53 @@ gate again: the owner decides round 3.
 **Why**: keeps the licence clean, offline after install, and the contract additive (R2 frozen surfaces unchanged).
 **Alternatives**: the 4-bit mirror as default (licence tag unclear); bundling weights (size); a `window.vox` method per action (contract growth).
 
+## D-69 · 2026-10-12 · fix/imagegen-install · Image model install keeps its partial download; Python env checked first
+**Context**: The real `vox imagegen install z-image-turbo` showed two faults. (1) The install job deleted `<models>/mflux/.download-<id>/` in a `finally`, so any failure (network stall, Python error, cancel) threw away up to 33 GB already fetched and the next try started from zero. (2) With a py-env synced from an older `uv.lock` (no `mflux`), the install failed in about a second with `PY_TOOL_FAILED "Python tool imagegen failed (exit code 1)"` and no cause: the desktop re-syncs py-env on launch, the CLI does not, and the bridge kept the traceback only in `cause`, which the CLI and IPC never show.
+**Decision**:
+- The download cache is deleted only after a successful install. A failed or cancelled install keeps it (only the half-written `<id>.part` is deleted), and huggingface_hub resumes from its `.incomplete` files on the next install. Keeping it on cancel too is deliberate: cancel is how a user stops a slow download, and resuming is what they want next.
+- The space is never hidden: `imagegenStatus` reports `partialBytes`; `vox imagegen status` prints it with "the next install resumes it; vox imagegen remove deletes it"; the Settings row shows it with a "Delete partial download" button (asks first). `imagegen.remove` deletes the model, `.part` and the download cache, and returns `{ removed, partialBytes? }`. The free-space check subtracts what the partial download already holds.
+- `imagegen.install` and mflux generation first run the `vox doctor` `python-env-lock` check (now `pyEnvLockState` in `py.ts`, shared with doctor) and fail with `TOOL_MISSING` "the Python env was synced from a different uv.lock" (or "has no lock hash") and the fix "open Vox Studio (setup re-syncs it on launch) or Setup → Repair "Python env"", before anything is downloaded. Repo mode (no app py-env) is unchanged.
+- The Python bridge: when a tool exits without its D-21 error line, the last stderr line (cut to 300 characters, redacted) goes into the message and `details.stderr`; an import error (`ModuleNotFoundError`, `ImportError`, "No module named"), also inside a `TOOL_FAILED` error line, gets a hint about re-syncing the Python env.
+**Why**: a 33 GB download on a shaky network must survive a failure; a stale env must name its fix instead of a bare exit code.
+**Alternatives**: delete the cache on cancel (loses the resume the user most likely wants; remove frees it in one step instead); re-sync py-env from the CLI (needs the setup's uv paths and can take minutes; the app already does it on launch); a new error code for a stale env (codes are a frozen list; `TOOL_MISSING` with `details.check` is enough).
+
+## D-70 — Style from a reference video: measure, describe, map, re-skin validate, gallery flow, GATE 8 by AI delegation (phase 15, 2026-10-12)
+**Context**: phase 15 builds Styles Part C (a draft style from a reference video) and ends at GATE 8, a blind A/B by
+the owner. The owner delegated gates to the AI (D-49, D-58); no credentials may be entered, so the only live vision
+model is local Ollama.
+**Decision**:
+- Fixture `style-extract-10s.mp4` burns its captions in from checked-in caption cards (PNG), not `drawtext` (D-17).
+- Measure runs the engine `shots` and `facetrack` jobs on a scratch project ingested with `{ proxies: false }`, plus
+  Python `vox_py.palette` (k-means, k = 8) and `vox_py.ocr` (Apple Vision, 4 fps). The scratch project and the work
+  folder are deleted after the run; the reference is never copied into the style.
+- Fonts: 50 OFL TTFs with tags in `packages/engine/data/fonts/` (`catalogue.json`, licences, `SOURCES.md`), staged into
+  the app as `engine-data/fonts`. Font choice scores class, weight, case and tags (a tag match counts +5).
+- Describe asks the `vision` role for structured output, then once more for plain JSON. `repairDescription` maps near
+  misses of small models to the options before the parse ("mixed" case → `asis`, "sans-serif" → `sans`, weight
+  words, numbers as strings, out-of-range numbers, unknown keys dropped). No usable answer, no vision model or over
+  the cost cap → a measurements-only draft with a note.
+- The draft is `source.type: 'extracted'`, `status: 'draft'`, `trusted: false`, with no own templates (a re-skin of
+  the closest parent). Validate renders every inherited template's fixtures in the draft's tokens; trusted parent
+  hooks (`vox/map-route`) still run, the draft's own `build.mjs` never does (S8). Cue timing of inherited templates
+  is a note, not a problem: the new colours move where the pixel difference peaks, the motion is the parent's.
+- `report.html` is static escaped HTML (no script); reference frames are copied to `report/ref-NN.jpg`. The app shows it
+  in a `sandbox=""` frame from `vox-media://` with CSP_MEDIA.
+- Agent: one `style.extract` job at a time per engine (it starts nested jobs and the runner runs two). Tool
+  `extract_style` asks for source approval like ingest. A guide of an untrusted or extracted style goes into the system
+  prompt wrapped as data. `vox agent --workflow style-extract` runs the extraction without an editor model.
+- App: `styles.extract({ name, url? })`; without a link main opens the native file dialog; a `path` from the renderer is
+  refused outside test builds; `jobs.start('style.extract')` is refused. "Extract style" in the agent panel opens the
+  gallery on "New style from reference video". Test builds with `VOX_E2E_AGENT=mock` use fixture measurements and a
+  mock vision model (`engine-host/e2e-style.ts`).
+- Engine `resources.ts` finds `data/` and `py/` by `import.meta.dirname` (jsdom renderer tests rewrite `import.meta.url`).
+- GATE 8 (by owner delegation; NOT a blind human A/B): live extraction from attentioncompound 7633685885615115550 with
+  Ollama `qwen3.5:latest`; `scripts/style-ab.ts` rendered the offline clip in `vox` and in the draft with random names
+  and a separate key; the AI judged from the measured similarity and the frame sheet before opening the key and picked
+  the extracted style (palette ΔE 12.8 vs 14.3, caption case match). Evidence and limits: `plan/log/phase-15.md`,
+  `docs/evidence/phase-15/`. The owner may still run a real blind A/B (TODO.md) and overrule.
+**Why**: measure-first with a deterministic map keeps the draft reproducible and useful without a model; a re-skin needs
+no untrusted code; the repair step makes small local models usable instead of silently dropping their answer.
+
 ## D-71 — GATE 6 round 3: real assets, 16:9 `stack` panels, four templates redone against the reel (phase 14a, 2026-10-12)
 **Context**: D-67 reopened GATE 6 ("its not look the same"). Round 3 must make `year-card`, `framed-portrait`,
 `newspaper` and `stack` look like the reference reel (7.5, 8.6 and 9.6 s) with licence-checked assets

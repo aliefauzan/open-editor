@@ -275,7 +275,40 @@ cat > "$OUT/cuts-2shot.cuts.json" <<'EOF'
 { "fps": 30, "durationMs": 9000, "cutFrames": [90, 180], "cutsMs": [3000, 6000] }
 EOF
 
-# ---- podcast-2face.mp4: equal faces; face-b grows 1.4x for 0.5 s (3.0 s) and 1.5 s (7.0 s), 12 s ----
+# ---- style-extract-10s.mp4 (+ .truth.json): styles Part C measure fixture (plan phase 15) ----
+# 1080x1920, 30 fps, 10 s. Four flat-colour shots with hard cuts at 2000, 4500 and 7000 ms; shot 2
+# (blue) holds face-a. Three upper-case 3-word captions are burnt in from the checked-in cards
+# (assets/captions/card-*.png, drawn by cards.py; no `drawtext`, D-17), centred at 75 % height.
+"${FF[@]}" \
+  -f lavfi -i "color=c=0xD7261E:s=1080x1920:r=30:d=2" \
+  -f lavfi -i "color=c=0x1D4FA0:s=1080x1920:r=30:d=2.5" \
+  -f lavfi -i "color=c=0xF5C518:s=1080x1920:r=30:d=2.5" \
+  -f lavfi -i "color=c=0xEDE8DF:s=1080x1920:r=30:d=3" \
+  -loop 1 -framerate 30 -t 2.5 -i "$ASSETS/faces/face-a.jpg" \
+  -loop 1 -framerate 30 -t 10 -i "$ASSETS/captions/card-1.png" \
+  -loop 1 -framerate 30 -t 10 -i "$ASSETS/captions/card-2.png" \
+  -loop 1 -framerate 30 -t 10 -i "$ASSETS/captions/card-3.png" \
+  -filter_complex "[4:v]scale=-2:640[f];[1:v][f]overlay=x=(W-w)/2:y=300[s2];[0:v][s2][2:v][3:v]concat=n=4:v=1:a=0,format=yuva420p[base];[base][5:v]overlay=x=60:y=1365:enable='between(t,0,3)'[c1];[c1][6:v]overlay=x=60:y=1365:enable='between(t,3.5,6.5)'[c2];[c2][7:v]overlay=x=60:y=1365:enable='between(t,7,9.5)',format=yuv420p[v]" \
+  -map "[v]" -t 10 "${ENC_V[@]}" -g 300 "${META[@]}" "$OUT/style-extract-10s.mp4"
+cat > "$OUT/style-extract-10s.truth.json" <<'EOF'
+{
+  "fps": 30,
+  "durationMs": 10000,
+  "cutsMs": [2000, 4500, 7000],
+  "shotColors": ["#D7261E", "#1D4FA0", "#F5C518", "#EDE8DF"],
+  "faceShots": [1],
+  "captions": [
+    { "text": "EMPIRES RISE FAST", "startMs": 0, "endMs": 3000 },
+    { "text": "BORDERS MOVE TOO", "startMs": 3500, "endMs": 6500 },
+    { "text": "MAPS TELL STORIES", "startMs": 7000, "endMs": 9500 }
+  ],
+  "captionYPct": 75,
+  "captionCase": "upper",
+  "wordsPerCaption": 3
+}
+EOF
+
+# ---- podcast-2face.mp4:equal faces; face-b grows 1.4x for 0.5 s (3.0 s) and 1.5 s (7.0 s), 12 s ----
 "${FF[@]}" \
   -f lavfi -i "color=c=0x203040:s=1920x1080:r=30:d=12" \
   -loop 1 -framerate 30 -t 12 -i "$ASSETS/faces/face-a.jpg" \

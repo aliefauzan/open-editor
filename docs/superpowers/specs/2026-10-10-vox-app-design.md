@@ -133,7 +133,7 @@ typed calls.
 | Geo | `geo.search(q)` |
 | Agent | `agent.run({ projectId, message, workflow?, selection, mode?, confirmPlan? })`, `agent.runs(projectId)`, `agent.stop(runId)`, `agent.decide(runId, decision)` (for a `pauses` pause: `agent.decide(runId, { approve: true, wordKeys: string[] })`, all keys = whole list, empty = skip), `agent.undoRun(runId)` |
 | Settings | `settings.get()` (keys masked), `settings.save(patch)` (masked/absent key = unchanged; keys go to the Keychain), `settings.probe(roleOrModel)` |
-| Styles | `styles.list`, `styles.get(id)`, `styles.accept(id)`, `styles.remove(id)` |
+| Styles | `styles.list`, `styles.get(id)`, `styles.accept(id)`, `styles.remove(id)`, `styles.extract({ name, url? })` (Part C: a link, else main shows the file dialog; returns `{ jobId }` or null on cancel) |
 | Exports | `exports.chooseTarget({ projectId?, mode: 'file' \| 'folder', suggestedName?, format })` opens the native save dialog (file) or folder picker (folder, with "New Folder") in main and returns `{ targetId, displayPath }` or `null` on cancel; main keeps `targetId → path` for this session only and maps a job's `targetId` to the engine's `target` (plan D-13, D-45). `exports.lastFolder(projectId)` → `{ targetId, displayPath }` of the folder last used for this project (else `~/Movies`), shown and used as the default (plan D-45). `exports.reveal(path)` (accepts the project's `renders/` or a path the engine host recorded from this session's dialog) |
 | Setup | `setup.status()`, `setup.install(component)`, `setup.updateYtDlp()` |
 | Events | `on('project.changed' \| 'job.*' \| 'agent.*' \| 'preview.updated' \| 'setup.progress' \| 'host.restarted' \| 'menu.command', handler)`; `preview.updated` is `{ projectId, sequenceId, version, kind: 'patch', patches: [{ id, start, duration, html }] }` or `{ …, kind: 'reload', url }`; `menu.command` is `{ command }` from the native menu bar (plan D-42) |
@@ -467,7 +467,10 @@ component instead (same store and ops, no library).
   download size (about 33 GB, about 10 GB kept) and the licence (Apache-2.0); "Download" runs the
   `imagegen.install` job with progress, switching off asks, then runs `imagegen.remove`. State comes
   in `settings.get` (`imagegen.models`); no new `window.vox` method. FLUX.1-schnell is set up in a
-  terminal (`vox doctor` explains the terms and the token).
+  terminal (`vox doctor` explains the terms and the token). A failed or cancelled install keeps
+  its partial download so the next "Download" resumes it (D-69): the row says how much is kept,
+  the install confirmation says it resumes, and "Delete partial download" (asks first) runs
+  `imagegen.remove`, which also frees it when the model is switched off.
 
 ### Style gallery
 

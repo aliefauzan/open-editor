@@ -1288,7 +1288,15 @@ its terms on Hugging Face and supply a token, which `vox doctor` explains.
 has two actions. `install` downloads the pinned Hugging Face revision of the model into
 `<tools>/models/mflux/.download-<id>/`, quantizes it to 8 bits and saves it in
 `<tools>/models/mflux/<id>/` (the file `vox-model.json` is written last; its presence means
-"installed"); the engine then deletes the download folder. `generate` loads that folder with
+"installed"); the engine deletes the download folder once the install succeeded. A failed or
+cancelled install keeps the download folder (only the half-written `<id>.part` is deleted), so the
+next install resumes it (huggingface_hub continues its `.incomplete` files) instead of fetching
+33 GB again; the free-space check subtracts what it already holds, `imagegenStatus` reports its
+size as `partialBytes` (CLI `vox imagegen status`, the Settings row), and `imagegen.remove` deletes
+it with the model (result `{ removed, partialBytes? }`) (D-69). Both `imagegen.install` and mflux
+generation first check that the packaged Python env was synced from this build's `uv.lock` (the
+`vox doctor` `python-env-lock` check) and otherwise fail with `TOOL_MISSING` naming the fix (open
+Vox Studio, which re-syncs on launch, or Setup → Repair). `generate` loads that folder with
 `HF_HUB_OFFLINE=1`, so generation never uses the network. The request size is generated at the
 nearest multiple of 16 with at most 1.2 megapixels and resized to exactly `width × height`.
 Z-Image-Turbo (`Tongyi-MAI/Z-Image-Turbo`, 9 steps, about 33 GB to download, about 10 GB kept) is
@@ -1393,7 +1401,9 @@ the child process. The CLI is a thin wrapper over this API; every command suppor
   `hint`; `--json` prints the object. Exit code 1.
 - External tool failures (yt-dlp, ffmpeg, Python, HyperFrames) capture the last 40
   lines of stderr into `cause`, after passing it through the engine's redactor
-  (`engine.redactor`, see "Library API").
+  (`engine.redactor`, see "Library API"). A Python tool that exits without its D-21 error
+  line (e.g. it died on an import) also names its last stderr line in the message and
+  `details.stderr`; an import error gets a hint about re-syncing the Python env (D-69).
 - Network stages retry 3× with backoff. If an archive search returns nothing, the
   stage says so; it never silently substitutes generated images (the agent decides).
 - `ingest` accepts a local path when yt-dlp fails; the error hint says so.

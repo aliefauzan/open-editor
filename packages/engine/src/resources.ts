@@ -4,7 +4,6 @@
 // phase 09). Paths are read at use time, so setting them before the first use is enough.
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 export interface ResourceDirs {
   /** Folder with `places.json` (repo: `packages/engine/data`; packaged: `<resources>/engine-data`). */
@@ -29,7 +28,9 @@ export function resourceDirs(): Readonly<ResourceDirs> {
 }
 
 export function dataDir(): string {
-  return current.data ?? fileURLToPath(new URL('../data', import.meta.url));
+  // paths, not URLs: jsdom test environments rewrite import.meta.url (the renderer tests run the
+  // engine there)
+  return current.data ?? join(import.meta.dirname, '..', 'data');
 }
 
 export function runtimeDir(): string {
@@ -37,7 +38,7 @@ export function runtimeDir(): string {
 }
 
 export function pyProjectDir(): string {
-  return current.py ?? fileURLToPath(new URL('../../../py', import.meta.url));
+  return current.py ?? join(import.meta.dirname, '..', '..', '..', 'py');
 }
 
 /** `require` that resolves the pinned node packages (HyperFrames, GSAP). */

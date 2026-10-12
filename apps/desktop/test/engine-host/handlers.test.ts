@@ -205,3 +205,17 @@ describe('media.peaks (phase 10a)', () => {
     expect(await h['media.peaks']!(p.id, 'm_b')).toBeNull();
   });
 });
+
+describe('style extraction handlers (phase 15)', () => {
+  it('the renderer cannot start style.extract as a plain job; styles.extract exists only when the host offers it', async () => {
+    const { engine, h } = setup();
+    await expect(
+      h['jobs.start']!('style.extract', { source: '/etc/passwd', name: 'x' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(h['styles.extract']).toBeUndefined();
+    const withExtract = createHandlers(engine, undefined, { styleExtract: { render: false } });
+    await expect(withExtract['styles.extract']!({ name: 'x' })).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+  });
+});

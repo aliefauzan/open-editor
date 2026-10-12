@@ -462,6 +462,7 @@ export class AgentRun {
     return buildSystemPrompt({
       mode: this.#req.mode,
       styleGuide: this.#req.styleGuide,
+      styleGuideTrusted: this.#req.styleGuideTrusted,
       workflowPrompt: this.#req.workflowPrompt,
       projectSummary: this.#req.projectSummary,
       notes: conv?.notes,

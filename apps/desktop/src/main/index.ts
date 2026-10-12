@@ -178,6 +178,43 @@ async function chooseTarget(
   return exportTargets.register(mode, path);
 }
 
+/**
+ * `styles.extract`: a link goes to the engine host as is; without one, main asks for the reference
+ * video in the native dialog (test builds: the next queued dialog answer). The renderer never passes
+ * a file path (except in test builds). Null on cancel.
+ */
+async function styleExtract(args: unknown[]): Promise<unknown> {
+  const a = args[0] as MethodArgs<'styles.extract'>[0];
+  if (a.path !== undefined && !TEST) {
+    throw appError(
+      'ARGS_INVALID',
+      'styles.extract takes no path; the file is chosen in the dialog',
+    );
+  }
+  if (a.url !== undefined || a.path !== undefined) return host.call('styles.extract', [a]);
+  let path: string | undefined;
+  if (TEST && dialogAnswers.length > 0) {
+    const ans = dialogAnswers.shift();
+    path =
+      typeof ans === 'string'
+        ? ans
+        : Array.isArray(ans)
+          ? ans.find((x) => typeof x === 'string')
+          : undefined;
+  } else {
+    const win = BrowserWindow.getFocusedWindow();
+    const opts: Electron.OpenDialogOptions = {
+      title: 'Reference video',
+      properties: ['openFile'],
+      filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'm4v', 'webm', 'mkv'] }],
+    };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    path = r.canceled ? undefined : r.filePaths[0];
+  }
+  if (!path) return null;
+  return host.call('styles.extract', [{ name: a.name, path }]);
+}
+
 /** Finder drops: the preload turns real dropped `File`s into paths (`webUtils.getPathForFile`). */
 async function importDropped(projectId: unknown, paths: unknown): Promise<unknown> {
   const ok =
@@ -202,6 +239,7 @@ async function forward(method: Method, args: unknown[]): Promise<unknown> {
     return null;
   }
   if (method === 'media.importFiles') return importFiles(args);
+  if (method === 'styles.extract') return styleExtract(args);
   if (method === 'exports.chooseTarget') {
     const a = args[0] as MethodArgs<'exports.chooseTarget'>[0] & { projectId?: string };
     return chooseTarget(a, a.projectId);

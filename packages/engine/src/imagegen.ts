@@ -1,9 +1,12 @@
-// Local image generation with mflux (engine spec "Image generation provider", plan phase 14d, D-XX).
+// Local image generation with mflux (engine spec "Image generation provider", plan phase 14d, D-68).
 // Z-Image-Turbo (Apache-2.0, not gated) is the default; FLUX.1-schnell is optional and gated on
 // Hugging Face (the user accepts its terms and sets HF_TOKEN; this code never asks for a token).
 // The Python tool `vox_py.imagegen` does the work. `install` downloads the pinned snapshot into a
 // cache folder inside the models folder, quantizes it to 8 bits into `<models>/mflux/<id>/` and
-// this module deletes the cache; `generate` loads that folder and never touches the network.
+// this module deletes the cache once the install succeeded. A failed or cancelled install keeps the
+// cache, so the next try resumes the download (D-69); `imagegen.remove` deletes it, and the status
+// reports its size. `generate` loads the model folder and never touches the network. Both check
+// first that the packaged Python env comes from this build's uv.lock (D-69).
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, statSync, statfsSync } from 'node:fs';
 import { mkdir, readdir, rm, stat } from 'node:fs/promises';
@@ -13,7 +16,7 @@ import { z } from 'zod';
 import type { ImageProvider } from './assets-api.ts';
 import { VoxError } from './errors.ts';
 import type { JobRunner } from './jobs.ts';
-import { repoPyProject, runPyTool } from './py.ts';
+import { assertPyEnvCurrent, repoPyProject, runPyTool } from './py.ts';
 import type { Redactor } from './redact.ts';
 
 export const IMAGE_MODEL_IDS = ['z-image-turbo', 'flux1-schnell'] as const;
@@ -71,6 +74,11 @@ export function modelDir(models: string, id: ImageModelId): string {
   return join(models, 'mflux', id);
 }
 
+/** The Hugging Face download cache of an install; kept after a failure so the next try resumes. */
+export function downloadDir(models: string, id: ImageModelId): string {
+  return join(models, 'mflux', `.download-${id}`);
+}
+
 export function isInstalled(models: string | undefined, id: ImageModelId): boolean {
   if (!models) return false;
   try {
@@ -96,6 +104,11 @@ export interface ImageModelStatus extends ImageModelInfo {
   installed: boolean;
   /** Bytes on disk of the installed model (0 when not installed). */
   sizeOnDisk: number;
+  /**
+   * Bytes of a partial download kept from a failed or cancelled install (0 when none). The next
+   * install resumes it; `imagegen.remove` deletes it (D-69).
+   */
+  partialBytes: number;
   /** Only for gated models: whether a token is set. */
   tokenSet?: boolean;
 }
@@ -128,6 +141,7 @@ export async function imagegenStatus(
       ...info,
       installed,
       sizeOnDisk: installed && models ? await dirBytes(modelDir(models, id)) : 0,
+      partialBytes: models ? await dirBytes(downloadDir(models, id)) : 0,
       ...(info.gated ? { tokenSet: hfTokenPresent(env) } : {}),
     });
   }
@@ -189,6 +203,7 @@ export function createMfluxProviders(deps: MfluxDeps): ImageProvider[] {
       disposable: true,
       available: () => isInstalled(models, id),
       async generate(req, opts) {
+        await assertPyEnvCurrent(deps.tools);
         if (!models || !isInstalled(models, id)) {
           throw new VoxError(
             'PROVIDER_MISSING',
@@ -237,6 +252,13 @@ export interface ImagegenInstallResult {
   bytes: number;
 }
 
+export interface ImagegenRemoveResult {
+  /** True when an installed model was deleted. */
+  removed: boolean;
+  /** Bytes of a kept partial download that was deleted too (absent when there was none). */
+  partialBytes?: number;
+}
+
 export interface ImagegenJobDeps extends MfluxDeps {
   /** Test seam: free bytes on the volume of the models folder. */
   freeBytes?: (dir: string) => number;
@@ -267,6 +289,8 @@ export function registerImagegenJobs(runner: JobRunner, deps: ImagegenJobDeps): 
       async run(args, ctx) {
         const root = needModels();
         const info = IMAGE_MODELS[args.model];
+        // A py-env from another uv.lock lacks mflux: say so before anything is downloaded.
+        await assertPyEnvCurrent(deps.tools);
         if (info.gated && !hfTokenPresent(deps.env)) {
           throw new VoxError(
             'PROVIDER_MISSING',
@@ -274,21 +298,27 @@ export function registerImagegenJobs(runner: JobRunner, deps: ImagegenJobDeps): 
             `Accept the terms at ${info.licenseUrl}, create a read token, and run again with HF_TOKEN set. Vox never stores it.`,
           );
         }
-        // Downloading needs the snapshot plus room to write the quantized copy.
-        const need = info.downloadBytes + info.installedBytes;
+        // Downloading needs the snapshot plus room to write the quantized copy; what a kept
+        // partial download already holds is not needed again.
+        const cacheDir = downloadDir(root, args.model);
+        const partial = await dirBytes(cacheDir);
+        const need = Math.max(0, info.downloadBytes + info.installedBytes - partial);
         const free = (deps.freeBytes ?? defaultFreeBytes)(root);
         if (free < need) {
           throw new VoxError(
             'TOOL_FAILED',
             `Not enough free disk space for ${info.label}: needs about ${Math.ceil(need / 1e9)} GB while installing, ${Math.floor(free / 1e9)} GB free.`,
             'Free some space and try again.',
-            { details: { needBytes: need, freeBytes: free } },
+            { details: { needBytes: need, freeBytes: free, partialBytes: partial } },
           );
         }
-        const base = join(root, 'mflux');
-        const cacheDir = join(base, `.download-${args.model}`);
-        await mkdir(base, { recursive: true });
-        ctx.progress(0.01, `installing ${info.label}`);
+        await mkdir(join(root, 'mflux'), { recursive: true });
+        ctx.progress(
+          0.01,
+          partial > 0
+            ? `installing ${info.label} (resuming ${(partial / 1e9).toFixed(1)} GB downloaded before)`
+            : `installing ${info.label}`,
+        );
         try {
           const r = await runPyTool(
             'imagegen',
@@ -305,10 +335,12 @@ export function registerImagegenJobs(runner: JobRunner, deps: ImagegenJobDeps): 
               onProgress: (p, m) => ctx.progress(p, m),
             },
           );
-          return { model: args.model, providerId: info.providerId, bytes: r.bytes };
-        } finally {
           // the 33 GB snapshot is only needed to build the quantized copy
           await rm(cacheDir, { recursive: true, force: true }).catch(() => undefined);
+          return { model: args.model, providerId: info.providerId, bytes: r.bytes };
+        } finally {
+          // A half-written quantized copy is never reused. The download cache stays after a failure
+          // or cancel, so the next install resumes it (D-69); `imagegen.remove` frees it.
           await rm(`${modelDir(root, args.model)}.part`, { recursive: true, force: true }).catch(
             () => undefined,
           );
@@ -317,7 +349,7 @@ export function registerImagegenJobs(runner: JobRunner, deps: ImagegenJobDeps): 
     },
   );
 
-  runner.register<z.infer<typeof ImagegenRemoveArgsSchema>, { removed: boolean }>(
+  runner.register<z.infer<typeof ImagegenRemoveArgsSchema>, ImagegenRemoveResult>(
     'imagegen.remove',
     {
       args: ImagegenRemoveArgsSchema,
@@ -326,7 +358,12 @@ export function registerImagegenJobs(runner: JobRunner, deps: ImagegenJobDeps): 
         const dir = modelDir(root, args.model);
         const had = existsSync(dir);
         await rm(dir, { recursive: true, force: true });
-        return { removed: had };
+        await rm(`${dir}.part`, { recursive: true, force: true });
+        // a kept partial download (D-69) is deleted too, so its space is never left behind
+        const cacheDir = downloadDir(root, args.model);
+        const partialBytes = await dirBytes(cacheDir);
+        await rm(cacheDir, { recursive: true, force: true });
+        return { removed: had, ...(partialBytes > 0 ? { partialBytes } : {}) };
       },
     },
   );

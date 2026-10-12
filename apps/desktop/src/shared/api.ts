@@ -181,6 +181,19 @@ export const METHOD_ARGS = {
   'styles.get': t(z.string().min(1).max(100)),
   'styles.accept': t(z.string().min(1).max(100)),
   'styles.remove': t(z.string().min(1).max(100)),
+  // a draft style from a reference video (phase 15): a link, or a file main picks in the native
+  // dialog (`path` comes only from main; test builds may pass it)
+  'styles.extract': t(
+    z.strictObject({
+      name: z.string().trim().min(1).max(100),
+      url: z
+        .string()
+        .max(4096)
+        .regex(/^https?:\/\//i, 'a http(s) link')
+        .optional(),
+      path: z.string().min(1).max(4096).optional(),
+    }),
+  ),
   'exports.chooseTarget': t(ChooseTarget),
   'exports.lastFolder': t(ProjectId),
   'exports.reveal': t(z.string().min(1).max(4096)),
@@ -433,7 +446,9 @@ export interface SettingsData {
 /**
  * Local image models (engine `imagegenStatus`). The toggle in Settings shows the download size and
  * the licence before the first use, then runs the `imagegen.install` job (`jobs.start`); turning it
- * off runs `imagegen.remove`.
+ * off runs `imagegen.remove`. A failed or cancelled install keeps its partial download
+ * (`partialBytes`), which the next install resumes; the row shows it and `imagegen.remove` deletes it
+ * (D-69).
  */
 export interface ImageGenModelData {
   id: string;
@@ -447,6 +462,8 @@ export interface ImageGenModelData {
   /** About what stays on disk once installed. */
   installedBytes: number;
   sizeOnDisk: number;
+  /** Bytes of a partial download kept for the next install (0 when none, D-69). */
+  partialBytes: number;
 }
 export interface ImageGenData {
   models: ImageGenModelData[];
