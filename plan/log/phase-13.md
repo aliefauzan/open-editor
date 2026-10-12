@@ -192,6 +192,15 @@ not be captured or driven; each stand-in is named below. The GUI items stay open
       tools, loop and vision ok, plan failed, context 32,768.
 - [ ] GUI agent panel: "Make clips from URL", 3 tabs, play, trim, export. Not done: the screen locked
       again at about 13:30 before the run started.
+- [~] Agent stand-in (screen locked), same fresh home, installed 1.0.0 CLI: `vox agent <p> --workflow clipper
+      --count 3 --length 30-60 --yes-sources --yes` with editor `ollama:qwen3.5:latest` (plan mode), no fast
+      model (heuristic scorer). Exit 0 in 18:04 (13:50:46 to 14:08:50, cost $0), 3 clip sequences, each
+      tightened (9, 14, 11 pauses). Clip 1: 4 scenes (3 placeholder), Audio QA fail (sfxUnderSpeech),
+      -14.13 LUFS. Clip 2: 9 scenes (7 placeholder), Audio QA fail (sfxUnderSpeech), -14.09 LUFS. Clip 3:
+      4 scenes (4 placeholder), Audio QA pass, -13.84 LUFS. Clip 3 rendered (standard) in 90 s: 1080x1920,
+      30 fps, 22.8 s, -13.8 LUFS, captions styled, paper-tear edges; the scene pictures are placeholders,
+      as the handoff note expects for plan mode with a small local model. Evidence:
+      `docs/evidence/phase-13/10-agent-clip3-sheet.jpg`. Trim in the GUI is not covered.
 
 ## Handoff notes
 - Phase 14 (Claude Code skill): `workflows/*.md` are staged into `Resources/agent/workflows`; call
