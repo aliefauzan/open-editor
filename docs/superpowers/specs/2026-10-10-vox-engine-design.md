@@ -1046,13 +1046,14 @@ and a rerun with unchanged inputs is a no-op. Stages run as jobs (below).
 |---|---|
 | `vox doctor` | checks ffmpeg, ffprobe, yt-dlp (+ `yt-dlp-ejs` and deno or node, offers `yt-dlp -U`; reports whether `--impersonate` targets exist, which some TikTok pages need), uv env, Chromium for HyperFrames, pinned HyperFrames version, model downloads and their licences; prints fixes |
 | `vox paths [--json]` | prints the resolved projects folder, styles folders and tool paths (see "Project folder") |
-| `vox quick <url\|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]` | quick clips (below): new project, then the chain ingest → shots → transcribe → facetrack → highlights (optional, macOS 27) → quickClips, `count` captioned 9:16 clips with no style beats and no AI key needed; `--render` also writes MP4 (subtitles burned in) + SRT per clip, into `--out-dir` when given (see "Export targets"), else the project's `renders/` |
+| `vox quick <url\|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]` | quick clips (below): new project, then the chain ingest → shots → transcribe → facetrack → highlights (optional, macOS 27) and sound tags (optional, D-83) → quickClips, `count` captioned 9:16 clips with no style beats and no AI key needed; `--render` also writes MP4 (subtitles burned in) + SRT per clip, into `--out-dir` when given (see "Export targets"), else the project's `renders/` |
 | `vox new <name>` | creates a project with one empty 9:16 sequence; `styleId` is `vox` if installed, else `base` |
 | `vox ingest <project> <url\|path>... [--playlist]` | download (YouTube, Instagram, TikTok or any yt-dlp URL; see "Ingest sources") or copy a local file; content-sniffed type; ffprobe metadata; source fps, VFR check and CFR copy, loudness (see "Ingest analysis"); proxy, extracted audio, thumbs, peaks; `addMedia`. Text files (`.txt`, `.md`, `.fountain`, `.pdf`) become `document` media with plain text at `media/<id>.txt` (`.pdf` text via `pypdf`, BSD, in `py/`). `--no-proxies` (API `{ proxies: false }`) skips proxy, thumbs and peaks; styles Part C uses it for reference videos |
 | `vox transcribe <project> [mediaId...]` | Silero VAD speech gate, then mlx-whisper (pinned repo) with a filler `initial_prompt`, auto language, word timestamps; drops non-speech; computes word kinds (see "Speech gate") |
 | `vox shots <project> <mediaId>` | shot detection with ffmpeg `scdet` on the proxy (else the original, scaled) → `shots/<mediaId>.json` (see "Shots and framing") |
 | `vox facetrack <project> <mediaId>` | MediaPipe Tasks `FaceDetector` (full-range model, downloaded `.tflite`) plus Apple Vision body and saliency, at 12 fps on the proxy scaled to 360p; per-shot subject choice with hysteresis (`faceIndex` overrides) → `{ atMs, x, y, scale }` crop keyframes (see "Shots and framing") |
 | `vox highlights <project> <mediaId>` | macOS 27 only (D-75): `vox-apple-llm --highlights` (MediaIntelligence highlight ranges, highlight levels in 0.5 s steps, a key frame) on the H.264 proxy → `cache/highlights/<mediaId>.json` (derived data: no project change, no history entry); elsewhere, without the helper or without a proxy the job finishes with `available: false` and the reason |
+| `vox sounds <project> <mediaId>` | D-83: `vox-apple-llm --sounds` (SoundAnalysis' built-in sound classifier, macOS 12+) on the extracted audio, asking only the reaction classes (laughter, giggling, snicker, belly_laugh, chuckle_chortle, applause, clapping, cheering) in 1.5 s windows at confidence ≥ 0.3 → `cache/sounds/<mediaId>.json` (derived data: no project change, no history entry); without the helper, with a helper older than D-83 or without extracted audio the job finishes with `available: false` and the reason |
 | `vox assets search <project> "<query>" [--source commons,openverse]` | candidates with licence + author, stored in `cache/assets/<queryHash>.json`; the job result returns them |
 | `vox assets fetch <project> <candidateId>` | download, record licence, `addMedia` (origin `archive`) |
 | `vox assets cutout <project> <mediaId>` | Apple Vision subject lift (macOS 14+); rembg (pinned permissive model, fetched on demand) only when Vision finds no subject (D-72) → transparent PNG as a new media item; refused for no-derivatives licences |
@@ -1147,7 +1148,7 @@ to the tracked path over 300 ms. Compile emits the result as a CSS `transform` (
 The simple path (plan D-11): URL in, captioned clips out, no style work and no AI key.
 `quickClips(projectId, mediaId, { count = 3, minMs = 30000, maxMs = 60000, scorer?, prompt? })`
 runs as job kind `quickClips` at the end of the chain `ingest → shots → transcribe →
-facetrack → (highlights, optional, macOS 27) → quickClips`:
+facetrack → (highlights, optional, macOS 27; sound tags, optional, D-83) → quickClips`:
 
 1. Split the transcript into sentence units at words ending a sentence (`.`, `?`, `!`
    and their equivalents) or at pauses ≥ 700 ms.
@@ -1164,7 +1165,11 @@ facetrack → (highlights, optional, macOS 27) → quickClips`:
    face on screen, from facetrack). When the media has video highlights (macOS 27, D-75)
    a fifth signal adds with the same weight (`HIGHLIGHT_WEIGHT` 1): the candidate's
    time-weighted mean highlight level, scaled 0..1 over the candidates; without them it
-   is 0 and the scores are unchanged. Ties go to the earlier start. A
+   is 0 and the scores are unchanged. When the media has reaction sound tags (D-83) a
+   sixth signal adds the same way (`REACTION_WEIGHT` 1): the confidence-weighted time of
+   laughter, applause or cheering inside the candidate ÷ 3 s, at most 1 (absolute, not
+   scaled over the candidates: reactions are rare); without tags it is 0. Ties go to the
+   earlier start. A
    registered scorer (`engine.quickClips.registerScorer(id, fn)`; the agent registers an
    LLM scorer when a `fast` model exists, spec 3) gets the text and times of a shortlist
    (D-75): the best max(30, 2 × `count`) candidates by the heuristic, in candidate order,
@@ -1186,7 +1191,7 @@ facetrack → (highlights, optional, macOS 27) → quickClips`:
 
 The result lists the sequence ids, the chosen ranges with their text, the scorer
 used, `candidates` (found), `scorerCandidates` (sent to a registered scorer; absent when
-none was asked) and `highlights: true` (only when video highlights were part of the heuristic). Selection is deterministic for the same transcript, options and scorer output.
+none was asked), `highlights: true` (only when video highlights were part of the heuristic) and `sounds: true` (only when reaction sound tags were). Selection is deterministic for the same transcript, options and scorer output.
 The `batch` carries the job's `jobId`, so "Undo quick clips" is one history entry. When
 Stylize or the clipper later add transitions at clip edges, they default to cover-style
 ones (see "Transitions").

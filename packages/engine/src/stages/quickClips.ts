@@ -9,6 +9,7 @@ import { VoxError } from '../errors.ts';
 import type { Detections } from './facetrack.ts';
 import type { Highlights } from './highlights.ts';
 import type { Shot } from './shots.ts';
+import { REACTION_CLASSES, type Sounds } from './sounds.ts';
 
 /** A gap of at least this long between two spoken words ends a sentence unit. */
 export const SENTENCE_PAUSE_MS = 700;
@@ -29,6 +30,19 @@ const ENERGY_FLOOR_DB = -60;
  * so the pick is exactly the one without it.
  */
 export const HIGHLIGHT_WEIGHT = 1;
+/**
+ * Weight of the audience-reaction signal (D-83; SoundAnalysis laughter, applause and cheering,
+ * REACTION_CLASSES): the same as each other signal, added to the sum like HIGHLIGHT_WEIGHT. The
+ * signal is absolute, not min-max scaled: reactions are rare, and scaling would give one faint
+ * laugh in a talk a full point. Without sound tags, or with no reaction inside any candidate, it is
+ * 0 for every candidate and the pick is exactly the one without it.
+ */
+export const REACTION_WEIGHT = 1;
+/**
+ * Confidence-weighted reaction time that gives the full signal: 3 s, e.g. two 1.5 s windows of
+ * sure applause. One faint laugh window (1.5 s at 0.35) gives 0.175.
+ */
+export const REACTION_FULL_MS = 3000;
 /**
  * A registered scorer (the agent's `fast` model) gets at most max(this, 2 × count) candidates: the
  * best by heuristic score (highlights included). 30 is the agent's SCORE_BATCH, so one request
@@ -164,6 +178,11 @@ export interface QuickSignals {
    * the candidate set; 0 without highlights.
    */
   highlight: number;
+  /**
+   * Audience reaction (D-83): confidence-weighted laughter/applause/cheering time inside the
+   * candidate ÷ REACTION_FULL_MS, at most 1; 0 without sound tags.
+   */
+  reaction: number;
 }
 
 export interface Peaks {
@@ -234,6 +253,27 @@ export function highlightLevel(h: Highlights, s: number, e: number): number {
   return level + Math.min(1, inside / len);
 }
 
+const REACTION = new Set<string>(REACTION_CLASSES);
+
+/**
+ * Reaction signal of [s, e), 0..1: for each tagged window, the part of it inside the range times
+ * its best reaction-class confidence, summed, ÷ REACTION_FULL_MS.
+ */
+export function reactionLevel(snd: Sounds, s: number, e: number): number {
+  if (e <= s) return 0;
+  let sum = 0;
+  for (const w of snd.windows) {
+    const o = Math.max(0, Math.min(e, w.endMs) - Math.max(s, w.startMs));
+    if (o === 0) continue;
+    const best = Math.max(
+      0,
+      ...w.labels.filter((l) => REACTION.has(l.id)).map((l) => l.confidence),
+    );
+    sum += o * best;
+  }
+  return Math.min(1, sum / REACTION_FULL_MS);
+}
+
 /** `xs` scaled to 0..1 by the set's min and max; all 0 when they are equal. */
 function minMax(xs: readonly number[]): number[] {
   const lo = Math.min(...xs);
@@ -246,7 +286,7 @@ export const hasHook = (sentence: string): boolean =>
 
 /**
  * Step 3, the built-in scorer: speech + energy + hook + coverage (equal weights, D-15) + highlight
- * × HIGHLIGHT_WEIGHT (D-75).
+ * × HIGHLIGHT_WEIGHT (D-75) + reaction × REACTION_WEIGHT (D-83).
  */
 export function heuristicScores(
   cands: readonly Candidate[],
@@ -255,6 +295,7 @@ export function heuristicScores(
     peaks?: Peaks | undefined;
     detections?: Detections | undefined;
     highlights?: Highlights | undefined;
+    sounds?: Sounds | undefined;
   } = {},
 ): { scores: number[]; signals: QuickSignals[] } {
   const variances = cands.map((c) =>
@@ -274,11 +315,18 @@ export function heuristicScores(
       hook: hasHook(c.firstSentence) ? 1 : 0,
       coverage: extra.detections ? faceCoverage(extra.detections, c.startMs, c.endMs) : 0,
       highlight: levels[i]!,
+      reaction: extra.sounds ? reactionLevel(extra.sounds, c.startMs, c.endMs) : 0,
     };
   });
   return {
     scores: signals.map(
-      (g) => g.speech + g.energy + g.hook + g.coverage + HIGHLIGHT_WEIGHT * g.highlight,
+      (g) =>
+        g.speech +
+        g.energy +
+        g.hook +
+        g.coverage +
+        HIGHLIGHT_WEIGHT * g.highlight +
+        REACTION_WEIGHT * g.reaction,
     ),
     signals,
   };

@@ -196,6 +196,25 @@ describe('apple protocol: --status', () => {
     );
   });
 
+  test('parses every capability of a D-83 helper; `sounds` is optional (older helpers send none)', () => {
+    const line =
+      '{"status":"ready","contextSize":8192,"vision":true,"highlights":true,"embed":true,"sounds":true}';
+    expect(parseAppleStatusLine(line)).toEqual({
+      ok: true,
+      value: {
+        status: 'ready',
+        contextSize: 8192,
+        vision: true,
+        highlights: true,
+        embed: true,
+        sounds: true,
+      },
+    });
+    expect(parseAppleStatusLine('{"status":"ready","contextSize":8192,"sounds":"yes"}').ok).toBe(
+      false,
+    );
+  });
+
   test('tolerates surrounding whitespace and a trailing newline', () => {
     expect(parseAppleStatusLine(' {"status":"ready","contextSize":4096}\n').ok).toBe(true);
   });

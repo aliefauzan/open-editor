@@ -106,7 +106,7 @@ export async function runHighlights(
   return { available: true, highlights: ok.data };
 }
 
-interface ExecOut {
+export interface ExecOut {
   code: number;
   stdout: string;
   stderr: string;
@@ -125,10 +125,14 @@ function helperEnv(): Record<string, string> {
   return env;
 }
 
-function runHelper(
+/**
+ * Runs the helper once with `args` (no shell); `input`, when given, is written to its stdin (the
+ * `--sounds` request, D-83). Also used by stages/sounds.ts.
+ */
+export function runHelper(
   helper: NativeHelper,
   args: readonly string[],
-  o: { signal?: AbortSignal; timeoutMs: number },
+  o: { signal?: AbortSignal; timeoutMs: number; input?: string },
 ): Promise<ExecOut> {
   return new Promise((resolve) => {
     if (o.signal?.aborted) {
@@ -141,9 +145,13 @@ function runHelper(
     let cancelled = false;
     // argument array, no shell
     const child = spawn(helper.command, [...(helper.args ?? []), ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...helperEnv(), ...helper.env },
     });
+    // stdin is the request, or empty; a helper that exits before reading it (an old one, a
+    // crash) is reported by `close`, so a write error here is ignored
+    child.stdin.on('error', () => {});
+    child.stdin.end(o.input ?? '');
     const kill = () => child.kill('SIGKILL');
     const timer = setTimeout(() => {
       timedOut = true;

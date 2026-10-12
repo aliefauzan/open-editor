@@ -351,6 +351,7 @@ export {
   FacetrackJobArgsSchema,
   HighlightsJobArgsSchema,
   IngestJobArgsSchema,
+  SoundsJobArgsSchema,
   ShotsJobArgsSchema,
   TranscribeJobArgsSchema,
   ensureFaceModel,
@@ -360,6 +361,7 @@ export {
   type IngestJobResult,
   type MediaJobArgs,
   type ShotsJobResult,
+  type SoundsJobResult,
   type TranscribeJobArgs,
   type TranscribeJobResult,
 } from './media-api.ts';
@@ -426,6 +428,7 @@ export {
   type Highlights,
   type NativeHelper,
 } from './stages/highlights.ts';
+export { REACTION_CLASSES, SoundsSchema, soundsTimeoutMs, type Sounds } from './stages/sounds.ts';
 
 /** External tool paths (ffmpeg, ffprobe, yt-dlp, deno, uv, py env, Chrome); filled in by phase 04. */
 export type ToolPaths = Readonly<Record<string, string | undefined>>;
@@ -476,8 +479,8 @@ export interface EngineOptions {
   /** Test seam: runs the HyperFrames CLI (render, snapshot). */
   hyperframes?: HyperframesRun;
   /**
-   * The native helper `vox-apple-llm` (D-16), for the `highlights` job (D-75). Absent (e.g. a
-   * `pnpm dist:no-apple` build): the job finishes with `available: false`.
+   * The native helper `vox-apple-llm` (D-16), for the `highlights` (D-75) and `sounds` (D-83)
+   * jobs. Absent (e.g. a `pnpm dist:no-apple` build): they finish with `available: false`.
    */
   appleHelper?: NativeHelper;
 }

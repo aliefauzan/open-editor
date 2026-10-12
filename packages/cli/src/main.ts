@@ -25,6 +25,7 @@ import {
   type Engine,
   type EngineOptions,
   type HighlightsJobResult,
+  type SoundsJobResult,
   type HistoryEntry,
   type JobInfo,
   writeConfig,
@@ -120,12 +121,13 @@ const USAGE = `usage:
   vox shots <project> <mediaId>           shot cuts (scdet)
   vox facetrack <project> <mediaId>       face, body and saliency detections
   vox highlights <project> <mediaId>      video highlights and key frame (macOS 27; else not available)
+  vox sounds <project> <mediaId>          laughter/applause/cheering sound tags (Apple helper; else not available)
   vox media-frames <project> <mediaId> --at-ms <ms>[,<ms>...]   PNG stills (paths)
   vox doctor [<project>] [--unlock] [--quick]   check tools, models, config (and a project)
   vox self-test                           check the files this build ships with (styles, data, runtime)
   vox quick <url|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]
                                           new project → ingest, shots, transcribe, facetrack,
-                                          highlights (macOS 27, optional) → clips
+                                          highlights (macOS 27) and sound tags (optional) → clips
   vox assets search <project> "<query>" [--source commons,openverse] [--limit n]
   vox assets fetch <project> <candidateId>
   vox assets cutout <project> <mediaId>
@@ -195,6 +197,7 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
   shots: COMMON,
   facetrack: COMMON,
   highlights: COMMON,
+  sounds: COMMON,
   'media-frames': { ...COMMON, 'at-ms': { type: 'string' } },
   doctor: { ...COMMON, unlock: { type: 'boolean' }, quick: { type: 'boolean' } },
   'self-test': COMMON,
@@ -398,7 +401,10 @@ function toolPathsFor(io: Io): Record<string, string | undefined> {
   return { ...tools, uv: join(io.resources, 'bin', 'uv'), node: process.execPath };
 }
 
-/** The Apple helper as the engine's `appleHelper` (video highlights, D-75), when there is one. */
+/**
+ * The Apple helper as the engine's `appleHelper` (video highlights, D-75; sound tags, D-83), when
+ * there is one.
+ */
 function appleHelperFor(io: Io): Pick<EngineOptions, 'appleHelper'> | undefined {
   const a = io.agent && 'apple' in io.agent ? io.agent.apple : appleHelper(io);
   if (!a) return undefined;
@@ -427,7 +433,7 @@ async function engineFor(values: Parsed['values'], io: Io): Promise<Engine> {
     tools: toolPathsFor(io),
     trustFile: join(voxHomeOf(io), 'trust.json'),
     config,
-    // video highlights (D-75) run the Apple helper when there is one
+    // video highlights (D-75) and sound tags (D-83) run the Apple helper when there is one
     ...(appleHelperFor(io) ?? {}),
     ...io.engine,
   });
@@ -720,6 +726,25 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         r,
         r.available
           ? `${r.highlightsPath}${r.cached ? ' (cached)' : ''}\t${r.highlights} highlight(s), key frame ${r.keyFrameMs === null ? 'none' : `${r.keyFrameMs} ms`}\n`
+          : `not available: ${r.reason}\n`,
+      );
+      return 0;
+    }
+    case 'sounds': {
+      need(positionals, 2, '<project> <mediaId>');
+      const e = await engineFor(values, io);
+      const id = await resolveProject(e, positionals[0]!);
+      const r = await runJob<SoundsJobResult>(
+        e,
+        'sounds',
+        { projectId: id, mediaId: positionals[1]!, actor: 'cli' },
+        io,
+        json,
+      );
+      out(
+        r,
+        r.available
+          ? `${r.soundsPath}${r.cached ? ' (cached)' : ''}\t${r.windows} window(s) with a reaction\n`
           : `not available: ${r.reason}\n`,
       );
       return 0;
@@ -1100,14 +1125,20 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
           `${raw} is not a video`,
           'Pass a video file or link',
         );
-      // video highlights (macOS 27, D-75) run beside the other stages (no job slot, no project
-      // change) and only add a signal: any failure leaves the pick as before
+      // video highlights (macOS 27, D-75) and sound tags (D-83) run beside the other stages (no
+      // job slot, no project change) and only add a signal: any failure leaves the pick as before
       const hlJob = e.jobs.start('highlights', {
         projectId: p.id,
         mediaId: media.mediaId,
         actor: 'cli',
       });
       const hlWait = e.jobs.wait(hlJob);
+      const sndJob = e.jobs.start('sounds', {
+        projectId: p.id,
+        mediaId: media.mediaId,
+        actor: 'cli',
+      });
+      const sndWait = e.jobs.wait(sndJob);
       try {
         for (const kind of ['shots', 'transcribe', 'facetrack'])
           await runJob(
@@ -1119,14 +1150,19 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
           );
       } catch (err) {
         e.jobs.cancel(hlJob);
-        await hlWait;
+        e.jobs.cancel(sndJob);
+        await Promise.all([hlWait, sndWait]);
         throw err;
       }
-      const hlInfo = await hlWait;
+      const [hlInfo, sndInfo] = await Promise.all([hlWait, sndWait]);
       const hl: HighlightsJobResult | { available: false; reason: string } =
         hlInfo.status === 'done'
           ? (hlInfo.result as HighlightsJobResult)
           : { available: false, reason: hlInfo.error?.message ?? hlInfo.status };
+      const snd: SoundsJobResult | { available: false; reason: string } =
+        sndInfo.status === 'done'
+          ? (sndInfo.result as SoundsJobResult)
+          : { available: false, reason: sndInfo.error?.message ?? sndInfo.status };
       const q = await runJob<{
         clips: { sequenceId: string; name: string; startMs: number; endMs: number; text: string }[];
         scorer: string;
@@ -1164,7 +1200,8 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const lines = [
         `project ${p.id} (${name}); scorer ${q.scorer}; candidates ${q.candidates}` +
           `${q.scorerCandidates !== undefined ? ` (${q.scorerCandidates} sent to the scorer)` : ''}; ` +
-          `highlights ${hl.available ? 'used' : `not used (${hl.reason})`}\n`,
+          `highlights ${hl.available ? 'used' : `not used (${hl.reason})`}; ` +
+          `sound tags ${snd.available ? `used (${snd.windows} reaction window(s))` : `not used (${snd.reason})`}\n`,
         ...q.clips.map(
           (c) => `${c.name}\t${c.sequenceId}\t${c.startMs}-${c.endMs} ms\t${c.text}\n`,
         ),
@@ -1174,7 +1211,13 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       const highlightsJob = hl.available
         ? { available: true }
         : { available: false, reason: hl.reason };
-      out({ projectId: p.id, mediaId: media.mediaId, ...q, files, highlightsJob }, lines.join(''));
+      const soundsJob = snd.available
+        ? { available: true, windows: snd.windows }
+        : { available: false, reason: snd.reason };
+      out(
+        { projectId: p.id, mediaId: media.mediaId, ...q, files, highlightsJob, soundsJob },
+        lines.join(''),
+      );
       return 0;
     }
     case 'agent': {
