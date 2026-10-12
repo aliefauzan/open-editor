@@ -346,7 +346,7 @@ export const CaptionPresetSchema = z.strictObject({
   /**
    * Captions run behind the foreground subject on the beats where the subject overlaps them
    * (render only: Apple Vision subject matte composited over the burned-in captions). Additive
-   * (GATE 8 round 3, @@DNUM@@); absent = false.
+   * (GATE 8 round 3, D-91); absent = false.
    */
   behindSubject: z.boolean().optional(),
 });
