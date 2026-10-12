@@ -38,9 +38,11 @@ its default caption preset.
 3. Transitions. Follow the guide's "Transitions" and "Sound": prefer hard cuts; use a transition only where
    its sound is the accent. At the clip's edges (the first and the last scene) use only cover-style
    transitions (ones that do not blend the two shots): quick clips have no source beyond their range.
-4. Review. Call `view_frames` at each scene's midpoint. Fix frames with health flags first, then what the
-   pictures show against the guide (text overflow, empty slots, the wrong template for the line). At most
-   two fix passes.
+4. Review. Call `view_frames` at each scene's midpoint; it returns a text card per frame (labels,
+   on-screen text with its position, faces, salient region). Fix frames with health flags first, then
+   what the cards show against the guide (text overflow, empty slots, the wrong template for the line).
+   Call it again with `detail: "pixels"` only for a judgment the cards cannot make (framing, caption
+   look, colour). At most two fix passes.
 5. Sound. Call `check_audio`. Fix each FAIL only through edits: move or trim a scene, swap or drop a
    transition, or mute a cue with `update_scene { sfxOff }`. At most two fix rounds, each followed by
    `check_audio`. You cannot hear the result: never say the sound is good. Report the numbers.

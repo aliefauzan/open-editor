@@ -16,6 +16,7 @@ export type AgentEngine = Pick<
   | 'jobs'
   | 'frames'
   | 'mediaFrames'
+  | 'frameCards'
   | 'styles'
   | 'geo'
   | 'imageProviders'

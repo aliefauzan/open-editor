@@ -22,6 +22,7 @@ import type { OpCall } from './ops/index.ts';
 import { resolveProjectPath } from './paths.ts';
 import { repoPyProject, runPyTool, type PyBridgeOptions } from './py.ts';
 import type { Redactor } from './redact.ts';
+import { frameCards, type FrameCard } from './stages/framecard.ts';
 import {
   DetectionsSchema,
   buildTrackPath,
@@ -397,6 +398,15 @@ export interface MediaApi {
   facetrackPath(projectId: string, mediaId: string, opts: TrackPathOptions): Promise<TrackPath>;
   /** PNG stills of the source at the given times (cached under `cache/frames/`); absolute paths. */
   mediaFrames(projectId: string, mediaId: string, atMs: readonly number[]): Promise<string[]>;
+  /**
+   * Apple Vision cards of stills inside the project (`frames`, `mediaFrames`; plan D-73), cached
+   * under `cache/cards/` per still content and card version. APPLE_UNAVAILABLE off macOS.
+   */
+  frameCards(
+    projectId: string,
+    paths: readonly string[],
+    opts?: { signal?: AbortSignal },
+  ): Promise<FrameCard[]>;
 }
 
 export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaApi {
@@ -736,6 +746,22 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         out.push(file);
       }
       return out;
+    },
+
+    frameCards(projectId, paths, opts = {}) {
+      return frameCards(
+        {
+          projectDir: deps.dirOf(projectId),
+          py: {
+            pyProject: tools['py'] ?? repoPyProject(),
+            ...(tools['uv'] ? { uv: tools['uv'] } : {}),
+            ...(tools['pyEnv'] && tools['dir'] ? { toolsDir: tools['dir'] } : {}),
+            ...(opts.signal ? { signal: opts.signal } : {}),
+            redactor: deps.redactor,
+          },
+        },
+        paths,
+      );
     },
   };
 }
