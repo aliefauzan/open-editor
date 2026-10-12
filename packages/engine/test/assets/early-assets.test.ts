@@ -66,6 +66,16 @@ describe('fonts (OFL)', () => {
       file: 'assets/fonts/DMSerifDisplay-Regular.ttf',
     });
   });
+
+  test('the newspaper headline font is a WOFF2 subset of Anton whose SHA-256 is in SOURCES.md (D-71)', () => {
+    const dir = 'styles/vox/assets/fonts';
+    const name = 'Anton-subset.woff2';
+    expect(read(`${dir}/${name}`).subarray(0, 4).toString('latin1')).toBe('wOF2');
+    expect(statSync(file(`${dir}/${name}`)).size).toBeLessThan(40_000);
+    const sources = text(`${dir}/SOURCES.md`);
+    expect(sources).toContain(sha256(`${dir}/${name}`));
+    expect(sources).toContain('OFL-Anton.txt');
+  });
 });
 
 describe('vendored d3-geo and topojson-client (map-route)', () => {
@@ -162,6 +172,31 @@ describe('paper texture (CC0)', () => {
     expect(assets).toMatch(/CC0/);
     expect(assets).toContain(sha256(p));
   });
+});
+
+describe('GATE 6 round 3 frame and boards (CC0, D-71)', () => {
+  const assets = () => text('styles/vox/ASSETS.md');
+
+  test('the carved gilt frame is a WebP under 200 kB from MET 460353 with its SHA-256 recorded', () => {
+    const p = 'styles/vox/assets/props/frame-rococo.webp';
+    const buf = read(p);
+    expect(buf.subarray(0, 4).toString('latin1')).toBe('RIFF');
+    expect(buf.subarray(8, 12).toString('latin1')).toBe('WEBP');
+    expect(statSync(file(p)).size).toBeLessThan(200_000);
+    expect(assets()).toContain('metmuseum.org/art/collection/search/460353');
+    expect(assets()).toContain(sha256(p));
+  });
+
+  test.each(['board-dark.jpg', 'board-light.jpg'])(
+    'textures/%s is a JPEG under 60 kB from ambientCG Concrete036 with its SHA-256 recorded',
+    (name) => {
+      const p = `styles/vox/assets/textures/${name}`;
+      expect(read(p).subarray(0, 3).toString('hex')).toBe('ffd8ff');
+      expect(statSync(file(p)).size).toBeLessThan(60_000);
+      expect(assets()).toContain('ambientcg.com/view?id=Concrete036');
+      expect(assets()).toContain(sha256(p));
+    },
+  );
 });
 
 describe('SFX kit (real recordings, D-14; accepted in phase 07)', () => {

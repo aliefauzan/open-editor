@@ -1978,6 +1978,37 @@ model is local Ollama.
 **Why**: measure-first with a deterministic map keeps the draft reproducible and useful without a model; a re-skin needs
 no untrusted code; the repair step makes small local models usable instead of silently dropping their answer.
 
+## D-71 — GATE 6 round 3: real assets, 16:9 `stack` panels, four templates redone against the reel (phase 14a, 2026-10-12)
+**Context**: D-67 reopened GATE 6 ("its not look the same"). Round 3 must make `year-card`, `framed-portrait`,
+`newspaper` and `stack` look like the reference reel (7.5, 8.6 and 9.6 s) with licence-checked assets
+(`docs/evidence/phase-07/reference/asset-candidates/MANIFEST.json`), and the owner judges the new sheet.
+**Decision**:
+- Engine: `template.json` gets an optional `panelAspect` (`"W:H"`, only with a `template` slot). Nested panels render
+  at the canvas width and that ratio, rounded to an even height (`panelSize` in `compile.ts`); without it, panels keep
+  the full canvas. Additive to the frozen R2 `template.json` contract; spec "template.json" and R2 index updated.
+  `vox/stack` sets `"16:9"`: three full-width bands with thin dark gaps, like the reel.
+- Templates 1.1.0. Variables stay backward compatible; one additive variable: `framed-portrait` `empty?: boolean`
+  (the painting leaves the frame before the stamp). `newspaper` slide-in is 80 % over 0.5 s so its move cue peaks on
+  time. `stat`, `kinetic-serif` and `paper-collage` get a landscape mode for bands (portrait output unchanged).
+- Shipped style assets (records in `styles/vox/ASSETS.md`, `assets/fonts/SOURCES.md`; guarded by
+  `early-assets.test.ts`): carved gilt frame `props/frame-rococo.webp` from MET 460353 (CC0; chosen over the
+  French-style and plainer MET frames for the reel's rococo carving); `textures/board-dark.jpg` and `board-light.jpg`
+  from ambientCG Concrete036 (CC0), toned to the reel's boards; `fonts/Anton-subset.woff2` (OFL 1.1, declared as
+  `Vox Condensed`) for the newspaper headline. All are inlined by `scripts/sync-vox-inline.mjs` (now with `.webp`).
+  `vox credits` is unchanged (it lists project media; CC0 and OFL style assets need no credit line).
+- Content pictures are per-project media slots. The evidence inputs are public domain
+  (`docs/evidence/phase-14a/r3-inputs/SOURCES.md`). BnF/Gallica scans are look references only, never shipped; the
+  newspaper page is drawn.
+- `vox style validate` encodes preview GIFs with a Bayer dither (`bayer_scale=5`) so `styles/vox/previews/` stays under
+  the 8 MB test bound (7.58 MB) with the richer textures.
+- The owner decides round 3 on `docs/evidence/phase-14a/side-by-side-r3.jpg`; no delegated pass. Remaining
+  differences are listed in `plan/log/phase-14a.md` "GATE 6 round 3".
+**Why**: the reel's split screen is three landscape scenes, so a crop of a 9:16 scene can never match it; real
+frame, board and font assets close most of the look gap that D-67 named.
+**Alternatives**: scale a 9:16 scene into each band (tiny content, round 2's problem); a `stack`-only layout without an
+engine field (panels would still lay out for 9:16); shipping a Gallica front page (licence and BnF terms); raising the
+8 MB preview bound (weakens a test) or dropping frames from previews (worse motion review).
+
 ## D-72 · 2026-10-12 · feat/native-cutout · Cutout runs Apple Vision subject lift first; u2net is a fallback fetched on demand
 **Context**: `assets.cutout` ran rembg with `u2net.onnx` and the engine downloaded the 176 MB model before every first
 cutout (D-32 "Cutout model"). The macOS-native offload research (`docs/research/2026-10-12-macos-native-offload.md`)
@@ -2272,3 +2303,21 @@ tracking behaviour and box semantics; not needed for this gain); bodies and sali
 **Why**: the gate result has to be about the branch's code. Syncing with the app's own command keeps the tools folder a faithful copy of what the app would build, costs a few seconds, and needs no new flag. Refusing would only add a manual step to every gate; changing the installed app's own folder from a checkout could break a running app.
 **Alternatives**: refuse with the command (an extra step on every gate run); sync at every CLI start (`vox doctor` could no longer show the state); turn the sync on in the engine itself whenever `py/` is the repo's (engine tests with a fake uv and the desktop dev host, whose setup already re-syncs on launch, would sync too); rebuild the Apple helper automatically (minutes, needs Xcode).
 **Open**: engine scripts and tests that open the engine directly with a copied tools folder (not through the CLI) still use it as it is; the D-75 round 1 gates that changed `py` were not re-run on a synced folder (TODO).
+
+## D-88 · 2026-10-12 · fix/clipper-fill · the fill checkpoint looks inside stack panels; plan mode fills panel pictures
+**Context**: in the D-86 live run (editor ollama qwen3.5, plan mode, no fast role) the clipper ended `failed` at the stylize `fill` checkpoint with `c22 panels/0, c22 panels/1` empty, after the clip was cut and styled. The scene was a `vox/stack` with a newspaper panel (no photo) and a kinetic-serif panel. The stack's `panels/*` slot has kind `template` (each panel is a whole scene), but the checkpoint read every slot as a media slot, so a stack was always "empty" whatever its panels held (a kinetic-serif panel has no picture slot at all). The plan executor did not look inside panels either: it filled top-level picture slots and arrays (`items/*/media`, phase 13) only, so the beat's image queries for the panels were never searched. Tools mode had the same false miss for any stack.
+**Decision**:
+- `stylize.ts`: the fill checkpoint walks media slots only (`image`, `cutout`, `video`) and, for a `template` slot, the panels' own media slots one level deep as the engine allows (`panels/0/photo`). An optional slot left empty still counts as filled (the engine's variable check rules required ones). `emptySlots` is exported for unit tests.
+- `plan.ts`: `clipPlanToOps` fills each panel's picture slots (and its arrays) from the beat's image queries, in panel order, with the same search, fetch, cutout and generate steps as top-level slots, or from a description written in the slot. An optional panel picture that is not found stays empty with a repair note (`panel 0: no picture for <query>, photo left empty`); a required one turns the stack into a placeholder (`Picture: <query>`), as for top-level slots. The array fill is a shared helper now (same behaviour).
+- The clip summary names the slots that hold a picture the run added (`Pictures added by the run: c22 panels/0/photo.`), from the project's media before and after the sub-run; `ClipReport.filled` is optional and additive. No separate repair of empty slots: with the fix the model has no way left to skip a panel slot that fails the run, and a real miss (a slot naming no media) is still reported.
+- Golden replay fixtures are unchanged (no stack in them).
+**Verify** (worktree, merged with main incl. D-87): typecheck and lint clean; agent 881 passed, 1 skipped (5 new in `test/workflows/stylize-panels.test.ts`, all failing before the fix; the D-86 plan replay failed with the same `empty slot(s): c3 panels/0, c3 panels/1`); cli 70 passed; engine 1523 passed, 1 failed (`ytdlp.test.ts` "no proxy env" under `npx`; 17/17 without `npm_config_noproxy`). The `*.local` fixture tests needed `packages/engine/test/fixtures/make.sh` in the fresh worktree, then passed.
+**Live check** (gate lock, `VOX_TOOLS_DIR=~/vox-gui13/tools`, dev CLI with D-87 sync, editor ollama qwen3.5, no fast role, $0), three clipper runs on the test video, `--count 1 --length 30-60 --yes-sources --yes`, each `completed`:
+- run 1, 206 s: 5 paper-collage scenes whose items named the source video (`m1`) with no queries, so 5 placeholders (`Picture: items media`); speaker 32 %, audio QA PASS. `vox render --quality standard` 43 s: 32.4 s, 1080x1920, no black bands, word-chunk captions (uppercase mono on a dark chip, one yellow keyword), five placeholders.
+- run 2, 188 s: 3 scenes, 2 placeholders (kinetic-serif text over 60 characters; collage search found nothing), audio QA FAIL `sfxUnderSpeech` reported.
+- run 3, 211 s (message asked for a stack): the stack's newspaper panel had no query (left without photo, no search), its two paper-collage panels had `items: []`, so the engine check made the stack a `Scene: vox/stack` placeholder; no failure.
+qwen3.5 did not plan a stack with a panel picture query in these runs; the panel picture path is covered by the offline tests (a found picture fills `panels/0/photo` and the summary names it).
+**Review**: self-review (token budget).
+**Why**: a scene kind the style offers must not fail a run by a checkpoint that misreads its slots; the queries the model gives for panels should be used like any other.
+**Alternatives**: a deterministic repair that fills empty nested slots with placeholders (would hide the misread and replace good panels); asking the model to fill panel slots in plan mode (the prompt tells it to leave image slots empty).
+**Open**: weak-model quality in plan mode, not failures: collage items that name the source video with no query become placeholders (the scene's label could serve as the query), an optional top-level picture that is not found still turns the whole scene into a placeholder (a stat without its `bgPhoto` would render), and over-long kinetic-serif text is not shortened. Backlog in TODO.

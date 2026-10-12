@@ -117,6 +117,8 @@ Template {
               type: 'cut' | 'move' | 'land' | 'appear' | 'hero' }[]   // see engine "Sound cues"
   blendsShots?: boolean      // transitions: needs source handles (e.g. crossfade)
   minEntranceMs?: number     // scenes shorter than this skip the entrance (Template rules)
+  panelAspect?: string       // e.g. "16:9"; only with a template slot: nested panels render at the
+                             // canvas width and this ratio (D-71), else at the full canvas
 }
 ```
 
@@ -303,15 +305,16 @@ Each template lists its main variables; all also accept `bg: 'paper' | 'dark' | 
 | Template | Seen in reel as | Main variables |
 |---|---|---|
 | `year-card` | "1952" + blueprint line drawing + framed photo + yellow tag | `year`, `tag`, `photo`, `blueprint?` (image slot) |
-| `framed-portrait` | halftone face, iris zoom into eye; gold frame + "GONE" stamp | `media`, `frame: 'none' \| 'gold' \| 'polaroid'`, `zoomTo?: {x, y}`, `stamp?`, `tag?` |
+| `framed-portrait` | halftone face, iris zoom into eye; gold frame + "GONE" stamp | `media`, `frame: 'none' \| 'gold' \| 'polaroid'`, `zoomTo?: {x, y}`, `stamp?`, `tag?`, `empty?` (the painting leaves the frame before the stamp, D-71) |
 | `newspaper` | "LA JOCONDE A DISPARU" clipping slides in | `headline`, `subhead?`, `photo?`, `date?`, `language?` (BCP 47 tag, default `en`) |
-| `stack` | 2–3 panels stacked vertically, each a mini-scene | `panels: {template, variables}[] (2–3)` (template slots), `bg?` |
+| `stack` | 2–3 full-width 16:9 bands stacked vertically with thin dark gaps, each a mini-scene | `panels: {template, variables}[] (2–3)` (template slots), `bg?` |
 
 `map-route` uses Natural Earth 1:50m country shapes (public domain) bundled as TopoJSON
 in `styles/vox/assets/geo/`; its `build.mjs` projects them to SVG at compile time with
 `d3-geo` and `topojson-client`, vendored as ESM in `templates/map-route/vendor/`. No tile
 servers. `stack` mounts its panels as nested sub-compositions, depth 1; panel duration
-equals the host's.
+equals the host's. Its `panelAspect: "16:9"` renders each panel at the canvas width and a 16:9
+height (1080x608 in a 1080x1920 sequence), so panel templates use their landscape layout (D-71).
 
 ### Transitions
 

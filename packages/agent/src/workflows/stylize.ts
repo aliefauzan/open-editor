@@ -37,6 +37,8 @@ export interface ClipReport {
   };
   edges: string[];
   skipped: string[];
+  /** Media slots that hold a picture the run added (`c22 panels/0/photo`), when any. */
+  filled?: string[];
 }
 
 interface PairItem {
@@ -138,26 +140,77 @@ export function speakerShare(s: Sequence): number {
   return Number(((end - covered) / end).toFixed(4));
 }
 
-/** Slot values (`items/*\/media` paths) of a scene that do not name a media item of the project. */
-function emptySlots(p: Project, slots: Record<string, string>, vars: unknown): string[] {
-  const missing: string[] = [];
-  const walk = (v: unknown, parts: string[], path: string) => {
+/** Slots of a template by id (the style's templates), for the scenes inside `template` slots. */
+export type SlotLookup = (id: string) => { slots: Record<string, string> } | undefined;
+
+const MEDIA_SLOTS = new Set(['image', 'cutout', 'video']);
+
+/**
+ * Media slot values of a scene with their paths (`photo`, `items/0/media`). A `template` slot (stack
+ * `panels/*`) holds whole scenes, not media: its scenes' own media slots are walked instead, one
+ * level deep as the engine allows (`panels/0/photo`).
+ */
+function slotEntries(
+  slots: Record<string, string>,
+  vars: unknown,
+  lookup: SlotLookup,
+  depth = 0,
+): { path: string; value: unknown }[] {
+  const out: { path: string; value: unknown }[] = [];
+  const walk = (v: unknown, parts: string[], path: string, kind: string) => {
     if (parts.length === 0) {
       if (v === undefined) return;
-      if (typeof v !== 'string' || !p.media.some((m) => m.id === v)) missing.push(path);
+      if (kind !== 'template') {
+        if (MEDIA_SLOTS.has(kind)) out.push({ path, value: v });
+        return;
+      }
+      const panel = v as { template?: unknown; variables?: unknown } | null;
+      const inner = typeof panel?.template === 'string' ? lookup(panel.template) : undefined;
+      // an unknown panel template or a deeper nesting cannot be saved (the engine checks both)
+      if (!inner || depth >= 1) return;
+      for (const e of slotEntries(inner.slots, panel?.variables ?? {}, lookup, depth + 1))
+        out.push({ path: `${path}/${e.path}`, value: e.value });
       return;
     }
     const [head, ...rest] = parts as [string, ...string[]];
     if (head === '*') {
-      if (Array.isArray(v)) v.forEach((x, i) => walk(x, rest, `${path}/${String(i)}`));
+      if (Array.isArray(v)) v.forEach((x, i) => walk(x, rest, `${path}/${String(i)}`, kind));
       return;
     }
     const o = v as Record<string, unknown> | null;
     if (o === null || typeof o !== 'object') return;
-    walk(o[head], rest, path ? `${path}/${head}` : head);
+    walk(o[head], rest, path ? `${path}/${head}` : head, kind);
   };
-  for (const path of Object.keys(slots)) walk(vars, path.split('/'), '');
-  return missing;
+  for (const [path, kind] of Object.entries(slots)) walk(vars, path.split('/'), '', kind);
+  return out;
+}
+
+/** Media slots of a scene (inside its panels too) that do not name a media item of the project. */
+export function emptySlots(
+  p: Project,
+  slots: Record<string, string>,
+  vars: unknown,
+  lookup: SlotLookup,
+): string[] {
+  return slotEntries(slots, vars, lookup)
+    .filter(({ value }) => typeof value !== 'string' || !p.media.some((m) => m.id === value))
+    .map(({ path }) => path);
+}
+
+/** Media slots of a scene that hold a media item not in `known` (added by the run). */
+function addedSlots(
+  p: Project,
+  known: ReadonlySet<string>,
+  slots: Record<string, string>,
+  vars: unknown,
+  lookup: SlotLookup,
+): string[] {
+  return slotEntries(slots, vars, lookup)
+    .filter(
+      ({ value }) =>
+        typeof value === 'string' && !known.has(value) && p.media.some((m) => m.id === value),
+    )
+    .map(({ path }) => path);
 }
 
 /** The style's first transition that covers the cut (needs no source handles). */
@@ -291,6 +344,7 @@ export function clipSummary(alias: string, r: ClipReport): string {
         `Listen at ${a.listen.join(', ')} and check by ear (the agent measures; it cannot hear).`,
       );
   } else parts.push('Audio QA not run.');
+  if (r.filled?.length) parts.push(`Pictures added by the run: ${r.filled.join(', ')}.`);
   if (r.edges.length) parts.push(`Edges: ${r.edges.join('; ')}.`);
   if (r.skipped.length) parts.push(`Skipped: ${r.skipped.join('; ')}.`);
   return parts.join(' ');
@@ -367,13 +421,19 @@ export async function stylizeSequences(
     else cp.met('storyboard', sequenceId, `${String(scenes.length)} scene(s)`);
 
     // fill: every slot names a media item of the project
-    const empty = scenes.flatMap(({ item }) => {
-      if (item.type !== 'scene') return [];
-      const t = style.templates[item.template];
-      return t
-        ? emptySlots(p, t.slots, item.variables).map((x) => `${run.aliases.aliasOf(item.id)} ${x}`)
-        : [];
-    });
+    const lookup: SlotLookup = (id) => style.templates[id];
+    const known = new Set(before.media.map((m) => m.id));
+    const empty: string[] = [];
+    const filled: string[] = [];
+    for (const { item } of scenes) {
+      const t = item.type === 'scene' ? style.templates[item.template] : undefined;
+      if (!t || item.type !== 'scene') continue;
+      const itemAlias = run.aliases.aliasOf(item.id);
+      for (const x of emptySlots(p, t.slots, item.variables, lookup))
+        empty.push(`${itemAlias} ${x}`);
+      for (const x of addedSlots(p, known, t.slots, item.variables, lookup))
+        filled.push(`${itemAlias} ${x}`);
+    }
     const placeholders = scenes.filter(
       ({ item }) => item.type === 'scene' && item.template === PLACEHOLDER,
     ).length;
@@ -407,6 +467,7 @@ export async function stylizeSequences(
       ...(qa && audioOf(qa.result) && { audio: audioOf(qa.result)! }),
       edges,
       skipped,
+      ...(filled.length > 0 && { filled }),
     };
     reports.push(report);
     run.addSummary(clipSummary(alias, report));
