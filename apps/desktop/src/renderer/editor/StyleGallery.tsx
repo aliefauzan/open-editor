@@ -83,8 +83,7 @@ function Detail(props: { id: string; onBack(): void }) {
           className="ml-auto rounded bg-indigo-600 px-2 py-1 text-white disabled:opacity-50"
           disabled={!sequenceId || current === style.id}
           onClick={() =>
-            sequenceId &&
-            void editor.getState().apply(setStyleOp(sequenceId, style, captions))
+            sequenceId && void editor.getState().apply(setStyleOp(sequenceId, style, captions))
           }
         >
           {current === style.id ? 'Style of this sequence' : 'Set as style for this sequence'}
