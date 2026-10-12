@@ -38,6 +38,10 @@
           top: 50%;
           transform: translate(-50%, -50%);
         }
+        .c-gap {
+          display: inline-block;
+          letter-spacing: 0;
+        }
         .c-word {
           font-family: var(--tok-font-body);
           font-style: @@T1_STYLE@@;
@@ -121,6 +125,16 @@
           // darkest alpha (centre; it fades out past the text block)
           var SHADE = '0 0 0.16em rgba(0,0,0,0.5), 0 0.02em 0.06em rgba(0,0,0,0.55)';
           var SCRIM = 0.42;
+          // the gap between words and runs, in em of the tier 1 size (D-97): a space takes the measured
+          // tracking, and a tight italic face closed it up ("kitapastibakal")
+          var GAP_EM = 0.3;
+          function gap(px) {
+            var g = document.createElement('span');
+            g.className = 'c-gap';
+            g.style.width = GAP_EM * px + 'px';
+            g.textContent = ' ';
+            return g;
+          }
           // the text shadow of a read tier 1 word: glow and the red/cyan split
           var split = T1_FRINGE && FRINGE > 0 ? -FRINGE + 'px 0 0 rgba(255,40,60,0.55), ' + FRINGE + 'px 0 0 rgba(40,220,255,0.55)' : '';
           var t1Read = [GLOW ? '0 0 0.22em rgba(255,255,255,0.42)' : '', split, SHADE].filter(Boolean).join(', ');
@@ -152,7 +166,7 @@
           function widthOf(rs) {
             var px = 0;
             for (var r = 0; r < rs.length; r++) {
-              if (r > 0) px += 0.3 * T1.size * H;
+              if (r > 0) px += GAP_EM * T1.size * H;
               var s = rs[r].emph ? T2.size * H : T1.size * H;
               px += chars(rs[r].words) * (rs[r].emph ? T2.adv : T1.adv) * s;
               if (rs[r].emph) px += 2 * BOX.padX * s;
@@ -211,7 +225,7 @@
               var rs3 = lines[l3];
               for (var r = 0; r < rs3.length; r++) {
                 var run = rs3[r];
-                if (r > 0) line.appendChild(document.createTextNode(' '));
+                if (r > 0) line.appendChild(gap(T1.size * H * scale));
                 var host = line;
                 var size = (run.emph ? T2.size : T1.size) * H * scale;
                 if (run.emph) {
@@ -237,7 +251,7 @@
                 }
                 for (var k = 0; k < run.words.length; k++) {
                   var w = run.words[k];
-                  if (k > 0) host.appendChild(document.createTextNode(' '));
+                  if (k > 0) host.appendChild(run.emph ? document.createTextNode(' ') : gap(size));
                   var span = document.createElement('span');
                   span.className = 'c-word';
                   span.setAttribute('data-key', w.key);
