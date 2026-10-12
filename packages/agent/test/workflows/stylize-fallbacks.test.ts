@@ -231,7 +231,7 @@ describe('plan-mode picture fallbacks (D-88 live runs)', () => {
   }, 120_000);
 });
 
-describe('shortenText (D-89)', () => {
+describe('shortenText (D-90)', () => {
   test('no key words: the head, cut after a whole word, with an ellipsis', () => {
     expect(shortenText('one two three four five', 14)).toBe('one two three…');
     expect(shortenText('one, two, three four', 10)).toBe('one, two…');

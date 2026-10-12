@@ -56,7 +56,7 @@ export function toolsStylist(extra: { finalText?: string } = {}) {
 /**
  * Plan mode: one ClipPlan per sub-run (speaker, kinetic-serif, a framed portrait with an image query).
  * The portrait's picture is required, so an empty search makes it a placeholder (an optional picture
- * such as a stat's `bgPhoto` is left empty instead, D-89).
+ * such as a stat's `bgPhoto` is left empty instead, D-90).
  */
 export function planStylist() {
   return (o: LanguageModelV4CallOptions): ScriptStep => {

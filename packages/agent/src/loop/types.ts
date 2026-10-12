@@ -182,6 +182,6 @@ export interface TurnResult {
   summary: string;
   steps: number;
   error?: VoxErrorJson;
-  /** Plan mode: the executor's repair notes for the plan that applied (D-89). */
+  /** Plan mode: the executor's repair notes for the plan that applied (D-90). */
   repairs?: string[];
 }

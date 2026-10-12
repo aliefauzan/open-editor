@@ -245,7 +245,7 @@ interface StillAt {
 }
 
 /**
- * A still of a project video at sequence time `at.atMs` (D-89): one local frame (`mediaFrames`),
+ * A still of a project video at sequence time `at.atMs` (D-90): one local frame (`mediaFrames`),
  * added as an image with the video's origin (credits stay right), then cut out for a cutout slot
  * (the plain still when the cutout fails). The frame path is the engine's own, never the model's,
  * so the ingest source rule (S20) is not in play. Undefined when no still could be made.
@@ -322,7 +322,7 @@ async function stillOf(
 
 /**
  * A picture for one slot whose value is not a picture of the project: the next image query, else the
- * description written in the slot. When that finds nothing, a still at the slot's time (D-89) of the
+ * description written in the slot. When that finds nothing, a still at the slot's time (D-90) of the
  * video the slot names (weak models write the source clip's id, D-88 live runs), or, for a slot that
  * `needs` a picture and got no query at all (`media: ""`), of the sequence's own video there. A query
  * that finds nothing is never answered with a still of something else: the caller makes a placeholder.
@@ -380,7 +380,7 @@ const stillAt = (b: BeatSpan, k = 0, n = 1): StillAt => ({
 /**
  * Pictures inside arrays (paper-collage `items/*\/media`): an entry that does not name a picture of
  * the project gets one from the next image query, or from its own text when the model wrote a
- * description there, or a still of the video it names (D-89). `missing` names the first entry left
+ * description there, or a still of the video it names (D-90). `missing` names the first entry left
  * without a picture.
  */
 async function fillArrays(
@@ -423,7 +423,7 @@ async function fillArrays(
  * Top-level picture slots of a scene (or of a panel): a value that is not a picture of the project
  * gets one through `pictureFor`. A required slot with no picture is `missing` (the caller makes a
  * placeholder); an optional one is left empty, with a repair note when a picture was asked for (D-88
- * for panels, D-89 for scenes: the template renders without it).
+ * for panels, D-90 for scenes: the template renders without it).
  */
 async function fillTopSlots(
   run: AgentRun,
@@ -464,7 +464,7 @@ async function fillTopSlots(
 const ELLIPSIS = '…';
 
 /**
- * `text` cut at word boundaries to at most `max` characters (D-89): the first run of whole words
+ * `text` cut at word boundaries to at most `max` characters (D-90): the first run of whole words
  * that fits and holds the most key words (all of them when they fit together), with an ellipsis on
  * each cut side. A single word longer than `max` is cut inside the word.
  */
@@ -546,7 +546,7 @@ const panelSlots = (t: TemplateInfo) =>
 /**
  * Pictures inside the panels of a `template` slot (D-86). A panel's picture slot that does not name
  * a picture of the project gets one from the next image query (or the description written there,
- * or a still of the video it names, D-89); text over a length limit is shortened (D-89).
+ * or a still of the video it names, D-90); text over a length limit is shortened (D-90).
  * An optional slot with no picture is left empty, with a repair note when a picture was asked for
  * (the panel renders without it); a required one is `missing`, and the scene becomes a placeholder.
  * Panels with an unknown template are left as they are: the engine's variable check decides.
@@ -634,7 +634,7 @@ export async function clipPlanToOps(
       const queries = [...(b.imageQueries ?? [])];
       const span: BeatSpan = { sequenceId: sp.sequenceId, startMs: b.startMs, endMs: b.endMs };
       // Top-level picture slots: a required one with no picture turns the scene into a placeholder;
-      // an optional one is left empty with a repair note (D-89: a stat renders without its bgPhoto).
+      // an optional one is left empty with a repair note (D-90: a stat renders without its bgPhoto).
       const top = await fillTopSlots(run, p, t, variables, queries, span, note);
       variables = top.variables;
       if (top.missing !== undefined) {

@@ -39,7 +39,7 @@ export interface ClipReport {
   skipped: string[];
   /** Media slots that hold a picture the run added (`c22 panels/0/photo`), when any. */
   filled?: string[];
-  /** Plan mode: what the executor repaired in the model's plan (D-89), when anything. */
+  /** Plan mode: what the executor repaired in the model's plan (D-90), when anything. */
   repairs?: string[];
 }
 
