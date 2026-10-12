@@ -373,3 +373,57 @@ export function captionsToVtt(chunks: readonly CaptionChunk[]): string {
   );
   return `WEBVTT\n\n${cues.join('\n')}`;
 }
+
+/** A scene's on-screen text over its time (sequence ms), for `withoutSceneEchoes`. */
+export interface SceneText {
+  startMs: number;
+  endMs: number;
+  texts: string[];
+}
+
+/** Share of a chunk's words a scene must show for the chunk to be an echo (D-99). */
+export const ECHO_SHARE = 0.6;
+
+const echoWords = (t: string) =>
+  t
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{Nd}]+/u)
+    .filter((w) => w !== '');
+
+/**
+ * Burned-in chunks without the ones a scene already shows (D-99): while a scene covers at least half
+ * of a chunk's time and its text holds ECHO_SHARE of the chunk's words (two words or more, or one word
+ * of 4+ letters), the caption would repeat the scene's words at the same time, so the chunk is left
+ * out. Captions files (SRT/VTT) are not affected.
+ */
+export function withoutSceneEchoes(
+  chunks: readonly CaptionChunk[],
+  scenes: readonly SceneText[],
+): CaptionChunk[] {
+  if (scenes.length === 0) return [...chunks];
+  const sets = scenes.map((s) => ({ ...s, words: new Set(s.texts.flatMap(echoWords)) }));
+  return chunks.filter((c) => {
+    const words = c.lines.flatMap((l) => l.words.flatMap((w) => echoWords(w.text)));
+    if (words.length === 0) return true;
+    if (words.length === 1 && [...words[0]!].length < 4) return true;
+    const span = Math.max(1, c.endMs - c.startMs);
+    return !sets.some((s) => {
+      const over = Math.min(c.endMs, s.endMs) - Math.max(c.startMs, s.startMs);
+      if (over < span / 2) return false;
+      const hit = words.filter((w) => s.words.has(w)).length;
+      return hit / words.length >= ECHO_SHARE;
+    });
+  });
+}
+
+/** Every string inside a scene's variables (its on-screen text, nested panels and items too). */
+export function sceneStrings(v: unknown, out: string[] = [], depth = 0): string[] {
+  if (depth > 6) return out;
+  if (typeof v === 'string') out.push(v);
+  else if (Array.isArray(v)) for (const x of v) sceneStrings(x, out, depth + 1);
+  else if (v !== null && typeof v === 'object')
+    for (const x of Object.values(v as Record<string, unknown>)) sceneStrings(x, out, depth + 1);
+  return out;
+}
