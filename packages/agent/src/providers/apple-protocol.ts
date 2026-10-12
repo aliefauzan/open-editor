@@ -20,13 +20,16 @@ export type AppleStatusValue = z.infer<typeof AppleStatusValue>;
  * `--status` output: availability, the model's context size in tokens (4,096 when unknown) and
  * whether it accepts images (macOS 27+, D-74). A helper older than D-74 sends no `vision`: read it
  * as false. `highlights` (D-75): `--highlights <videoPath>` works here (macOS 27 MediaIntelligence;
- * the engine runs it, the agent ignores it); absent from older helpers.
+ * the engine runs it, the agent ignores it); absent from older helpers. `embed` (D-77): `--embed`
+ * works here (NaturalLanguage contextual embeddings, macOS 14+); it does not need Apple
+ * Intelligence, so it may be true whatever `status` says. Absent from older helpers: read as false.
  */
 export const AppleStatus = z.strictObject({
   status: AppleStatusValue,
   contextSize: z.number().int().positive(),
   vision: z.boolean().optional(),
   highlights: z.boolean().optional(),
+  embed: z.boolean().optional(),
 });
 export type AppleStatus = z.infer<typeof AppleStatus>;
 
@@ -94,6 +97,8 @@ export const appleErrorCodes = [
   'generation',
   /** The request has images but the model cannot see them (before macOS 27, or no `vision`). */
   'visionUnavailable',
+  /** `--embed`: the language's embedding model is not on this Mac and could not be fetched (D-77). */
+  'assetsMissing',
 ] as const;
 export const AppleErrorCode = z.enum(appleErrorCodes);
 export type AppleErrorCode = z.infer<typeof AppleErrorCode>;
@@ -170,6 +175,44 @@ function parseLine<T>(schema: z.ZodType<T>, line: string): Parsed<T> {
 /** Parses one stdout line of a request/answer exchange. */
 export function parseAppleResponseLine(line: string): Parsed<AppleResponse> {
   return parseLine(AppleResponse, line);
+}
+
+/** Most texts one `--embed` request may carry; the caller splits longer lists. */
+export const APPLE_EMBED_MAX_TEXTS = 512;
+/** Longest text `--embed` takes, in UTF-16 units (the caller cuts longer texts). */
+export const APPLE_EMBED_MAX_TEXT_LENGTH = 4000;
+
+/**
+ * `vox-apple-llm --embed` stdin (D-77): the texts and, optionally, their BCP 47 language (`en`,
+ * `id`); without it the helper uses the dominant language of all texts (English when unsure).
+ */
+export const AppleEmbedRequest = z.strictObject({
+  texts: z.array(z.string().max(APPLE_EMBED_MAX_TEXT_LENGTH)).min(1).max(APPLE_EMBED_MAX_TEXTS),
+  language: z
+    .string()
+    .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$/, 'language must be a BCP 47 code')
+    .optional(),
+});
+export type AppleEmbedRequest = z.infer<typeof AppleEmbedRequest>;
+
+/** `--embed` answer: one mean-pooled vector per text, in order, each `dim` long. */
+export const AppleEmbedAnswer = z
+  .strictObject({
+    vectors: z.array(z.array(z.number())),
+    dim: z.number().int().positive(),
+    language: z.string().min(1),
+  })
+  .refine((a) => a.vectors.every((v) => v.length === a.dim), {
+    message: 'every vector must be dim long',
+    path: ['vectors'],
+  });
+export type AppleEmbedAnswer = z.infer<typeof AppleEmbedAnswer>;
+export const AppleEmbedResponse = z.union([AppleEmbedAnswer, AppleErrorAnswer]);
+export type AppleEmbedResponse = z.infer<typeof AppleEmbedResponse>;
+
+/** Parses the stdout of `vox-apple-llm --embed`. */
+export function parseAppleEmbedLine(stdout: string): Parsed<AppleEmbedResponse> {
+  return parseLine(AppleEmbedResponse, stdout.trim());
 }
 
 /** Parses the stdout of `vox-apple-llm --status`. */

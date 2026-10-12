@@ -1,7 +1,8 @@
 // vox-apple-llm: Apple on-device Foundation Models over JSON lines (agent spec
 // "Apple on-device model"). Reads one request per stdin line and writes one answer per stdout
 // line, in order. Opens no network connections. The only files it reads are the image files a
-// request names (D-74) and the video `--highlights` names (D-75); it writes none.
+// request names (D-74) and the video `--highlights` names (D-75); it writes none. `--embed` (D-77)
+// reads one request from stdin.
 import AppleLLMCore
 import Foundation
 
@@ -14,10 +15,14 @@ enum VoxAppleLLM {
       writeLine(
         encodeStatus(
           info.status, contextSize: info.contextSize, vision: info.vision,
-          highlights: Highlights.available))
+          highlights: Highlights.available, embed: Embed.available))
       exit(0)
     case .highlights(let path):
       let out = await Highlights.analyze(path: path)
+      writeLine(out.line)
+      exit(out.ok ? 0 : 1)
+    case .embed:
+      let out = await Embed.run(readStdin())
       writeLine(out.line)
       exit(out.ok ? 0 : 1)
     case .help:
@@ -57,6 +62,11 @@ enum VoxAppleLLM {
     }
     return encodeError(
       id: request.id, code: .unavailable, message: "Apple on-device model: unsupportedOS")
+  }
+
+  /// All of stdin as UTF-8 text (`--embed` reads one request).
+  static func readStdin() -> String {
+    String(decoding: FileHandle.standardInput.readDataToEndOfFile(), as: UTF8.self)
   }
 
   /// Writes one line to stdout unbuffered, so the caller sees each answer at once.

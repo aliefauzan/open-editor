@@ -34,12 +34,12 @@ commit, and every consumer updated in that commit.
 | CLI commands and `--json` output | engine "Stages"; styles "Style registry"; agent "CLI" | `packages/cli` | 02–05, 06, 12 | 05 (engine, frozen 2026-10-11), 12 (agent) |
 | `~/.vox/config.json` schema and file I/O | engine "Library API" (Config); agent "Configuration and keys" | `engine/src/config.ts`; key refs in `agent/src/config/` | 04 (`contact`, `projectsDir`, `ingest.cookiesFromBrowser`), D-78 (`render.encoder`), 11 (providers, roles, limits) | 11 |
 | Secret redactor (`engine.redactor`) | engine "Library API" (Redactor); agent "Secret redactor" | `engine/src/redact.ts` | 04 | 11 |
-| Agent tools (generated) | agent "Tools" | `agent/src/tools/` | 11 | follows ops |
+| Agent tools (generated; D-80: `view_frames`/`view_media` `detail` adds `"full"` and `"pixels"` stills are ≤ 768 px on the long edge; `check_audio` returns no `picture` field and no image; D-81: `get_transcript` returns compact lines by default, takes `clipId` and `words`, `mediaId` optional) | agent "Tools" | `agent/src/tools/` | 11 | follows ops |
 | Workflow frontmatter (`allowedTools`, `roles`, `checkpoints`; D-15) | agent "Workflows" | `agent/workflows/*.md`, read by `agent/src/loop/` | 11 (loop reads it), 12 (workflow files) | 12 |
-| Agent events `agent.*`, run record | agent "Agent loop" | `agent/src/loop/` | 11 | 12 |
+| Agent events `agent.*`, run record (D-81 adds the `state` line) | agent "Agent loop" | `agent/src/loop/` | 11 | 12 |
 | `ClipPlan` (plan mode) | agent "Plan mode" | `agent/src/loop/plan.ts` | 11 | 12 |
 | `window.vox` API (one zod schema; 10b adds `exports.chooseTarget`, `exports.lastFolder`, `media.classifyUrl`, D-13) | app "Engine-host API" | `apps/desktop/src/shared/api.ts` | 08 | 08 and 05, frozen 2026-10-11 (it wraps the engine API); grows 09–13 additively |
-| Apple helper protocol (JSON lines: request `{system, messages, schema?, maxTokens, temperature}`, response `{text\|json, usage}`, `--status`) | agent "Apple on-device model" | `native/apple-llm/`, `agent/src/providers/apple.ts` | 11 | 11 |
+| Apple helper protocol (JSON lines: request `{system, messages, schema?, maxTokens, temperature}`, response `{text\|json, usage}`, `--status` with `vision`, `highlights`, `embed`; `--highlights <video>` (D-75); `--embed`: stdin `{texts, language?}` → `{vectors, dim, language}`, error code `assetsMissing` (D-77)) | agent "Apple on-device model" | `native/apple-llm/`, `agent/src/providers/apple.ts` | 11 | 11 |
 | `vox-media://` URL shapes, CSPs | app "Window security", "Untrusted HTML" | `apps/desktop/src/main/protocols/` | 08 | 08 |
 | `preview.updated { kind: 'patch' \| 'reload' }` | app "Preview pipeline" | engine-host | 08/10a | 10a |
 

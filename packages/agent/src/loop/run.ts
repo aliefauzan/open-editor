@@ -15,9 +15,17 @@ import {
 import type { z } from 'zod';
 import { VoxError, isVoxError, toVoxErrorJson } from '../errors.ts';
 import { costFromReported, exceedsBudget, stepUpperBoundUsd } from '../providers/prices.ts';
+import {
+  cachedHistory,
+  cachedSystem,
+  cachedTools,
+  promptCacheTarget,
+  withCachePrices,
+} from '../providers/prompt-cache.ts';
 import { estimateTokens } from '../providers/tool-cost.ts';
 import { AliasTable } from '../tools/aliases.ts';
-import { VISION_RULE, compactView } from '../tools/read.ts';
+import { agedImagesText } from '../tools/cards.ts';
+import { VISION_RULE } from '../tools/read.ts';
 import {
   aiToolSet,
   buildRegistry,
@@ -33,7 +41,14 @@ import type {
   ToolOutput,
   VisionDescriber,
 } from '../tools/types.ts';
-import { COMPACT_AT, Conversation } from './conversation.ts';
+import { COMPACT_AT, Conversation, KEEP_RECENT_STEPS, type ResultMeta } from './conversation.ts';
+import {
+  StateTracker,
+  renderFullState,
+  type SequenceState,
+  type StateKind,
+  type StateSnapshot,
+} from './state.ts';
 import { wrapData } from './envelope.ts';
 import { backoffMs, mapProviderError, PROVIDER_RETRIES } from './provider-errors.ts';
 import { buildSystemPrompt } from './prompt.ts';
@@ -263,8 +278,10 @@ export class AgentRun {
    * within the cap (S23); else the run pauses (`budget`). Throws RunStopped when the user stops.
    */
   async ensureBudget(role: RoleModel, inputTokens: number): Promise<void> {
+    // with Anthropic's cache-write rate the bound takes the dearest input rate (D-76)
+    const price = withCachePrices(promptCacheTarget(role), role.price);
     for (let i = 0; i < MAX_PAUSE_LOOPS; i++) {
-      const bound = stepUpperBoundUsd(role.price, inputTokens, role.maxOutputTokens);
+      const bound = stepUpperBoundUsd(price, inputTokens, role.maxOutputTokens);
       if (!exceedsBudget(this.spentUsd, bound, this.#cap)) return;
       const d = await this.pause({
         reason: 'budget',
@@ -276,7 +293,10 @@ export class AgentRun {
   }
 
   addCost(role: RoleModel, usage: Usage, providerMetadata: unknown): number {
-    const usd = costFromReported(reportedCost(providerMetadata), role.price, usage) ?? 0;
+    // Anthropic cache writes and reads at their own rates (D-76); a usage without a breakdown is
+    // all fresh input at the full price
+    const price = withCachePrices(promptCacheTarget(role), role.price);
+    const usd = costFromReported(reportedCost(providerMetadata), price, usage) ?? 0;
     this.spentUsd += usd;
     return usd;
   }
@@ -375,7 +395,8 @@ export class AgentRun {
       try {
         return await generateText({
           model: editor.model,
-          system: opts.system,
+          // the plan system prompt repeats across retries and sub-runs (D-76)
+          system: cachedSystem(promptCacheTarget(editor), opts.system),
           messages: opts.messages,
           maxRetries: 0,
           maxOutputTokens: editor.maxOutputTokens,
@@ -403,18 +424,31 @@ export class AgentRun {
 
   /** The injected state before a step: the view of each sequence in scope and the change note. */
   async injection(scope: readonly string[]): Promise<{ text: string; version: number }> {
-    const parts: string[] = [];
+    const s = await this.stateSnapshot(scope);
+    return { text: renderFullState(s.snapshot), version: s.version };
+  }
+
+  /** The state as data (D-81): what `injection` renders in full, or `StateTracker` as a diff. */
+  async stateSnapshot(
+    scope: readonly string[],
+  ): Promise<{ snapshot: StateSnapshot; version: number }> {
+    const sequences: SequenceState[] = [];
     let version = this.ctx.seenVersion;
     for (const sequenceId of scope) {
-      const v = await compactView(this.ctx, sequenceId);
+      // as compactView (tools/read.ts), with the caption lines kept apart for the diff
+      const v = await this.ctx.engine.view(this.ctx.projectId, sequenceId);
+      if (v.version > this.ctx.seenVersion) this.ctx.seenVersion = v.version;
+      const view = this.aliases.toModel({ sequenceId, version: v.version, items: v.items });
       version = Math.max(version, v.version);
-      parts.push(
-        `Sequence ${this.aliases.aliasOf(sequenceId)} @v${String(v.version)}: ${JSON.stringify(v.view.items)}${v.captions ? `\nCaptions:\n${v.captions}` : ''}`,
-      );
+      sequences.push({
+        alias: this.aliases.aliasOf(sequenceId),
+        version: v.version,
+        items: view.items,
+        captions: v.captions.map((c) => `${String(c.startMs)}–${String(c.endMs)} ${c.text}`),
+      });
     }
     const note = await this.changeNote();
-    if (note) parts.push(note);
-    return { text: `[Current state, newest only]\n${parts.join('\n\n')}`, version };
+    return { snapshot: { sequences, note }, version };
   }
 
   /** History after the last noted version, by the user or another run (not this run's writes). */
@@ -504,7 +538,7 @@ export class AgentRun {
         let captured: unknown;
         const s = streamText({
           model: editor.model,
-          system,
+          system: cachedSystem(promptCacheTarget(editor), system),
           messages: msgs,
           tools,
           maxRetries: 0,
@@ -567,7 +601,9 @@ export class AgentRun {
       mode: 'tools',
       ...(this.ctx.question && { question: true }),
     });
-    const tools = aiToolSet(this.registry, names);
+    const cache = promptCacheTarget(this.#deps.models.editor);
+    const tools = cachedTools(cache, aiToolSet(this.registry, names));
+    const tracker = cache !== undefined ? new StateTracker() : undefined;
     const toolTokens = estimateTokens(JSON.stringify(toolDefinitionsFor(this.registry, names)));
     const editor = this.#deps.models.editor;
     const cap = this.#deps.limits.maxStepsPerRun;
@@ -576,26 +612,48 @@ export class AgentRun {
       for (let step = 1; step <= cap; step++) {
         if (this.#req.signal?.aborted) throw new RunStopped();
         this.#step++;
-        const inj = await this.injection(opts.scope);
+        // with a caching editor the state block stays in the history and later steps send only
+        // what changed (D-81); otherwise every step gets the full block, newest only
+        const snap = tracker ? await this.stateSnapshot(opts.scope) : undefined;
+        const inj = snap
+          ? { text: renderFullState(snap.snapshot), version: snap.version }
+          : await this.injection(opts.scope);
+        let block: { text: string; kind: StateKind } = { text: inj.text, kind: 'full' };
+        const blockText = () => {
+          if (tracker && snap) block = tracker.render(snap.snapshot);
+          return block.text;
+        };
         const budget = Math.floor(editor.contextTokens * COMPACT_AT);
-        const fixed = () =>
-          estimateTokens(this.systemPrompt(conv)) + toolTokens + estimateTokens(inj.text);
+        const fixed = (stateText: string) =>
+          estimateTokens(this.systemPrompt(conv)) + toolTokens + estimateTokens(stateText);
         const compactOnce = async (force: boolean) => {
           const r = await conv.compact({
-            budgetTokens: budget - fixed(),
+            // the full block: after a compaction the step sends it in full
+            budgetTokens: budget - fixed(inj.text),
             currentStep: step,
             currentVersion: inj.version,
             ...(force && { force: true }),
             ...(this.#summariser() && { summarise: this.#summariser()! }),
           });
-          if (r.stubbed + r.summarised > 0)
+          if (r.stubbed + r.summarised > 0) {
             this.record.write({ type: 'compacted', step, ...r, force });
+            tracker?.invalidate();
+          }
           return r.stubbed + r.summarised > 0;
         };
+        // images older than the recent window become their frame cards, once each (D-80)
+        await conv.ageImagesThrough(step - KEEP_RECENT_STEPS, (s) =>
+          agedImagesText(this.ctx, s).catch((err: unknown) => {
+            // the card request rethrows only a cancellation
+            throw this.#req.signal?.aborted ? new RunStopped() : err;
+          }),
+        );
         await compactOnce(false);
-        const build = () => withInjection(conv.messages(inj.version), inj.text);
+        // breakpoints on the history only; the state block after them is never cached (D-76)
+        const build = () =>
+          withInjection(cachedHistory(cache, conv.messages(inj.version)), blockText());
         const messages = build();
-        await this.ensureBudget(editor, fixed() + conv.tokens(inj.version));
+        await this.ensureBudget(editor, fixed(block.text) + conv.tokens(inj.version));
         const out = await this.#modelStep(
           this.systemPrompt(conv),
           messages,
@@ -603,6 +661,18 @@ export class AgentRun {
           () => compactOnce(true),
           build,
         );
+        if (tracker && snap) {
+          // the block this step sent goes into the history before the reply (D-81)
+          conv.state(step, block.text, inj.version);
+          tracker.commit(snap.snapshot, block.kind);
+          this.record.write({
+            type: 'state',
+            step,
+            kind: block.kind,
+            chars: block.text.length,
+            fullChars: inj.text.length,
+          });
+        }
         summary = out.text.trim() || summary;
         this.record.write({
           type: 'step',
@@ -652,7 +722,7 @@ export class AgentRun {
           });
         }
         const parts: ToolResultPart[] = [];
-        const meta = new Map<string, { label: string; version: number }>();
+        const meta = new Map<string, ResultMeta>();
         for (const call of out.calls) {
           const res = await this.#runCall(call, state, opts);
           parts.push(res.part);
@@ -716,8 +786,8 @@ export class AgentRun {
     call: ModelCall,
     state: TurnState,
     opts: TurnOptions,
-  ): Promise<{ part: ToolResultPart; meta: { label: string; version: number }; stop?: boolean }> {
-    const meta = { label: `${call.toolName} result`, version: this.ctx.seenVersion };
+  ): Promise<{ part: ToolResultPart; meta: ResultMeta; stop?: boolean }> {
+    const meta: ResultMeta = { label: `${call.toolName} result`, version: this.ctx.seenVersion };
     const done = (output: ToolResultPart['output'], extra: Partial<{ stop: boolean }> = {}) => ({
       part: {
         type: 'tool-result' as const,
@@ -899,6 +969,10 @@ export class AgentRun {
       },
     });
     if (output.images && output.images.length > 0) {
+      meta.stills = output.images.map((i) => ({
+        label: i.label,
+        ...(i.path !== undefined && { path: i.path }),
+      }));
       return done({
         type: 'content',
         value: [
