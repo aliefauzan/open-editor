@@ -84,13 +84,16 @@ struct ProtocolTests {
         == #"{"id":"r2","error":{"code":"contextOverflow","message":"too long"}}"#)
     #expect(
       encodeStatus(.ready, contextSize: 4096, vision: false)
-        == #"{"status":"ready","contextSize":4096,"vision":false,"highlights":false}"#)
+        == #"{"status":"ready","contextSize":4096,"vision":false,"highlights":false,"embed":false}"#)
     #expect(
       encodeStatus(.ready, contextSize: 8192, vision: true)
-        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":false}"#)
+        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":false,"embed":false}"#)
     #expect(
       encodeStatus(.ready, contextSize: 8192, vision: true, highlights: true)
-        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":true}"#)
+        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":true,"embed":false}"#)
+    #expect(
+      encodeStatus(.notEnabled, contextSize: 4096, vision: false, embed: true)
+        == #"{"status":"notEnabled","contextSize":4096,"vision":false,"highlights":false,"embed":true}"#)
   }
 
   @Test("--highlights answer: ranges and levels in whole ms, key frame or null, errors only when set")
@@ -130,7 +133,7 @@ struct ProtocolTests {
     #expect(
       ErrorCode.allCases.map(\.rawValue) == [
         "badRequest", "unavailable", "contextOverflow", "guardrail", "generation",
-        "visionUnavailable",
+        "visionUnavailable", "assetsMissing",
       ])
   }
 
@@ -154,6 +157,8 @@ struct ProtocolTests {
     #expect(Command.parse(["--highlights", "/v/a.mp4"]) == .highlights("/v/a.mp4"))
     #expect(Command.parse(["--highlights"]) == .invalid("--highlights"))
     #expect(Command.parse(["--highlights", "/v/a.mp4", "x"]) == .invalid("x"))
+    #expect(Command.parse(["--embed"]) == .embed)
+    #expect(Command.parse(["--embed", "x"]) == .invalid("x"))
   }
 
   @Test("a lone surrogate escape in a request becomes U+FFFD, like JavaScript strings allow")

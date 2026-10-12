@@ -147,14 +147,14 @@ export class AgentHost {
     const runId = this.#d.newRunId?.() ?? `run_${randomBytes(9).toString('base64url')}`;
     const abort = new AbortController();
     const conf = await loadAgentConfig(this.#d.cfg);
-    // screenplay match: the `embed` role, when one is set and usable (else the workflow ranks with the language model)
+    // screenplay match: the `embed` role, when one is set and usable, else the Apple helper's
+    // on-device embeddings when it has them (D-77); else the workflow ranks with the language model
     const embed =
       workflow === 'screenplay' && !this.#d.models
-        ? await buildEmbedder(
-            conf,
-            this.#d.cfg,
-            this.#d.fetch !== undefined ? { fetch: this.#d.fetch } : {},
-          ).catch(() => undefined)
+        ? await buildEmbedder(conf, this.#d.cfg, {
+            ...(this.#d.fetch !== undefined && { fetch: this.#d.fetch }),
+            ...(this.#d.apple !== undefined && { apple: this.#d.apple }),
+          }).catch(() => undefined)
         : undefined;
     const len = lengthIn(a.message);
     const attachedVideo = attachments.find((id) =>

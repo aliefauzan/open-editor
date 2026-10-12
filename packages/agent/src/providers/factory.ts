@@ -12,7 +12,7 @@ import { createOllama } from 'ollama-ai-provider-v2';
 import { VoxError } from '../errors.ts';
 import { assertSafeBaseUrl } from '../config/mask.ts';
 import { resolveApiKey, type ResolveDeps } from '../config/keychain.ts';
-import { createAppleLanguageModel, type AppleModelOptions } from './apple.ts';
+import { createAppleEmbedder, createAppleLanguageModel, type AppleModelOptions } from './apple.ts';
 import type { FetchFunction } from './capture.ts';
 import type { Embedder } from '../screenplay/match.ts';
 import { PRESETS, requiresKey, type ProviderEntry } from './presets.ts';
@@ -193,7 +193,8 @@ export async function resolveEntryKey(
 /**
  * The `embed` role as a function: texts in, one vector per text out (agent spec "Providers and
  * models"; screenplay match). Ollama, OpenAI and the OpenAI-compatible servers (OpenRouter included,
- * through its `/embeddings` endpoint) can embed; the other providers throw `CONFIG_INVALID`.
+ * through its `/embeddings` endpoint) can embed, and Apple through the helper's on-device
+ * `--embed` (D-77; a `local` first pass); the other providers throw `CONFIG_INVALID`.
  */
 export function createEmbedder(
   entry: ProviderEntry,
@@ -201,6 +202,15 @@ export function createEmbedder(
   deps: ModelFactoryDeps,
 ): Embedder {
   if (modelId.trim() === '') throw invalid('model id is empty', 'Choose a model for this role.');
+  if (entry.type === 'apple') {
+    if (deps.apple === undefined) {
+      throw invalid(
+        'the Apple on-device helper is not available here',
+        'The app ships `vox-apple-llm`; reinstall Vox Studio if it is missing.',
+      );
+    }
+    return createAppleEmbedder(deps.apple);
+  }
   const apiKey = deps.apiKey === '' ? null : deps.apiKey;
   if (apiKey === null && requiresKey(entry)) {
     throw invalid(
@@ -239,7 +249,7 @@ export function createEmbedder(
     default:
       throw invalid(
         `provider ${entry.id} cannot embed text`,
-        'Use an Ollama, OpenAI or OpenRouter model for the embed role.',
+        'Use an Ollama, OpenAI, OpenRouter or Apple model for the embed role.',
       );
   }
   return async (texts, signal) => {

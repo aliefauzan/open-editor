@@ -96,7 +96,9 @@ subscription may be used through a gateway is set by that service's terms, not b
   decides its roles. With its context of 4k tokens (8k on macOS 27, D-22) it usually only passes the
   `fast` role (scoring quick-clip candidates, image queries); it can fill `editor` only if
   it passes the probe. On macOS 27 it can also fill `vision` when the vision probe passes
-  (D-74); before that the probe fails `vision` without sending an image. Cost is 0.
+  (D-74); before that the probe fails `vision` without sending an image. It can fill `embed`
+  when `--status` reports `embed: true` (`--embed`, NaturalLanguage, any Apple Intelligence state;
+  D-77). Cost is 0.
 - The helper never uses the network; the only files it reads are the image files a request
   names.
 
@@ -546,6 +548,14 @@ clip only above a bar (LLM score 0.5, embedding cosine 0.3, word overlap 0.2); e
 once (highest score first; ties go to the clip closest in length to the scene). Ranking uses the `embed`
 role, else the `fast` role, else the `editor` role, else word overlap with a note. A clip that already has
 a `description` is not tagged again. Everything lands in one `batch` (one undo entry).
+
+Local signals (plan D-77): tags come from the Apple on-device model when it is the `vision` role, else
+from Apple Vision frame cards of the keyframes (labels, faces, on-screen text), and from a paid `vision`
+model only when neither gives tags. With no `embed` role set, the Apple helper's `--embed`
+(NaturalLanguage contextual embeddings, macOS 14+, no Apple Intelligence needed) is a first pass: a scene
+whose best clip leads the second by 0.3 centred cosine or more is matched without a model call; every
+other scene goes to the LLM with only its 8 best clips. An `embed` role set to another provider ranks
+by embedding alone, as before.
 
 ### 4. Style extract (with styles Part C)
 
