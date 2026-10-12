@@ -1,15 +1,20 @@
-// D-81 measurement: the committed clipper/stylize replay fixtures run again with an Anthropic editor.
-// Each step's state block is kept in the history and later steps send only the changes, so the
-// uncached state text per run drops; the replays must still give the recorded tool results.
-// Before = the full block every step (what the run record's `fullChars` gives; the pre-D-81 text),
-// after = the block each step sent. VOX_STATE_REPORT=1 prints the numbers.
+// D-81 measurement: the committed clipper/stylize replay fixtures and a longer edit run, with an
+// Anthropic editor and the D-76 cache fake, in three modes: `pre` = the full block every step, not
+// kept (the pre-D-81 state: stateDiffMinTokens Infinity), `diff` = always kept and diffed (D-81 as
+// first merged: 0), `threshold` = the default STATE_DIFF_MIN_TOKENS. The replays must still give
+// the recorded tool results; the threshold must cost no more than `pre` on the short fixtures and
+// keep most of the diff's saving on the long run. VOX_STATE_REPORT=1 prints the numbers.
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { readRunRecord, type RecordLine } from '../../src/loop/record.ts';
 import { runAgent } from '../../src/loop/run.ts';
-import { DIFF_STATE_HEADER, FULL_STATE_HEADER } from '../../src/loop/state.ts';
+import {
+  DIFF_STATE_HEADER,
+  FULL_STATE_HEADER,
+  STATE_DIFF_MIN_TOKENS,
+} from '../../src/loop/state.ts';
 import { estimateTokens } from '../../src/providers/tool-cost.ts';
 import { runWorkflow, type WorkflowRequest } from '../../src/workflows/run-workflow.ts';
 import { AnthropicCacheSim } from '../helpers/anthropic-cache.ts';
@@ -63,55 +68,78 @@ function stateTokens(prompt: { role: string; content: unknown }[]) {
 
 const FIXTURES = ['clipper-tools', 'clipper-subruns', 'stylize-tools'];
 
+const PRICE = { inPerMTok: 3, outPerMTok: 15 };
+const inputUsd = (t: ReturnType<AnthropicCacheSim['totals']>) =>
+  (t.noCache * PRICE.inPerMTok + t.cacheRead * 0.3 + t.cacheWrite * 3.75) / 1e6;
+const MODES = { pre: Number.POSITIVE_INFINITY, diff: 0, threshold: undefined } as const;
+
+async function replay(f: Fixture, stateDiffMinTokens: number | undefined) {
+  const kit = await workflowKit({ limits: { maxUsdPerRun: 100, maxStepsPerRun: 60 } });
+  const sequenceIds = f.setup === 'quick1' ? (await quickClipsProject(kit, 1)).sequenceIds : [];
+  const sim = new AnthropicCacheSim();
+  const m = scriptedModel(scriptFromRecord(f.lines), { usage: (o) => sim.modelUsage(o) });
+  kit.deps.models = {
+    editor: role(m.model, {
+      price: PRICE,
+      provider: { type: 'anthropic', label: 'Anthropic' },
+      modelId: 'claude-sonnet-4-5',
+    }),
+  };
+  if (stateDiffMinTokens !== undefined) kit.deps.stateDiffMinTokens = stateDiffMinTokens;
+  const { stylizeQuick, ...req } = JSON.parse(
+    JSON.stringify(f.request).split('<REPO>').join(REPO),
+  ) as Fixture['request'];
+  const r = await runWorkflow(kit.deps, {
+    ...req,
+    projectId: kit.projectId,
+    ...(stylizeQuick && { sequenceIds }),
+  });
+  expect(r.done.status, r.done.summary).toBe('completed');
+  expect(m.remaining()).toBe(0);
+  const lines = readRunRecord(r.run.record.path);
+  expect(comparable(lines)).toEqual(comparable(f.lines));
+  const states = lines.filter((l) => l.type === 'state');
+  const tools = m.prompts.filter((o) => o.tools && o.tools.length > 0);
+  expect(states.length).toBe(tools.length);
+  return {
+    states,
+    per: tools.map((o) => stateTokens(o.prompt as never)),
+    usd: inputUsd(sim.totals()),
+    uncached: states.reduce((n, l) => n + Math.ceil(Number(l['chars']) / 3), 0),
+    full: states.reduce((n, l) => n + Math.ceil(Number(l['fullChars']) / 3), 0),
+  };
+}
+
 describe('state diff on the replay fixtures (D-81 measurement)', () => {
   test.each(FIXTURES)(
-    '%s: same tool results; less uncached state text than the full block every step',
+    '%s: same tool results; below the threshold the full block every step, cost ≤ pre-D-81',
     async (name) => {
       const f = JSON.parse(readFileSync(join(DIR, `${name}.json`), 'utf8')) as Fixture;
-      const kit = await workflowKit({ limits: { maxUsdPerRun: 100, maxStepsPerRun: 60 } });
-      const sequenceIds = f.setup === 'quick1' ? (await quickClipsProject(kit, 1)).sequenceIds : [];
-      const m = scriptedModel(scriptFromRecord(f.lines));
-      kit.deps.models = {
-        editor: role(m.model, {
-          price: { inPerMTok: 3, outPerMTok: 15 },
-          provider: { type: 'anthropic', label: 'Anthropic' },
-          modelId: 'claude-sonnet-4-5',
-        }),
-      };
-      const { stylizeQuick, ...req } = JSON.parse(
-        JSON.stringify(f.request).split('<REPO>').join(REPO),
-      ) as Fixture['request'];
-      const r = await runWorkflow(kit.deps, {
-        ...req,
-        projectId: kit.projectId,
-        ...(stylizeQuick && { sequenceIds }),
-      });
-      expect(r.done.status, r.done.summary).toBe('completed');
-      expect(m.remaining()).toBe(0);
-      const lines = readRunRecord(r.run.record.path);
-      expect(comparable(lines)).toEqual(comparable(f.lines));
-      const states = lines.filter((l) => l.type === 'state');
-      const tools = m.prompts.filter((o) => o.tools && o.tools.length > 0);
-      expect(states.length).toBe(tools.length);
-      const before = states.reduce((n, l) => n + Math.ceil(Number(l['fullChars']) / 3), 0);
-      const after = states.reduce((n, l) => n + Math.ceil(Number(l['chars']) / 3), 0);
-      const per = tools.map((o) => stateTokens(o.prompt as never));
-      const kept = per.reduce((n, p) => n + p.kept, 0);
+      const pre = await replay(f, MODES.pre);
+      const diff = await replay(f, MODES.diff);
+      const thr = await replay(f, MODES.threshold);
       if (REPORT)
         console.info(
           JSON.stringify({
             fixture: name,
-            steps: states.length,
-            fullBlocks: states.filter((l) => l['kind'] === 'full').length,
-            beforeStateTokens: before,
-            afterUncachedStateTokens: after,
-            afterCachedStateTokens: kept,
+            steps: thr.states.length,
+            preUsd: pre.usd,
+            diffUsd: diff.usd,
+            thresholdUsd: thr.usd,
+            fullStateTokens: pre.full,
+            diffUncachedStateTokens: diff.uncached,
+            diffCachedStateTokens: diff.per.reduce((n, p) => n + p.kept, 0),
           }),
         );
-      expect(after).toBeLessThanOrEqual(before);
-      if (states.length > 2) expect(after).toBeLessThan(before);
+      // these states are small: every block is sent in full, newest only, as before D-81
+      expect(thr.states.every((l) => l['kind'] === 'unkept')).toBe(true);
+      expect(thr.per.every((p) => p.kept === 0)).toBe(true);
+      expect(thr.usd).toBeLessThanOrEqual(pre.usd);
+      // always diffing sends less uncached state text but costs more here (the kept blocks' writes)
+      expect(diff.uncached).toBeLessThan(diff.full);
+      expect(diff.usd).toBeGreaterThan(pre.usd);
     },
-    120_000,
+    240_000,
   );
 });
 
@@ -119,7 +147,7 @@ describe('state diff on the replay fixtures (D-81 measurement)', () => {
  * A longer edit run on a bigger state, as in a stylize pass: 24 scenes on V2, then 20 steps that
  * each move one scene. The same script runs on the pre-D-81 code for the before numbers (D-81 log).
  */
-export async function longEditRun(sim: AnthropicCacheSim) {
+export async function longEditRun(sim: AnthropicCacheSim, stateDiffMinTokens?: number) {
   const f = await fixtureProject();
   const scenes: string[] = [];
   for (let i = 0; i < 24; i++) {
@@ -161,7 +189,10 @@ export async function longEditRun(sim: AnthropicCacheSim) {
       modelId: 'claude-sonnet-4-5',
       price: { inPerMTok: 3, outPerMTok: 15 },
     }),
-    { limits: { maxUsdPerRun: 100, maxStepsPerRun: 60 } },
+    {
+      limits: { maxUsdPerRun: 100, maxStepsPerRun: 60 },
+      ...(stateDiffMinTokens !== undefined && { stateDiffMinTokens }),
+    },
   );
   const r = await runAgent(deps, {
     projectId: f.projectId,
@@ -176,26 +207,41 @@ export async function longEditRun(sim: AnthropicCacheSim) {
 }
 
 describe('state diff on a long edit run (D-81 measurement)', () => {
-  test('20 moves on a 24-scene sequence: far less uncached state text, lower input cost', async () => {
-    const sim = new AnthropicCacheSim();
-    const r = await longEditRun(sim);
-    const states = readRunRecord(r.run.record.path).filter((l) => l.type === 'state');
-    expect(states).toHaveLength(21);
-    const before = states.reduce((n, l) => n + Math.ceil(Number(l['fullChars']) / 3), 0);
-    const after = states.reduce((n, l) => n + Math.ceil(Number(l['chars']) / 3), 0);
-    const t = sim.totals();
-    const inputUsd = (t.noCache * 3 + t.cacheRead * 0.3 + t.cacheWrite * 3.75) / 1e6;
+  test('20 moves on a 24-scene sequence: above the threshold, far less uncached state, lower cost', async () => {
+    const run = async (min: number | undefined) => {
+      const sim = new AnthropicCacheSim();
+      const r = await longEditRun(sim, min);
+      const states = readRunRecord(r.run.record.path).filter((l) => l.type === 'state');
+      expect(states).toHaveLength(21);
+      return {
+        states,
+        usd: inputUsd(sim.totals()),
+        full: states.reduce((n, l) => n + Math.ceil(Number(l['fullChars']) / 3), 0),
+        uncached: states.reduce((n, l) => n + Math.ceil(Number(l['chars']) / 3), 0),
+      };
+    };
+    const pre = await run(MODES.pre);
+    const diff = await run(MODES.diff);
+    const thr = await run(MODES.threshold);
     if (REPORT)
       console.info(
         JSON.stringify({
           fixture: 'long-edit',
-          steps: states.length,
-          fullBlocks: states.filter((l) => l['kind'] === 'full').length,
-          beforeStateTokens: before,
-          afterUncachedStateTokens: after,
-          sim: { ...t, inputUsd },
+          steps: thr.states.length,
+          fullBlocks: thr.states.filter((l) => l['kind'] === 'full').length,
+          preUsd: pre.usd,
+          diffUsd: diff.usd,
+          thresholdUsd: thr.usd,
+          fullStateTokens: thr.full,
+          thresholdUncachedStateTokens: thr.uncached,
         }),
       );
-    expect(after).toBeLessThan(before * 0.4);
-  }, 120_000);
+    // the block is over the threshold: the threshold run is the diff run
+    expect(Math.ceil(Number(thr.states[0]!['fullChars']) / 3)).toBeGreaterThan(
+      STATE_DIFF_MIN_TOKENS,
+    );
+    expect(thr.usd).toBe(diff.usd);
+    expect(thr.uncached).toBeLessThan(thr.full * 0.4);
+    expect(thr.usd).toBeLessThan(pre.usd * 0.85);
+  }, 240_000);
 });
