@@ -181,6 +181,19 @@ export const METHOD_ARGS = {
   'styles.get': t(z.string().min(1).max(100)),
   'styles.accept': t(z.string().min(1).max(100)),
   'styles.remove': t(z.string().min(1).max(100)),
+  // a draft style from a reference video (phase 15): a link, or a file main picks in the native
+  // dialog (`path` comes only from main; test builds may pass it)
+  'styles.extract': t(
+    z.strictObject({
+      name: z.string().trim().min(1).max(100),
+      url: z
+        .string()
+        .max(4096)
+        .regex(/^https?:\/\//i, 'a http(s) link')
+        .optional(),
+      path: z.string().min(1).max(4096).optional(),
+    }),
+  ),
   'exports.chooseTarget': t(ChooseTarget),
   'exports.lastFolder': t(ProjectId),
   'exports.reveal': t(z.string().min(1).max(4096)),

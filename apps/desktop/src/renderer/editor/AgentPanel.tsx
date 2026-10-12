@@ -523,7 +523,7 @@ function ConflictView() {
 }
 
 export function AgentPanel() {
-  const { run, agent, editor, vox, jobs } = useCtx();
+  const { run, agent, editor, vox, jobs, ui } = useCtx();
   const projectId = useEditor((s) => s.projectId);
   const media = useEditor((s) => s.project?.media);
   const runs = useAgent((s) => s.runs);
@@ -639,19 +639,28 @@ export function AgentPanel() {
           <RunCard key={r.runId} run={r} {...(live[r.runId] && { live: live[r.runId] })} />
         ))}
       </ul>
-      <button
-        type="button"
-        className={`${btn} self-start`}
-        onClick={() => {
-          setText('Make 3 clips from ');
-          input.current?.focus();
-        }}
-      >
-        Make clips from URL
-      </button>
-      <button type="button" className={`${btn} self-start`} onClick={() => void matchScreenplay()}>
-        Match screenplay
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className={btn}
+          onClick={() => {
+            setText('Make 3 clips from ');
+            input.current?.focus();
+          }}
+        >
+          Make clips from URL
+        </button>
+        <button
+          type="button"
+          className={btn}
+          onClick={() => ui.getState().set({ galleryOpen: true, galleryExtract: true })}
+        >
+          Extract style
+        </button>
+        <button type="button" className={btn} onClick={() => void matchScreenplay()}>
+          Match screenplay
+        </button>
+      </div>
       <form
         className="flex flex-col gap-1"
         onDragOver={(e) => e.preventDefault()}

@@ -81,7 +81,7 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 | v1.0 | | | |
 | GATE 6 | Reopened by the owner 2026-10-12: "its not look the same" (D-67). Round 3: real archive assets (agent-reach search), rococo gilt frame, full-width stack panels, then a new sheet for the owner. |
 | GATE 7 | | | |
-| GATE 8 | | | |
+| GATE 8 | **Passed by owner delegation, D-70 (not a blind human A/B).** Live extraction from attentioncompound 7633685885615115550 with Ollama qwen3.5; the AI picked the extracted style (clip-2 in round 2) from measured palette, caption case and position and the frame sheet before opening the key. Optional: your own blind A/B (Manual steps → "phase 15 · GATE 8"); you may overrule. | `plan/log/phase-15.md` "GATE 8", `docs/evidence/phase-15/` | |
 
 ## Manual steps (filled by the AI)
 
@@ -113,3 +113,5 @@ The AI adds items here when a phase reaches a MANUAL STEP or a GATE. Tick them o
 - [ ] phase 14e · step 10 (optional; does not block; no GUI tool here) · in the app, set a video clip to 2× and another to 0.5× in the Inspector (Speed), play the preview and check that picture and sound stay together and the clip lengths look right; the render path is measured (render/speed slow test, max A/V 15.92 ms), the preview is not · plan/log/phase-14e.md
 - [x] phase 14d · install check, Z-Image-Turbo: done by the orchestrator 2026-10-12 (real download, install, status, generate; `plan/log/phase-14d.md` "Install check")
 - [ ] phase 14d · FLUX.1-schnell (optional; needs your own `HF_TOKEN`): `HF_TOKEN=<token> vox imagegen install --model flux1-schnell` · `plan/log/phase-14d.md` "MANUAL STEPS"
+- [ ] phase 15 · GATE 8 (optional; the AI passed it by delegation, D-70; you may overrule) · blind A/B: without opening `docs/evidence/phase-15/ab-key.json`, watch `docs/evidence/phase-15/ab-clip-1.mp4` and `ab-clip-2.mp4` beside the reference `docs/evidence/phase-07/reference/attentioncompound/7633685885615115550.mp4` and say which clip looks closer · `plan/log/phase-15.md` "GATE 8"
+- [ ] phase 15 · step 6 with a cloud vision model (optional; needs an OpenRouter key in Settings) · `vox config roles set vision openrouter:<vision model>`, then `vox style extract <reference file or link> --name "<name>"` and compare its `report.html` with the Ollama run · `plan/log/phase-15.md` "Step 6"

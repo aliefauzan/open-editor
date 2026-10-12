@@ -23,6 +23,7 @@ import {
 
 import type { Engine, Redactor } from '@vox/engine';
 import { depsOf, type ConfigIo } from './config.ts';
+import { styleExtractCommand, StyleExtractUsageError } from './style-extract.ts';
 
 export interface AgentIo extends ConfigIo {
   prompt?: (question: string) => Promise<string>;
@@ -201,6 +202,14 @@ export async function agentCommand(
     if (!m || a < 1000 || b <= a)
       throw new AgentUsageError('--length takes <from>-<to> in seconds, e.g. 30-60');
     length = [a, b];
+  }
+  if (workflow === 'style-extract') {
+    try {
+      return await styleExtractCommand(engine, sourceIn(instruction) ?? instruction, values, io);
+    } catch (err) {
+      if (err instanceof StyleExtractUsageError) throw new AgentUsageError(err.message);
+      throw err;
+    }
   }
   const screenplay = values['screenplay'];
   if (screenplay !== undefined && typeof screenplay !== 'string')

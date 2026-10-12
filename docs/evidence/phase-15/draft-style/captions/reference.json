@@ -1,0 +1,9 @@
+{
+  "name": "reference",
+  "description": "Measured from the reference: mixed-case captions at 50 % height, about 3 words each. Look of vox/word-reveal.",
+  "case": "asis",
+  "stripPunctuation": false,
+  "position": {
+    "yPct": 50
+  }
+}

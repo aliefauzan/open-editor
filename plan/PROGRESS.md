@@ -28,7 +28,7 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | 14e | Clip speed + GATE 7 | 13 | [x] | 2026-10-12 05:52 | 2026-10-12 07:38 | MediaClip.speed 0.25–4× (sound 0.5–2×), schemaVersion 3 + migration, setClipSpeed, atempo with preroll; render frames exact, A/V max 15.92 ms; merged f67a91a (D-62) | log/phase-14e.md |
 | 14f | Audio ducking | 13 | [x] | 2026-10-12 | 2026-10-12 | `duck` flag on audio tracks, `sidechaincompress` per ducked track keyed by the speech bus (-11.5 dB on real speech), inspector toggle, audio QA passes; D-61 | log/phase-14f.md |
 | 14g | FCPXML export option | 13 | [x] | 2026-10-12 05:45 | 2026-10-12 | `export-timeline --format fcpxml` + dialog option; DTD-valid and structure-checked, not imported in an NLE (D-64) | log/phase-14g.md |
-| 15 | Styles Part C: style from reference | 13 | [~] | 2026-10-12 | | In progress | log/phase-15.md |
+| 15 | Styles Part C: style from reference | 13 | [x] | 2026-10-12 | 2026-10-12 | `vox style extract`, job `style.extract`, `extract_style` tool, gallery flow (report in a sandboxed frame, Accept/Discard), 50 OFL fonts; live run with Ollama qwen3.5; GATE 8 by AI delegation (D-70) | log/phase-15.md |
 
 ## Gates and milestones
 
@@ -49,4 +49,4 @@ Dates are local (YYYY-MM-DD HH:MM). Each phase edits only its own row.
 | v1.0 — fresh-clone check + owner installs the Release `.dmg` from the README and exports a clip (friend optional, D-16) | 13 | [ ] | | |
 | GATE 6 — sheet for the 4 new `vox` templates | 14a | [ ] | 2026-10-12, D-65; reopened D-67 | owner rejected the round 2 sheet ("its not look the same"); round 3 open |
 | GATE 7 — clip-speed design | 14e | [x] | 2026-10-12, D-62 | pass by owner delegation after round 2: playbackRate frame exact, atempo preroll, A/V max 9.35 ms |
-| GATE 8 — blind A/B of an extracted style | 15 | [ ] | | |
+| GATE 8 — blind A/B of an extracted style | 15 | [x] | 2026-10-12, D-70 | pass by owner delegation (D-49, D-58): the AI picked the extracted style from measurements and frames before opening the key; not a blind human A/B (TODO.md asks the owner, optional) |

@@ -29,6 +29,8 @@ export interface UiState {
   /** What the Settings dialog scrolls to and focuses (a LOGIN_REQUIRED hint: the cookies toggle). */
   settingsFocus: 'cookies' | null;
   galleryOpen: boolean;
+  /** The gallery opens on "New style from reference video" (the agent panel's Extract style action). */
+  galleryExtract: boolean;
   /** The quick-clips next-steps bar above the preview (10b), and its note (fewer clips than asked). */
   nextSteps: boolean;
   quickNote: string | null;
@@ -65,6 +67,7 @@ export function createUiStore(): UiStore {
     settingsOpen: false,
     settingsFocus: null,
     galleryOpen: false,
+    galleryExtract: false,
     nextSteps: false,
     quickNote: null,
     clipboard: [],

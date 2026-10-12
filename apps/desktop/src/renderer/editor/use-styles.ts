@@ -28,7 +28,8 @@ export function useResolvedStyle(styleId: string | undefined): ResolvedStyleData
   return style;
 }
 
-export function useStyleList(): StyleSummaryData[] {
+/** Installed styles; a new `version` reads the list again (after an extraction, accept or remove). */
+export function useStyleList(version = 0): StyleSummaryData[] {
   const { vox } = useCtx();
   const [list, setList] = useState<StyleSummaryData[]>([]);
   useEffect(() => {
@@ -40,7 +41,7 @@ export function useStyleList(): StyleSummaryData[] {
     return () => {
       live = false;
     };
-  }, [vox]);
+  }, [vox, version]);
   return list;
 }
 

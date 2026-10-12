@@ -85,12 +85,10 @@ export interface NewStyleOptions {
 }
 
 /**
- * Scaffolds `<user styles>/<id>/`: a partial child `style.json` (draft, untrusted, no own templates),
- * `guide.md`, and empty `templates/`. Rejects an id that is not `[a-z0-9-]+`, a built-in id and an id
- * installed in any styles folder (`STYLE_DUPLICATE`); the parent must load.
+ * The user styles folder a new style `id` goes to. Rejects an id that is not `[a-z0-9-]+` (64 chars
+ * at most), a built-in id and an id installed in any styles folder (`STYLE_DUPLICATE`).
  */
-export function newStyle(o: NewStyleOptions): { id: string; dir: string } {
-  const id = o.id;
+export function newStyleRoot(stylesDirs: readonly string[], id: string): string {
   if (typeof id !== 'string' || !STYLE_ID.test(id) || id.length > 64) {
     throw new VoxError(
       'VALIDATION',
@@ -99,23 +97,34 @@ export function newStyle(o: NewStyleOptions): { id: string; dir: string } {
       { details: { style: id } },
     );
   }
-  const where = installed(o.stylesDirs).get(id);
+  const where = installed(stylesDirs).get(id);
   if (where !== undefined) {
     throw new VoxError(
       'STYLE_DUPLICATE',
       where === 0
         ? `${id} is a built-in style id`
-        : `Style ${id} is already installed at ${join(o.stylesDirs[where]!, id)}`,
+        : `Style ${id} is already installed at ${join(stylesDirs[where]!, id)}`,
       'Pick another id; a user style may not reuse an installed id',
       { details: { style: id, builtIn: where === 0 } },
     );
   }
-  const parent = o.extends ?? 'base';
-  o.registry.get(parent); // STYLE_NOT_FOUND / STYLE_INVALID
-  const root = o.stylesDirs[o.stylesDirs.length - 1];
-  if (root === undefined || o.stylesDirs.length < 2) {
+  const root = stylesDirs[stylesDirs.length - 1];
+  if (root === undefined || stylesDirs.length < 2) {
     throw new VoxError('VALIDATION', 'No user styles folder', 'Configure a user styles folder');
   }
+  return root;
+}
+
+/**
+ * Scaffolds `<user styles>/<id>/`: a partial child `style.json` (draft, untrusted, no own templates),
+ * `guide.md`, and empty `templates/`. Rejects an id that is not `[a-z0-9-]+`, a built-in id and an id
+ * installed in any styles folder (`STYLE_DUPLICATE`); the parent must load.
+ */
+export function newStyle(o: NewStyleOptions): { id: string; dir: string } {
+  const id = o.id;
+  const root = newStyleRoot(o.stylesDirs, id);
+  const parent = o.extends ?? 'base';
+  o.registry.get(parent); // STYLE_NOT_FOUND / STYLE_INVALID
   const dir = join(root, id);
   const file = {
     id,

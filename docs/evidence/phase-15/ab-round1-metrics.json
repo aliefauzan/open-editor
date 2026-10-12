@@ -1,0 +1,55 @@
+{
+  "reference": {
+    "palette": [
+      "#151517",
+      "#493428",
+      "#745746",
+      "#C3B4A1",
+      "#B97F56"
+    ],
+    "captions": {
+      "detected": true,
+      "captionCount": 88,
+      "wordsPerCaption": 3,
+      "yPct": 49.69,
+      "case": "asis",
+      "revealShare": 0.3636,
+      "medianCaptionMs": 500
+    },
+    "medianShotMs": 867
+  },
+  "clips": {
+    "clip-1": {
+      "paletteDeltaE": 12.3,
+      "captionDetected": true,
+      "captionCaseMatch": true,
+      "captionCase": "asis",
+      "captionYPctDiff": 25.47,
+      "wordsPerCaptionDiff": 0,
+      "medianShotRatio": 3,
+      "palette": [
+        "#111314",
+        "#9D9489",
+        "#B8B4AF",
+        "#7C6E69",
+        "#102D7D"
+      ]
+    },
+    "clip-2": {
+      "paletteDeltaE": 14.9,
+      "captionDetected": true,
+      "captionCaseMatch": false,
+      "captionCase": "upper",
+      "captionYPctDiff": 10.760000000000005,
+      "wordsPerCaptionDiff": 0,
+      "medianShotRatio": 3,
+      "palette": [
+        "#CBC7C3",
+        "#201D1B",
+        "#EDECE8",
+        "#1A4382",
+        "#8B696D"
+      ]
+    }
+  }
+}

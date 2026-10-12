@@ -95,6 +95,22 @@ describe('headers (S13, S28)', () => {
     expect(r.headers.get('Content-Disposition')).toBeNull();
   });
 
+  it('an extracted style report and its frames are served with the media CSP (phase 15)', async () => {
+    const dir = join(root, 'styles', 'my-ref', 'report');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(root, 'styles', 'my-ref', 'report.html'), '<!doctype html><p>report</p>');
+    writeFileSync(join(dir, 'ref-01.jpg'), Buffer.alloc(10, 1));
+    const html = await resolveMediaPath('vox-media://styles/my-ref/report.html', ctx);
+    expect(html).toBe(join(root, 'styles', 'my-ref', 'report.html'));
+    const r = fileResponse(html!, new Request('vox-media://styles/my-ref/report.html'), CSP_MEDIA);
+    expect(r.headers.get('Content-Security-Policy')).toContain("connect-src 'none'");
+    expect(r.headers.get('Content-Disposition')).toBeNull();
+    expect(await resolveMediaPath('vox-media://styles/my-ref/report/ref-01.jpg', ctx)).toBe(
+      join(dir, 'ref-01.jpg'),
+    );
+    expect(CSP_APP).toContain('frame-src vox-media:');
+  });
+
   it('non-media types are attachments with nosniff', () => {
     const r = fileResponse(
       join(ctx.projectsDir, 'p_test', 'project.json'),

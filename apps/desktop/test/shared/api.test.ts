@@ -12,7 +12,7 @@ describe('window.vox schema (app spec "Engine-host API")', () => {
       'captions.get', 'jobs.start', 'jobs.get', 'jobs.cancel', 'preview.url', 'geo.search',
       'agent.run', 'agent.runs', 'agent.stop', 'agent.decide', 'agent.undoRun',
       'settings.get', 'settings.save', 'settings.probe',
-      'styles.list', 'styles.get', 'styles.accept', 'styles.remove',
+      'styles.list', 'styles.get', 'styles.accept', 'styles.remove', 'styles.extract',
       'exports.chooseTarget', 'exports.lastFolder', 'exports.reveal',
       'setup.status', 'setup.install', 'setup.updateYtDlp',
     ]; // prettier-ignore
