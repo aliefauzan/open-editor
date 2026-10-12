@@ -7,7 +7,7 @@ import { basename, isAbsolute, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
-import { stepClock, stepTable } from './quick-steps.ts';
+import { HIGHLIGHTS_SKIPPED_NOTE, stepClock, stepTable, waitHighlights } from './quick-steps.ts';
 import { selfTest } from './self-test.ts';
 import {
   isVoxError,
@@ -1129,13 +1129,20 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         await hlWait;
         throw err;
       }
-      const hlInfo = await hlWait;
-      // highlights run beside the stages above; this row is only the wait after them
+      // highlights run beside the stages above; this row is only the wait after them, capped at
+      // the app's grace (D-85): a job still running then is cancelled and the clips go on without it
+      const late = await waitHighlights(hlWait, () => e.jobs.cancel(hlJob));
+      const hlInfo = late.value;
+      // a job that finished just as the grace ran out still counts
+      const hlSkipped = late.skipped && hlInfo.status !== 'done';
       clock.mark('highlights wait');
+      if (hlSkipped) clock.note('highlights wait', HIGHLIGHTS_SKIPPED_NOTE);
       const hl: HighlightsJobResult | { available: false; reason: string } =
         hlInfo.status === 'done'
           ? (hlInfo.result as HighlightsJobResult)
-          : { available: false, reason: hlInfo.error?.message ?? hlInfo.status };
+          : hlSkipped
+            ? { available: false, reason: HIGHLIGHTS_SKIPPED_NOTE }
+            : { available: false, reason: hlInfo.error?.message ?? hlInfo.status };
       const q = await runJob<{
         clips: { sequenceId: string; name: string; startMs: number; endMs: number; text: string }[];
         scorer: string;
