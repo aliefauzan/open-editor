@@ -12,6 +12,7 @@ import {
   loadFontCatalogue,
   mapDraftStyle,
   measureReference,
+  repairDescription,
   StyleDescriptionSchema,
   writeDraftStyle,
   writeStyleReport,
@@ -202,6 +203,12 @@ export async function describeReference(
     return StyleDescriptionSchema.parse(r.output);
   } catch (err) {
     if (signal?.aborted) throw err;
+    // an answer that missed the schema by a little (NoObjectGeneratedError carries its text)
+    const said = (err as { text?: unknown }).text;
+    if (typeof said === 'string') {
+      const fixed = StyleDescriptionSchema.safeParse(repairDescription(firstJsonObject(said)));
+      if (fixed.success) return fixed.data;
+    }
   }
   await host.ensureBudget?.(vision, tokens);
   const schema = JSON.stringify(z.toJSONSchema(StyleDescriptionSchema));
@@ -214,7 +221,7 @@ export async function describeReference(
     ...(signal && { abortSignal: signal }),
   });
   cost(r);
-  return StyleDescriptionSchema.parse(firstJsonObject(r.text));
+  return StyleDescriptionSchema.parse(repairDescription(firstJsonObject(r.text)));
 }
 
 /** Scene templates of the default style chain (what a layout may map to). */

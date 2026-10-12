@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { closestFont, loadFontCatalogue } from '../../src/styles/extract/catalogue.ts';
-import { StyleDescriptionSchema } from '../../src/styles/extract/description.ts';
+import { repairDescription, StyleDescriptionSchema } from '../../src/styles/extract/description.ts';
 import { mapDraftStyle, paletteRoles, plainText } from '../../src/styles/extract/map.ts';
 import { MeasurementsSchema } from '../../src/styles/extract/measure.ts';
 import { reportHtml, writeDraftStyle, writeStyleReport } from '../../src/styles/extract/write.ts';
@@ -196,5 +196,50 @@ describe('write and report', () => {
       [],
     );
     expect(again).toContain('No vision model: measurements only.');
+  });
+});
+
+describe('repairDescription (near misses of small vision models)', () => {
+  test('maps words to the options, clamps numbers, drops unknown keys; a wrong shape still fails', () => {
+    const d = description();
+    const raw = {
+      ...d,
+      fonts: {
+        display: {
+          classification: 'Didone',
+          weight: '850',
+          case: 'UPPERCASE',
+          tags: ['x'.repeat(60)],
+        },
+        body: { classification: 'geometric', weight: 'Semi-Bold', case: 'Title Case', tags: [] },
+        caption: { classification: 'monospace', weight: 2000, case: 'mixed', tags: 'typewriter' },
+      },
+      captions: { ...d.captions, textColor: '#fff', boxColor: 'black', boxed: 'true' },
+      motion: { ...d.motion, frameHold: 6, entrance: 'Fade In' },
+      texture: { paper: false, grain: 35, film: 'false' },
+      layouts: [{ name: 'Map', description: 'x', closestTemplate: '' }],
+      surprise: 1,
+    };
+    const fixed = StyleDescriptionSchema.parse(repairDescription(raw));
+    expect(fixed.fonts.display).toEqual({
+      classification: 'serif',
+      weight: 850,
+      case: 'upper',
+      tags: ['x'.repeat(40)],
+    });
+    expect(fixed.fonts.body).toMatchObject({ classification: 'sans', weight: 600, case: 'asis' });
+    expect(fixed.fonts.caption).toMatchObject({
+      classification: 'mono',
+      weight: 1000,
+      tags: ['typewriter'],
+    });
+    expect(fixed.captions).toMatchObject({ textColor: '#ffffff', boxColor: null, boxed: true });
+    expect(fixed.motion).toMatchObject({ frameHold: 3, entrance: 'fade' });
+    expect(fixed.texture).toEqual({ paper: false, grain: 0.35, film: false });
+    expect(fixed.layouts[0]!.closestTemplate).toBeNull();
+    expect(StyleDescriptionSchema.safeParse(repairDescription({ summary: 'x' })).success).toBe(
+      false,
+    );
+    expect(repairDescription('text')).toBe('text');
   });
 });

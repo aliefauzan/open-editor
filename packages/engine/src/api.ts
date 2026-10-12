@@ -273,7 +273,11 @@ export {
   type FontCatalogue,
   type FontEntry,
 } from './styles/extract/catalogue.ts';
-export { StyleDescriptionSchema, type StyleDescription } from './styles/extract/description.ts';
+export {
+  repairDescription,
+  StyleDescriptionSchema,
+  type StyleDescription,
+} from './styles/extract/description.ts';
 export {
   mapDraftStyle,
   plainText,

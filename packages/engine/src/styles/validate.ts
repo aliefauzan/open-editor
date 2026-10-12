@@ -798,7 +798,20 @@ async function renderPass(c: PassCtx & { o: ValidateOptions; ffmpeg: string }): 
       const diffs = windowDiffs(gray, s, e);
       const cues = windowCueFrames(w, w.def.sfxCues);
       for (const f of cueTimingFindings(diffs, cues)) {
-        problem({ rule: 'cue-timing', template: w.def.id, fixture: w.fixture, message: f.message });
+        if (w.def.styleId === style.id) {
+          problem({
+            rule: 'cue-timing',
+            template: w.def.id,
+            fixture: w.fixture,
+            message: f.message,
+          });
+        } else {
+          // a re-skin keeps the parent's motion: its colours only move where the pixel difference
+          // peaks, so an inherited template's cue timing (checked with its own style) is a note here
+          c.report.notes.push(
+            `cue timing in the new colours, ${w.def.id} (${w.fixture}): ${f.message}`,
+          );
+        }
       }
     }
   }

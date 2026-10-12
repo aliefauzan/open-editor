@@ -176,6 +176,26 @@ describe('style.extract with a mocked vision model', () => {
     expect(m.prompts).toHaveLength(2);
   });
 
+  test('a near miss from a small local model (live qwen3.5: case "mixed") is repaired, not dropped', async () => {
+    const s = setup();
+    const near = {
+      ...DESCRIPTION,
+      fonts: {
+        ...DESCRIPTION.fonts,
+        caption: { classification: 'sans-serif', weight: 'bold', case: 'mixed', tags: 'mono' },
+      },
+      motion: { ...DESCRIPTION.motion, entrance: 'zoom', frameHold: '2' },
+      extra: 'ignored',
+    };
+    const m = scriptedModel([{ text: JSON.stringify(near) }, { text: JSON.stringify(near) }]);
+    const { result } = await run(s, roleModel(m.model), 'Near');
+    expect(result.describedBy).not.toBeNull();
+    const style = JSON.parse(readFileSync(join(result.dir, 'style.json'), 'utf8')) as {
+      tokens: { motion: unknown };
+    };
+    expect(style.tokens.motion).toMatchObject({ entrance: 'pop', frameHold: 2 });
+  });
+
   test('no usable description, no vision model, or over the cap: a measurements-only draft', async () => {
     const s = setup();
     const junk = await run(
