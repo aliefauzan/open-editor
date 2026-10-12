@@ -29,3 +29,13 @@ font name is not used, the face is declared as `Vox Grotesk`):
 `fonttools varLib.instancer Inter[opsz,wght].ttf wght=800 opsz=32`, then
 `pyftsubset --unicodes=U+0020-007E,U+00A0-00FF,U+2013-2014,U+2018-201F,U+2026,U+20AC --flavor=woff2
 --layout-features=kern,liga` (fonttools 4.66.1).
+
+GATE 6 round 3 (phase 14a, plan D-71): the newspaper headline is a condensed grotesque like the reel's front
+page. `Anton-subset.woff2` is a modified version of Anton under OFL 1.1 (subset; the reserved font name is not
+used, the face is declared as `Vox Condensed`), licence text `OFL-Anton.txt`. Source
+`ofl/anton/Anton-Regular.ttf` from the Google Fonts repository (<https://github.com/google/fonts/tree/main/ofl/anton>),
+source SHA-256 `a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab`:
+`pyftsubset Anton-Regular.ttf --unicodes=U+0020-007E,U+00A0-00FF,U+0152-0153,U+2013-2014,U+2018-201F,U+2026,U+20AC
+--flavor=woff2 --layout-features=kern,liga` (fonttools 4.66.1 with brotli), output SHA-256
+`3223e164ccf2d8d3f543c044fcc75d69d1de56265e88345bdbcc7e2b95830c73`. The Inter subset above also sets the yellow
+tags of `year-card` and `framed-portrait` (inlined there too).

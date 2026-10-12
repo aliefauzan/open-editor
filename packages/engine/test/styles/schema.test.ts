@@ -193,6 +193,9 @@ describe('template.json schema', () => {
     expect(parseTemplate(fixture('builtin/paper/templates/map/template.json'), 'm').slots).toEqual({
       'places/*': 'geo',
     });
+    // D-71: panels of a template slot may render at their own aspect
+    const wide = { ...titleTemplate(), slots: { 'panels/*': 'template' }, panelAspect: '16:9' };
+    expect(parseTemplate(wide, 'w').panelAspect).toBe('16:9');
   });
 
   test.each([
@@ -219,6 +222,9 @@ describe('template.json schema', () => {
     ],
     ['blendsShots on a scene', { blendsShots: true }],
     ['minEntranceMs of 0', { minEntranceMs: 0 }],
+    ['panelAspect without a template slot', { panelAspect: '16:9' }],
+    ['a panelAspect that is not a ratio', { panelAspect: '16x9', slots: { 'p/*': 'template' } }],
+    ['a panelAspect of zero', { panelAspect: '0:9', slots: { 'p/*': 'template' } }],
     ['an unknown key', { duration: 3 }],
     ['an empty name', { name: '' }],
   ])('rejects %s', (_label, patch) => {

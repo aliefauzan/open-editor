@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | done (GATE 6 approved by owner delegation, D-65) |
+| Status | GATE 6 reopened by the owner (D-67); round 3 sheet waits for the owner (D-71) |
 | Started · Finished | 2026-10-12 · 2026-10-12 |
 | Model | Sonnet 5.5 · high (phase agent, parallel run with 14b–14g and 15; self-review (token budget)) |
 | Machine | M5, macOS 27 |
@@ -68,6 +68,66 @@ vs the whole `reel-007.5s` split screen. Stand-in pictures (the test pattern) re
   narrower than the reel's panels (9:16 scenes in landscape bands); hero cue for a stamp-only beat; `newspaper` has no
   torn edge; `framed-portrait` iris and `year-card` blueprint draw are visible in motion only (previews `*.gif`).
 
+## GATE 6 round 3 (D-67 reopened the gate; D-71; the owner decides)
+Branch `phase/14a-gate6-r3`, worktree `.worktrees/phase-14a-r3`. Model Opus 5.5 · self-review (token budget). The
+AI did not pass this gate: the sheet is for the owner.
+
+Sheet: `docs/evidence/phase-14a/side-by-side-r3.jpg` (2293x1440, `scripts/vox-side-by-side-v11.sh`; the round 2
+sheet `side-by-side.jpg` is kept). Left: 4 rows of [reel 16:9 band | our `stack` band | our full 9:16 still]:
+year-card (reel 8.6 s top), framed-portrait (reel 7.5 s bottom), framed-portrait gone (reel 8.6 s bottom), newspaper
+(reel 9.6 s bottom). Right: the whole reel frame beside our whole `stack` at 9.6 s and 8.6 s. Full 9:16 stills per
+template: `docs/evidence/phase-14a/r3/*.jpg`. Stills come from `scripts/vox-gate6-r3.ts`, which uses real public-domain
+pictures in `docs/evidence/phase-14a/r3-inputs/` (see `SOURCES.md` there) as per-project media.
+
+What changed:
+- Engine: optional `panelAspect` in `template.json` (allowed only with a template slot). `stack` sets `"16:9"`, so each
+  panel renders at the canvas width and a 16:9 height (1080x608 in 1080x1920) and panel templates switch to their
+  landscape layout (`W/H >= 1.2`). Tests: compile (`panelSize`, stack panel size) and schema (3 reject, 1 accept).
+- `stack` 1.1.0: three full-width bands (about 89 % wide, 960x540 like the reel) with thin dark gaps on a near-black
+  board; no paper rims.
+- `year-card` 1.1.0: charcoal board (`board-dark.jpg`), big cream serif year with a light stroke, the `blueprint`
+  image as a white line drawing with dimension lines and arrowheads, a tilted b/w photo in a cream border, yellow tag.
+- `framed-portrait` 1.1.0: a real carved gilt frame (`frame-rococo.webp`, MET 460353, CC0) with the tag above, a slow
+  camera push, new optional `empty` (the painting slides out and leaves an empty wall before the stamp), red stamp
+  worn by an SVG turbulence filter. Iris only for `polaroid` / `none`. Cue unchanged (land at 2000 ms).
+- `newspaper` 1.1.0: a small drawn aged front page on a light mottled board (`board-light.jpg`), ragged edge,
+  condensed headline (`Anton-subset.woff2` as `Vox Condensed`), italic subhead, three filler columns, engraved photo.
+  Slide 80 % over 0.5 s (cue-timing). No Gallica scan is used or shipped.
+- Landscape modes (portrait unchanged): `stat` (sizes from H, inset faded print on the light board),
+  `kinetic-serif` and `paper-collage` (sizes from `min(W, H)`), so they read inside a band.
+- Previews: the GIF palette uses a Bayer dither (`bayer_scale=5`) so `styles/vox/previews/` stays under the 8 MB test
+  bound (7,581,548 B).
+- Assets (records in `styles/vox/ASSETS.md` and `assets/fonts/SOURCES.md`, tests in `early-assets.test.ts`):
+  `props/frame-rococo.webp` (CC0, MET), `textures/board-dark.jpg` and `board-light.jpg` (CC0, ambientCG Concrete036),
+  `fonts/Anton-subset.woff2` + `OFL-Anton.txt` (OFL 1.1). `scripts/sync-vox-inline.mjs` knows `.webp`.
+
+Iterations (scratch sheets, not committed):
+- A: `stat` overflowed a landscape band; year too small; frame too small and stamp hard to see; flat boards. Fixed
+  with landscape sizes, a bigger frame and push, a stamp at 15 % of the frame height, the textured boards.
+- B: the camera push moved the tag out of the band; portrait layouts collided (year vs tag). Fixed the push origin and
+  the portrait positions (year and tag at 12.5 % for the safe area).
+- C: line drawing too strong, gilt too dark, stamp too orange, coffee print too busy. Lowered the drawing opacity,
+  brightened the gilt, stamp #d2352a, faded inset print.
+
+Remaining differences (honest list):
+- The Comet photo is parked on the ground, not in flight (the in-flight copy on Commons was a look reference only).
+- The line drawing is a Comet 4 outline with livery lines (BOAC letters stay), not the reel's Comet 1 with hatching.
+- The year serif (DM Serif Display) is lighter than the reel's heavy serif.
+- The MET frame's carving differs (no cherubs) and it is stretched to a 0.75 aspect.
+- The gone state is fully empty; the reel's 8.6 s still is caught mid-wipe.
+- The stamp font is DM Serif, not a slab serif; at panel scale the stamp reads fainter than the reel's.
+- The newspaper uses filler text and a plain masthead rule; its paper is slightly more tan.
+- The `stat` panel has no cutouts (the reel's 7.5 s middle band) and no "CUTOUT STYLE" caption (captions are separate).
+- `kinetic-serif` text sits high in a landscape band.
+- Motion is checked through stills, previews and validate only, not by a human watching.
+
+Verify (round 3): `vox style validate vox --json` ok, 0 problems, 0 notes (schema 1, fixtures 10, cue-timing 30,
+safe-area 8, min-entrance 6, blank-frame 30, sfx-kit 1, file-refs 15). Suite, typecheck and lint: see the commit
+(full-suite numbers in the handoff report). The impeccable hook flags `broken-image` (empty `src`, set at runtime) and
+`dark-glow` (the clipping's inset edge burn): intentional, as in round 2.
+
+Status: GATE 6 and row 14a stay open in `plan/PROGRESS.md`; the owner judges `side-by-side-r3.jpg`.
+
 ## Review findings (self-review (token budget); no subagents in this run)
 | Agent | Severity | Finding | Fixed? |
 |---|---|---|---|
@@ -80,8 +140,10 @@ vs the whole `reel-007.5s` split screen. Stand-in pictures (the test pattern) re
 None required. Optional: look at `previews/*.gif` of the four templates at full size.
 
 ## Handoff notes
-- `vox/stack` panels: any scene template of the style except `vox/stack`; each panel shows the upper half of its scene,
-  so panels whose content sits lower (`paper-collage` items below 50 %, `map-route` labels) get cropped.
+- `vox/stack` panels: any scene template of the style except `vox/stack`. Since round 3 (D-71) each panel renders as
+  a whole 16:9 scene (`panelAspect`, 1080x608 in 1080x1920), not a crop of a 9:16 scene. `year-card`,
+  `framed-portrait`, `newspaper`, `stat`, `kinetic-serif` and `paper-collage` size themselves for a band;
+  `map-route` in a band was not checked in round 3.
 - `framed-portrait` stamp: the sound cue is the frame thud at 2000 ms; set `sfxOff` only to silence it.
 - A scene template whose `durationMs.min` equals its `minEntranceMs` cannot be checked by validate ("cannot be checked" note).
 - Full-suite Apple on-device tests fail on this machine (SensitiveContentAnalysis); not related.

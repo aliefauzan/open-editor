@@ -846,7 +846,7 @@ async function renderPass(c: PassCtx & { o: ValidateOptions; ffmpeg: string }): 
       '-i',
       mp4,
       '-vf',
-      `fps=10,scale=${CELL.w}:-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=64[p];[b][p]paletteuse`,
+      `fps=10,scale=${CELL.w}:-2:flags=lanczos,split[a][b];[a]palettegen=max_colors=64[p];[b][p]paletteuse=dither=bayer:bayer_scale=5`,
       '-loop',
       '0',
       join(out, `${name}.gif`),

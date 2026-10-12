@@ -1,8 +1,8 @@
 {
   "name": "framed-portrait",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "kind": "scene",
-  "description": "A halftone portrait of a named person in a gold frame (or a polaroid, or bare), opening with an iris and optionally zooming into a point such as the eyes, then a red stamp like \"GONE\" slams on and the frame thuds down. Like the Mona Lisa frame with the \"GONE\" stamp in the reference reel.",
+  "description": "A picture of a named person or artwork in a carved gilt frame (or a halftone polaroid or bare photo, opening with an iris) with a slow push in, optionally zooming into a point such as the eyes; with `empty` the picture leaves the frame; then a red stamp like \"GONE\" slams on and the frame thuds down. Like the Mona Lisa frame with the \"GONE\" stamp in the reference reel.",
   "useWhen": [
     "the speaker names a person, a portrait or a famous artwork",
     "someone disappears, is lost, found, wanted or remembered",
@@ -52,6 +52,9 @@
       },
       "bg": {
         "enum": ["paper", "dark", "highlight"]
+      },
+      "empty": {
+        "type": "boolean"
       }
     },
     "required": ["media"],
