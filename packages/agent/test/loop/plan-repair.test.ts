@@ -6,6 +6,7 @@ import { mapTemplateLookup, type TemplateInfo } from '@vox/engine';
 import { describe, expect, test } from 'vitest';
 import {
   MAX_SAME_TEMPLATE,
+  clearOfCaptions,
   fitVariables,
   textLedTemplates,
   varySceneTemplates,
@@ -201,5 +202,42 @@ describe('scene variety (D-94)', () => {
     const beats = [collage(0, 'A b'), collage(3000, 'C d'), collage(6000, 'E f')];
     expect(varySceneTemplates(beats, [], templates).beats).toEqual(beats);
     expect(varySceneTemplates(beats.slice(0, 2), textLed, templates).notes).toEqual([]);
+  });
+});
+
+describe('text clear of the captions (D-96)', () => {
+  const overlay = () => get('base/text-overlay');
+  const run = (vars: Record<string, unknown>, y: number | undefined) => {
+    const notes: string[] = [];
+    return { out: clearOfCaptions(overlay(), vars, y, (w) => notes.push(w)), notes };
+  };
+
+  test('the run 3 overlay (default bottom) over two-tier captions at 50 % moves to the top', () => {
+    const { out, notes } = run({ text: 'Peluang tak terduga' }, 50);
+    expect(out).toEqual({ text: 'Peluang tak terduga', position: 'top' });
+    expect(notes).toEqual(['position bottom → top (clear of the captions at 50 %)']);
+  });
+
+  test('a position already clear of the captions is kept', () => {
+    expect(run({ text: 'x', position: 'bottom' }, 80).out).toEqual({
+      text: 'x',
+      position: 'bottom',
+    });
+    expect(run({ text: 'x', position: 'top' }, 50).notes).toEqual([]);
+  });
+
+  test('middle over captions at 50 % moves; without captions nothing changes', () => {
+    expect(run({ text: 'x', position: 'middle' }, 50).out['position']).toBe('top');
+    expect(run({ text: 'x', position: 'middle' }, undefined).out).toEqual({
+      text: 'x',
+      position: 'middle',
+    });
+  });
+
+  test('a template with no position choice is unchanged', () => {
+    const notes: string[] = [];
+    const vars = { text: 'Rezeki' };
+    expect(clearOfCaptions(get('vox/kinetic-serif'), vars, 50, (w) => notes.push(w))).toBe(vars);
+    expect(notes).toEqual([]);
   });
 });

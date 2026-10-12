@@ -3,6 +3,8 @@ import {
   captionsToSrt,
   captionsToVtt,
   deriveCaptions,
+  sceneStrings,
+  withoutSceneEchoes,
   type CaptionChunk,
 } from '../../src/model/captions.ts';
 import type {
@@ -466,5 +468,61 @@ describe('SRT / VTT', () => {
     expect(captionsToVtt(chunks)).toBe(
       'WEBVTT\n\n00:00:00.000 --> 00:00:01.500\nHello,\nworld!\n\n01:02:03.004 --> 01:02:04.000\na&lt;b c\n',
     );
+  });
+});
+
+describe('captions that repeat a scene (D-99)', () => {
+  // owner demo run 3: the scene text and the caption showed the same words at the same time
+  const chunk = (startMs: number, endMs: number, text: string): CaptionChunk => ({
+    startMs,
+    endMs,
+    lines: [
+      {
+        words: text.split(' ').map((t, i) => ({
+          key: `m_a:r1:${String(startMs + i)}`,
+          text: t,
+          startMs,
+          endMs,
+          emphasis: false,
+        })),
+      },
+    ],
+  });
+  const chunks = [
+    chunk(0, 1000, 'Rezeki itu'),
+    chunk(1000, 2000, 'Pintu rezeki terbuka!'),
+    chunk(2000, 3000, 'dari arah lain'),
+    chunk(3000, 4000, 'itu'),
+  ];
+
+  test('a chunk whose words the scene shows over most of its time is left out', () => {
+    const scenes = [{ startMs: 900, endMs: 4000, texts: ['PINTU Rezeki', 'Térbuka', 'itu'] }];
+    // one word under 4 letters is never an echo
+    expect(withoutSceneEchoes(chunks, scenes).map((c) => c.startMs)).toEqual([0, 2000, 3000]);
+  });
+
+  test('the same words outside the scene, or a short overlap, stay', () => {
+    expect(
+      withoutSceneEchoes(chunks, [{ startMs: 3000, endMs: 5000, texts: ['Pintu rezeki terbuka'] }]),
+    ).toEqual(chunks);
+    expect(
+      withoutSceneEchoes(chunks, [{ startMs: 1600, endMs: 3000, texts: ['Pintu rezeki terbuka'] }]),
+    ).toEqual(chunks);
+  });
+
+  test('a scene that shares under 60 % of the words keeps the chunk; no scene keeps all', () => {
+    const scenes = [{ startMs: 0, endMs: 4000, texts: ['arah baru'] }];
+    expect(withoutSceneEchoes(chunks, scenes)).toEqual(chunks);
+    expect(withoutSceneEchoes(chunks, [])).toEqual(chunks);
+  });
+
+  test('scene strings are read from nested variables', () => {
+    expect(
+      sceneStrings({
+        panels: [{ template: 'base/text-overlay', variables: { text: 'Allah' } }],
+        n: 3,
+        label: 'Peluang',
+      }),
+    ).toEqual(['base/text-overlay', 'Allah', 'Peluang']);
   });
 });

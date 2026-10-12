@@ -12,7 +12,8 @@ cacheDir?, matteShortSide?, ffmpeg?, ffprobe? }`:
 
 Beat choice: at the middle of each beat, the caption pixels are where the two renders differ, and
 the subject is the Apple Vision foreground mask of the plain frame. A beat goes behind when the
-subject covers 8-65 % of the caption pixels.
+subject covers 8-65 % of the caption pixels and no more than half of any one word (D-98). Caption
+pixels are only those brighter than the plain frame: the dark scrim under the words is left out.
 
 Composite: every frame of the captioned render is copied, except inside a chosen beat, where the
 plain render's subject pixels (the soft Vision matte) go over the captions:
@@ -54,6 +55,47 @@ DIFF = 40
 # share of the caption pixels the subject must cover for a beat to go behind (auto mode)
 COVER = (0.08, 0.65)
 MIN_CAPTION_PX = 50
+# caption ink: brighter than the plain frame by more than this in some channel (D-98; white text on
+# a light wall is about 40 levels brighter)
+INK = 24
+# most of one word the subject may hide (auto mode, D-98): a word on the face stays in front
+WORD_MAX = 0.5
+# columns with no caption ink that split two words, as a share of the small frame width
+WORD_GAP = 0.011
+
+
+def words_of(cap: np.ndarray) -> list[tuple[int, int]]:
+    """Column spans of the caption's words: runs of columns with caption ink, split where at least
+    WORD_GAP of the frame width has none (letters of one word sit closer)."""
+    cols = cap.any(axis=0)
+    gap = max(2, round(WORD_GAP * cap.shape[1]))
+    spans: list[tuple[int, int]] = []
+    start = None
+    empty = 0
+    for x, on in enumerate(cols):
+        if on:
+            if start is None:
+                start = x
+            empty = 0
+            end = x + 1
+        elif start is not None:
+            empty += 1
+            if empty >= gap:
+                spans.append((start, end))
+                start = None
+    if start is not None:
+        spans.append((start, end))
+    return spans
+
+
+def worst_word(cap: np.ndarray, subj: np.ndarray) -> float:
+    """The largest share of one word's caption pixels the subject covers."""
+    worst = 0.0
+    for x0, x1 in words_of(cap):
+        n = int(cap[:, x0:x1].sum())
+        if n >= MIN_CAPTION_PX // 5:
+            worst = max(worst, float((cap[:, x0:x1] & subj[:, x0:x1]).sum()) / n)
+    return worst
 
 
 def check_beats(raw: list) -> list[tuple[int, int]]:
@@ -245,7 +287,9 @@ def choose(
         if a is None or b is None:
             out.append(entry)
             continue
-        cap = np.abs(a.astype(np.int16) - b.astype(np.int16)).max(axis=-1) > DIFF
+        # caption ink is brighter than the plain frame (light letters, a light box); the dark scrim
+        # and shade under the letters (D-93) are not caption text (D-98)
+        cap = (a.astype(np.int16) - b.astype(np.int16)).max(axis=-1) > INK
         n = int(cap.sum())
         if n < MIN_CAPTION_PX:
             out.append(entry)
@@ -254,7 +298,9 @@ def choose(
         overlap = float((cap & subj).sum()) / n
         entry["overlap"] = round(overlap, 3)
         entry["behind"] = (
-            COVER[0] <= overlap <= COVER[1] if mode == "auto" else overlap > 0.0
+            COVER[0] <= overlap <= COVER[1] and worst_word(cap, subj) <= WORD_MAX
+            if mode == "auto"
+            else overlap > 0.0
         )
         out.append(entry)
     return out

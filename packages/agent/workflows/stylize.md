@@ -32,7 +32,8 @@ its default caption preset.
    (`get_template`). Split the clip into beats that follow the style guide's pacing. Scene beats are
    scenes on `V2` that cover the speaker; speaker beats are the gaps between them. Pick each scene's
    template by what its line says (the guide's "Choosing a scene") and use a mix: at most two scenes of
-   one template in a clip. Layout `full-collage`
+   one template in a clip. Write scene text in the language the speaker speaks, in their own words
+   where you can (only image search queries are English). Layout `full-collage`
    keeps the speaker share near the guide's minimum; `hybrid` keeps it near the maximum. Never let two
    scenes on one track overlap.
 2. Fill. For every image or cutout slot: `search_images`, then `fetch_image` on the best candidate, then

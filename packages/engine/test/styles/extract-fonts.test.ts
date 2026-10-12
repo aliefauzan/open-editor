@@ -190,6 +190,17 @@ describe('two-tier caption preset', () => {
     expect(() => twoTierHtml(look, 'x @@NOPE@@')).toThrow(/NOPE/);
   });
 
+  test('tier 1 words are joined by a fixed gap the measured tracking cannot close (D-97)', () => {
+    const html = twoTierHtml(twoTierLook(fonts()));
+    // the r3b preset measured tracking -0.047 em: a plain space between italic words closed up
+    expect(html).toMatch(/\.c-gap \{[^}]*letter-spacing: 0;/);
+    expect(html).toContain('var GAP_EM = 0.3;');
+    expect(html).toContain('line.appendChild(gap(T1.size * H * scale))');
+    expect(html).toContain("run.emph ? document.createTextNode(' ') : gap(size)");
+    // the layout width counts the same gap
+    expect(html).toContain('px += GAP_EM * T1.size * H');
+  });
+
   test('without Vision or with too few frames, the captions stay in front', () => {
     const f = fonts();
     expect(

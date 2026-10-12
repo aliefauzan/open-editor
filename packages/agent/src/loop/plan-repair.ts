@@ -16,6 +16,7 @@ const PLACEHOLDER = 'base/placeholder';
 interface Schema {
   type?: unknown;
   enum?: unknown;
+  default?: unknown;
   const?: unknown;
   pattern?: unknown;
   format?: unknown;
@@ -320,4 +321,56 @@ export function varySceneTemplates<B extends VaryBeat>(
     }
   }
   return { beats: out, notes, counts };
+}
+
+/**
+ * Where a `position` choice puts a scene's text block, in % of the frame height (its top edge and
+ * its height for two lines): `base/text-overlay` (`top: 12%`, `middle: 42%`, `bottom: 56%`).
+ */
+const POSITION_BANDS: Record<string, { topPct: number; heightPct: number }> = {
+  top: { topPct: 12, heightPct: 12 },
+  middle: { topPct: 42, heightPct: 12 },
+  bottom: { topPct: 56, heightPct: 12 },
+};
+/** Half the height of a two-line caption block around its `yPct` (two-tier presets). */
+export const CAPTION_HALF_PCT = 9;
+
+const bandClear = (pos: string, yPct: number) => {
+  const b = POSITION_BANDS[pos]!;
+  return b.topPct + b.heightPct <= yPct - CAPTION_HALF_PCT || b.topPct >= yPct + CAPTION_HALF_PCT;
+};
+const bandGap = (pos: string, yPct: number) => {
+  const b = POSITION_BANDS[pos]!;
+  return Math.abs(b.topPct + b.heightPct / 2 - yPct);
+};
+
+/**
+ * A scene with a `position` choice (top, middle, bottom) clear of burned-in captions at `yPct`
+ * (D-96: a text overlay at the bottom sat on the two-tier captions at 50 %): kept when its band is
+ * clear of the caption block, else moved to the clear choice farthest from the captions, with a
+ * repair note. Unchanged without captions or a `position` enum.
+ */
+export function clearOfCaptions(
+  t: TemplateInfo,
+  variables: Record<string, unknown>,
+  captionYPct: number | undefined,
+  note: (what: string) => void,
+): Record<string, unknown> {
+  if (captionYPct === undefined) return variables;
+  const props = (t.variables['properties'] ?? {}) as Record<string, Schema | undefined>;
+  const s = props['position'];
+  if (!s || !Array.isArray(s.enum)) return variables;
+  const choices = (s.enum as unknown[]).filter(
+    (v): v is string => typeof v === 'string' && Object.hasOwn(POSITION_BANDS, v),
+  );
+  const cur = typeof variables['position'] === 'string' ? variables['position'] : s.default;
+  if (typeof cur === 'string' && Object.hasOwn(POSITION_BANDS, cur) && bandClear(cur, captionYPct))
+    return variables;
+  const clear = choices.filter((c) => bandClear(c, captionYPct));
+  if (clear.length === 0) return variables;
+  const pick = clear.reduce((a, b) => (bandGap(b, captionYPct) > bandGap(a, captionYPct) ? b : a));
+  note(
+    `position ${typeof cur === 'string' ? cur : 'default'} → ${pick} (clear of the captions at ${String(captionYPct)} %)`,
+  );
+  return { ...variables, position: pick };
 }

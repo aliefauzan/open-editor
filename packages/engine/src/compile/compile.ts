@@ -17,6 +17,8 @@ import { VoxError } from '../errors.ts';
 import {
   captionsToSrt,
   deriveCaptions,
+  sceneStrings,
+  withoutSceneEchoes,
   type CaptionChunk,
   type TranscriptOf,
 } from '../model/captions.ts';
@@ -907,7 +909,28 @@ export async function compileSequence(
   let captions = deriveCaptions(input.project, original.id, input.transcriptOf, {
     tiered: preset?.tiered === true,
   });
-  if (opts.range) captions = shiftChunks(captions, opts.range.startMs, opts.range.endMs);
+  // D-99: the burned-in layer leaves out a chunk that repeats the words a scene shows at the same
+  // time; the build's captions and its SRT keep every chunk
+  let burned = withoutSceneEchoes(
+    captions,
+    original.videoTracks.flatMap((t) =>
+      t.items.flatMap((it) =>
+        it.type === 'scene'
+          ? [
+              {
+                startMs: it.startMs,
+                endMs: it.startMs + it.durationMs,
+                texts: sceneStrings(it.variables),
+              },
+            ]
+          : [],
+      ),
+    ),
+  );
+  if (opts.range) {
+    captions = shiftChunks(captions, opts.range.startMs, opts.range.endMs);
+    burned = shiftChunks(burned, opts.range.startMs, opts.range.endMs);
+  }
   const cues = cueList(seq, lookup);
   if (opts.range) {
     cues.cues = cues.cues.filter((c) => c.atMs < durationMs);
@@ -952,7 +975,7 @@ export async function compileSequence(
   const overlays = overlayLayer(ctx, durationMs);
   if (overlays.length) layers.push(layerDiv('track-overlays', overlays));
   const cap =
-    opts.captions !== false && keep(ctx, 'captions') ? captionLayer(ctx, captions, durationMs) : '';
+    opts.captions !== false && keep(ctx, 'captions') ? captionLayer(ctx, burned, durationMs) : '';
   if (cap) layers.push(layerDiv('track-captions', [cap]));
   else ctx.kept.delete('captions');
   const missing = [...(ctx.only ?? [])].filter((id) => !ctx.kept.has(id));

@@ -126,7 +126,8 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
     // (a) collages 3 and 4 turn text-led before filling; (c) collages 1 and 2 would show four stills
     // of the speaker each, so they turn text-led too, to the least used text-led templates
     expect(scenes.map((s) => [s.template, s.variables])).toEqual([
-      ['base/text-overlay', { text: 'Uang Berkurang' }],
+      // D-96: the overlay's default band (bottom) would sit on the captions, so it moves to the top
+      ['base/text-overlay', { text: 'Uang Berkurang', position: 'top' }],
       ['base/title', { title: 'Konsep Rezeki' }],
       ['vox/kinetic-serif', { text: 'Pintu Rezeki' }],
       ['vox/newspaper', { headline: 'Kesempatan Baru' }],
@@ -144,6 +145,9 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
     expect(repairs).toContain(
       'no archive picture for "Uang Berkurang" (query from the scene text)',
     );
+    expect(
+      repairs.some((w) => w.startsWith('position bottom → top (clear of the captions at')),
+    ).toBe(true);
     expect(r.checkpoints.find((c) => c.checkpoint === 'fill')?.status).toBe('met');
   }, 120_000);
 

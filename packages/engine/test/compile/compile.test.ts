@@ -346,6 +346,33 @@ describe('D-15 compile details (step 9b)', () => {
     expect(b.files.get('captions.srt')).toContain('It has\n42 clips!');
   });
 
+  test('a caption chunk that repeats the scene on screen is not burned in; the SRT keeps it (D-99)', async () => {
+    const p = mainProject('kit');
+    p.sequences[0]!.captions = { ...CAPTION_DEFAULTS, preset: 'kit/loud', overrides: [] };
+    const overlay = p.sequences[0]!.videoTracks[1]!.items[1]!;
+    if (overlay.type !== 'scene') throw new Error('fixture: it_o1 is a scene');
+    // the speech "It has 42 clips!" runs 2000-3500 ms on the timeline (it_a1 starts 1 s into m_a)
+    overlay.startMs = 2000;
+    overlay.variables = { ...overlay.variables, text: 'It has 42 clips' };
+    const b = await build(p, { mode: 'render' }, registry(['kit']));
+    const vars = varsOf(instance(b, 'captions'), 'captions') as {
+      chunks: { lines: { words: { text: string }[] }[] }[];
+    };
+    expect(
+      vars.chunks.map((c) => c.lines.flatMap((l) => l.words.map((w) => w.text)).join(' ')),
+    ).toEqual(['THIS IS VOX']);
+    expect(b.files.get('captions.srt')).toBe(captionsToSrt(b.captions));
+    expect(b.captions.flatMap((c) => c.lines.flatMap((l) => l.words.map((w) => w.text)))).toEqual([
+      'this',
+      'is',
+      'Vox.',
+      'It',
+      'has',
+      '42',
+      'clips!',
+    ]);
+  });
+
   test('facetrack, auto and manual keyframes become a transform; cover/contain use object-fit', async () => {
     const kfs = [
       { atMs: 0, x: 0.5, y: 0.5, scale: 1 },
