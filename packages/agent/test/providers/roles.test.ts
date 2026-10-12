@@ -1,6 +1,7 @@
 // Role rules (agent spec "Model roles", "Capability probe", "Plan mode" → mode selection; phase 11
 // steps 8 and 10, probe half): which probe results let a model fill a role, and in which mode.
 import { describe, expect, test } from 'vitest';
+import { APPLE_NO_VISION_REASON } from '../../src/providers/apple.ts';
 import type { CheckResult } from '../../src/providers/probe.ts';
 import { providerEntryFromPreset, type ProviderEntry } from '../../src/providers/presets.ts';
 import type { PriceTable } from '../../src/providers/prices.ts';
@@ -263,10 +264,26 @@ describe('roleCheck: Apple on-device', () => {
     ]);
   });
 
-  test('vision, image and embed are never Apple roles', () => {
-    for (const role of ['vision', 'image', 'embed'] as const) {
+  test('image and embed are never Apple roles', () => {
+    for (const role of ['image', 'embed'] as const) {
       expect(roleCheck(role, args({ ...appleProbe, vision: PASS })).assignable).toBe(false);
     }
+  });
+
+  test('vision is an Apple role only when the vision probe passed (macOS 27, D-74)', () => {
+    expect(roleCheck('vision', args({ ...appleProbe, vision: PASS })).assignable).toBe(true);
+    const noVision = roleCheck(
+      'vision',
+      args({ ...appleProbe, vision: { status: 'fail', reason: APPLE_NO_VISION_REASON } }),
+    );
+    expect(noVision.assignable).toBe(false);
+    expect(noVision.failures).toEqual([{ check: 'vision', reason: APPLE_NO_VISION_REASON }]);
+    expect(roleCheck('vision', args(appleProbe)).failures).toEqual([
+      { check: 'vision', reason: 'not probed' },
+    ]);
+    const off = roleCheck('vision', args({ ...appleProbe, appleStatus: 'notEnabled' }));
+    expect(off.assignable).toBe(false);
+    expect(off.failures.map((f) => f.check)).toEqual(['apple', 'vision']);
   });
 });
 
@@ -299,6 +316,37 @@ describe('assertRoleAssignable', () => {
       message: expect.stringContaining('vision'),
       details: { role: 'vision', model: 'claude-sonnet-4-5', failures: [{ check: 'vision' }] },
     });
+  });
+
+  test('the Apple model without image input is refused as vision with the reason (D-74)', () => {
+    let caught: unknown;
+    try {
+      assertRoleAssignable('vision', {
+        provider: apple,
+        model: 'apple-on-device',
+        probe: {
+          appleStatus: 'ready',
+          plan: PASS,
+          vision: { status: 'fail', reason: APPLE_NO_VISION_REASON },
+        },
+        priceTables: [],
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toMatchObject({
+      code: 'PROBE_FAILED',
+      message: 'apple-on-device cannot be the vision model: vision failed',
+      details: { failures: [{ check: 'vision', reason: expect.stringMatching(/macOS 27/) }] },
+    });
+    expect(
+      assertRoleAssignable('vision', {
+        provider: apple,
+        model: 'apple-on-device',
+        probe: { appleStatus: 'ready', plan: PASS, vision: PASS },
+        priceTables: [],
+      }).assignable,
+    ).toBe(true);
   });
 
   test('an assignable model returns the verdict', () => {

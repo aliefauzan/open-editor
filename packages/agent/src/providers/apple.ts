@@ -1,9 +1,14 @@
 // Apple on-device model as a LanguageModelV4 over the `vox-apple-llm` helper (agent spec "Apple
 // on-device model", D-10, D-22). One long-lived helper process answers JSON lines in order; this
 // side owns the timeout: a helper that does not answer in time is killed and the next request
-// starts a fresh one. The helper has no tool calls and no image input, so the agent uses it in
-// plan mode only. Cost is 0 (prices.ts treats `apple` as local).
+// starts a fresh one. The helper has no tool calls, so the agent uses it in plan mode only. On
+// macOS 27 the model also sees images (D-74): image parts of user messages are written to a
+// private temp dir, passed to the helper as file paths and deleted after the answer; `--status`
+// reports `vision`. Cost is 0 (prices.ts treats `apple` as local).
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   InvalidPromptError,
   UnsupportedFunctionalityError,
@@ -17,6 +22,7 @@ import {
 } from '@ai-sdk/provider';
 import { VoxError } from '../errors.ts';
 import {
+  APPLE_MAX_IMAGES,
   JsonLineSplitter,
   appleStatusValues,
   encodeAppleRequest,
@@ -63,6 +69,10 @@ const STATUS_HINTS: Record<Exclude<AppleStatusValue, 'ready'>, string> = {
   modelNotReady: 'The on-device model is still downloading; try again later.',
   unsupportedOS: 'The Apple on-device model needs macOS 26 or later.',
 };
+
+/** Why the Apple model cannot fill the `vision` role, shown by the probe and `roles set`. */
+export const APPLE_NO_VISION_REASON =
+  'the Apple on-device model cannot see images on this Mac (image input needs macOS 27 with Apple Intelligence)';
 
 /** `--status` value → usable or not, with the hint shown to the user. */
 export function appleStatusInfo(status: AppleStatusValue): { usable: boolean; hint: string } {
@@ -317,6 +327,12 @@ function mapHelperError(code: string, message: string): VoxError {
         'Shorten the request; the loop compacts and retries once.',
         { details: { provider: 'apple' } },
       );
+    case 'visionUnavailable':
+      return unavailable(
+        APPLE_NO_VISION_REASON,
+        'Choose another model for the vision role, or update to macOS 27.',
+        { status: 'noVision' },
+      );
     case 'guardrail':
     case 'badRequest':
       return appleFailed(code, `Apple helper: ${message}`, {});
@@ -331,34 +347,105 @@ const unsupported = (functionality: string) =>
     message: `The Apple on-device model does not support ${functionality}.`,
   });
 
-function textOf(parts: ReadonlyArray<{ type: string; text?: string }>, role: string): string {
-  const texts: string[] = [];
-  for (const part of parts) {
-    if (part.type === 'text') texts.push(part.text ?? '');
-    else if (part.type === 'file') throw unsupported(`file or image input (${role} message)`);
-    else if (part.type === 'reasoning' || part.type === 'reasoning-file') continue;
-    else throw unsupported(`tool calls (${part.type} in a ${role} message)`);
-  }
-  return texts.join('\n');
+/** One image of a user message, before it is written to a temp file. */
+interface ImageInput {
+  bytes: Uint8Array;
+  extension: string;
 }
 
+type Part = Extract<
+  LanguageModelV4Prompt[number],
+  { role: 'user' | 'assistant' }
+>['content'][number];
+
+/** Image bytes of a user file part; any other file is unsupported. */
+function imageOf(part: Extract<Part, { type: 'file' }>): ImageInput {
+  if (!part.mediaType.startsWith('image/')) throw unsupported(`file input (${part.mediaType})`);
+  if (part.data.type !== 'data') throw unsupported(`image input as ${part.data.type}`);
+  const raw = part.data.data;
+  const bytes = typeof raw === 'string' ? Buffer.from(raw, 'base64') : raw;
+  const sub = part.mediaType.slice('image/'.length).toLowerCase();
+  const extension = sub === 'jpeg' ? 'jpg' : /^[a-z0-9]{1,8}$/.test(sub) ? sub : 'img';
+  return { bytes, extension };
+}
+
+function contentOf(
+  parts: ReadonlyArray<Part>,
+  role: 'user' | 'assistant',
+): { text: string; images: ImageInput[] } {
+  const texts: string[] = [];
+  const images: ImageInput[] = [];
+  for (const part of parts) {
+    if (part.type === 'text') texts.push(part.text);
+    else if (part.type === 'file') {
+      if (role !== 'user') throw unsupported(`file or image input (${role} message)`);
+      images.push(imageOf(part));
+    } else if (part.type === 'reasoning' || part.type === 'reasoning-file') continue;
+    else throw unsupported(`tool calls (${part.type} in a ${role} message)`);
+  }
+  return { text: texts.join('\n'), images };
+}
+
+/** Helper messages, with the images of each message kept apart until they are written. */
 function toHelperPrompt(prompt: LanguageModelV4Prompt): {
   system: string;
   messages: AppleMessage[];
+  images: ImageInput[][];
 } {
   const system: string[] = [];
   const messages: AppleMessage[] = [];
+  const images: ImageInput[][] = [];
   for (const m of prompt) {
     if (m.role === 'system') system.push(m.content);
-    else if (m.role === 'user') messages.push({ role: 'user', content: textOf(m.content, 'user') });
-    else if (m.role === 'assistant')
-      messages.push({ role: 'assistant', content: textOf(m.content, 'assistant') });
-    else throw unsupported('tool results');
+    else if (m.role === 'user' || m.role === 'assistant') {
+      const c = contentOf(m.content, m.role);
+      messages.push({ role: m.role, content: c.text });
+      images.push(c.images);
+    } else throw unsupported('tool results');
   }
   if (messages.at(-1)?.role !== 'user') {
     throw new InvalidPromptError({ prompt, message: 'the last message must be from the user' });
   }
-  return { system: system.join('\n\n'), messages };
+  const count = images.reduce((n, list) => n + list.length, 0);
+  if (count > APPLE_MAX_IMAGES) {
+    throw new InvalidPromptError({
+      prompt,
+      message: `the Apple on-device model takes at most ${String(APPLE_MAX_IMAGES)} images per request (got ${String(count)})`,
+    });
+  }
+  return { system: system.join('\n\n'), messages, images };
+}
+
+/**
+ * Writes the images to a new private temp dir (0700, files 0600), runs `fn` with the messages
+ * that name them, and deletes the dir afterwards, also when `fn` fails.
+ */
+async function withImageFiles<T>(
+  messages: AppleMessage[],
+  images: ImageInput[][],
+  fn: (messages: AppleMessage[]) => Promise<T>,
+): Promise<T> {
+  if (images.every((list) => list.length === 0)) return fn(messages);
+  const dir = await mkdtemp(join(tmpdir(), 'vox-apple-img-'));
+  try {
+    const withPaths = await Promise.all(
+      messages.map(async (m, i) => {
+        const list = images[i] ?? [];
+        if (list.length === 0) return m;
+        const paths = await Promise.all(
+          list.map(async (img, j) => {
+            const path = join(dir, `${String(i)}-${String(j)}.${img.extension}`);
+            await writeFile(path, img.bytes, { mode: 0o600, flag: 'wx' });
+            return path;
+          }),
+        );
+        return { ...m, images: paths };
+      }),
+    );
+    return await fn(withPaths);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 const IGNORED_SETTINGS = [
@@ -372,6 +459,7 @@ const IGNORED_SETTINGS = [
 
 function buildRequest(options: LanguageModelV4CallOptions): {
   request: Omit<AppleRequestInput, 'id'>;
+  images: ImageInput[][];
   warnings: SharedV4Warning[];
 } {
   if (options.tools !== undefined && options.tools.length > 0) throw unsupported('tool calling');
@@ -382,7 +470,7 @@ function buildRequest(options: LanguageModelV4CallOptions): {
   if (options.reasoning !== undefined && options.reasoning !== 'provider-default') {
     warnings.push({ type: 'unsupported', feature: 'reasoning' });
   }
-  const { system, messages } = toHelperPrompt(options.prompt);
+  const { system, messages, images } = toHelperPrompt(options.prompt);
   const format = options.responseFormat;
   let schema: Record<string, unknown> | undefined;
   if (format?.type === 'json') {
@@ -402,6 +490,7 @@ function buildRequest(options: LanguageModelV4CallOptions): {
       maxTokens: options.maxOutputTokens ?? APPLE_DEFAULT_MAX_TOKENS,
       temperature: options.temperature ?? 0,
     },
+    images,
     warnings,
   };
 }
@@ -421,8 +510,10 @@ export function createAppleLanguageModel(opts: AppleModelOptions): AppleLanguage
   const doGenerate = async (
     options: LanguageModelV4CallOptions,
   ): Promise<LanguageModelV4GenerateResult> => {
-    const { request, warnings } = buildRequest(options);
-    const answer = await helper.request(request, options.abortSignal);
+    const { request, images, warnings } = buildRequest(options);
+    const answer = await withImageFiles(request.messages, images, (messages) =>
+      helper.request({ ...request, messages }, options.abortSignal),
+    );
     const text = 'json' in answer ? JSON.stringify(answer.json) : answer.text;
     return {
       content: [{ type: 'text', text }],

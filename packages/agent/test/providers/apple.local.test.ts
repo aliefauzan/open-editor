@@ -17,7 +17,7 @@ import {
 } from '../../src/providers/apple.ts';
 import { detectContext } from '../../src/providers/context.ts';
 import { providerEntryFromPreset } from '../../src/providers/presets.ts';
-import { probePlan } from '../../src/providers/probe.ts';
+import { probePlan, probeVision } from '../../src/providers/probe.ts';
 import { roleCheck } from '../../src/providers/roles.ts';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -47,6 +47,7 @@ if (reason) console.warn(`apple.local: skipped: ${reason}`);
 describe.skipIf(reason !== null)('createAppleLanguageModel (real helper, local)', () => {
   let command = '';
   let ready = false;
+  let vision = false;
   let model: AppleLanguageModel | null = null;
 
   beforeAll(async () => {
@@ -56,6 +57,7 @@ describe.skipIf(reason !== null)('createAppleLanguageModel (real helper, local)'
     command = join(bin.stdout.trim(), 'vox-apple-llm');
     const status = await appleStatus({ command });
     ready = appleStatusInfo(status.status).usable;
+    vision = status.vision === true;
     if (!ready) console.warn(`apple.local: requests skipped: status ${status.status}`);
     else model = createAppleLanguageModel({ command, timeoutMs: REQUEST_TIMEOUT });
   }, BUILD_TIMEOUT);
@@ -130,6 +132,25 @@ describe.skipIf(reason !== null)('createAppleLanguageModel (real helper, local)'
       if ((context.contextTokens ?? 0) < 32_000) {
         expect(editor.failures).toContainEqual(expect.objectContaining({ check: 'context' }));
       }
+    },
+    REQUEST_TIMEOUT,
+  );
+
+  test(
+    'the vision probe passes through temp image files on macOS 27 and the role check accepts vision (D-74)',
+    async (ctx) => {
+      if (!model) return ctx.skip();
+      if (!vision) return ctx.skip('the model reports no vision (needs macOS 27)');
+      const result = await probeVision(model, { colour: 'red' });
+      console.info(`apple.local: vision probe ${JSON.stringify(result)}`);
+      expect(result).toEqual({ status: 'pass' });
+      const verdict = roleCheck('vision', {
+        provider: providerEntryFromPreset('apple'),
+        model: APPLE_MODEL_ID,
+        probe: { appleStatus: 'ready', vision: result },
+        priceTables: [],
+      });
+      expect(verdict.assignable).toBe(true);
     },
     REQUEST_TIMEOUT,
   );

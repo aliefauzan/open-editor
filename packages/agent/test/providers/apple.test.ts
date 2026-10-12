@@ -65,6 +65,16 @@ describe('appleStatus (--status)', () => {
     expect(s).toEqual({ status, contextSize: 8192 });
   });
 
+  test('reports vision when the helper sends it (D-74); an older helper sends none', async () => {
+    expect(await appleStatus(fake({ VOX_FAKE_APPLE_VISION: '1' }))).toEqual({
+      status: 'ready',
+      contextSize: 4096,
+      vision: true,
+    });
+    expect((await appleStatus(fake({ VOX_FAKE_APPLE_VISION: '0' }))).vision).toBe(false);
+    expect((await appleStatus(fake())).vision).toBeUndefined();
+  });
+
   test('maps each status to usable or a hint', () => {
     expect(appleStatusInfo('ready')).toEqual({ usable: true, hint: '' });
     for (const s of appleStatusValues.filter((v) => v !== 'ready')) {
@@ -328,7 +338,25 @@ describe('Apple LanguageModelV4 over the fake helper', () => {
     ).rejects.toMatchObject({ name: 'AI_UnsupportedFunctionalityError' });
   });
 
-  test('image input is refused', async () => {
+  test('a file that is not an image is refused', async () => {
+    const m = model(fake(answers([{ text: 'x' }])));
+    await expect(
+      generateText({
+        model: m,
+        maxRetries: 0,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'file', mediaType: 'application/pdf', data: new Uint8Array([1, 2, 3]) },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ name: 'AI_UnsupportedFunctionalityError' });
+  });
+
+  test('image input on a model without vision is APPLE_UNAVAILABLE naming macOS 27 (D-74)', async () => {
     const m = model(fake(answers([{ text: 'x' }])));
     await expect(
       generateText({
@@ -341,7 +369,106 @@ describe('Apple LanguageModelV4 over the fake helper', () => {
           },
         ],
       }),
+    ).rejects.toMatchObject({
+      code: 'APPLE_UNAVAILABLE',
+      message: expect.stringMatching(/cannot see images.*macOS 27/),
+      details: { status: 'noVision' },
+    });
+  });
+
+  test('images go to the helper as private temp files that are deleted after the answer (D-74)', async () => {
+    const log = file('images.log');
+    const m = model(
+      fake({
+        VOX_FAKE_APPLE_VISION: '1',
+        VOX_FAKE_APPLE_LOG: log,
+        ...answers([{ text: 'a red frame' }]),
+      }),
+    );
+    const r = await generateText({
+      model: m,
+      maxRetries: 0,
+      system: 'describe',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Describe both.' },
+            { type: 'file', mediaType: 'image/png', data: new Uint8Array([137, 80, 78, 71]) },
+            {
+              type: 'file',
+              mediaType: 'image/jpeg',
+              data: Buffer.from([255, 216, 255]).toString('base64'),
+            },
+          ],
+        },
+      ],
+    });
+    expect(r.text).toBe('a red frame');
+    const [req] = loggedRequests(log);
+    const messages = req!['messages'] as { role: string; content: string; images?: string[] }[];
+    expect(messages).toHaveLength(1);
+    expect(messages[0]!.content).toBe('Describe both.');
+    const paths = messages[0]!.images!;
+    expect(paths).toHaveLength(2);
+    expect(paths[0]).toMatch(/vox-apple-img-[^/]+\/0-0\.png$/);
+    expect(paths[1]).toMatch(/vox-apple-img-[^/]+\/0-1\.jpg$/);
+    // the fake answers badRequest when a file is not readable, so both existed during the call
+    for (const p of paths) expect(existsSync(p)).toBe(false);
+    expect(existsSync(join(paths[0]!, '..'))).toBe(false);
+  });
+
+  test('the image temp dir is deleted when the helper fails too', async () => {
+    const log = file('images-fail.log');
+    const m = model(
+      fake({
+        VOX_FAKE_APPLE_VISION: '1',
+        VOX_FAKE_APPLE_LOG: log,
+        ...answers([{ error: { code: 'generation', message: 'boom' } }]),
+      }),
+    );
+    await expect(
+      generateText({
+        model: m,
+        maxRetries: 0,
+        messages: [
+          {
+            role: 'user',
+            content: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) }],
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'APPLE_FAILED' });
+    const [req] = loggedRequests(log);
+    const path = (req!['messages'] as { images: string[] }[])[0]!.images[0]!;
+    expect(existsSync(join(path, '..'))).toBe(false);
+  });
+
+  test('more than 16 images, or images in an assistant message, are refused before the helper runs', async () => {
+    const log = file('images-refused.log');
+    const m = model(fake({ VOX_FAKE_APPLE_VISION: '1', VOX_FAKE_APPLE_LOG: log }));
+    const img = { type: 'file' as const, mediaType: 'image/png', data: new Uint8Array([1]) };
+    await expect(
+      generateText({
+        model: m,
+        maxRetries: 0,
+        messages: [{ role: 'user', content: Array.from({ length: 17 }, () => img) }],
+      }),
+    ).rejects.toMatchObject({ name: 'AI_InvalidPromptError' });
+    await expect(
+      generateText({
+        model: m,
+        maxRetries: 0,
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) }],
+          },
+          { role: 'user', content: 'and?' },
+        ],
+      }),
     ).rejects.toMatchObject({ name: 'AI_UnsupportedFunctionalityError' });
+    expect(existsSync(log)).toBe(false);
   });
 
   test('a prompt that does not end with a user message is refused', async () => {
