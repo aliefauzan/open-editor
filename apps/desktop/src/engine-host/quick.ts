@@ -21,7 +21,7 @@ import { createReadStream } from 'node:fs';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { withLlmScorer } from '@vox/agent';
-import type { Engine, QuickClipScorer } from '@vox/engine';
+import { HIGHLIGHTS_GRACE_MS, type Engine, type QuickClipScorer } from '@vox/engine';
 import { projectDirFor, resolveProjectPath } from '@vox/engine/paths';
 import type { ErrorData, EventName } from '../shared/api.ts';
 import { toErrorData } from './rpc.ts';
@@ -72,11 +72,6 @@ export const STAGE_WEIGHT: Readonly<Record<Stage, number>> = {
 /** Re-runs of a stage that lost the version race to its sibling (JOB_CONFLICT). */
 const CONFLICT_RETRIES = 3;
 const ORDER: readonly Stage[] = ['shots', 'transcribe', 'facetrack', 'highlights', 'quickClips'];
-/**
- * How long the pick waits for highlights once shots, transcribe and facetrack are done (D-75). On a
- * 667 s talk on an M5 they took 59 s against 46 s for shots → transcribe.
- */
-export const HIGHLIGHTS_GRACE_MS = 30_000;
 const FIELD = { shots: 'shotsPath', transcribe: 'transcriptPath', facetrack: 'facetrackPath' };
 const FOLDER = { shots: 'shots', transcribe: 'transcripts', facetrack: 'facetracks' };
 
