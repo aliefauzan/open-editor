@@ -22,7 +22,7 @@ import { createReadStream } from 'node:fs';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { withLlmScorer } from '@vox/agent';
-import type { Engine, QuickClipScorer } from '@vox/engine';
+import { HIGHLIGHTS_GRACE_MS, type Engine, type QuickClipScorer } from '@vox/engine';
 import { projectDirFor, resolveProjectPath } from '@vox/engine/paths';
 import type { ErrorData, EventName } from '../shared/api.ts';
 import { toErrorData } from './rpc.ts';
@@ -83,12 +83,6 @@ const ORDER: readonly Stage[] = [
   'sounds',
   'quickClips',
 ];
-/**
- * How long the pick waits for highlights (and sound tags, D-83) once shots, transcribe and facetrack
- * are done (D-75). On a 667 s talk on an M5 highlights took 59 s against 46 s for shots →
- * transcribe.
- */
-export const HIGHLIGHTS_GRACE_MS = 30_000;
 const FIELD = { shots: 'shotsPath', transcribe: 'transcriptPath', facetrack: 'facetrackPath' };
 const FOLDER = { shots: 'shots', transcribe: 'transcripts', facetrack: 'facetracks' };
 

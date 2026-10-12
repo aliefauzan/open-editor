@@ -7,6 +7,13 @@ import { basename, isAbsolute, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import {
+  HIGHLIGHTS_SKIPPED_NOTE,
+  SOUNDS_SKIPPED_NOTE,
+  stepClock,
+  stepTable,
+  waitHighlights,
+} from './quick-steps.ts';
 import { selfTest } from './self-test.ts';
 import {
   isVoxError,
@@ -1093,6 +1100,8 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     }
     case 'quick': {
       need(positionals, 1, '<url|path>');
+      // the step table adds up to the wall time: every step is timed back to back on one clock
+      const clock = stepClock();
       const raw = positionals[0]!;
       const input =
         classifyUrl(raw) !== 'invalid' || /^[a-z][a-z0-9+.-]*:/i.test(raw) || isAbsolute(raw)
@@ -1111,6 +1120,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
             : 'Quick clips';
       const e = await engineFor(values, io);
       const p = await e.createProject(name);
+      clock.mark('setup');
       const ing = await runJob<{ media: { mediaId: string; kind: string }[] }>(
         e,
         'ingest',
@@ -1118,6 +1128,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         io,
         json,
       );
+      clock.mark('ingest');
       const media = ing.media.find((m) => m.kind === 'video');
       if (!media)
         throw new VoxError(
@@ -1140,7 +1151,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       });
       const sndWait = e.jobs.wait(sndJob);
       try {
-        for (const kind of ['shots', 'transcribe', 'facetrack'])
+        for (const kind of ['shots', 'transcribe', 'facetrack']) {
           await runJob(
             e,
             kind,
@@ -1148,26 +1159,46 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
             io,
             json,
           );
+          clock.mark(kind);
+        }
       } catch (err) {
         e.jobs.cancel(hlJob);
         e.jobs.cancel(sndJob);
         await Promise.all([hlWait, sndWait]);
         throw err;
       }
-      const [hlInfo, sndInfo] = await Promise.all([hlWait, sndWait]);
+      // highlights and sound tags run beside the stages above; this row is only the wait after
+      // them, capped at the app's grace (D-85): a job still running then is cancelled and the clips
+      // go on without it
+      const [late, sndLate] = await Promise.all([
+        waitHighlights(hlWait, () => e.jobs.cancel(hlJob)),
+        waitHighlights(sndWait, () => e.jobs.cancel(sndJob)),
+      ]);
+      const hlInfo = late.value;
+      const sndInfo = sndLate.value;
+      // a job that finished just as the grace ran out still counts
+      const hlSkipped = late.skipped && hlInfo.status !== 'done';
+      const sndSkipped = sndLate.skipped && sndInfo.status !== 'done';
+      clock.mark('highlights wait');
+      if (hlSkipped) clock.note('highlights wait', HIGHLIGHTS_SKIPPED_NOTE);
       const hl: HighlightsJobResult | { available: false; reason: string } =
         hlInfo.status === 'done'
           ? (hlInfo.result as HighlightsJobResult)
-          : { available: false, reason: hlInfo.error?.message ?? hlInfo.status };
+          : hlSkipped
+            ? { available: false, reason: HIGHLIGHTS_SKIPPED_NOTE }
+            : { available: false, reason: hlInfo.error?.message ?? hlInfo.status };
       const snd: SoundsJobResult | { available: false; reason: string } =
         sndInfo.status === 'done'
           ? (sndInfo.result as SoundsJobResult)
-          : { available: false, reason: sndInfo.error?.message ?? sndInfo.status };
+          : sndSkipped
+            ? { available: false, reason: SOUNDS_SKIPPED_NOTE }
+            : { available: false, reason: sndInfo.error?.message ?? sndInfo.status };
       const q = await runJob<{
         clips: { sequenceId: string; name: string; startMs: number; endMs: number; text: string }[];
         scorer: string;
         candidates: number;
         scorerCandidates?: number;
+        scorerMs?: number;
         note?: string;
       }>(
         e,
@@ -1176,6 +1207,9 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         io,
         json,
       );
+      clock.mark('quickClips');
+      // a registered scorer (the fast model) runs inside the quickClips job: its own row
+      if (q.scorerMs !== undefined) clock.split('quickClips', 'scorer', q.scorerMs);
       const files: { sequenceId: string; mp4: string; srt: string }[] = [];
       if (values['render'] === true) {
         for (const c of q.clips) {
@@ -1187,6 +1221,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
             io,
             json,
           );
+          clock.mark('render');
           const srt = await runJob<{ path: string }>(
             e,
             'exportCaptions',
@@ -1194,9 +1229,12 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
             io,
             json,
           );
+          clock.mark('captions');
           files.push({ sequenceId: c.sequenceId, mp4: r.files[0]!.path, srt: srt.path });
         }
       }
+      const steps = clock.rows();
+      const totalMs = clock.totalMs();
       const lines = [
         `project ${p.id} (${name}); scorer ${q.scorer}; candidates ${q.candidates}` +
           `${q.scorerCandidates !== undefined ? ` (${q.scorerCandidates} sent to the scorer)` : ''}; ` +
@@ -1207,6 +1245,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         ),
         ...(q.note ? [`note: ${q.note}\n`] : []),
         ...files.flatMap((f) => [`${f.mp4}\n`, `${f.srt}\n`]),
+        stepTable(steps, totalMs),
       ];
       const highlightsJob = hl.available
         ? { available: true }
@@ -1215,7 +1254,16 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         ? { available: true, windows: snd.windows }
         : { available: false, reason: snd.reason };
       out(
-        { projectId: p.id, mediaId: media.mediaId, ...q, files, highlightsJob, soundsJob },
+        {
+          projectId: p.id,
+          mediaId: media.mediaId,
+          ...q,
+          files,
+          highlightsJob,
+          soundsJob,
+          steps,
+          totalMs,
+        },
         lines.join(''),
       );
       return 0;

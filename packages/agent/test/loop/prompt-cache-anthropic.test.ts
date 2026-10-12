@@ -100,7 +100,8 @@ describe('breakpoints in an Anthropic request (D-76)', () => {
       const bps = blocks.flatMap((b, i) => (b.breakpoint ? [i] : []));
       expect(bps.length).toBeGreaterThanOrEqual(3);
       expect(bps.length).toBeLessThanOrEqual(4);
-      // the last block is the state block and is never cached
+      // the last block is the state block and is never cached (the fixture's state is below
+      // STATE_DIFF_MIN_TOKENS, so it is sent in full every step and not kept, D-81)
       expect(blocks.at(-1)!.json).toContain('[Current state, newest only]');
       expect(blocks.at(-1)!.breakpoint).toBe(false);
       expect(blocks.slice(bps.at(-1)! + 1).every((b) => !b.breakpoint)).toBe(true);

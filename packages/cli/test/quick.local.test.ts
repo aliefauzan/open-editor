@@ -18,6 +18,7 @@ describe('vox quick --render (step 13)', () => {
     const out = tmp('vox-quick-out-');
     let stdout = '';
     let stderr = '';
+    const t0 = performance.now();
     const code = await run(
       ['quick', HEAD, '--count', '3', '--length', '4-8', '--render', '--out-dir', out, '--json',
         '--projects-dir', join(tmp('vox-quick-'), 'Projects')], // prettier-ignore
@@ -28,14 +29,22 @@ describe('vox quick --render (step 13)', () => {
         cwd: process.cwd(),
       },
     );
+    const wallMs = performance.now() - t0;
     expect(code, stderr + stdout).toBe(0);
     const r = JSON.parse(stdout) as {
       clips: unknown[];
       scorer: string;
       files: { mp4: string; srt: string }[];
+      steps: { step: string; ms: number }[];
+      totalMs: number;
     };
     expect(r.clips).toHaveLength(3);
     expect(r.scorer).toBe('heuristic');
+    // the step table adds up to the wall time (no scorer row: the heuristic picked)
+    expect(r.steps.reduce((s, x) => s + x.ms, 0)).toBe(r.totalMs);
+    expect(r.totalMs).toBeLessThanOrEqual(Math.ceil(wallMs));
+    expect(r.totalMs).toBeGreaterThan(wallMs - 2000);
+    expect(r.steps.map((x) => x.step)).not.toContain('scorer');
     const names = readdirSync(out).sort();
     expect(names.filter((n) => n.endsWith('.mp4'))).toHaveLength(3);
     expect(names.filter((n) => n.endsWith('.srt'))).toHaveLength(3);

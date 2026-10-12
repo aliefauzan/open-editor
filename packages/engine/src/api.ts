@@ -75,6 +75,7 @@ import {
   type CreditLine,
   type ExportApi,
   type HyperframesRun,
+  type RenderHost,
 } from './export-api.ts';
 import { doctor, doctorProject, type DoctorReport, type ProjectDoctorReport } from './doctor.ts';
 import { ProjectSchema } from './model/schema.ts';
@@ -368,12 +369,17 @@ export {
 export { classifyUrl, type UrlKind } from './stages/sources.ts';
 export {
   RENDER_QUALITIES,
+  VT_BITS_PER_PIXEL,
   hyperframesEnv,
   muxArgs,
+  pickRenderEncoder,
   pictureRenderArgs,
+  videotoolboxBitrate,
   type AudioQaResult,
   type CreditLine,
   type HyperframesRun,
+  type RenderEncoder,
+  type RenderHost,
   type RenderJobArgs,
   type RenderJobResult,
   type RenderQuality,
@@ -424,6 +430,7 @@ export {
 } from './stages/framecard.ts';
 export {
   HighlightsSchema,
+  HIGHLIGHTS_GRACE_MS,
   highlightsTimeoutMs,
   type Highlights,
   type NativeHelper,
@@ -478,6 +485,8 @@ export interface EngineOptions {
   imagegen?: { freeBytes?: (dir: string) => number; env?: NodeJS.ProcessEnv };
   /** Test seam: runs the HyperFrames CLI (render, snapshot). */
   hyperframes?: HyperframesRun;
+  /** Test seam: platform, arch and env for the final-render encoder pick (D-78). */
+  renderHost?: RenderHost;
   /**
    * The native helper `vox-apple-llm` (D-16), for the `highlights` (D-75) and `sounds` (D-83)
    * jobs. Absent (e.g. a `pnpm dist:no-apple` build): they finish with `available: false`.
@@ -805,6 +814,8 @@ export function openEngine(opts: EngineOptions): Engine {
     captions: (projectId, sequenceId) => me().captions(projectId, sequenceId),
     style: (id) => registry().get(id),
     ...(opts.hyperframes ? { hyperframes: opts.hyperframes } : {}),
+    config: opts.config ?? readConfig,
+    ...(opts.renderHost ? { host: opts.renderHost } : {}),
   });
 
   /**

@@ -335,6 +335,46 @@ describe('agent panel (phase 13)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     expect(p.t.ctx.ui.getState().settingsOpen).toBe(true);
   });
+
+  it('the model label re-reads the config when Settings closes, on window focus and on a run', async () => {
+    // roles can change outside the app (`vox config roles set` on the same VOX_HOME)
+    const p = await panel();
+    p.box.settings = settingsData();
+    await act(() => p.t.ctx.agent.getState().loadSettings());
+    expect(screen.getByTestId('agent-mode').textContent).toBe('no model');
+    const roles = (model: string) =>
+      settingsData({ roles: { editor: { providerId: 'ollama', model } }, mode: 'tools' });
+    const reads = () => p.calls('settings.get').length;
+
+    // Settings closes
+    p.box.settings = roles('qwen3.5:latest');
+    act(() => p.t.ctx.ui.getState().set({ settingsOpen: true }));
+    act(() => p.t.ctx.ui.getState().set({ settingsOpen: false }));
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-mode').textContent).toBe('qwen3.5:latest · tools'),
+    );
+
+    // the window gets focus
+    p.box.settings = roles('gemma4:latest');
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-mode').textContent).toBe('gemma4:latest · tools'),
+    );
+
+    // a run starts
+    p.box.settings = roles('llama4:latest');
+    const before = reads();
+    const box = screen.getByLabelText('Message to the agent');
+    fireEvent.change(box, { target: { value: 'cut the pauses' } });
+    fireEvent.keyDown(box, { key: 'Enter', metaKey: true });
+    await waitFor(() => expect(p.calls('agent.run')).toHaveLength(1));
+    expect(reads()).toBeGreaterThan(before);
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-mode').textContent).toBe('llama4:latest · tools'),
+    );
+  });
 });
 
 describe('agent panel on the real engine host (phase 13)', () => {

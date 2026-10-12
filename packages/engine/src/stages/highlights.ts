@@ -42,6 +42,13 @@ const BASE_TIMEOUT_MS = 120_000;
 /** Answer lines are small (about 60 bytes per 0.5 s step); more is a broken helper. */
 const MAX_OUTPUT = 8 << 20;
 
+/**
+ * How long a quick run (the app's Make clips and `vox quick`) waits for highlights (and sound
+ * tags, D-83) once shots, transcribe and facetrack are done; then it goes on without them (D-75,
+ * D-85). On a 667 s talk on an M5 they took 59 s against 46 s for shots → transcribe.
+ */
+export const HIGHLIGHTS_GRACE_MS = 30_000;
+
 /** Time limit for a video of `durationMs`: 2 min plus half the video's length. */
 export const highlightsTimeoutMs = (durationMs: number): number =>
   BASE_TIMEOUT_MS + Math.max(0, durationMs) / 2;

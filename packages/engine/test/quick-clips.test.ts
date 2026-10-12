@@ -180,6 +180,30 @@ describe('quickClips options and scorers (steps 12, 12b)', () => {
     expect('runId' in seen[1]!).toBe(false);
   });
 
+  test('scorerMs: the time spent in a registered scorer, also when it fails; absent without one', async () => {
+    const e2 = newEngine();
+    const o2 = await makeOfflineProject(e2);
+    const args = { projectId: o2.projectId, mediaId: o2.mediaId, ...OPTS, count: 1 };
+    const plain = (await quick(e2, args)).result!;
+    expect(plain.scorerMs).toBeUndefined();
+    const wait = () => new Promise((r) => setTimeout(r, 120));
+    e2.quickClips.registerScorer('slow', async (input) => {
+      await wait();
+      return input.candidates.map((c) => c.startMs);
+    });
+    const slow = (await quick(e2, args)).result!;
+    expect(slow.scorer).toBe('slow');
+    expect(Number.isInteger(slow.scorerMs)).toBe(true);
+    expect(slow.scorerMs).toBeGreaterThanOrEqual(100);
+    e2.quickClips.registerScorer('broken', async () => {
+      await wait();
+      throw new Error('model offline');
+    });
+    const fell = (await quick(e2, args)).result!;
+    expect(fell.scorer).toBe('heuristic');
+    expect(fell.scorerMs).toBeGreaterThanOrEqual(100);
+  }, 60_000);
+
   test('a registered scorer changes the pick and gets the prompt; a throwing one falls back', async () => {
     const e2 = newEngine();
     const o2 = await makeOfflineProject(e2);
