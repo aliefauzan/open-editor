@@ -1,8 +1,9 @@
 // The final audio mix (engine spec "Audio"; plan D-14, D-15). Final audio never goes through
 // HyperFrames: one ffmpeg filter graph is built from the model. Each audio-track clip is trimmed at
 // `inMs`, denoised when `denoise` is `light` or `strong`, gained to the loudness target when its media
-// has `loudness`, scaled by `volume`, faded, and delayed to `startMs`; SFX cues are delayed to their
-// times; muted tracks are left out. Everything goes through `amix` (normalisation off) and a limiter,
+// has `loudness`, scaled by `volume`, faded, and delayed to `startMs`; SFX cues are gained to sit
+// under the speech they land on (`sfx-level.ts`, D-89) and delayed to their times; muted tracks are
+// left out. Everything goes through `amix` (normalisation off) and a limiter,
 // then a two-pass `loudnorm` to the export target, aiming at -1.5 dBTP so the file stays under -1 dBTP. Stems (speech = the captions source
 // tracks, other audio tracks, SFX) use the same chains, without the limiter and `loudnorm`.
 // Ducking (v1.1, plan 14f): a track with `duck: true` that is not a captions source has its clips mixed
@@ -11,13 +12,15 @@
 // final `amix`, so it ducks level-matched sources. Speech and SFX are never ducked; with no speech clip
 // the flag does nothing. The stems keep the same ducking, so `other` is what the mix hears.
 import { execFile } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { VoxError } from '../errors.ts';
 import type { MediaClip, MediaItem, Sequence } from '../model/schema.ts';
 import { spanMs, speedOf } from '../model/speed.ts';
 import type { Cue } from './cues.ts';
+import { sfxCueGainsDb } from './sfx-level.ts';
 
 const run = promisify(execFile);
 
@@ -67,6 +70,11 @@ export interface MixInput {
   sfxFiles: Readonly<Record<string, string>>;
   durationMs: number;
   preset: LoudnessPreset;
+  /**
+   * Gain in dB per cue (same order as `cues`; missing or 0 = the file level). `renderMix` sets it
+   * from the speech each cue lands on (`sfx-level.ts`, D-89) when the caller does not.
+   */
+  sfxGainsDb?: readonly number[];
 }
 
 export interface MixGraph {
@@ -179,11 +187,16 @@ function sources(input: MixInput): Source[] {
     input.cues.forEach((c, i) => {
       const file = input.sfxFiles[c.sfx];
       if (!file) return; // compile warns about an sfx name the style does not have
+      const gain = input.sfxGainsDb?.[i] ?? 0;
       out.push({
         id: `${c.itemId}:${c.cueName}:${i}`,
         kind: 'sfx',
         file,
-        chain: [FORMAT, `adelay=delays=${samples(c.atMs)}S:all=1`],
+        chain: [
+          FORMAT,
+          ...(gain !== 0 ? [`volume=${gain}dB`] : []),
+          `adelay=delays=${samples(c.atMs)}S:all=1`,
+        ],
       });
     });
   }
@@ -355,10 +368,79 @@ export interface MixResult {
   /** Pass-1 measurement of the limited mix (absent when `normalize` is false). */
   measured?: LoudnormMeasure;
   stems?: Record<StemKind, string>;
+  /** The gain each cue was mixed at (dB, same order as the input cues; D-89). */
+  sfxGainsDb?: number[];
 }
 
-/** Render the mix (two-pass `loudnorm` to the preset) and, optionally, the stems. */
-export async function renderMix(input: MixInput, opts: MixOptions): Promise<MixResult> {
+/** Mono 48 kHz float samples, as ffmpeg writes them with `-f f32le`. */
+const RAW_MONO = ['-ac', '1', '-ar', String(SAMPLE_RATE), '-f', 'f32le'];
+
+/**
+ * The gain of each cue under the speech it lands on (`sfx-level.ts`, D-89): the speech stem is
+ * rendered mono (as audio QA reads it) to a scratch file, each SFX file goes through the mix's own
+ * chain to mono, and the solver reads the speech around each cue. Undefined when nothing can collide
+ * (SFX off, no cue, or no speech clip), so the graph stays as it was.
+ */
+export async function sfxCueGains(input: MixInput, bin?: string): Promise<number[] | undefined> {
+  if (!input.seq.sfx || input.cues.length === 0) return undefined;
+  const speechGraph = mixGraph(input, 'speech');
+  if (speechGraph.sources.speech.length === 0) return undefined;
+  const tmp = mkdtempSync(join(tmpdir(), 'vox-sfx-level-'));
+  try {
+    const speechFile = join(tmp, 'speech.f32');
+    await ffmpeg(ffArgs(speechGraph, null, [...RAW_MONO, speechFile]), bin);
+    const files = new Map<string, Float32Array>();
+    for (const name of new Set(input.cues.map((c) => c.sfx))) {
+      const file = input.sfxFiles[name];
+      if (!file) continue;
+      const out = join(tmp, `sfx-${files.size}.f32`);
+      await ffmpeg(
+        [
+          '-hide_banner',
+          '-nostdin',
+          '-y',
+          '-i',
+          file,
+          '-filter_complex',
+          `[0:a]${FORMAT}[a]`,
+          '-map',
+          '[a]',
+          ...RAW_MONO,
+          out,
+        ],
+        bin,
+      );
+      const b = readFileSync(out);
+      files.set(name, new Float32Array(b.buffer, b.byteOffset, Math.floor(b.byteLength / 4)));
+    }
+    const fd = openSync(speechFile, 'r');
+    try {
+      const speechAt = (start: number, length: number) => {
+        const x = new Float32Array(length);
+        const from = Math.max(0, start);
+        const skip = from - start;
+        if (skip >= length) return x;
+        const buf = Buffer.alloc((length - skip) * 4);
+        const got = readSync(fd, buf, 0, buf.length, from * 4);
+        for (let i = 0; i < Math.floor(got / 4); i++) x[skip + i] = buf.readFloatLE(i * 4);
+        return x;
+      };
+      return sfxCueGainsDb(input.cues, files, speechAt);
+    } finally {
+      closeSync(fd);
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Render the mix (two-pass `loudnorm` to the preset) and, optionally, the stems. Each SFX cue is
+ * mixed at the gain `sfxCueGains` measures, unless the input carries `sfxGainsDb`.
+ */
+export async function renderMix(input0: MixInput, opts: MixOptions): Promise<MixResult> {
+  const gains = input0.sfxGainsDb ? [...input0.sfxGainsDb] : await sfxCueGains(input0, opts.ffmpeg);
+  const input: MixInput = gains ? { ...input0, sfxGainsDb: gains } : input0;
   const graph = mixGraph(input);
   mkdirSync(dirname(opts.out), { recursive: true });
   const ff = (args: string[]) => ffmpeg(args, opts.ffmpeg);
@@ -383,5 +465,11 @@ export async function renderMix(input: MixInput, opts: MixOptions): Promise<MixR
     };
     for (const k of STEMS) await ff(ffArgs(mixGraph(input, k), null, [...WAV, stems[k]]));
   }
-  return { out: opts.out, graph, ...(measured ? { measured } : {}), ...(stems ? { stems } : {}) };
+  return {
+    out: opts.out,
+    graph,
+    ...(measured ? { measured } : {}),
+    ...(stems ? { stems } : {}),
+    ...(gains ? { sfxGainsDb: gains } : {}),
+  };
 }
