@@ -1,6 +1,7 @@
-// The `makeClips` app job's stage plan (decision "Quick clips speed"): facetrack runs beside
-// shots → transcribe, a stage that loses the project-version race (JOB_CONFLICT) is run again (its
-// output is cached, so only the media update is redone), and progress is weighted by stage cost.
+// The `makeClips` app job's stage plan (decision "Quick clips speed"): facetrack and highlights run
+// beside shots → transcribe, a stage that loses the project-version race (JOB_CONFLICT) is run
+// again (its output is cached, so only the media update is redone), highlights (D-75) never stop
+// the clips and are waited for only a grace time, and progress is weighted by stage cost.
 import type { Engine } from '@vox/engine';
 import { describe, expect, it } from 'vitest';
 import { AppJobs, STAGE_WEIGHT } from '../../src/engine-host/quick.ts';
@@ -55,10 +56,16 @@ function fakeEngine(script: Script) {
   return { engine: engine as unknown as Engine, log, runs };
 }
 
-function run(script: Script) {
+function run(script: Script, opts: { highlightsGraceMs?: number } = {}) {
   const fe = fakeEngine(script);
   const events: [EventName, { progress?: number; message?: string }][] = [];
-  const jobs = new AppJobs(fe.engine, (name, p) => events.push([name, p as never]));
+  const jobs = new AppJobs(
+    fe.engine,
+    (name, p) => events.push([name, p as never]),
+    undefined,
+    undefined,
+    opts,
+  );
   const id = jobs.start('makeClips', { projectId: 'p', mediaId: 'm' });
   const done = (async () => {
     for (let i = 0; i < 400; i++) {
@@ -81,6 +88,55 @@ describe('makeClips stages', () => {
     expect(at('start transcribe')).toBeGreaterThan(at('end shots done'));
     expect(at('start quickClips')).toBeGreaterThan(at('end facetrack done'));
     expect(at('start quickClips')).toBeGreaterThan(at('end transcribe done'));
+  });
+
+  it('highlights start with the other stages and end before quick clips (D-75)', async () => {
+    const r = run({ delay: { shots: 5, transcribe: 10, highlights: 60, facetrack: 20 } });
+    const j = await r.done;
+    expect(j.status).toBe('done');
+    const at = (s: string) => r.log.indexOf(s);
+    expect(at('start highlights')).toBeLessThan(at('end shots done'));
+    expect(at('start quickClips')).toBeGreaterThan(at('end highlights done'));
+    const messages = new Set(
+      r.events.filter(([n]) => n === 'job.progress').map(([, p]) => p.message),
+    );
+    // named only while nothing else runs
+    expect(messages).toContain('Finding highlights');
+    expect([...messages].filter((m) => m?.includes('highlights'))).toEqual(['Finding highlights']);
+  });
+
+  it('a failed highlights stage never stops the clips', async () => {
+    for (const code of ['TOOL_FAILED', 'CANCELLED', 'JOB_CONFLICT']) {
+      const fail = { status: 'failed' as Status, error: { code, message: 'x' } };
+      const r = run({ outcomes: { highlights: [fail, fail, fail, fail] } });
+      const j = await r.done;
+      expect(j.status, code).toBe('done');
+      expect(r.runs.get('quickClips'), code).toBe(1);
+    }
+  });
+
+  it('highlights still running after the grace time are cancelled; the clips go on', async () => {
+    const r = run(
+      { delay: { shots: 5, transcribe: 5, facetrack: 5, highlights: 1500 } },
+      {
+        highlightsGraceMs: 30,
+      },
+    );
+    const j = await r.done;
+    expect(j.status).toBe('done');
+    expect(r.log).not.toContain('end highlights done');
+    expect(r.runs.get('quickClips')).toBe(1);
+  });
+
+  it('a failed required stage cancels highlights', async () => {
+    const r = run({
+      delay: { facetrack: 5, highlights: 1500 },
+      outcomes: { facetrack: [{ status: 'failed', error: { code: 'TOOL_FAILED', message: 'x' } }] },
+    });
+    const j = await r.done;
+    expect(j.status).toBe('failed');
+    expect(r.log).not.toContain('end highlights done');
+    expect(r.runs.get('quickClips')).toBeUndefined();
   });
 
   it('a stage that ends JOB_CONFLICT is run again, then the chain goes on', async () => {

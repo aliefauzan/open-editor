@@ -1,15 +1,20 @@
 // Quick clips selection rules on crafted inputs (phase 05 step 12b; engine spec "Quick clips", plan
 // D-15): sentence units, the 120 ms lead-in that never cuts into the previous word, the move to a shot
-// cut within 2 frames, edge pauses trimmed, and each new heuristic signal (energy, hook, coverage)
-// changing the pick when everything else is equal.
+// cut within 2 frames, edge pauses trimmed, each new heuristic signal (energy, hook, coverage and the
+// D-75 video highlights) changing the pick when everything else is equal, and the shortlist a
+// registered scorer gets.
 import { describe, expect, test } from 'vitest';
 import type { Transcript, TranscriptWord } from '../src/model/schema.ts';
 import type { Detections } from '../src/stages/facetrack.ts';
+import type { Highlights } from '../src/stages/highlights.ts';
 import {
+  HIGHLIGHT_WEIGHT,
   clipStart,
   heuristicScores,
+  highlightLevel,
   pickClips,
   quickCandidates,
+  scorerShortlist,
   sentenceUnits,
   type Candidate,
 } from '../src/stages/quickClips.ts';
@@ -166,5 +171,101 @@ describe('heuristic signals (D-15)', () => {
     expect(cands.map((c) => c.startMs)).toEqual([0, 9880]);
     expect(signals[0]!.speech).toBeCloseTo(900 / 2500 - 0.5, 5);
     expect(signals[1]!.speech).toBeCloseTo(2500 / 2620, 5);
+  });
+});
+
+describe('video highlights (D-75)', () => {
+  const steps = (from: number, to: number, level: (atMs: number) => number) =>
+    Array.from({ length: (to - from) / 500 }, (_, k) => ({
+      startMs: from + k * 500,
+      endMs: from + (k + 1) * 500,
+      level: level(from + k * 500),
+    }));
+
+  test('highlightLevel: mean level ÷ the top level, plus the share inside highlight ranges', () => {
+    const h: Highlights = {
+      highlights: [],
+      levels: [
+        { startMs: 0, endMs: 500, level: 2 },
+        { startMs: 500, endMs: 1000, level: 8 },
+      ],
+      keyFrameMs: null,
+    };
+    expect(highlightLevel(h, 0, 1000)).toBe(5 / 8);
+    expect(highlightLevel(h, 250, 750)).toBe(5 / 8);
+    expect(highlightLevel(h, 500, 1000)).toBe(1);
+    expect(highlightLevel(h, 2000, 3000)).toBe(0);
+    const ranges: Highlights = {
+      highlights: [{ startMs: 500, endMs: 1500 }],
+      levels: [],
+      keyFrameMs: null,
+    };
+    expect(highlightLevel(ranges, 0, 1000)).toBe(0.5);
+    expect(highlightLevel(ranges, 600, 1400)).toBe(1);
+    expect(highlightLevel({ ...h, highlights: ranges.highlights }, 500, 1000)).toBe(2);
+  });
+
+  test('without highlights the scores are the ones before D-75; with them the higher level wins', () => {
+    const { t, cands } = twoCandidates('Plain words.', 'Plain words.');
+    const plain = heuristicScores(cands, t);
+    expect(plain.signals.map((s) => s.highlight)).toEqual([0, 0]);
+    expect(plain.scores.map((x, i) => x - plain.signals[i]!.speech)).toEqual([0, 0]);
+    expect(pickClips(cands, plain.scores, 1)).toEqual([0]);
+    // the later candidate (B, about 11–12 s) sits in the high-level part of the video
+    const highlights: Highlights = {
+      highlights: [{ startMs: 10500, endMs: 12500 }],
+      levels: steps(0, 13000, (at) => (at >= 10500 ? 9 : 3)),
+      keyFrameMs: 11000,
+    };
+    const { scores, signals } = heuristicScores(cands, t, { highlights });
+    expect(signals.map((s) => s.highlight)).toEqual([0, 1]);
+    expect(scores[1]! - scores[0]!).toBeCloseTo(HIGHLIGHT_WEIGHT, 5);
+    expect(pickClips(cands, scores, 1)).toEqual([1]);
+  });
+
+  test('the highlight signal adds to the others, it does not replace them', () => {
+    // A has a hook (+1), B a slightly higher level (+1 after scaling): a tie, broken by the start
+    const { t, cands } = twoCandidates('Why does this work?', 'Plain words.');
+    const highlights: Highlights = {
+      highlights: [],
+      levels: steps(0, 13000, (at) => (at >= 10500 ? 7 : 6)),
+      keyFrameMs: null,
+    };
+    const { scores, signals } = heuristicScores(cands, t, { highlights });
+    expect(signals.map((s) => [s.hook, s.highlight])).toEqual([
+      [1, 0],
+      [0, 1],
+    ]);
+    expect(scores[0]).toBeCloseTo(scores[1]!, 5);
+    expect(pickClips(cands, scores, 1)).toEqual([0]);
+  });
+});
+
+describe('scorer shortlist and pick limits (D-75)', () => {
+  const cand = (startMs: number, endMs: number): Candidate => ({
+    startMs,
+    endMs,
+    text: '',
+    firstSentence: '',
+    firstUnit: 0,
+    lastUnit: 0,
+  });
+
+  test('the best `cap` by score, in candidate order; all of them when there are no more', () => {
+    const cands = [cand(0, 10), cand(10, 20), cand(20, 30), cand(30, 40), cand(40, 50)];
+    const scores = [1, 5, 2, 4, 3];
+    expect(scorerShortlist(cands, scores, 3)).toEqual([1, 3, 4]);
+    expect(scorerShortlist(cands, scores, 5)).toEqual([0, 1, 2, 3, 4]);
+    expect(scorerShortlist(cands, scores, 9)).toEqual([0, 1, 2, 3, 4]);
+    // ties: the earlier start first
+    expect(scorerShortlist(cands, [1, 1, 1, 1, 1], 2)).toEqual([0, 1]);
+  });
+
+  test('pickClips: `among` limits the pick, `taken` picks stay and block overlaps', () => {
+    const cands = [cand(0, 10), cand(5, 15), cand(20, 30), cand(25, 35)];
+    const scores = [1, 9, 2, 8];
+    expect(pickClips(cands, scores, 2)).toEqual([1, 3]);
+    expect(pickClips(cands, scores, 2, { among: [0, 2] })).toEqual([2, 0]);
+    expect(pickClips(cands, scores, 3, { among: [0, 2, 3], taken: [1] })).toEqual([1, 3]);
   });
 });

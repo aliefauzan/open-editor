@@ -4,7 +4,9 @@
 //   stdin  {"id"?, "system", "messages":[{"role":"user"|"assistant","content","images"?}],
 //           "schema"?, "maxTokens", "temperature"}
 //   stdout {"id"?, "text", "usage"} | {"id"?, "json", "usage"} | {"id"?, "error":{"code","message"}}
-//   --status → {"status", "contextSize", "vision"}
+//   --status → {"status", "contextSize", "vision", "highlights"}
+//   --highlights <videoPath> → {"highlights":[{"startMs","endMs"}], "levels":[{"startMs","endMs",
+//           "level"}], "keyFrameMs", "errors"?} | {"error":{"code","message"}} (D-75)
 //
 // `images` (user messages only, D-74) lists absolute paths of image files the caller wrote; the
 // helper reads them only when the model can see images (macOS 27, `vision` capability) and
@@ -191,11 +193,105 @@ public func encodeError(id: String?, code: ErrorCode, message: String) -> String
   line(id: id, [("error", .object([("code", .string(code.rawValue)), ("message", .string(message))]))])
 }
 
-public func encodeStatus(_ status: Status, contextSize: Int, vision: Bool) -> String {
+/// `highlights`: this Mac can run `--highlights` (macOS 27 MediaIntelligence, D-75).
+public func encodeStatus(
+  _ status: Status, contextSize: Int, vision: Bool, highlights: Bool = false
+) -> String {
   JSONValue.object([
     ("status", .string(status.rawValue)), ("contextSize", .int(contextSize)),
-    ("vision", .bool(vision)),
+    ("vision", .bool(vision)), ("highlights", .bool(highlights)),
   ]).encoded()
+}
+
+/// The answer of `--highlights <videoPath>` (D-75), times in whole milliseconds of the video.
+/// One of the two analyses may fail while the other succeeds: its part is empty (or `nil` for the
+/// key frame) and `errors` names it.
+public struct HighlightsAnswer: Equatable, Sendable {
+  public struct Range: Equatable, Sendable {
+    public let startMs: Int
+    public let endMs: Int
+    public init(startMs: Int, endMs: Int) {
+      self.startMs = startMs
+      self.endMs = endMs
+    }
+  }
+  public struct Level: Equatable, Sendable {
+    public let startMs: Int
+    public let endMs: Int
+    /// Highlight level of this step as the framework reports it (on macOS 27.0 whole numbers
+    /// from about 0 to 10; the engine normalises over the video), never negative.
+    public let level: Double
+    public init(startMs: Int, endMs: Int, level: Double) {
+      self.startMs = startMs
+      self.endMs = endMs
+      self.level = level
+    }
+  }
+  public struct Failure: Equatable, Sendable {
+    /// `highlights` or `keyFrame`.
+    public let request: String
+    public let message: String
+    public init(request: String, message: String) {
+      self.request = request
+      self.message = message
+    }
+  }
+  public let highlights: [Range]
+  public let levels: [Level]
+  public let keyFrameMs: Int?
+  public let errors: [Failure]
+
+  public init(highlights: [Range], levels: [Level], keyFrameMs: Int?, errors: [Failure] = []) {
+    self.highlights = highlights
+    self.levels = levels
+    self.keyFrameMs = keyFrameMs
+    self.errors = errors
+  }
+}
+
+/// Seconds to whole milliseconds; nil for a time that is not finite or is negative.
+public func milliseconds(_ seconds: Double) -> Int? {
+  guard seconds.isFinite, seconds >= 0, seconds < Double(SchemaNode.safeInteger) / 1000 else {
+    return nil
+  }
+  return Int((seconds * 1000).rounded())
+}
+
+/// A level rounded to 3 decimals, at least 0 (NaN and infinities become 0).
+public func roundedLevel(_ level: Double) -> Double {
+  guard level.isFinite else { return 0 }
+  return (max(0, level) * 1000).rounded() / 1000
+}
+
+public func encodeHighlights(_ a: HighlightsAnswer) -> String {
+  var pairs: [(String, JSONValue)] = [
+    (
+      "highlights",
+      .array(
+        a.highlights.map { .object([("startMs", .int($0.startMs)), ("endMs", .int($0.endMs))]) })
+    ),
+    (
+      "levels",
+      .array(
+        a.levels.map {
+          .object([
+            ("startMs", .int($0.startMs)), ("endMs", .int($0.endMs)), ("level", .double($0.level)),
+          ])
+        })
+    ),
+    ("keyFrameMs", a.keyFrameMs.map { .int($0) } ?? .null),
+  ]
+  if !a.errors.isEmpty {
+    pairs.append(
+      (
+        "errors",
+        .array(
+          a.errors.map {
+            .object([("request", .string($0.request)), ("message", .string($0.message))])
+          })
+      ))
+  }
+  return JSONValue.object(pairs).encoded()
 }
 
 /// Command-line modes.
@@ -203,10 +299,17 @@ public enum Command: Equatable, Sendable {
   case serve
   case status
   case help
+  /// `--highlights <videoPath>`: one MediaIntelligence analysis, one line, exit (D-75).
+  case highlights(String)
   case invalid(String)
 
   public static func parse(_ args: [String]) -> Command {
     guard let first = args.first else { return .serve }
+    if first == "--highlights" {
+      guard args.count >= 2 else { return .invalid(first) }
+      guard args.count == 2 else { return .invalid(args[2]) }
+      return .highlights(args[1])
+    }
     let mode: Command
     switch first {
     case "--status": mode = .status
@@ -217,9 +320,10 @@ public enum Command: Equatable, Sendable {
   }
 
   public static let usage = """
-    usage: vox-apple-llm [--status]
+    usage: vox-apple-llm [--status | --highlights <videoPath>]
       reads JSON-lines requests on stdin and answers one line each on stdout
-      --status  print {"status","contextSize","vision"} and exit
+      --status      print {"status","contextSize","vision","highlights"} and exit
+      --highlights  print the video's highlight ranges, levels and key frame (macOS 27) and exit
 
     """
 }

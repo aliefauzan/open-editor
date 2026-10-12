@@ -19,12 +19,14 @@ export type AppleStatusValue = z.infer<typeof AppleStatusValue>;
 /**
  * `--status` output: availability, the model's context size in tokens (4,096 when unknown) and
  * whether it accepts images (macOS 27+, D-74). A helper older than D-74 sends no `vision`: read it
- * as false.
+ * as false. `highlights` (D-75): `--highlights <videoPath>` works here (macOS 27 MediaIntelligence;
+ * the engine runs it, the agent ignores it); absent from older helpers.
  */
 export const AppleStatus = z.strictObject({
   status: AppleStatusValue,
   contextSize: z.number().int().positive(),
   vision: z.boolean().optional(),
+  highlights: z.boolean().optional(),
 });
 export type AppleStatus = z.infer<typeof AppleStatus>;
 

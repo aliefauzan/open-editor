@@ -44,6 +44,7 @@ import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
 import { activeAreaOf, registerMediaJobs, type MediaApi, type ModelSpec } from './media-api.ts';
+import type { NativeHelper } from './stages/highlights.ts';
 import { registerQuickClipJobs } from './quick-api.ts';
 import type { QuickClipScorer } from './stages/quickClips.ts';
 import {
@@ -348,11 +349,13 @@ export { repoPyProject } from './py.ts';
 export {
   FACE_MODEL,
   FacetrackJobArgsSchema,
+  HighlightsJobArgsSchema,
   IngestJobArgsSchema,
   ShotsJobArgsSchema,
   TranscribeJobArgsSchema,
   ensureFaceModel,
   type FacetrackJobResult,
+  type HighlightsJobResult,
   type IngestJobArgs,
   type IngestJobResult,
   type MediaJobArgs,
@@ -417,6 +420,12 @@ export {
   type FrameCard,
   type FrameCardBody,
 } from './stages/framecard.ts';
+export {
+  HighlightsSchema,
+  highlightsTimeoutMs,
+  type Highlights,
+  type NativeHelper,
+} from './stages/highlights.ts';
 
 /** External tool paths (ffmpeg, ffprobe, yt-dlp, deno, uv, py env, Chrome); filled in by phase 04. */
 export type ToolPaths = Readonly<Record<string, string | undefined>>;
@@ -466,6 +475,11 @@ export interface EngineOptions {
   imagegen?: { freeBytes?: (dir: string) => number; env?: NodeJS.ProcessEnv };
   /** Test seam: runs the HyperFrames CLI (render, snapshot). */
   hyperframes?: HyperframesRun;
+  /**
+   * The native helper `vox-apple-llm` (D-16), for the `highlights` job (D-75). Absent (e.g. a
+   * `pnpm dist:no-apple` build): the job finishes with `available: false`.
+   */
+  appleHelper?: NativeHelper;
 }
 
 export interface ProjectSummary {
@@ -750,6 +764,7 @@ export function openEngine(opts: EngineOptions): Engine {
     dirOf,
     config: opts.config ?? readConfig,
     ...(opts.net ? { net: opts.net } : {}),
+    ...(opts.appleHelper ? { appleHelper: opts.appleHelper } : {}),
   });
   const imageProviders = createImageProviders();
   if (opts.tools?.['models']) {

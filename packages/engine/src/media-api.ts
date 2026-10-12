@@ -24,6 +24,13 @@ import { repoPyProject, runPyTool, type PyBridgeOptions } from './py.ts';
 import type { Redactor } from './redact.ts';
 import { frameCards, type FrameCard } from './stages/framecard.ts';
 import {
+  HighlightsSchema,
+  highlightsTimeoutMs,
+  runHighlights,
+  type Highlights,
+  type NativeHelper,
+} from './stages/highlights.ts';
+import {
   DetectionsSchema,
   buildTrackPath,
   facetrackCacheKey,
@@ -101,6 +108,7 @@ export const TranscribeJobArgsSchema = MediaJobArgs.extend({
 });
 export const ShotsJobArgsSchema = MediaJobArgs;
 export const FacetrackJobArgsSchema = MediaJobArgs;
+export const HighlightsJobArgsSchema = MediaJobArgs;
 export type IngestJobArgs = z.infer<typeof IngestJobArgsSchema>;
 export type TranscribeJobArgs = z.infer<typeof TranscribeJobArgsSchema>;
 export type MediaJobArgs = z.infer<typeof MediaJobArgs>;
@@ -143,6 +151,26 @@ export interface FacetrackJobResult {
   input: 'proxy' | 'original';
   version: number;
 }
+/**
+ * `highlights` (D-75): derived data in `cache/highlights/<mediaId>.json`; the job never changes the
+ * project, so it can run beside the other stages without a version race. `available: false` (with
+ * the reason): no macOS 27, no native helper, an old helper or no proxy.
+ */
+export type HighlightsJobResult =
+  | {
+      mediaId: string;
+      available: true;
+      /** Project-relative: `cache/highlights/<mediaId>.json`. */
+      highlightsPath: string;
+      /** Highlight ranges found. */
+      highlights: number;
+      keyFrameMs: number | null;
+      cached: boolean;
+    }
+  | { mediaId: string; available: false; reason: string };
+
+/** Where the `highlights` job stores a media item's highlights (project-relative). */
+export const highlightsPathOf = (mediaId: string): string => `cache/highlights/${mediaId}.json`;
 
 export interface MediaApiDeps {
   tools: Readonly<Record<string, string | undefined>>;
@@ -152,6 +180,8 @@ export interface MediaApiDeps {
   config(): Promise<Config>;
   /** Test seams for downloads (filtering proxy and the face model fetch). */
   net?: { resolver?: Resolver; dial?: Dial };
+  /** `vox-apple-llm` for the `highlights` job (D-75); absent: highlights are not available. */
+  appleHelper?: NativeHelper;
 }
 
 const sha256Hex = (s: string): string => createHash('sha256').update(s).digest('hex');
@@ -643,6 +673,46 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         cached,
         input: src.input,
         version,
+      };
+    },
+  });
+
+  runner.register<MediaJobArgs, HighlightsJobResult>('highlights', {
+    args: HighlightsJobArgsSchema,
+    // a helper process on the media engine and Neural Engine, about one CPU core: it runs beside
+    // the stages that hold the job slots
+    outsidePool: true,
+    async run(args, ctx) {
+      const { project, dir } = await begin(args.projectId);
+      const media = findMedia(project, args.mediaId);
+      needVideo(media, 'Video highlights');
+      const highlightsPath = highlightsPathOf(media.id);
+      const file = join(dir, highlightsPath);
+      let h = await readParsed<Highlights>(file, HighlightsSchema);
+      const cached = h !== undefined;
+      if (!h) {
+        // the H.264 proxy only: the analyzer fails on VP9 and other sources it cannot decode
+        if (!media.proxyPath) {
+          return { mediaId: media.id, available: false, reason: 'the media has no preview proxy' };
+        }
+        ctx.progress(0.05, 'finding highlights');
+        const r = await runHighlights(
+          deps.appleHelper,
+          await resolveProjectPath(dir, media.proxyPath),
+          { signal: ctx.signal, timeoutMs: highlightsTimeoutMs(media.durationMs!), redact },
+        );
+        if (!r.available) return { mediaId: media.id, available: false, reason: r.reason };
+        h = r.highlights;
+        await mkdir(join(dir, 'cache', 'highlights'), { recursive: true, mode: 0o700 });
+        await writeAtomic(file, `${JSON.stringify(h)}\n`);
+      }
+      return {
+        mediaId: media.id,
+        available: true,
+        highlightsPath,
+        highlights: h.highlights.length,
+        keyFrameMs: h.keyFrameMs,
+        cached,
       };
     },
   });

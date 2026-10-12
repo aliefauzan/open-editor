@@ -278,7 +278,8 @@ the stages that need a missing tool disabled and labelled.
 The start screen leads with one field: "Paste a YouTube, Instagram or TikTok link, or
 drop a video file", a "Choose file…" button (native dialog), plus
 "How many clips" (default 3) and "Length" (default 30–60 s). "Make clips" creates a
-project and runs ingest → shots → transcribe → facetrack → quick clips (engine spec
+project and runs ingest → shots → transcribe (then highlights on macOS 27, optional, D-75)
+and facetrack → quick clips (engine spec
 "Quick clips") with one progress view. The clips enter the project as one history
 entry, so one undo removes them all. A pasted link shows a badge (YouTube, Instagram,
 TikTok, Link) from `media.classifyUrl`; a non-`http(s)` text is refused before any job

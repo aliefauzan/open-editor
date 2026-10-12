@@ -84,10 +84,41 @@ struct ProtocolTests {
         == #"{"id":"r2","error":{"code":"contextOverflow","message":"too long"}}"#)
     #expect(
       encodeStatus(.ready, contextSize: 4096, vision: false)
-        == #"{"status":"ready","contextSize":4096,"vision":false}"#)
+        == #"{"status":"ready","contextSize":4096,"vision":false,"highlights":false}"#)
     #expect(
       encodeStatus(.ready, contextSize: 8192, vision: true)
-        == #"{"status":"ready","contextSize":8192,"vision":true}"#)
+        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":false}"#)
+    #expect(
+      encodeStatus(.ready, contextSize: 8192, vision: true, highlights: true)
+        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":true}"#)
+  }
+
+  @Test("--highlights answer: ranges and levels in whole ms, key frame or null, errors only when set")
+  func highlightsAnswer() {
+    let a = HighlightsAnswer(
+      highlights: [.init(startMs: 4500, endMs: 14500)],
+      levels: [.init(startMs: 0, endMs: 500, level: 0.25)],
+      keyFrameMs: 4000)
+    #expect(
+      encodeHighlights(a)
+        == #"{"highlights":[{"startMs":4500,"endMs":14500}],"levels":[{"startMs":0,"endMs":500,"level":0.25}],"keyFrameMs":4000}"#
+    )
+    let partial = HighlightsAnswer(
+      highlights: [], levels: [], keyFrameMs: nil,
+      errors: [.init(request: "highlights", message: "failed")])
+    #expect(
+      encodeHighlights(partial)
+        == #"{"highlights":[],"levels":[],"keyFrameMs":null,"errors":[{"request":"highlights","message":"failed"}]}"#
+    )
+    #expect(milliseconds(4.5) == 4500)
+    #expect(milliseconds(0.0004) == 0)
+    #expect(milliseconds(-1) == nil)
+    #expect(milliseconds(.nan) == nil)
+    #expect(milliseconds(.infinity) == nil)
+    #expect(roundedLevel(0.12345) == 0.123)
+    #expect(roundedLevel(8) == 8)
+    #expect(roundedLevel(-0.2) == 0)
+    #expect(roundedLevel(.nan) == 0)
   }
 
   @Test("status and error code names match the agent spec and the TS schemas")
@@ -120,6 +151,9 @@ struct ProtocolTests {
     #expect(Command.parse(["-h"]) == .help)
     #expect(Command.parse(["--bogus"]) == .invalid("--bogus"))
     #expect(Command.parse(["--status", "x"]) == .invalid("x"))
+    #expect(Command.parse(["--highlights", "/v/a.mp4"]) == .highlights("/v/a.mp4"))
+    #expect(Command.parse(["--highlights"]) == .invalid("--highlights"))
+    #expect(Command.parse(["--highlights", "/v/a.mp4", "x"]) == .invalid("x"))
   }
 
   @Test("a lone surrogate escape in a request becomes U+FFFD, like JavaScript strings allow")
