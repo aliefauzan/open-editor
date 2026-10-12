@@ -184,7 +184,7 @@ describe('run end status', () => {
   }, 120_000);
 });
 
-describe('video highlights (D-75, D-86)', () => {
+describe('video highlights and sound tags (D-75, D-83, D-86)', () => {
   async function oneClip(kit: Kit) {
     kit.deps.models = { editor: role(dynamicModel(toolsStylist()).model) };
     return runWorkflow(kit.deps, {
@@ -198,69 +198,92 @@ describe('video highlights (D-75, D-86)', () => {
     });
   }
 
-  test('the clipper starts the highlights job for its media beside the job chain', async () => {
+  test('the clipper starts the highlights and sounds jobs for its media beside the job chain', async () => {
     const kit = await workflowKit();
     const r = await oneClip(kit);
     expect(r.done.status, r.done.summary).toBe('completed');
     const kinds = kit.jobs.map((j) => j.kind);
-    const hl = kit.jobs.find((j) => j.kind === 'highlights');
     const quick = kit.jobs.find((j) => j.kind === 'quickClips');
-    expect(hl?.args).toMatchObject({
-      projectId: kit.projectId,
-      mediaId: quick?.args['mediaId'],
-      actor: 'agent',
-      runId: 'run_wftest0001',
-    });
-    // started before the chain it runs beside, and before the pick that reads its output
-    expect(kinds.indexOf('highlights')).toBeLessThan(kinds.indexOf('shots'));
-    expect(kinds.indexOf('highlights')).toBeLessThan(kinds.indexOf('quickClips'));
-    // the test engine has no native helper: the pick goes on without highlights and says so
+    const lines = readRunRecord(r.run.record.path);
+    for (const kind of ['highlights', 'sounds']) {
+      expect(kit.jobs.find((j) => j.kind === kind)?.args, kind).toMatchObject({
+        projectId: kit.projectId,
+        mediaId: quick?.args['mediaId'],
+        actor: 'agent',
+        runId: 'run_wftest0001',
+      });
+      // started before the chain it runs beside, and before the pick that reads its output
+      expect(kinds.indexOf(kind), kind).toBeLessThan(kinds.indexOf('shots'));
+      expect(kinds.indexOf(kind), kind).toBeLessThan(kinds.indexOf('quickClips'));
+      const line = lines.find((l) => l.type === kind);
+      expect(line, kind).toMatchObject({
+        mediaId: quick?.args['mediaId'],
+        used: false,
+        skipped: false,
+      });
+    }
+    // the test engine has no native helper: the pick goes on without them and says so
     expect(r.done.summary).toMatch(/Video highlights: not used \(/);
-    const line = readRunRecord(r.run.record.path).find((l) => l.type === 'highlights');
-    expect(line).toMatchObject({ mediaId: quick?.args['mediaId'], used: false, skipped: false });
+    expect(r.done.summary).toMatch(/Sound tags: not used \(/);
   }, 120_000);
 
-  test('highlights still running after the grace are cancelled; the clips go on without them', async () => {
+  test('jobs still running after the grace are cancelled; the clips go on without them', async () => {
     const kit = await workflowKit({ highlightsGraceMs: 20 });
     const runJob = kit.deps.runJob!;
-    let cancelled = false;
+    const cancelled: string[] = [];
     kit.deps.runJob = async (kind, args, signal) => {
-      if (kind !== 'highlights') return runJob(kind, args, signal);
+      if (kind !== 'highlights' && kind !== 'sounds') return runJob(kind, args, signal);
       // a helper that never answers: only the cancel ends it
       return new Promise((_, reject) =>
         signal?.addEventListener('abort', () => {
-          cancelled = true;
-          reject(new VoxError('CANCELLED', 'Highlights were cancelled.', 'x'));
+          cancelled.push(kind);
+          reject(new VoxError('CANCELLED', `${kind} cancelled`, 'x'));
         }),
       );
     };
     const r = await oneClip(kit);
     expect(r.done.status, r.done.summary).toBe('completed');
-    expect(cancelled).toBe(true);
+    expect(cancelled.sort()).toEqual(['highlights', 'sounds']);
     expect(r.sequenceIds).toHaveLength(1);
     expect(r.done.summary).toMatch(/Video highlights: not used \(still running after 0\.02 s/);
-    const line = readRunRecord(r.run.record.path).find((l) => l.type === 'highlights');
-    expect(line).toMatchObject({ used: false, skipped: true });
+    expect(r.done.summary).toMatch(/Sound tags: not used \(still running after 0\.02 s/);
+    const lines = readRunRecord(r.run.record.path);
+    for (const kind of ['highlights', 'sounds'])
+      expect(
+        lines.find((l) => l.type === kind),
+        kind,
+      ).toMatchObject({ used: false, skipped: true });
   }, 120_000);
 
-  test('a failed highlights job never fails the run', async () => {
+  test('failed highlights and sounds jobs never fail the run', async () => {
     const kit = await workflowKit();
     const runJob = kit.deps.runJob!;
     kit.deps.runJob = async (kind, args, signal) => {
-      if (kind !== 'highlights') return runJob(kind, args, signal);
-      throw new VoxError('TOOL_FAILED', 'the analyzer crashed', 'x');
+      if (kind !== 'highlights' && kind !== 'sounds') return runJob(kind, args, signal);
+      throw new VoxError('TOOL_FAILED', `the ${kind} analyzer crashed`, 'x');
     };
     const r = await oneClip(kit);
     expect(r.done.status, r.done.summary).toBe('completed');
-    expect(r.done.summary).toContain('Video highlights: not used (the analyzer crashed)');
+    expect(r.done.summary).toContain(
+      'Video highlights: not used (the highlights analyzer crashed)',
+    );
+    expect(r.done.summary).toContain('Sound tags: not used (the sounds analyzer crashed)');
   }, 120_000);
 
-  test('highlights the helper found are used and reported', async () => {
+  test('highlights and sound tags the helper found are used and reported', async () => {
     const kit = await workflowKit();
     const runJob = kit.deps.runJob!;
     kit.deps.runJob = async (kind, args, signal) => {
-      if (kind !== 'highlights') return runJob(kind, args, signal);
       const mediaId = args['mediaId'] as string;
+      if (kind === 'sounds')
+        return {
+          mediaId,
+          available: true,
+          soundsPath: `cache/sounds/${mediaId}.json`,
+          windows: 3,
+          cached: false,
+        };
+      if (kind !== 'highlights') return runJob(kind, args, signal);
       return {
         mediaId,
         available: true,
@@ -274,7 +297,10 @@ describe('video highlights (D-75, D-86)', () => {
     expect(r.done.status, r.done.summary).toBe('completed');
     expect(r.done.summary).toContain('Video highlights: used (2 ranges)');
     const line = readRunRecord(r.run.record.path).find((l) => l.type === 'highlights');
-    expect(line).toMatchObject({ used: true, highlights: 2, skipped: false });
+    expect(line).toMatchObject({ used: true, count: 2, skipped: false });
+    expect(r.done.summary).toContain('Sound tags: used (3 windows with a reaction)');
+    const snd = readRunRecord(r.run.record.path).find((l) => l.type === 'sounds');
+    expect(snd).toMatchObject({ used: true, count: 3, skipped: false });
   }, 120_000);
 });
 
