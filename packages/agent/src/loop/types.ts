@@ -136,6 +136,8 @@ export interface RunDeps {
   /** Reads a still the engine wrote (tests). */
   readImage?: (path: string) => Promise<Uint8Array>;
   sleep?: (ms: number) => Promise<void>;
+  /** How long the clipper waits for video highlights after its job chain (tests); default HIGHLIGHTS_GRACE_MS. */
+  highlightsGraceMs?: number;
   newRunId?: () => string;
   now?: () => Date;
 }

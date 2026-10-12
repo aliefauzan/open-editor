@@ -129,8 +129,14 @@ describe('vox agent (step 8, done-when 8)', () => {
       expect(cuts).toHaveLength(1);
       expect(cuts[0]!.runId).toBe(out.runId);
     }
-    // no analysis job ran again: the fixture media has its transcript, shots and facetracks
-    expect(t.jobs.jobs.map((j) => j.kind).filter((k) => k !== 'audioQa')).toEqual(['quickClips']);
+    // no analysis job ran again: the fixture media has its transcript, shots and facetracks; the
+    // optional highlights and sound tags always start beside them (D-86) and answer from their
+    // cache or "not available"
+    expect(t.jobs.jobs.map((j) => j.kind).filter((k) => k !== 'audioQa')).toEqual([
+      'highlights',
+      'sounds',
+      'quickClips',
+    ]);
 
     // vox agent undo restores the project as it was before the run
     const u = await t.vox(['agent', 'undo', t.off.projectId, out.runId]);

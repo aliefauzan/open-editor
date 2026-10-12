@@ -1,7 +1,15 @@
 // Clipper steps 1–2 (agent spec "Workflows" 1; plan D-11, D-15): the job chain, quick clips with
 // the agent's LLM scorer, the ranges checkpoint and Tighten. Stylize then runs on the new sequences.
 // Every job and write carries the run's `runId` (D-50), so "Undo this run" covers the whole run.
-import type { QuickClipsResult } from '@vox/engine';
+// Video highlights (macOS 27, D-75) and sound tags (D-83) run beside the job chain as in `vox quick`
+// and the app's Make clips (D-86): the pick waits for them at most HIGHLIGHTS_GRACE_MS after the
+// chain, then goes on without them; they never fail the run.
+import {
+  HIGHLIGHTS_GRACE_MS,
+  type HighlightsJobResult,
+  type QuickClipsResult,
+  type SoundsJobResult,
+} from '@vox/engine';
 import { VoxError } from '../errors.ts';
 import { RunStopped, type AgentRun } from '../loop/run.ts';
 import type { TightenRange } from '../loop/types.ts';
@@ -127,6 +135,67 @@ async function tighten(
   return `Tighten ${alias}: cut ${String(ticked.length)} of ${String(raw.length)} pause(s)${mode === 'all' ? ' (--yes)' : ''}.`;
 }
 
+/** The optional signals that run beside the job chain: video highlights (D-75), sound tags (D-83). */
+const SIGNALS = {
+  highlights: {
+    label: 'Video highlights',
+    unit: 'ranges',
+  },
+  sounds: {
+    label: 'Sound tags',
+    unit: 'windows with a reaction',
+  },
+} as const;
+type SignalKind = keyof typeof SIGNALS;
+
+type SignalOutcome = { used: true; count: number } | { used: false; reason: string };
+
+/**
+ * Starts the optional `kind` job on `mediaId` as the agent. `done` never rejects: "not available", a
+ * failure or a cancel is an outcome with its reason. `cancel` stops the job.
+ */
+function startSignal(run: AgentRun, kind: SignalKind, mediaId: string) {
+  const stop = new AbortController();
+  const signal = run.ctx.signal ? AbortSignal.any([run.ctx.signal, stop.signal]) : stop.signal;
+  const args = { mediaId, actor: 'agent', runId: run.runId };
+  const done: Promise<SignalOutcome> = job(run.ctx, kind, args, signal).then(
+    (r) => {
+      const res = r as HighlightsJobResult | SoundsJobResult;
+      if (!res.available) return { used: false, reason: res.reason };
+      return { used: true, count: 'highlights' in res ? res.highlights : res.windows };
+    },
+    (err: unknown) => ({
+      used: false,
+      reason: err instanceof Error ? err.message : String(err),
+    }),
+  );
+  return { kind, done, cancel: () => stop.abort() };
+}
+
+/**
+ * Waits for a signal job at most `graceMs`; still running then, it is cancelled (and waited for, so
+ * nothing is left running). A job that finished as the grace ran out still counts.
+ */
+async function settleSignal(
+  s: ReturnType<typeof startSignal>,
+  graceMs: number,
+): Promise<{ outcome: SignalOutcome; skipped: boolean }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = Symbol('late');
+  const first = await Promise.race([
+    s.done,
+    new Promise<typeof late>((r) => (timer = setTimeout(() => r(late), graceMs))),
+  ]).finally(() => clearTimeout(timer));
+  if (first !== late) return { outcome: first, skipped: false };
+  s.cancel();
+  const outcome = await s.done;
+  if (outcome.used) return { outcome, skipped: false };
+  return {
+    outcome: { used: false, reason: `still running after ${String(graceMs / 1000)} s, skipped` },
+    skipped: true,
+  };
+}
+
 /** The first link or path in the message or attachments (the clipper's input). */
 export function sourceIn(message: string, attachments: readonly string[] = []): string | undefined {
   if (attachments[0]) return attachments[0];
@@ -176,9 +245,31 @@ export async function clipperSteps(
   const have = (await run.ctx.engine.getProject(run.ctx.projectId)).media.find(
     (m) => m.id === mediaId,
   );
-  if (!have?.shotsPath) await run.workflowCall('shots', { mediaId });
-  if (!have?.transcriptPath) await run.workflowCall('transcribe', { mediaIds: [mediaId] });
-  if (!have?.facetrackPath) await run.workflowCall('facetrack', { mediaId });
+  // video highlights and sound tags start first and run beside the chain (no job slot, no project
+  // change); a cached result comes back at once
+  const signals = (['highlights', 'sounds'] as const).map((k) => startSignal(run, k, mediaId));
+  try {
+    if (!have?.shotsPath) await run.workflowCall('shots', { mediaId });
+    if (!have?.transcriptPath) await run.workflowCall('transcribe', { mediaIds: [mediaId] });
+    if (!have?.facetrackPath) await run.workflowCall('facetrack', { mediaId });
+  } catch (err) {
+    for (const s of signals) s.cancel();
+    await Promise.all(signals.map((s) => s.done));
+    throw err;
+  }
+  // both wait in parallel under the one grace after the chain, as in `vox quick` (D-85, D-83)
+  const graceMs = run.deps.highlightsGraceMs ?? HIGHLIGHTS_GRACE_MS;
+  const settled = await Promise.all(signals.map((s) => settleSignal(s, graceMs)));
+  signals.forEach((s, i) => {
+    const { outcome, skipped } = settled[i]!;
+    const { label, unit } = SIGNALS[s.kind];
+    run.record.write({ type: s.kind, mediaId, ...outcome, skipped });
+    notes.push(
+      outcome.used
+        ? `${label}: used (${String(outcome.count)} ${unit}).`
+        : `${label}: not used (${outcome.reason}).`,
+    );
+  });
 
   const fast = run.deps.models.fast;
   // A Stop at the scorer's budget prompt cancels the job (the engine would otherwise fall back to

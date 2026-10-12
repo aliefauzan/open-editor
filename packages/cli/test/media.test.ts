@@ -92,6 +92,9 @@ describe('vox ingest', () => {
   });
 });
 
+// doctor runs the version command of each tool (ffmpeg, yt-dlp, uv, ...): 5 s ran out at a
+// load average of about 30, so each test gets 60 s like the other spawning CLI tests (self-test,
+// agent, export)
 describe('vox doctor', () => {
   test('--json never prompts and reports a missing contact', async () => {
     const home = tmp();
@@ -111,7 +114,7 @@ describe('vox doctor', () => {
       expect.arrayContaining(['ffmpeg', 'yt-dlp', 'uv', 'model-silero-vad']),
     );
     expect(existsSync(join(home, 'config.json'))).toBe(false);
-  });
+  }, 60_000);
 
   test('a terminal run asks once and saves the contact with writeConfig (other keys kept)', async () => {
     const home = tmp();
@@ -125,7 +128,7 @@ describe('vox doctor', () => {
       limits: { maxStepsPerRun: 7 },
       contact: 'editor@example.org',
     });
-  });
+  }, 60_000);
 
   test('doctor <project> --unlock removes a lock', async () => {
     const projects = join(tmp(), 'Projects');
@@ -144,5 +147,5 @@ describe('vox doctor', () => {
       project: { lock: { host: 'other-mac', removed: true } },
     });
     expect(existsSync(join(projects, id, 'project.lock'))).toBe(false);
-  });
+  }, 60_000);
 });
