@@ -2191,6 +2191,9 @@ tiles as the main face path (the tiles stay for the fallback).
   Each gate run first re-synced its tools copy's Python env from the checkout under test (`uv sync --frozen
   --reinstall-package vox_py`, editable install of that checkout's `py/`); main's detections have no `detector`, the
   branch's have `{ version: 2, faces: "vision", fallbackSamples: 0 }`.
+- The "before" run is also the first quick gate on D-73's facetrack (shared `vision_box`/`saliency_box`) with Python
+  synced from main: 3 of 3 clips at 1080x1920, no black bands (cropdetect), face framed, styled captions; facetrack
+  44.2 s, total 224.3 s (D-75 baseline 40.0 s, 226.6 s).
 - Seeds: the test-build seed `fixtures/facetracks/talking-head-20s.json` keeps its BlazeFace boxes (valid without
   `detector`; seeding bypasses the facetrack job).
 - Verify (after merging main 5f9dced): engine 1504 pass, 0 fail; pytest 198 pass, 1 fail (`test_imagegen`, model not
