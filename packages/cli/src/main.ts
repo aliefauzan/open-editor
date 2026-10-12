@@ -7,6 +7,7 @@ import { basename, isAbsolute, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import { stepClock, stepTable } from './quick-steps.ts';
 import { selfTest } from './self-test.ts';
 import {
   isVoxError,
@@ -1068,6 +1069,8 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
     }
     case 'quick': {
       need(positionals, 1, '<url|path>');
+      // the step table adds up to the wall time: every step is timed back to back on one clock
+      const clock = stepClock();
       const raw = positionals[0]!;
       const input =
         classifyUrl(raw) !== 'invalid' || /^[a-z][a-z0-9+.-]*:/i.test(raw) || isAbsolute(raw)
@@ -1086,6 +1089,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
             : 'Quick clips';
       const e = await engineFor(values, io);
       const p = await e.createProject(name);
+      clock.mark('setup');
       const ing = await runJob<{ media: { mediaId: string; kind: string }[] }>(
         e,
         'ingest',
@@ -1093,6 +1097,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         io,
         json,
       );
+      clock.mark('ingest');
       const media = ing.media.find((m) => m.kind === 'video');
       if (!media)
         throw new VoxError(
@@ -1109,7 +1114,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       });
       const hlWait = e.jobs.wait(hlJob);
       try {
-        for (const kind of ['shots', 'transcribe', 'facetrack'])
+        for (const kind of ['shots', 'transcribe', 'facetrack']) {
           await runJob(
             e,
             kind,
@@ -1117,12 +1122,16 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
             io,
             json,
           );
+          clock.mark(kind);
+        }
       } catch (err) {
         e.jobs.cancel(hlJob);
         await hlWait;
         throw err;
       }
       const hlInfo = await hlWait;
+      // highlights run beside the stages above; this row is only the wait after them
+      clock.mark('highlights wait');
       const hl: HighlightsJobResult | { available: false; reason: string } =
         hlInfo.status === 'done'
           ? (hlInfo.result as HighlightsJobResult)
@@ -1132,6 +1141,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         scorer: string;
         candidates: number;
         scorerCandidates?: number;
+        scorerMs?: number;
         note?: string;
       }>(
         e,
@@ -1140,6 +1150,9 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         io,
         json,
       );
+      clock.mark('quickClips');
+      // a registered scorer (the fast model) runs inside the quickClips job: its own row
+      if (q.scorerMs !== undefined) clock.split('quickClips', 'scorer', q.scorerMs);
       const files: { sequenceId: string; mp4: string; srt: string }[] = [];
       if (values['render'] === true) {
         for (const c of q.clips) {
@@ -1151,6 +1164,7 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
             io,
             json,
           );
+          clock.mark('render');
           const srt = await runJob<{ path: string }>(
             e,
             'exportCaptions',
@@ -1158,9 +1172,12 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
             io,
             json,
           );
+          clock.mark('captions');
           files.push({ sequenceId: c.sequenceId, mp4: r.files[0]!.path, srt: srt.path });
         }
       }
+      const steps = clock.rows();
+      const totalMs = clock.totalMs();
       const lines = [
         `project ${p.id} (${name}); scorer ${q.scorer}; candidates ${q.candidates}` +
           `${q.scorerCandidates !== undefined ? ` (${q.scorerCandidates} sent to the scorer)` : ''}; ` +
@@ -1170,11 +1187,15 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
         ),
         ...(q.note ? [`note: ${q.note}\n`] : []),
         ...files.flatMap((f) => [`${f.mp4}\n`, `${f.srt}\n`]),
+        stepTable(steps, totalMs),
       ];
       const highlightsJob = hl.available
         ? { available: true }
         : { available: false, reason: hl.reason };
-      out({ projectId: p.id, mediaId: media.mediaId, ...q, files, highlightsJob }, lines.join(''));
+      out(
+        { projectId: p.id, mediaId: media.mediaId, ...q, files, highlightsJob, steps, totalMs },
+        lines.join(''),
+      );
       return 0;
     }
     case 'agent': {
