@@ -68,6 +68,8 @@ export function stepTable(rows: readonly QuickStep[], totalMs: number): string {
 
 /** The note on the "highlights wait" row when the grace ran out. */
 export const HIGHLIGHTS_SKIPPED_NOTE = `capped at ${HIGHLIGHTS_GRACE_MS / 1000} s, highlights skipped`;
+/** The `vox quick` reason when sound tags (D-83) were still running when the same grace ran out. */
+export const SOUNDS_SKIPPED_NOTE = `capped at ${HIGHLIGHTS_GRACE_MS / 1000} s, sound tags skipped`;
 
 /**
  * Waits for the highlights job (`done`) at most `graceMs` after the other stages. When the grace

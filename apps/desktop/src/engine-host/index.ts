@@ -196,7 +196,7 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
   });
   if (res !== undefined) tools['node'] = process.execPath;
   // the Apple helper if this build has one: the agent's Apple provider and the engine's video
-  // highlights (D-75) use it
+  // highlights (D-75) and sound tags (D-83) use it
   const apple = appleHelperPath(env, res);
   const appleHelper = readBuildInfo(res)?.appleHelper ?? apple !== undefined;
   const engine = openEngine({

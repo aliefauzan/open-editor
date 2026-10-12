@@ -3,7 +3,8 @@
 // ranges on a second run, fewer clips reported, one sequence per pick (base style, sourceRange, a
 // linked V1/A1 pair with `auto` framing, captions base/plain maxWords 3, no scenes), registered
 // scorers (pick changes, prompt passed, a throwing scorer falls back, only a shortlist of
-// candidates sent: D-75), video highlights changing the heuristic pick (D-75), one history entry
+// candidates sent: D-75), video highlights (D-75) and reaction sound tags (D-83) changing the
+// heuristic pick, one history entry
 // and one undo, and an NTSC source giving a 30000/1001 sequence. The selection rules on crafted inputs are in
 // quick-clips-select.test.ts.
 import { join } from 'node:path';
@@ -22,6 +23,7 @@ import { tempDir } from './helpers/store.ts';
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { SCORER_MIN_CANDIDATES } from '../src/stages/quickClips.ts';
+import { REACTION_CLASSES, SOUND_MIN_CONFIDENCE } from '../src/stages/sounds.ts';
 import { REPO_STYLES } from './export/project.ts';
 
 const OPTS = { count: 3, minMs: 4000, maxMs: 8000 };
@@ -379,6 +381,49 @@ describe('quickClips options and scorers (steps 12, 12b)', () => {
     // inside the highlighted part
     expect(lifted.clips[0]!.startMs).toBeLessThan(other.endMs);
     expect(lifted.clips[0]!.endMs).toBeGreaterThan(other.startMs);
+  }, 60_000);
+
+  test('reaction sound tags on the media move the heuristic pick to the applauded part (D-83)', async () => {
+    const e2 = newEngine();
+    const o2 = await makeOfflineProject(e2);
+    const args = { projectId: o2.projectId, mediaId: o2.mediaId, ...OPTS, count: 1 };
+    const base = (await quick(e2, args)).result!;
+    expect(base.sounds).toBeUndefined();
+    const all = (await quick(e2, { ...args, count: 20 })).result!.clips;
+    const other = all.find(
+      (c) => c.endMs <= base.clips[0]!.startMs || c.startMs >= base.clips[0]!.endMs,
+    )!;
+    // what the `sounds` job stores: applause over the whole other range
+    const file = join(o2.dir, 'cache', 'sounds', `${o2.mediaId}.json`);
+    await mkdir(join(o2.dir, 'cache', 'sounds'), { recursive: true });
+    const stored = {
+      windows: [
+        {
+          startMs: other.startMs,
+          endMs: other.endMs,
+          labels: [{ id: 'applause', confidence: 1 }],
+        },
+      ],
+      windowMs: 1500,
+      classes: [...REACTION_CLASSES],
+      minConfidence: SOUND_MIN_CONFIDENCE,
+    };
+    await writeFile(file, JSON.stringify(stored));
+    const lifted = (await quick(e2, args)).result!;
+    expect(lifted.sounds).toBe(true);
+    expect([lifted.clips[0]!.startMs, lifted.clips[0]!.endMs]).not.toEqual([
+      base.clips[0]!.startMs,
+      base.clips[0]!.endMs,
+    ]);
+    expect(lifted.clips[0]!.startMs).toBeLessThan(other.endMs);
+    expect(lifted.clips[0]!.endMs).toBeGreaterThan(other.startMs);
+    // tags asked with other classes (an older engine) are not used
+    await writeFile(file, JSON.stringify({ ...stored, classes: ['laughter'] }));
+    const stale = (await quick(e2, args)).result!;
+    expect(stale.sounds).toBeUndefined();
+    expect(stale.clips.map((c) => [c.startMs, c.endMs])).toEqual(
+      base.clips.map((c) => [c.startMs, c.endMs]),
+    );
   }, 60_000);
 
   test('an NTSC source gives a 30000/1001 sequence', async () => {

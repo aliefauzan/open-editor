@@ -23,6 +23,8 @@ export type AppleStatusValue = z.infer<typeof AppleStatusValue>;
  * the engine runs it, the agent ignores it); absent from older helpers. `embed` (D-77): `--embed`
  * works here (NaturalLanguage contextual embeddings, macOS 14+); it does not need Apple
  * Intelligence, so it may be true whatever `status` says. Absent from older helpers: read as false.
+ * `sounds` (D-83): `--sounds` works here (SoundAnalysis sound classifier; the engine runs it, the
+ * agent ignores it); absent from older helpers.
  */
 export const AppleStatus = z.strictObject({
   status: AppleStatusValue,
@@ -30,6 +32,7 @@ export const AppleStatus = z.strictObject({
   vision: z.boolean().optional(),
   highlights: z.boolean().optional(),
   embed: z.boolean().optional(),
+  sounds: z.boolean().optional(),
 });
 export type AppleStatus = z.infer<typeof AppleStatus>;
 
