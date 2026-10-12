@@ -19,7 +19,8 @@ export const WHISPER_REPO = 'mlx-community/whisper-large-v3-turbo';
 export const WHISPER_REVISION = 'a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb';
 /** Folder name of the Whisper model under the tools `models/` folder (used when present). */
 export const WHISPER_DIR = 'whisper-large-v3-turbo';
-export const TRANSCRIBE_VERSION = 1;
+/** 2: Whisper hears padded speech spans, not the whole file (D-79). */
+export const TRANSCRIBE_VERSION = 2;
 
 const ms = z.int().nonnegative();
 export const TranscribeToolResultSchema = z.strictObject({
