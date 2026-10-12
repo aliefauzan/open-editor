@@ -273,7 +273,13 @@ export function deriveCaptions(
     const len = [...u.text].length;
     // two tiers: plain words and the emphasis run count apart; a plain word after the run starts
     // a new chunk
-    const counted = cur ? (tiered ? (word.emphasis ? cur.emph : cur.count - cur.emph) : cur.count) : 0;
+    const counted = cur
+      ? tiered
+        ? word.emphasis
+          ? cur.emph
+          : cur.count - cur.emph
+        : cur.count
+      : 0;
     const limitHit = cur
       ? u.noSpace
         ? cur.chars + len > cap.maxWords * 4

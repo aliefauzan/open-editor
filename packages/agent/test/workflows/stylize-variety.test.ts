@@ -5,6 +5,8 @@
 // (b) no picture query: one made up from the scene text is searched in the archive before stills;
 // (c) a collage that would show more than two stills of the source turns text-led, or keeps two;
 // (d) variables that do not fit their template lose the offending keys, not the whole scene.
+// (e) D-95, the final demo run: a collage planned with `items: []` and only a label cannot fit its
+// template (at least one item); it turns text-led with its label, not a placeholder.
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -255,6 +257,29 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
         'panel 0: align "justify" is not valid, dropped',
       ]),
     );
+    expect(repairs.join(' ')).not.toContain('placeholder');
+  }, 120_000);
+
+  test('(e) a collage with no items turns text-led with its label, not a placeholder', async () => {
+    const kit = await workflowKit();
+    const { r, scenes, repairs } = await stylizePlan(
+      kit,
+      scenesStylist([
+        { template: 'vox/paper-collage', variables: { items: [], label: 'Peluang baru' } },
+        { template: 'vox/paper-collage', variables: { items: [], label: 'Pertolongan Allah' } },
+      ]),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(scenes).toHaveLength(2);
+    expect(scenes.map((s) => s.template)).not.toContain('base/placeholder');
+    expect(scenes.map((s) => s.template)).not.toContain('vox/paper-collage');
+    expect(scenes.map((s) => Object.values(s.variables ?? {}))).toEqual([
+      ['Peluang baru'],
+      ['Pertolongan Allah'],
+    ]);
+    expect(
+      repairs.filter((w) => w.startsWith('vox/paper-collage variables do not fit')),
+    ).toHaveLength(2);
     expect(repairs.join(' ')).not.toContain('placeholder');
   }, 120_000);
 });

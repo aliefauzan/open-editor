@@ -871,6 +871,17 @@ export async function clipPlanToOps(
           variables = panels.variables;
         }
       }
+      // D-95: a scene whose variables do not fit turns text-led with its own text when the style
+      // has a text-led template left (an empty collage), not a placeholder
+      const textInstead = (why: string): boolean => {
+        const to = t ? toTextLed(t, variables, textLed, counts, templates) : undefined;
+        if (!to) return false;
+        note(`${template} ${why}: ${to.template} ${JSON.stringify(to.text)} instead`);
+        template = to.template;
+        variables = to.variables;
+        t = templates.get(template)!;
+        return true;
+      };
       if (missing !== undefined) {
         const ph = templates.get(PLACEHOLDER_TEMPLATE);
         if (!ph) {
@@ -888,7 +899,11 @@ export async function clipPlanToOps(
         variables = shortenTexts(t, variables, note);
         // D-94: unknown keys and invalid optional values are dropped, not the whole scene
         variables = fitVariables(t, variables, templates, note);
-        const problem = await variablesProblem(run, t, variables, templates);
+        let problem = await variablesProblem(run, t, variables, templates);
+        if (problem !== undefined && textInstead(`variables do not fit (${problem})`)) {
+          variables = shortenTexts(t, variables, note);
+          problem = await variablesProblem(run, t, variables, templates);
+        }
         const ph = problem === undefined ? undefined : templates.get(PLACEHOLDER_TEMPLATE);
         if (problem !== undefined && !ph) {
           note(`dropped: ${template} variables do not fit (${problem})`);

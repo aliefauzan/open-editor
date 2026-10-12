@@ -113,7 +113,9 @@ describe('map (step 2)', () => {
     // a clean reference (noise 0.14 levels): grain 0.02, overlay off unless the model saw paper
     const clean = grainOf(0.14);
     expect(clean.styleFile.tokens?.texture?.grain).toBe(0.02);
-    expect(clean.drivers.find((x) => x.token === 'texture.grain')?.from).toMatch(/^measured: noise 0.14/);
+    expect(clean.drivers.find((x) => x.token === 'texture.grain')?.from).toMatch(
+      /^measured: noise 0.14/,
+    );
     expect(on(clean)).toBe(true);
     const m = measurements();
     m.grain = { sigma: 0.14, frames: 5 };

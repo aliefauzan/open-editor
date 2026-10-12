@@ -98,9 +98,12 @@ export function twoTierHtml(look: TwoTierLook, template?: string): string {
 
 const allCaps = (w: string) => {
   const letters = w.replace(/[^\p{L}]/gu, '');
-  return letters.length >= 2 && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
+  return (
+    letters.length >= 2 && letters === letters.toUpperCase() && letters !== letters.toLowerCase()
+  );
 };
-const p90 = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * 0.9))]!;
+const p90 = (xs: number[]) =>
+  [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * 0.9))]!;
 
 /**
  * The caption track a two-tier preset gives a sequence (D-93): tier 1 words and characters a line

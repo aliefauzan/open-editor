@@ -90,7 +90,12 @@ describe('setCaptions', () => {
     );
     expect(caps(own)).toMatchObject({ position: { yPct: 65 }, maxWords: 3, maxLines: 2 });
     // an unknown preset (or a lookup without presets) keeps the sequence's settings
-    const unknown = ap(baseProject(), 'setCaptions', { sequenceId: 'seq_1', preset: 'x/none' }, ctx);
+    const unknown = ap(
+      baseProject(),
+      'setCaptions',
+      { sequenceId: 'seq_1', preset: 'x/none' },
+      ctx,
+    );
     expect(caps(unknown)).toMatchObject({ position: { yPct: 75 }, maxWords: 3 });
   });
   test('source tracks must be audio tracks of the sequence', () => {

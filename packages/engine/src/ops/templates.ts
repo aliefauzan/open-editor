@@ -30,7 +30,12 @@ export interface TemplateInfo {
 /** What a caption preset gives a sequence that takes it (styles spec "Caption presets", D-93). */
 export interface CaptionPresetInfo {
   position: { yPct: number };
-  track?: { maxWords?: number; maxLines?: number; maxCharsPerLine?: number; autoEmphasis?: boolean };
+  track?: {
+    maxWords?: number;
+    maxLines?: number;
+    maxCharsPerLine?: number;
+    autoEmphasis?: boolean;
+  };
   tiered?: boolean;
 }
 

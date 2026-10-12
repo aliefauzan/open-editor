@@ -255,7 +255,7 @@ describe('map with measured fonts', () => {
       ev('He wanted you to step INTO HIS HOME'),
       ev('performing on the BIGGEST STAGE'),
       ev('REAL VOWS'),
-      ev('Because he didn\'t want you'),
+      ev("Because he didn't want you"),
       ev('that people see themselves'),
       ev('on the turf'),
       ev('Then he passes his GRAMMY'),

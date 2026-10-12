@@ -2425,3 +2425,12 @@ qwen3.5 did not plan a stack with a panel picture query in these runs; the panel
 **Why**: a weak editor repeats one template and leans on the source stills; deterministic repairs after the plan fix every run without more model calls.
 **Alternatives**: a retry asking the model for variety (more calls, still a guess); stills only (the owner's complaint).
 **Open**: the rare-word match can pick a wrong place for a label whose rare word is said twice far from the plan; picture quality depends on the archive search.
+
+## D-95 · 2026-10-13 · fix/plan-empty-collage · plan mode: a scene whose variables do not fit turns text-led, not a placeholder
+**Context**: the demo clip run after D-93 + D-94 (clipper `--style attention-compound-r3b`, ollama qwen3.5) planned two `vox/paper-collage` scenes with `items: []` and only a label ("Peluang baru", "Pertolongan Allah"). With no items there were no picture slots to fill, D-94's variable fitting cannot add a required item, and the engine check (`data/items must NOT have fewer than 1 items`) made both scenes striped placeholders (render at 0:23-0:31).
+**Decision** (`packages/agent/src/loop/plan.ts`): when a scene's variables still do not fit after `fitVariables`, it turns into a text-led template of the style with its first text (`toTextLed`, the D-94 rule: at most two scenes of a template), with the repair note `<template> variables do not fit (<problem>): <text-led> "<text>" instead`. Only when no text-led template is left, or the scene has no text, does it become a placeholder as before. A required picture that is not found keeps the D-86/D-90 placeholder.
+**Verify**: new test `stylize-variety.test.ts` (e) (fails without the change); `vitest run packages/agent` 930 passed, 1 skipped; `pnpm -r typecheck` and `pnpm lint` clean.
+**Review**: self-review (token budget).
+**Why**: a placeholder in a finished clip is the worst outcome; the scene's own words on a text-led template still carry the beat.
+**Alternatives**: making collage items from the label with archive pictures (more searches; the fallback still needs a text-led path when the archive finds nothing).
+**Open**: the editor model planning empty collages is not fixed at the source (prompt); the newspaper template's body columns are seeded greeked text by design (`styles/vox/templates/newspaper/template.html`), not a fallback.
