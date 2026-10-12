@@ -203,8 +203,47 @@ async function planCall(run: AgentRun, name: string, args: Record<string, unknow
   return out.result;
 }
 
+/** At most this many pictures a plan run generates (D-101): a local model takes about a minute each. */
+export const MAX_GENERATED_PER_RUN = 6;
+const generatedIn = new WeakMap<AgentRun, number>();
+
+/**
+ * A generated picture for `prompt` in the sequence's style (D-101): the engine appends the style's
+ * `imagery.generateSuffix` (vox: torn paper collage). Square for a cutout, the canvas shape else.
+ * Undefined when no provider is installed or the run already made MAX_GENERATED_PER_RUN.
+ */
+async function generated(
+  run: AgentRun,
+  prompt: string,
+  kind: string,
+  styleId: string | undefined,
+): Promise<string | undefined> {
+  const n = generatedIn.get(run) ?? 0;
+  if (!run.registry.get('generate_image') || n >= MAX_GENERATED_PER_RUN) return undefined;
+  generatedIn.set(run, n + 1);
+  const size = kind === 'cutout' ? { width: 1024, height: 1024 } : { width: 1088, height: 1920 };
+  return mediaIdOf(
+    run,
+    await planCall(run, 'generate_image', {
+      prompt,
+      ...(styleId !== undefined && { styleId }),
+      ...size,
+    }),
+  );
+}
+
+/** The style of a slot's sequence (D-101: generated pictures take its look). */
+function styleAt(p: Project, sequenceId: string): string | undefined {
+  return p.sequences.find((s) => s.id === sequenceId)?.styleId;
+}
+
 /** search → fetch → (cutout); generate when search finds nothing and a provider exists. */
-async function fillSlot(run: AgentRun, query: string, kind: string): Promise<string | undefined> {
+async function fillSlot(
+  run: AgentRun,
+  query: string,
+  kind: string,
+  styleId?: string,
+): Promise<string | undefined> {
   try {
     let mediaId: string | undefined;
     const found = (await planCall(run, 'search_images', { query })) as {
@@ -213,8 +252,7 @@ async function fillSlot(run: AgentRun, query: string, kind: string): Promise<str
     const first = found.candidates?.find((c) => typeof c.id === 'string');
     if (first)
       mediaId = mediaIdOf(run, await planCall(run, 'fetch_image', { candidateId: first.id }));
-    else if (run.registry.get('generate_image'))
-      mediaId = mediaIdOf(run, await planCall(run, 'generate_image', { prompt: query }));
+    else mediaId = await generated(run, query, kind, styleId);
     if (mediaId && kind === 'cutout')
       mediaId = mediaIdOf(
         run,
@@ -334,8 +372,9 @@ async function stillOf(
 /**
  * A picture query the run made up for a beat whose model gave none (D-94): the scene's first text
  * (its label), else the beat's spoken words. One archive search per beat; its candidates fill the
- * beat's picture slots in order (a collage's items get different pictures). Never generated: the
- * text is the speaker's language and the model did not ask for a picture.
+ * beat's picture slots in order (a collage's items get different pictures). When the archive has
+ * nothing (left) and an image model is installed, up to AUTO_GENERATED_PER_BEAT pictures are made
+ * from it in the style's look (D-101) before stills of the source.
  */
 interface AutoQuery {
   query: string;
@@ -343,7 +382,12 @@ interface AutoQuery {
   /** Candidate ids left from the one search; undefined until searched. */
   candidates?: string[];
   found: number;
+  /** Pictures generated for it (D-101), at most AUTO_GENERATED_PER_BEAT. */
+  generated?: number;
 }
+
+/** Generated pictures one made-up query may take (D-101): a collage's other entries take stills. */
+const AUTO_GENERATED_PER_BEAT = 2;
 
 /** Longest made-up query, and the most spoken words it takes. */
 const AUTO_QUERY_CHARS = 80;
@@ -373,6 +417,7 @@ async function autoPicture(
   run: AgentRun,
   auto: AutoQuery,
   kind: string,
+  styleId?: string,
 ): Promise<string | undefined> {
   try {
     if (auto.candidates === undefined) {
@@ -384,14 +429,21 @@ async function autoPicture(
         if (typeof c.id === 'string') auto.candidates.push(c.id);
     }
     const next = auto.candidates.shift();
-    if (next === undefined) return undefined;
-    let mediaId = mediaIdOf(run, await planCall(run, 'fetch_image', { candidateId: next }));
+    let mediaId: string | undefined;
+    if (next !== undefined)
+      mediaId = mediaIdOf(run, await planCall(run, 'fetch_image', { candidateId: next }));
+    else if ((auto.generated ?? 0) < AUTO_GENERATED_PER_BEAT) {
+      // D-101: nothing (left) in the archive: a picture made for the beat in the style's look
+      mediaId = await generated(run, `An illustration of: ${auto.query}`, kind, styleId);
+      if (mediaId === undefined) return undefined;
+      auto.generated = (auto.generated ?? 0) + 1;
+    } else return undefined;
     if (mediaId && kind === 'cutout')
       mediaId = mediaIdOf(
         run,
         await planCall(run, 'cutout', { mediaId: run.aliases.aliasOf(mediaId) }),
       );
-    if (mediaId) auto.found++;
+    if (mediaId && next !== undefined) auto.found++;
     return mediaId;
   } catch (err) {
     if (err instanceof RunStopped) throw err;
@@ -440,11 +492,12 @@ async function pictureFor(
   const known = imageNamed(run, p, value);
   if (known) return { id: known };
   const q = queries.shift() ?? describedQuery(value);
-  const found = q === undefined ? undefined : await fillSlot(run, q, kind);
+  const style = styleAt(p, at.sequenceId);
+  const found = q === undefined ? undefined : await fillSlot(run, q, kind, style);
   if (found) return { id: found, q };
   const named = mediaNamed(run, p, value);
   if (needs && q === undefined && named === undefined && auto) {
-    const id = await autoPicture(run, auto, kind);
+    const id = await autoPicture(run, auto, kind, style);
     if (id) return { id };
   }
   const video =
@@ -931,6 +984,10 @@ export async function clipPlanToOps(
           auto.found > 0
             ? `${String(auto.found)} archive picture(s) for ${JSON.stringify(auto.query)} (query from the ${auto.from}; the plan gave none)`
             : `no archive picture for ${JSON.stringify(auto.query)} (query from the ${auto.from})`,
+        );
+      if (auto?.generated)
+        note(
+          `${String(auto.generated)} picture(s) generated for ${JSON.stringify(auto.query)} in the style's look`,
         );
       let start = clamp(Math.max(b.startMs, prevEnd), 0, end);
       if (start !== b.startMs) note(`start moved ${String(b.startMs)} → ${String(start)}`);

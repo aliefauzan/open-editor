@@ -87,7 +87,7 @@
   },
   "imagery": {
     "searchHints": ["vintage photograph", "archival", "black and white", "engraving"],
-    "generateSuffix": "vintage halftone photograph, isolated object, plain background, high contrast",
+    "generateSuffix": "Torn paper collage illustration, built entirely from layered pieces of torn coloured craft paper: every shape a separate flat cutout with rough white torn edges, visible paper grain and fibre, a hard drop shadow under each piece, small white slivers between pieces, a mosaic of overlapping paper facets. Muted, slightly desaturated colours on a plain beige paper background. Handmade paper artwork, not a photograph, no smooth gradients, no glossy 3D, no text.",
     "cutoutStroke": {
       "color": "#D7261E",
       "widthPx": 10

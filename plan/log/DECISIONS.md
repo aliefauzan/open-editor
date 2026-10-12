@@ -2478,3 +2478,25 @@ qwen3.5 did not plan a stack with a panel picture query in these runs; the panel
 **Why**: two copies of the same words at once read as a mistake; the scene already carries them.
 **Alternatives**: hiding the scene text instead (the scene is the designed beat); dropping only the repeated words (a caption with holes reads worse than none for one chunk).
 **Open**: a paraphrased scene (under 60 % of the words) still runs with its caption.
+
+## D-100 · 2026-10-13 · fix/papercut · a scene that quotes the speaker hides the captions it covers
+**Context**: demo clip run 4 at 0:29: a `base/title` card showed a spoken sentence cut to its 60-character limit while the speech ran on; the next chunk ("atau bahkan", not in the card's text) passed the D-99 filter and landed on the card's text.
+**Decision** (`packages/engine/src/model/captions.ts`, `withoutSceneEchoes`): a scene that echoes at least one chunk (the D-99 rule) quotes the speaker, so every chunk it covers by at least half is left out of the burned-in layer. A scene with no echo keeps all its captions. The build's captions and SRT/VTT are unchanged.
+**Verify**: new test "a scene that quotes the speaker hides every chunk it covers (D-100)"; the D-99 test's scene was narrowed to cover only its echo chunk (its point is unchanged). See D-101 for the suite.
+**Review**: self-review (token budget).
+**Why**: a quote card is the speaker's words on screen; captions over it compete with the card whatever their words.
+**Alternatives**: moving captions off the card's text band (the compile step does not know where a template draws its text).
+**Open**: a long quote card hides captions for speech past the quoted sentence.
+
+## D-101 · 2026-10-13 · fix/papercut · paper-cut pictures and assemble motion for plan-mode scenes
+**Context**: owner: run 4 "still not perfect"; owner pointed to a paper-cut motion pack (`~/Downloads/motion-design-prompts`: a torn-paper image prompt, a 9-panel sheet, a Seedance animation prompt) and chose local paper-cut images over cloud models (no keys). Run 4 was 84 % text cards: the archive found nothing and stills of the speaker made collages text-led (D-94).
+**Decision**:
+- `assets.generate` appends the named style's `imagery.generateSuffix` (in the styles spec since phase 07, never wired) after the subject; the media origin keeps the full prompt. `styles/vox/style.json` `generateSuffix` is now a torn paper collage look (the pack's style block, condensed to 460 characters, with "not a photograph" and a beige paper background). A live check on Z-Image-Turbo (`~/vox-gui13/tools`, 1080x1920, about 140 s): the pack's block appended as is gave a photo of a hand cut out on paper; this wording gave flat torn craft-paper pieces with white torn edges and hard shadows.
+- Plan mode (`packages/agent/src/loop/plan.ts`): generated pictures carry the sequence's `styleId`, are square (1024) for cutout slots and 1088x1920 else, at most `MAX_GENERATED_PER_RUN` (6) per run. A beat's made-up query (D-94) with no archive picture left generates up to two pictures (`An illustration of: <scene text>`) before stills of the source; a repair note counts them. `generate_image` takes optional `width`/`height`.
+- Motion (`styles/vox/assets/motion.js`, synced to the 12 vox compositions): entrance `assemble` pushes a piece in from just outside the frame on a seeded side, turned up to 9° and settling within 1.2° of its rest, held on at least twos, never fading in; one late nudge a hold after it lands. Styles opt in with `tokens.motion.entrance: "assemble"`.
+- Tests: `motion.test.ts` assemble; `assets-jobs.test.ts` style suffix (and none for an unknown style); `stylize-variety.test.ts` (f) generated pictures for a collage.
+**Verify** (worktree): `vitest run packages/agent packages/engine apps/desktop/test/renderer` 2532 passed, 1 skipped, 5 failed: `*.local` tests without fixture outputs (3), `apple-fast.local`, `history/cursor` undo depth (timeout while an image was generating; 7/7 alone). `pnpm -r typecheck`, `pnpm lint` clean.
+**Review**: self-review (token budget).
+**Why**: generated pictures in the style's look fill the scenes the archive cannot, offline and at $0; the assembly motion is the pack's look done in the template, without a video model.
+**Alternatives**: the pack's own flow (GPT Image sheet + Seedance video; needs keys and costs per clip); splitting a generated picture into pieces that assemble one by one (needs segmentation of the paper pieces).
+**Open**: a generated picture takes about 2 minutes on this machine; the pack's 9-panel piece-by-piece build is not reproduced (one picture enters as one piece).

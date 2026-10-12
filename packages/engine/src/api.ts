@@ -814,6 +814,13 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.net ? { net: opts.net } : {}),
     version,
     providers: imageProviders,
+    generateSuffix: (styleId) => {
+      try {
+        return registry().get(styleId).style.imagery?.generateSuffix || undefined;
+      } catch {
+        return undefined;
+      }
+    },
     ...(opts.assets?.getJson ? { getJson: opts.assets.getJson } : {}),
     ...(opts.assets?.commonsThrottle ? { commonsThrottle: opts.assets.commonsThrottle } : {}),
     ...(opts.assets?.ca ? { ca: opts.assets.ca } : {}),

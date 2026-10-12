@@ -273,11 +273,18 @@ export function jobTools(engine: Pick<AgentEngine, 'imageProviders'>): AgentTool
         'generate_image',
         'job',
         'Generate an image (only when archive search found nothing).',
-        z.strictObject({ prompt: z.string().trim().min(1).max(2000), styleId: id.optional() }),
+        z.strictObject({
+          prompt: z.string().trim().min(1).max(2000),
+          styleId: id.optional(),
+          width: z.int().min(256).max(2048).optional(),
+          height: z.int().min(256).max(2048).optional(),
+        }),
         (ctx, a) =>
           writingJob(ctx, 'assets.generate', {
             prompt: a.prompt,
             ...(a.styleId && { styleId: a.styleId }),
+            ...(a.width && { width: a.width }),
+            ...(a.height && { height: a.height }),
           }),
       ),
     );
