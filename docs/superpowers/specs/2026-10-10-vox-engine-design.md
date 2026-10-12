@@ -846,7 +846,9 @@ Compile is deterministic: the same project and version produce byte-identical ou
 Final audio never goes through HyperFrames. `src/audio/` builds one ffmpeg filter graph
 from the model: every audio-track clip (`atrim` at `inMs`, `afftdn` when `denoise` is
 not `off`, `atempo` with a preroll for a clip with `speed` (see "Clip speed"), a gain-to-target, `adelay` to `startMs`, `volume`, `afade` for fades), SFX
-cues, track mutes, then `amix` with normalisation off and a limiter, then `loudnorm`
+cues (each at a gain set from the speech it lands on: lowered until it sits 7 LU under the
+speech in the audio QA window, never above its file level, at most 30 dB down, plan D-89),
+track mutes, then `amix` with normalisation off and a limiter, then `loudnorm`
 (two-pass) to the export loudness target integrated and −1.5 dBTP true peak (0.5 dB under
 the audio QA ceiling of −1 dBTP, plan D-32).
 
