@@ -26,11 +26,19 @@
         {
           "type": "function",
           "name": "get_transcript",
-          "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+          "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
           "parameters": {
             "type": "object",
             "properties": {
               "mediaId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "clipId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sequenceId": {
                 "type": "string",
                 "minLength": 1
               },
@@ -44,17 +52,15 @@
                 "minimum": 0,
                 "maximum": 9007199254740991
               },
-              "sequenceId": {
-                "type": "string",
-                "minLength": 1
-              },
               "cursor": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "words": {
+                "type": "boolean"
               }
             },
-            "required": ["mediaId"],
             "additionalProperties": false
           },
           "strict": false
@@ -351,7 +357,7 @@
         {
           "type": "function_call_output",
           "call_id": "call_1_0",
-          "output": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>"
+          "output": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>"
         },
         {
           "role": "user",
@@ -368,11 +374,19 @@
         {
           "type": "function",
           "name": "get_transcript",
-          "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+          "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
           "parameters": {
             "type": "object",
             "properties": {
               "mediaId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "clipId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sequenceId": {
                 "type": "string",
                 "minLength": 1
               },
@@ -386,17 +400,15 @@
                 "minimum": 0,
                 "maximum": 9007199254740991
               },
-              "sequenceId": {
-                "type": "string",
-                "minLength": 1
-              },
               "cursor": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "words": {
+                "type": "boolean"
               }
             },
-            "required": ["mediaId"],
             "additionalProperties": false
           },
           "strict": false
@@ -693,7 +705,7 @@
         {
           "type": "function_call_output",
           "call_id": "call_1_0",
-          "output": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>"
+          "output": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>"
         },
         {
           "type": "function_call",
@@ -721,11 +733,19 @@
         {
           "type": "function",
           "name": "get_transcript",
-          "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+          "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
           "parameters": {
             "type": "object",
             "properties": {
               "mediaId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "clipId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sequenceId": {
                 "type": "string",
                 "minLength": 1
               },
@@ -739,17 +759,15 @@
                 "minimum": 0,
                 "maximum": 9007199254740991
               },
-              "sequenceId": {
-                "type": "string",
-                "minLength": 1
-              },
               "cursor": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "words": {
+                "type": "boolean"
               }
             },
-            "required": ["mediaId"],
             "additionalProperties": false
           },
           "strict": false
@@ -1035,7 +1053,7 @@
           "content": [
             {
               "type": "input_text",
-              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
             }
           ]
         }
@@ -1120,7 +1138,7 @@
           "content": [
             {
               "type": "input_text",
-              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
             }
           ]
         },
@@ -1218,7 +1236,7 @@
           "content": [
             {
               "type": "input_text",
-              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
             }
           ]
         },
@@ -1348,11 +1366,19 @@
           "functionDeclarations": [
             {
               "name": "get_transcript",
-              "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+              "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
               "parametersJsonSchema": {
                 "type": "object",
                 "properties": {
                   "mediaId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clipId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sequenceId": {
                     "type": "string",
                     "minLength": 1
                   },
@@ -1366,17 +1392,15 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
-                  "sequenceId": {
-                    "type": "string",
-                    "minLength": 1
-                  },
                   "cursor": {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "words": {
+                    "type": "boolean"
                   }
                 },
-                "required": ["mediaId"],
                 "additionalProperties": false
               }
             },
@@ -1682,7 +1706,7 @@
                 "name": "get_transcript",
                 "response": {
                   "name": "get_transcript",
-                  "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>"
+                  "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>"
                 }
               }
             }
@@ -1709,11 +1733,19 @@
           "functionDeclarations": [
             {
               "name": "get_transcript",
-              "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+              "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
               "parametersJsonSchema": {
                 "type": "object",
                 "properties": {
                   "mediaId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clipId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sequenceId": {
                     "type": "string",
                     "minLength": 1
                   },
@@ -1727,17 +1759,15 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
-                  "sequenceId": {
-                    "type": "string",
-                    "minLength": 1
-                  },
                   "cursor": {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "words": {
+                    "type": "boolean"
                   }
                 },
-                "required": ["mediaId"],
                 "additionalProperties": false
               }
             },
@@ -2043,7 +2073,7 @@
                 "name": "get_transcript",
                 "response": {
                   "name": "get_transcript",
-                  "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>"
+                  "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>"
                 }
               }
             }
@@ -2101,11 +2131,19 @@
           "functionDeclarations": [
             {
               "name": "get_transcript",
-              "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+              "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
               "parametersJsonSchema": {
                 "type": "object",
                 "properties": {
                   "mediaId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "clipId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sequenceId": {
                     "type": "string",
                     "minLength": 1
                   },
@@ -2119,17 +2157,15 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
-                  "sequenceId": {
-                    "type": "string",
-                    "minLength": 1
-                  },
                   "cursor": {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "words": {
+                    "type": "boolean"
                   }
                 },
-                "required": ["mediaId"],
                 "additionalProperties": false
               }
             },
@@ -2471,7 +2507,7 @@
           "role": "user",
           "parts": [
             {
-              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
             }
           ]
         }
@@ -2556,7 +2592,7 @@
           "role": "user",
           "parts": [
             {
-              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
             }
           ]
         },
@@ -2657,7 +2693,7 @@
           "role": "user",
           "parts": [
             {
-              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+              "text": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
             }
           ]
         },
@@ -2739,11 +2775,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -2757,17 +2801,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -3082,7 +3124,7 @@
         {
           "role": "tool",
           "tool_call_id": "call_1_0",
-          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>",
+          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>",
           "name": "get_transcript"
         },
         {
@@ -3098,11 +3140,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -3116,17 +3166,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -3441,7 +3489,7 @@
         {
           "role": "tool",
           "tool_call_id": "call_1_0",
-          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>",
+          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>",
           "name": "get_transcript"
         },
         {
@@ -3477,11 +3525,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -3495,17 +3551,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -3872,7 +3926,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         }
       ],
       "usage": {
@@ -3963,7 +4017,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         },
         {
           "role": "assistant",
@@ -4062,7 +4116,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         },
         {
           "role": "assistant",
@@ -4114,11 +4168,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -4132,17 +4194,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -4452,7 +4512,7 @@
         {
           "role": "tool",
           "tool_call_id": "call_1_0",
-          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>"
+          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>"
         },
         {
           "role": "user",
@@ -4464,11 +4524,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -4482,17 +4550,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -4802,7 +4868,7 @@
         {
           "role": "tool",
           "tool_call_id": "call_1_0",
-          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>"
+          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>"
         },
         {
           "role": "assistant",
@@ -4833,11 +4899,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -4851,17 +4925,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -5157,7 +5229,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         }
       ]
     },
@@ -5174,7 +5246,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         },
         {
           "role": "assistant",
@@ -5199,7 +5271,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         },
         {
           "role": "assistant",
@@ -5243,11 +5315,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -5261,17 +5341,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -5586,7 +5664,7 @@
         {
           "role": "tool",
           "tool_call_id": "call_1_0",
-          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>"
+          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>"
         },
         {
           "role": "user",
@@ -5603,11 +5681,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -5621,17 +5707,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -5946,7 +6030,7 @@
         {
           "role": "tool",
           "tool_call_id": "call_1_0",
-          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"words\":[{\"key\":\"m1:r1:0\",\"text\":\"Hello,\",\"kind\":\"word\",\"srcMs\":34,\"srcEndMs\":260},{\"key\":\"m1:r1:1\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":260,\"srcEndMs\":674},{\"key\":\"m1:r1:2\",\"text\":\"and\",\"kind\":\"word\",\"srcMs\":674,\"srcEndMs\":800},{\"key\":\"m1:r1:3\",\"text\":\"welcome\",\"kind\":\"word\",\"srcMs\":800,\"srcEndMs\":1120},{\"key\":\"m1:r1:4\",\"text\":\"to\",\"kind\":\"word\",\"srcMs\":1120,\"srcEndMs\":1300},{\"key\":\"m1:r1:5\",\"text\":\"the\",\"kind\":\"word\",\"srcMs\":1300,\"srcEndMs\":1420},{\"key\":\"m1:r1:6\",\"text\":\"Vox\",\"kind\":\"word\",\"srcMs\":1420,\"srcEndMs\":1700},{\"key\":\"m1:r1:7\",\"text\":\"Studio\",\"kind\":\"word\",\"srcMs\":1700,\"srcEndMs\":2040},{\"key\":\"m1:r1:8\",\"text\":\"demo.\",\"kind\":\"word\",\"srcMs\":2040,\"srcEndMs\":2460},{\"key\":\"m1:r1:9\",\"text\":\"\",\"kind\":\"pause\",\"srcMs\":2460,\"srcEndMs\":3042}],\"nextCursor\":null,\"totalWords\":68}\n</data>"
+          "content": "<data source=\"transcript\">\n{\"mediaId\":\"m1\",\"language\":\"en\",\"times\":\"srcMs\",\"fromSrcMs\":0,\"toSrcMs\":3000,\"lines\":\"[34-260] Hello,\\n[674-2460] and welcome to the Vox Studio demo.\",\"nextCursor\":null,\"totalWords\":68}\n</data>"
         },
         {
           "role": "assistant",
@@ -5986,11 +6070,19 @@
           "type": "function",
           "function": {
             "name": "get_transcript",
-            "description": "Transcript words of a media item in a source-time range: key, text, kind (word, pause, repeat, filler), srcMs/srcEndMs (source time) and, with sequenceId, seqMs/seqEndMs where that word is placed (null if not). At most ~4k tokens per call; pass nextCursor as cursor for the next page.",
+            "description": "Transcript lines \"[startMs-endMs] text\", one per sentence: sequence ms with clipId (only the span that clip plays) or sequenceId (its media clips’ span), else source ms; fromSrcMs/toSrcMs narrow it. Max ~4k tokens; pass nextCursor as cursor. words: true gives per-word key, kind, srcMs and seqMs instead (only when you need them).",
             "parameters": {
               "type": "object",
               "properties": {
                 "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clipId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sequenceId": {
                   "type": "string",
                   "minLength": 1
                 },
@@ -6004,17 +6096,15 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
-                "sequenceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
                 "cursor": {
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "words": {
+                  "type": "boolean"
                 }
               },
-              "required": ["mediaId"],
               "additionalProperties": false
             }
           }
@@ -6308,7 +6398,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         }
       ],
       "max_output_tokens": 8000,
@@ -6389,7 +6479,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         },
         {
           "role": "assistant",
@@ -6478,7 +6568,7 @@
         },
         {
           "role": "user",
-          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 (sequence ms, word):\n<data source=\"transcript\">\n34 Hello,\n260 \n674 and\n800 welcome\n1120 to\n1300 the\n1420 Vox\n1700 Studio\n2040 demo.\n2460 \n3042 Today\n3300 we\n3480 turn\n3700 a\n3860 long\n4020 video\n4340 into\n4600 a\n4800 short\n5060 clip.\n5420 \n5954 First,\n6500 we\n6700 find\n6980 the\n7120 best\n7360 moments\n7740 in\n7920 the\n8020 footage.\n8420 \n8930 Then\n9080 we\n9240 add\n9460 captions\n9900 and\n10100 a\n10260 few\n10380 sound\n10720 effects.\n11180 \n11810 Every\n12040 change\n12360 can\n12600 be\n12740 undone\n13060 at\n13220 any\n13360 time.\n13800 \n14370 Finally,\n14740 \n15106 we\n15240 export\n15620 a\n15760 vertical\n16060 video\n16420 for\n16660 your\n16840 phone.\n17180 \n17698 That\n17860 is\n17980 all\n18140 for\n18300 this\n18480 quick\n18700 test.\n</data>"
+          "content": "make the clip quieter\n\n[Current state, newest only]\nSequence s1 @v1: [{\"id\":\"c1\",\"track\":\"V1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"video\",\"mediaId\":\"m1\"},{\"id\":\"c2\",\"track\":\"A1\",\"startMs\":0,\"endMs\":20000,\"kind\":\"audio\",\"mediaId\":\"m1\"}]\n\nTranscript of s1 ([startMs-endMs] text, sequence ms):\n<data source=\"transcript\">\n[34-260] Hello,\n[674-2460] and welcome to the Vox Studio demo.\n[3042-5420] Today we turn a long video into a short clip.\n[5954-8420] First, we find the best moments in the footage.\n[8930-11180] Then we add captions and a few sound effects.\n[11810-13800] Every change can be undone at any time.\n[14370-14740] Finally,\n[15106-17180] we export a vertical video for your phone.\n[17698-19100] That is all for this quick test.\n</data>"
         },
         {
           "role": "assistant",

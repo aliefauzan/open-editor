@@ -2,7 +2,8 @@
 // "Context compaction", plan D-15). Tool results older than the last 8 steps become one-line stubs
 // stamped with the project version they read; a stub older than the current version is shown as
 // stale. If that is not enough, the oldest steps are summarised into a notes block (by the `fast`
-// model when there is one) and dropped.
+// model when there is one) and dropped. With a caching editor the state block of each step is kept
+// too (D-81); compaction stubs old blocks like old tool results.
 import type { ModelMessage, ToolResultPart } from 'ai';
 import { estimateTokens } from '../providers/tool-cost.ts';
 
@@ -20,6 +21,8 @@ interface Entry {
   message: ModelMessage;
   /** For `tool` messages: one per result part, by toolCallId. */
   tools?: Map<string, ToolMeta>;
+  /** For a kept state block (D-81): the version it showed. */
+  state?: { version: number; stubbed: boolean };
 }
 
 export type Summarise = (text: string, previousNotes: string) => Promise<string>;
@@ -46,6 +49,19 @@ export class Conversation {
     this.#entries.push({ step, message });
   }
 
+  /**
+   * The state block a step was sent with (D-81), kept so later steps can send only changes. It is
+   * rendered as `withInjection` sent it: appended to a user message right before it, else as its
+   * own user message.
+   */
+  state(step: number, text: string, version: number): void {
+    this.#entries.push({
+      step,
+      message: { role: 'user', content: text },
+      state: { version, stubbed: false },
+    });
+  }
+
   /** One tool message with its results; `meta` gives each result's stub label and read version. */
   toolResults(
     step: number,
@@ -59,16 +75,39 @@ export class Conversation {
 
   /** The messages to send, with stubs rendered against `currentVersion`. */
   messages(currentVersion: number): ModelMessage[] {
-    return this.#entries.map((e) => {
-      if (!e.tools || e.message.role !== 'tool') return e.message;
-      const content = e.message.content.map((p) => {
-        if (p.type !== 'tool-result') return p;
-        const m = e.tools?.get(p.toolCallId);
-        if (!m?.stubbed) return p;
-        return { ...p, output: { type: 'text' as const, value: stubText(m, currentVersion) } };
-      });
-      return { ...e.message, content };
+    const out: ModelMessage[] = [];
+    for (const e of this.#entries) {
+      const m = this.#rendered(e, currentVersion);
+      const last = out.at(-1);
+      if (e.state && last?.role === 'user') {
+        const content =
+          typeof last.content === 'string'
+            ? [{ type: 'text' as const, text: last.content }]
+            : last.content;
+        out[out.length - 1] = {
+          role: 'user',
+          content: [...content, { type: 'text', text: m.content as string }],
+        };
+      } else out.push(m);
+    }
+    return out;
+  }
+
+  /** One entry as its own message, stubs rendered against `currentVersion`. */
+  #rendered(e: Entry, currentVersion: number): ModelMessage {
+    if (e.state?.stubbed)
+      return {
+        role: 'user',
+        content: `[elided: the state block @v${String(e.state.version)}; a newer full block follows]`,
+      };
+    if (!e.tools || e.message.role !== 'tool') return e.message;
+    const content = e.message.content.map((p) => {
+      if (p.type !== 'tool-result') return p;
+      const m = e.tools?.get(p.toolCallId);
+      if (!m?.stubbed) return p;
+      return { ...p, output: { type: 'text' as const, value: stubText(m, currentVersion) } };
     });
+    return { ...e.message, content };
   }
 
   tokens(currentVersion: number): number {
@@ -81,7 +120,12 @@ export class Conversation {
   stubThrough(step: number): number {
     let n = 0;
     for (const e of this.#entries) {
-      if (e.step > step || !e.tools) continue;
+      if (e.step > step) continue;
+      if (e.state && !e.state.stubbed) {
+        e.state.stubbed = true;
+        n++;
+      }
+      if (!e.tools) continue;
       for (const m of e.tools.values()) {
         if (!m.stubbed) {
           m.stubbed = true;
@@ -113,9 +157,7 @@ export class Conversation {
     const first = this.#entries.findIndex((e) => e.message.role === 'user');
     const old = this.#entries.filter((e, i) => i !== first && e.step <= cutoff);
     if (old.length === 0) return { stubbed, summarised: 0 };
-    const text = JSON.stringify(
-      old.map((e) => this.messages(opts.currentVersion)[this.#entries.indexOf(e)]),
-    );
+    const text = JSON.stringify(old.map((e) => this.#rendered(e, opts.currentVersion)));
     const notes = opts.summarise
       ? await opts.summarise(text, this.#notes)
       : `${this.#notes}${this.#notes ? '\n' : ''}[steps up to ${String(cutoff)} elided]`;
