@@ -190,8 +190,18 @@ not be captured or driven; each stand-in is named below. The GUI items stay open
       `ollama:qwen3.5:latest`; the fast role stays empty because `apple-on-device` failed the probe's plan
       check). The app showed them after reopening Settings, and its Test button on the Ollama model gave
       tools, loop and vision ok, plan failed, context 32,768.
-- [ ] GUI agent panel: "Make clips from URL", 3 tabs, play, trim, export. Not done: the screen locked
-      again at about 13:30 before the run started.
+- [x] GUI agent panel, 2026-10-12 14:14-14:44 (screen unlocked again), same fresh home. The panel kept
+      showing "no model" after the roles were set from the CLI until the app was restarted (Settings showed
+      them at once); after a restart it showed `qwen3.5:latest · plan`. New empty project, "Make clips from
+      URL" (prefills "Make 3 clips from "), the test link, Send. The run asked three times to approve the
+      pause cuts (one list per clip; Apply pressed each time with the default ticks), then finished:
+      clipper done, $0.00, 3 steps, 20 timeline changes, tabs Clip 1-3. Clip 3 played (mono-box captions).
+      Trim by hand: the inspector Out point of clip 3's first video item changed 65700 to 64700; history
+      v21 `trimItem` by `user` (31500 to 30500 ms; the linked audio item changed with it). Export of Clip 3
+      (MP4 + SRT, Standard): 1080x1920, 30 fps, 31.5 s (a V2 placeholder scene runs to 31.5 s), -14.0
+      LUFS. Seen: the MP4 is 181 MB (46 Mb/s) where the plain quick clip is 5.5 Mb/s at the same quality;
+      the CLI render of the agent's clip 3 was 49 Mb/s. Scenes are mostly placeholders (plan mode, small
+      local model).
 - [~] Agent stand-in (screen locked), same fresh home, installed 1.0.0 CLI: `vox agent <p> --workflow clipper
       --count 3 --length 30-60 --yes-sources --yes` with editor `ollama:qwen3.5:latest` (plan mode), no fast
       model (heuristic scorer). Exit 0 in 18:04 (13:50:46 to 14:08:50, cost $0), 3 clip sequences, each
