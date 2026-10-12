@@ -2,7 +2,16 @@
 // models folder exists but is hidden until its model is installed; `imagegen.install` runs the
 // Python tool, then deletes the download cache; `assets.generate` uses the installed model; remove
 // deletes it again. A fake `uv` stands in for the Python tool (no model, no network).
-import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  closeSync,
+  existsSync,
+  ftruncateSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, test } from 'vitest';
@@ -22,19 +31,27 @@ beforeEach(() => {
   log = join(tempDir('vox-imagegen-log-'), 'uv.json');
   process.env['VOX_FAKE_UV_LOG'] = log;
   process.env['VOX_FAKE_IMAGE'] = FACE;
-  delete process.env['VOX_FAKE_FAIL'];
+  for (const k of [
+    'VOX_FAKE_FAIL',
+    'VOX_FAKE_FAIL_AFTER_DOWNLOAD',
+    'VOX_FAKE_HANG_AFTER_DOWNLOAD',
+    'VOX_FAKE_CRASH',
+  ]) {
+    delete process.env[k];
+  }
 });
 
 function engine(
   models: string | null = join(tools, 'models'),
   imagegen?: NonNullable<Parameters<typeof openEngine>[0]['imagegen']>,
+  extraTools: Record<string, string> = {},
 ): Engine {
   return openEngine({
     projectsDir: join(tempDir('vox-imagegen-'), 'Projects'),
     stylesDirs: [],
     templates,
     config: async () => ({}),
-    tools: { ...(models ? { models } : {}), uv: FAKE_UV, py: tools },
+    tools: { ...(models ? { models } : {}), uv: FAKE_UV, py: tools, ...extraTools },
     ...(imagegen ? { imagegen } : {}),
   });
 }
@@ -152,7 +169,7 @@ describe('mflux provider (fake tool)', () => {
     expect(e2.imageProviders.list()).toEqual([{ id: 'mflux-flux1-schnell' }]);
   });
 
-  test('a tool failure keeps the model uninstalled and cleans the cache', async () => {
+  test('a tool failure keeps the model uninstalled and cleans the half-written model', async () => {
     process.env['VOX_FAKE_FAIL'] = 'MODEL_GATED';
     const e = engine(undefined, { freeBytes: () => 1e12 });
     const r = await run(e, 'imagegen.install', {});
@@ -160,5 +177,144 @@ describe('mflux provider (fake tool)', () => {
     expect(r.error?.hint).toMatch(/Hugging Face/);
     expect(isInstalled(join(tools, 'models'), 'z-image-turbo')).toBe(false);
     await mkdir(join(tools, 'models'), { recursive: true });
+  });
+});
+
+// D-69: a failed or cancelled install keeps the download cache, so the next try resumes
+// (huggingface_hub continues its `.incomplete` files) instead of fetching 33 GB again. Only a
+// successful install or `imagegen.remove` deletes it; status reports its size so it is never hidden.
+describe('mflux install: the partial download is kept for resume (D-69)', () => {
+  const models = () => join(tools, 'models');
+  const cache = () => join(models(), 'mflux', '.download-z-image-turbo');
+  const part = () => `${modelDir(models(), 'z-image-turbo')}.part`;
+
+  test('a failed install keeps the partial download, drops the .part folder, and status shows it', async () => {
+    process.env['VOX_FAKE_FAIL_AFTER_DOWNLOAD'] = 'NETWORK';
+    const e = engine(undefined, { freeBytes: () => 1e12 });
+    const r = await run(e, 'imagegen.install', {});
+    expect(r.status).toBe('failed');
+    expect(r.error?.message).toMatch(/connection reset/);
+    expect(existsSync(join(cache(), 'snapshot.bin.incomplete'))).toBe(true);
+    expect(existsSync(part())).toBe(false);
+    expect(isInstalled(models(), 'z-image-turbo')).toBe(false);
+    const st = await imagegenStatus(models(), {});
+    expect(st[0]).toMatchObject({ id: 'z-image-turbo', installed: false });
+    expect(st[0]!.partialBytes).toBeGreaterThanOrEqual(4096);
+    expect(st[1]!.partialBytes).toBe(0);
+  });
+
+  test('the next install resumes from the kept download and deletes it once installed', async () => {
+    process.env['VOX_FAKE_FAIL_AFTER_DOWNLOAD'] = 'NETWORK';
+    const e = engine(undefined, { freeBytes: () => 1e12 });
+    await run(e, 'imagegen.install', {});
+    delete process.env['VOX_FAKE_FAIL_AFTER_DOWNLOAD'];
+    const ok = await run(e, 'imagegen.install', {});
+    expect(ok.status, JSON.stringify(ok.error)).toBe('done');
+    const sent = JSON.parse(readFileSync(log, 'utf8')) as { resumed: boolean };
+    expect(sent.resumed).toBe(true);
+    expect(existsSync(cache())).toBe(false);
+    const st = await imagegenStatus(models(), {});
+    expect(st[0]).toMatchObject({ installed: true, partialBytes: 0 });
+  });
+
+  test('a cancelled install keeps the partial download too', async () => {
+    process.env['VOX_FAKE_HANG_AFTER_DOWNLOAD'] = '1';
+    const e = engine(undefined, { freeBytes: () => 1e12 });
+    const id = e.jobs.start('imagegen.install', {});
+    for (let i = 0; i < 400 && !existsSync(join(cache(), 'snapshot.bin.incomplete')); i++) {
+      await new Promise((res) => setTimeout(res, 25));
+    }
+    e.jobs.cancel(id);
+    const r = await e.jobs.wait(id);
+    expect(r.status).toBe('cancelled');
+    expect(existsSync(join(cache(), 'snapshot.bin.incomplete'))).toBe(true);
+    expect(existsSync(part())).toBe(false);
+  });
+
+  test('remove deletes the partial download as well and reports the bytes it freed', async () => {
+    process.env['VOX_FAKE_FAIL_AFTER_DOWNLOAD'] = 'NETWORK';
+    const e = engine(undefined, { freeBytes: () => 1e12 });
+    await run(e, 'imagegen.install', {});
+    const rm = await run<{ removed: boolean; partialBytes?: number }>(e, 'imagegen.remove', {});
+    expect(rm.result?.removed).toBe(false);
+    expect(rm.result?.partialBytes).toBeGreaterThanOrEqual(4096);
+    expect(existsSync(cache())).toBe(false);
+    expect((await imagegenStatus(models(), {}))[0]!.partialBytes).toBe(0);
+  });
+
+  test('the free-space check counts what the partial download already holds', async () => {
+    // download 32.8 GB + kept 10 GB = 42.8 GB: 13 GB free is not enough from scratch
+    const e = engine(undefined, { freeBytes: () => 13e9 });
+    const none = await run(e, 'imagegen.install', {});
+    expect(none.error?.message).toMatch(/Not enough free disk space/);
+    // a sparse 30 GB stand-in for the partial download: its size counts, the disk does not fill
+    mkdirSync(cache(), { recursive: true });
+    const fd = openSync(join(cache(), 'snapshot.bin.incomplete'), 'w');
+    ftruncateSync(fd, 30e9);
+    closeSync(fd);
+    const r = await run(e, 'imagegen.install', {});
+    expect(r.status, JSON.stringify(r.error)).toBe('done');
+  });
+});
+
+// The packaged tools env (D-12) must come from this build's uv.lock: an env synced from another
+// lock lacks modules (e.g. `mflux`) and used to fail in a second with a bare "exit code 1".
+describe('mflux: the Python env is checked first (D-69)', () => {
+  const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+  function packaged(lockHash: string | null): Record<string, string> {
+    const dir = tempDir('vox-imagegen-apptools-');
+    const pyEnv = join(dir, 'py-env');
+    mkdirSync(pyEnv, { recursive: true });
+    writeFileSync(join(tools, 'uv.lock'), 'lock v2\n');
+    if (lockHash !== null) writeFileSync(join(pyEnv, '.vox-lock-hash'), lockHash);
+    return { pyEnv, dir };
+  }
+
+  test('an env synced from a different uv.lock refuses install and generate with the fix', async () => {
+    const e = engine(undefined, { freeBytes: () => 1e12 }, packaged(sha('lock v1\n')));
+    const r = await run(e, 'imagegen.install', {});
+    expect(r.status).toBe('failed');
+    expect(r.error?.code).toBe('TOOL_MISSING');
+    expect(r.error?.message).toMatch(/different uv\.lock/);
+    expect(r.error?.hint).toMatch(/open Vox Studio/);
+    expect(r.error?.hint).toMatch(/Setup → Repair/);
+    expect(r.error?.details).toMatchObject({ check: 'python-env-lock', state: 'stale' });
+    expect(existsSync(log)).toBe(false);
+
+    // an installed model with a stale env: generate says the same, before running anything
+    const dir = modelDir(join(tools, 'models'), 'z-image-turbo');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'vox-model.json'), '{}');
+    const p = await e.createProject('gen');
+    const g = await run(e, 'assets.generate', { projectId: p.id, prompt: 'a tram' });
+    expect(g.error?.code).toBe('TOOL_MISSING');
+    expect(g.error?.message).toMatch(/different uv\.lock/);
+    expect(existsSync(log)).toBe(false);
+  });
+
+  test('an env with no lock hash (never synced by setup) is refused too', async () => {
+    const e = engine(undefined, { freeBytes: () => 1e12 }, packaged(null));
+    const r = await run(e, 'imagegen.install', {});
+    expect(r.error?.code).toBe('TOOL_MISSING');
+    expect(r.error?.details).toMatchObject({ state: 'unsynced' });
+    expect(r.error?.hint).toMatch(/open Vox Studio/);
+  });
+
+  test('an env synced from this uv.lock installs as before', async () => {
+    const e = engine(undefined, { freeBytes: () => 1e12 }, packaged(sha('lock v2\n')));
+    const r = await run(e, 'imagegen.install', {});
+    expect(r.status, JSON.stringify(r.error)).toBe('done');
+  });
+
+  test('a tool that dies before its error line shows the Python exception, not only the exit code', async () => {
+    process.env['VOX_FAKE_CRASH'] = '1';
+    const e = engine(undefined, { freeBytes: () => 1e12 });
+    const r = await run(e, 'imagegen.install', {});
+    expect(r.error?.code).toBe('PY_TOOL_FAILED');
+    expect(r.error?.message).toMatch(/ModuleNotFoundError: No module named 'mflux'/);
+    expect(r.error?.details).toMatchObject({
+      stderr: "ModuleNotFoundError: No module named 'mflux'",
+    });
+    expect(r.error?.hint).toMatch(/Python env/);
   });
 });

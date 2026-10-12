@@ -467,7 +467,10 @@ component instead (same store and ops, no library).
   download size (about 33 GB, about 10 GB kept) and the licence (Apache-2.0); "Download" runs the
   `imagegen.install` job with progress, switching off asks, then runs `imagegen.remove`. State comes
   in `settings.get` (`imagegen.models`); no new `window.vox` method. FLUX.1-schnell is set up in a
-  terminal (`vox doctor` explains the terms and the token).
+  terminal (`vox doctor` explains the terms and the token). A failed or cancelled install keeps
+  its partial download so the next "Download" resumes it (D-69): the row says how much is kept,
+  the install confirmation says it resumes, and "Delete partial download" (asks first) runs
+  `imagegen.remove`, which also frees it when the model is switched off.
 
 ### Style gallery
 
