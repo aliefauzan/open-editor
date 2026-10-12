@@ -63,7 +63,7 @@ Style {
       easing: string                     // GSAP ease name
       frameHold: 1 | 2 | 3               // 2 = animate "on twos" (stop-motion feel)
       jitterPx: number                   // per-held-frame random offset
-      entrance: string                   // e.g. 'pop'; templates fall back to 'fade' if unknown
+      entrance: string                   // 'pop', 'assemble' (pushed in from outside the frame, D-101); unknown: 'fade'
     }
   }
   captions: { default: string; presets: string[] }   // full ids, e.g. 'vox/mono-box'
@@ -197,7 +197,8 @@ CaptionPreset {
 
 - **Scene echoes** (D-99): the burned-in captions layer leaves out a chunk while a scene
   covers at least half its time and the scene's text holds 60 % of its words; the build's
-  captions, `captions.srt` and SRT/VTT exports keep every chunk.
+  captions, `captions.srt` and SRT/VTT exports keep every chunk. A scene that echoes one chunk quotes
+  the speaker and hides every chunk it covers by half (D-100).
 
 - **Preset settings** (additive, D-93): when `setCaptions` changes a sequence's preset, the
   sequence takes the preset's `position` and `track` settings; fields the call gives itself
@@ -312,7 +313,7 @@ yellow-on-blue maps, serif kinetic type, yellow label tags, black-boxed mono cap
 | pacing.beatMs | min 1200, target 2500, max 5000 |
 | pacing.speakerRatio | 0.15 – 0.35 |
 | imagery.searchHints | "vintage photograph", "archival", "black and white", "engraving" |
-| imagery.generateSuffix | "vintage halftone photograph, isolated object, plain background, high contrast" |
+| imagery.generateSuffix | a torn paper collage look: flat craft-paper cutouts, rough white torn edges, hard shadows, beige paper background, not a photograph (D-101) |
 | imagery.cutoutStroke | `#D7261E`, 10 px |
 
 ### Templates
