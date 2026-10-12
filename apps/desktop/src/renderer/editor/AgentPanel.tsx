@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import type { AgentPauseData, AgentRunData, ClipReportData } from '../../shared/api.ts';
 import { parseTimecode, type LiveRun } from './agent-store.ts';
-import { useAgent, useCtx, useEditor } from './context.tsx';
+import { useAgent, useCtx, useEditor, useUi } from './context.tsx';
 import { mediaName, Thumb } from './MediaBin.tsx';
 import { DRAG_MEDIA } from './Timeline.tsx';
 
@@ -538,6 +538,20 @@ export function AgentPanel() {
   useEffect(() => {
     void agent.getState().load(projectId);
   }, [agent, projectId]);
+  // roles can change outside the app (`vox config roles set` on the same VOX_HOME), so the model
+  // label re-reads the config when Settings closes and when the window gets focus (a run start
+  // re-reads it in the store's `send`)
+  const settingsOpen = useUi((s) => s.settingsOpen);
+  const wasOpen = useRef(settingsOpen);
+  useEffect(() => {
+    if (wasOpen.current && !settingsOpen) void agent.getState().loadSettings();
+    wasOpen.current = settingsOpen;
+  }, [agent, settingsOpen]);
+  useEffect(() => {
+    const onFocus = () => void agent.getState().loadSettings();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [agent]);
   const editorRole = settings?.roles.editor;
   const mode = settings?.mode ?? 'tools';
   const ordered = useMemo(() => [...runs].reverse(), [runs]);
