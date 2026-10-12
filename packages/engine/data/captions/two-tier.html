@@ -26,10 +26,17 @@
           white-space: nowrap;
         }
         .c-line {
+          position: relative;
           display: block;
           text-align: center;
           font-family: var(--tok-font-body);
           font-style: @@T1_STYLE@@;
+        }
+        .c-scrim {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
         }
         .c-word {
           font-family: var(--tok-font-body);
@@ -87,7 +94,9 @@
         // glow. Tier 2 (emphasis words): a run of emphasis words on one line becomes one flat box in
         // the caption face, upper case, with the letters cut out of the box (the footage shows
         // through), an inner rule and a red/cyan edge fringe. A single-word chunk can arrive with
-        // wide letter spacing that tightens. Lines come from the engine (never re-wrapped); sizes
+        // wide letter spacing that tightens. A soft dark shade under tier 1 words and a soft dark
+        // scrim behind each chunk keep white text readable on light footage (D-93); on dark footage
+        // they vanish into the picture. Lines come from the engine (never re-wrapped); sizes
         // come from the measured font size and the faces' measured average advance, so the DOM is
         // never measured; all state changes are timeline sets or tweens at word times.
         (function () {
@@ -108,10 +117,14 @@
           // a knocked-out box shows the footage through its letters (screen blend); a copy of the
           // letters in translucent ink lies on top, so the letters stay readable on light footage
           var KNOCK_INK = 'rgba(0,0,0,0.55)';
+          // readability on light footage (D-93): the shade under tier 1 letters and the scrim's
+          // darkest alpha (centre; it fades out past the text block)
+          var SHADE = '0 0 0.16em rgba(0,0,0,0.5), 0 0.02em 0.06em rgba(0,0,0,0.55)';
+          var SCRIM = 0.42;
           // the text shadow of a read tier 1 word: glow and the red/cyan split
           var split = T1_FRINGE && FRINGE > 0 ? -FRINGE + 'px 0 0 rgba(255,40,60,0.55), ' + FRINGE + 'px 0 0 rgba(40,220,255,0.55)' : '';
-          var t1Read = [GLOW ? '0 0 0.22em rgba(255,255,255,0.42)' : '', split].filter(Boolean).join(', ') || 'none';
-          var t1Active = ['0 0 0.3em rgba(255,255,255,0.75)', split].filter(Boolean).join(', ');
+          var t1Read = [GLOW ? '0 0 0.22em rgba(255,255,255,0.42)' : '', split, SHADE].filter(Boolean).join(', ');
+          var t1Active = ['0 0 0.3em rgba(255,255,255,0.45)', split, SHADE].filter(Boolean).join(', ');
           var css = getComputedStyle(root);
           var white = css.getPropertyValue('--tok-color-caption').trim() || '#ffffff';
           var side = (v.safeArea.rightPct / 100) * W;
@@ -157,9 +170,11 @@
             var lines = [];
             var scale = 1;
             var total = 0;
+            var widest = 0;
             for (var l = 0; l < c.lines.length; l++) {
               var rs = runs(c.lines[l].words);
               lines.push(rs);
+              widest = Math.max(widest, widthOf(rs));
               scale = Math.min(scale, usable / Math.max(1, widthOf(rs)));
             }
             var heights = [];
@@ -173,6 +188,17 @@
             el.style.left = side + 'px';
             el.style.width = usable + 'px';
             el.style.top = top + 'px';
+            if (SCRIM > 0) {
+              // an ellipse past the text block, darkest in the middle
+              var scrim = document.createElement('div');
+              var pad = T1.size * H * scale;
+              scrim.className = 'c-scrim';
+              scrim.style.width = widest * scale + 3 * pad + 'px';
+              scrim.style.height = total + 2.4 * pad + 'px';
+              scrim.style.background =
+                'radial-gradient(closest-side, rgba(0,0,0,' + SCRIM + ') 0%, rgba(0,0,0,' + SCRIM * 0.7 + ') 55%, rgba(0,0,0,0) 100%)';
+              el.appendChild(scrim);
+            }
             var single = c.lines.length === 1 && c.lines[0].words.length === 1;
             for (var l3 = 0; l3 < lines.length; l3++) {
               var line = document.createElement('div');

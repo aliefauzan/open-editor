@@ -903,7 +903,10 @@ export async function compileSequence(
       },
     );
   }
-  let captions = deriveCaptions(input.project, original.id, input.transcriptOf);
+  const preset = original.captions ? lookup.captionPreset?.(original.captions.preset) : undefined;
+  let captions = deriveCaptions(input.project, original.id, input.transcriptOf, {
+    tiered: preset?.tiered === true,
+  });
   if (opts.range) captions = shiftChunks(captions, opts.range.startMs, opts.range.endMs);
   const cues = cueList(seq, lookup);
   if (opts.range) {

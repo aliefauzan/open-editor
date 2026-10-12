@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, test } from 'vitest';
 import { VoxError } from '../../src/errors.ts';
+import { registryTemplateLookup } from '../../src/styles/lookup.ts';
 import { loadStyleRegistry, MAX_EXTENDS_DEPTH } from '../../src/styles/registry.ts';
 
 const FIX = fileURLToPath(new URL('../fixtures/styles/', import.meta.url));
@@ -207,6 +208,14 @@ describe('extends', () => {
       htmlPath: join(BUILTIN, 'base', 'captions/plain.html'),
     });
     expect(r.captionPresets['paper/box']?.case).toBe('upper');
+  });
+
+  test('the template lookup gives a caption preset by full id (D-93)', () => {
+    const lookup = registryTemplateLookup(reg);
+    expect(lookup.captionPreset?.('paper/box')).toEqual({ position: { yPct: 70 } });
+    expect(lookup.captionPreset?.('base/plain')).toEqual({ position: { yPct: 75 } });
+    expect(lookup.captionPreset?.('paper/none')).toBeUndefined();
+    expect(lookup.captionPreset?.('nostyle/box')).toBeUndefined();
   });
 
   test('guide sections: child replaces a section with the same heading, adds new ones', () => {

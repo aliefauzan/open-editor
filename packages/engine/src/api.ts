@@ -38,7 +38,12 @@ import {
 import { buildDirFor, writeBuildTo } from './compile/write.ts';
 import { renderLayerBuild } from './render/layers.ts';
 import { search as geoSearch, type Place } from './geo/search.ts';
-import { chunkLines, deriveCaptions, type CaptionChunk } from './model/captions.ts';
+import {
+  chunkLines,
+  deriveCaptions,
+  type CaptionChunk,
+  type CaptionLayout,
+} from './model/captions.ts';
 import { TranscriptSchema, type Transcript } from './model/schema.ts';
 import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
@@ -717,6 +722,11 @@ export function openEngine(opts: EngineOptions): Engine {
     onChanged: (e: ProjectChangedEvent) => emitter.emit('project.changed', e),
     log: { redact: (line: string) => redactor.redact(line) },
   };
+  /** The sequence's caption layout from its preset (D-93); empty when the preset is unknown. */
+  const captionLayout = (p: Project, sequenceId: string): CaptionLayout => {
+    const id = p.sequences.find((s) => s.id === sequenceId)?.captions?.preset;
+    return id && storeOpts.templates.captionPreset?.(id)?.tiered === true ? { tiered: true } : {};
+  };
   const dirOf = (id: string) => {
     if (!isProjectId(id)) {
       throw new VoxError(
@@ -1001,7 +1011,7 @@ export function openEngine(opts: EngineOptions): Engine {
       return sequenceView(
         p,
         sequenceId,
-        deriveCaptions(p, sequenceId, (m) => tr.get(m.id)),
+        deriveCaptions(p, sequenceId, (m) => tr.get(m.id), captionLayout(p, sequenceId)),
       );
     },
 
@@ -1009,7 +1019,7 @@ export function openEngine(opts: EngineOptions): Engine {
       const p = await (await store(projectId)).read();
       findSeq(p, sequenceId);
       const tr = await transcripts(projectId, p);
-      return deriveCaptions(p, sequenceId, (m) => tr.get(m.id));
+      return deriveCaptions(p, sequenceId, (m) => tr.get(m.id), captionLayout(p, sequenceId));
     },
 
     async compile(projectId, sequenceId, o) {

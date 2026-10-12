@@ -315,6 +315,37 @@ describe('D-15 compile details (step 9b)', () => {
     ).toBe('vox.');
   });
 
+  test('a tiered preset puts key words on their own line in the build and the SRT (D-93)', async () => {
+    const p = mainProject('kit');
+    p.sequences[0]!.captions = {
+      ...CAPTION_DEFAULTS,
+      preset: 'kit/loud',
+      maxWords: 5,
+      maxLines: 2,
+      autoEmphasis: true,
+      overrides: [],
+    };
+    const reg = registry(['kit']);
+    const lines = async () => {
+      const b = await build(p, { mode: 'render' }, reg);
+      const vars = varsOf(instance(b, 'captions'), 'captions') as {
+        chunks: { lines: { words: { text: string; emphasis: boolean }[] }[] }[];
+      };
+      return vars.chunks.map((c) => c.lines.map((l) => l.words.map((w) => w.text).join(' ')));
+    };
+    const untiered = await lines();
+    expect(untiered).toEqual([['THIS IS VOX'], ['IT HAS 42 CLIPS']]);
+    // the resolved preset is the registry's own object: mark it tiered for this build
+    reg.get('kit').captionPresets['kit/loud']!.tiered = true;
+    const tiered = await lines();
+    expect(tiered).toEqual([
+      ['THIS IS', 'VOX'],
+      ['IT HAS', '42 CLIPS'],
+    ]);
+    const b = await build(p, { mode: 'render' }, reg);
+    expect(b.files.get('captions.srt')).toContain('It has\n42 clips!');
+  });
+
   test('facetrack, auto and manual keyframes become a transform; cover/contain use object-fit', async () => {
     const kfs = [
       { atMs: 0, x: 0.5, y: 0.5, scale: 1 },

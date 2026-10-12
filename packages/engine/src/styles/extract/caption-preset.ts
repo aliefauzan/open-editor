@@ -95,3 +95,33 @@ export function twoTierHtml(look: TwoTierLook, template?: string): string {
   });
   return html;
 }
+
+const allCaps = (w: string) => {
+  const letters = w.replace(/[^\p{L}]/gu, '');
+  return letters.length >= 2 && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
+};
+const p90 = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * 0.9))]!;
+
+/**
+ * The caption track a two-tier preset gives a sequence (D-93): tier 1 words and characters a line
+ * from the reference's caption events (the 90th percentile; upper-case words are tier 2), two lines
+ * (one a tier) and auto emphasis on, so the closing key words get the box.
+ */
+export function twoTierTrack(events: readonly { text: string }[]): {
+  maxWords: number;
+  maxLines: number;
+  maxCharsPerLine: number;
+  autoEmphasis: boolean;
+} {
+  const plain = events
+    .map((e) => e.text.split(/\s+/u).filter((w) => w !== '' && !allCaps(w)))
+    .filter((ws) => ws.length > 0);
+  const words = plain.length ? p90(plain.map((ws) => ws.length)) : 5;
+  const chars = plain.length ? p90(plain.map((ws) => ws.join(' ').length)) : 26;
+  return {
+    maxWords: Math.round(clamp(words, 2, 8)),
+    maxLines: 2,
+    maxCharsPerLine: Math.round(clamp(chars, 12, 40)),
+    autoEmphasis: true,
+  };
+}

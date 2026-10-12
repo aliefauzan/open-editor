@@ -7,7 +7,7 @@
 import { join } from 'node:path';
 import type { ResolvedStyle, StyleSummary } from '../registry.ts';
 import type { CaptionPreset, StyleFile } from '../schema.ts';
-import { twoTierHtml, twoTierLook } from './caption-preset.ts';
+import { twoTierHtml, twoTierLook, twoTierTrack } from './caption-preset.ts';
 import { closestFont, familyFiles, type FontCatalogue, type FontEntry } from './catalogue.ts';
 import type { StyleDescription } from './description.ts';
 import type { Measurements, PaletteColor } from './measure.ts';
@@ -116,6 +116,20 @@ export function roleOfKey(key: string): ColorRole | 'captionText' | 'captionBox'
 const round50 = (n: number) => Math.max(50, Math.round(n / 50) * 50);
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Measured noise (8-bit levels at 720 px short side, `vox_py.grain`) a unit of the grain token adds
+ * in a render: vox/paper-grain at grain 0.5 over a talking head, `--quality standard`, measured
+ * about 4.6 on the speaker frames (D-93).
+ */
+export const GRAIN_SIGMA_PER_UNIT = 9;
+/** Below this grain the paper-grain overlay shows nothing worth its cost: off by default. */
+export const GRAIN_OVERLAY_MIN = 0.04;
+
+/** The grain token that adds the measured noise (0 to 0.5, two decimals). */
+export function grainFromSigma(sigma: number): number {
+  return r2(clamp(sigma / GRAIN_SIGMA_PER_UNIT, 0, 0.5));
+}
 
 /** Free model text, made safe for markdown and prompts: one line, no tags, no control characters. */
 export function plainText(s: string, max = 300): string {
@@ -289,9 +303,18 @@ export function mapDraftStyle(input: MapInput): DraftStyle {
     }
   }
 
-  // motion and texture
+  // motion and texture; grain is measured when it can be (D-93), else described
   const motion: NonNullable<NonNullable<StyleFile['tokens']>['motion']> = {};
   let texture: NonNullable<NonNullable<StyleFile['tokens']>['texture']> | undefined;
+  const measuredGrain = m.grain ? grainFromSigma(m.grain.sigma) : undefined;
+  if (m.grain && measuredGrain !== undefined) {
+    texture = { grain: measuredGrain };
+    drivers.push({
+      token: 'texture.grain',
+      value: String(measuredGrain),
+      from: `measured: noise ${String(m.grain.sigma)} levels in flat mid-tones (${String(m.grain.frames)} frames)`,
+    });
+  }
   if (d) {
     const pop = d.motion.entrance === 'pop';
     motion.frameHold = d.motion.frameHold;
@@ -305,24 +328,30 @@ export function mapDraftStyle(input: MapInput): DraftStyle {
     });
     if (d.motion.entrance === 'slide')
       notes.push('Slide entrances are not a template option: the draft uses fade.');
-    texture = { grain: r2(d.texture.grain) };
-    drivers.push({
-      token: 'texture.grain',
-      value: String(texture.grain),
-      from: 'description: texture',
-    });
+    if (measuredGrain === undefined) {
+      texture = { grain: r2(d.texture.grain) };
+      drivers.push({
+        token: 'texture.grain',
+        value: String(texture.grain),
+        from: 'description: texture',
+      });
+    }
   }
 
   // overlays
   let overlays: StyleFile['overlays'];
-  if (d && parent.overlays.length > 0) {
+  if ((d || measuredGrain !== undefined) && parent.overlays.length > 0) {
+    const grainOn =
+      measuredGrain !== undefined
+        ? measuredGrain >= GRAIN_OVERLAY_MIN || (d?.texture.paper ?? false)
+        : d!.texture.paper || d!.texture.grain >= 0.1;
     overlays = parent.overlays.map((o) => ({
       name: o.name,
       default:
         o.name === 'paper-grain'
-          ? d.texture.paper || d.texture.grain >= 0.1
+          ? grainOn
           : o.name === 'film-look'
-            ? d.texture.film
+            ? (d?.texture.film ?? o.default)
             : o.default,
     }));
     drivers.push({
@@ -332,7 +361,10 @@ export function mapDraftStyle(input: MapInput): DraftStyle {
           .filter((o) => o.default)
           .map((o) => o.name)
           .join(', ') || 'none on',
-      from: 'description: texture (paper, grain, film)',
+      from:
+        measuredGrain !== undefined
+          ? `measured grain${d ? '; description: paper, film' : ''}`
+          : 'description: texture (paper, grain, film)',
     });
   }
 
@@ -400,6 +432,8 @@ export function mapDraftStyle(input: MapInput): DraftStyle {
         stripPunctuation: false,
         position: { yPct },
         ...(look.behindSubject ? { behindSubject: true } : {}),
+        track: twoTierTrack(m.captions.events),
+        tiered: true,
       };
       captionPreset = {
         name: 'reference',
@@ -410,7 +444,7 @@ export function mapDraftStyle(input: MapInput): DraftStyle {
       captions = { default: own, presets: [own, ...presets.map((p) => p.id)] };
       drivers.push({
         token: 'captions',
-        value: `${own} (two tiers), ${String(yPct)} %`,
+        value: `${own} (two tiers), ${String(yPct)} %, ${String(json.track!.maxWords)} words / ${String(json.track!.maxCharsPerLine)} characters a line, key words boxed`,
         from: `fonts: ${tiers.map((t) => `tier ${String(t.tier)} ${String(t.lines)} lines`).join(', ')}; two tiers in ${String(Math.round(m.fonts.twoTierShare * 100))} % of sampled frames; box ${look.box.fill}${look.box.knockout ? ' cut-out' : ''}${look.box.rule ? ' with edge line' : ''}; fringe ${look.fringe > 0 ? `${String(look.fringe)} px` : 'none'}`,
       });
       drivers.push({

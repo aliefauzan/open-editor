@@ -1,13 +1,30 @@
 // Style gallery (app spec "Style gallery"): installed styles with animated previews and
 // status badges; the detail view lists templates and transitions (fixture previews over
 // `vox-media://styles/…`), overlays and caption presets; "Set as style for this sequence" is one
-// `updateSequence` op. "New style from reference video" (Part C, phase 15) runs one `style.extract`
+// `updateSequence` op, batched with the style's default caption preset when the sequence shows
+// captions in another preset (D-93: the preset brings its position). "New style from reference video" (Part C, phase 15) runs one `style.extract`
 // job and shows its static report in a sandboxed frame before Accept or Discard.
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import type { ResolvedStyleData, StyleSummaryData } from '../../shared/project.ts';
 import { useCtx, useEditor, useUi } from './context.tsx';
+import type { OpCall } from './store.ts';
 import { previewUrl, templateColor, useResolvedStyle, useStyleList } from './use-styles.ts';
+
+/** "Set as style for this sequence": the style, and its default caption preset (D-93). */
+export function setStyleOp(
+  sequenceId: string,
+  style: Pick<ResolvedStyleData, 'id' | 'style'>,
+  captions: { enabled: boolean; preset: string } | null | undefined,
+): OpCall {
+  const set: OpCall = { op: 'updateSequence', args: { sequenceId, styleId: style.id } };
+  const preset = style.style.captions?.default;
+  if (!captions?.enabled || !preset || captions.preset === preset) return set;
+  return {
+    op: 'batch',
+    args: { ops: [set, { op: 'setCaptions', args: { sequenceId, preset } }] },
+  };
+}
 
 /** The style's card image: its contact sheet, else its first preview file. */
 export function coverUrl(s: StyleSummaryData): string | null {
@@ -47,6 +64,9 @@ function Detail(props: { id: string; onBack(): void }) {
   const current = useEditor(
     (s) => s.project?.sequences.find((q) => q.id === s.sequenceId)?.styleId,
   );
+  const captions = useEditor(
+    (s) => s.project?.sequences.find((q) => q.id === s.sequenceId)?.captions,
+  );
   if (!style) return <p className="p-4 text-xs text-neutral-400">Loading…</p>;
   const templates = Object.values(style.templates);
   const group = (kind: 'scene' | 'transition') => templates.filter((t) => t.kind === kind);
@@ -64,9 +84,7 @@ function Detail(props: { id: string; onBack(): void }) {
           disabled={!sequenceId || current === style.id}
           onClick={() =>
             sequenceId &&
-            void editor
-              .getState()
-              .apply({ op: 'updateSequence', args: { sequenceId, styleId: style.id } })
+            void editor.getState().apply(setStyleOp(sequenceId, style, captions))
           }
         >
           {current === style.id ? 'Style of this sequence' : 'Set as style for this sequence'}

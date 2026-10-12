@@ -364,6 +364,78 @@ describe('deriveCaptions', () => {
   });
 });
 
+describe('deriveCaptions, two tiers (D-93)', () => {
+  // words 200 ms apart with no pause unless a test leaves one
+  const run = (texts: string[], gapAfter: number[] = []): W[] => {
+    let t = 0;
+    return texts.map((text, i) => {
+      const w: W = [text, t, t + 200];
+      t += 200 + (gapAfter.includes(i) ? 500 : 0);
+      return w;
+    });
+  };
+  const tiered = (ws: W[], cap: Partial<CaptionTrack> = {}) => {
+    const x = project({ m_a: tr(ws, 'id') }, [{ startMs: 0, inMs: 0, durationMs: 20000 }], {
+      maxWords: 5,
+      maxLines: 2,
+      maxCharsPerLine: 26,
+      autoEmphasis: true,
+      ...cap,
+    });
+    return { x, out: () => deriveCaptions(x.p, 'seq_1', x.tOf, { tiered: true }) };
+  };
+  const shown = (cs: CaptionChunk[]) =>
+    cs.map((c) =>
+      c.lines
+        .map((l) => l.words.map((w) => (w.emphasis ? w.text.toUpperCase() : w.text)).join(' '))
+        .join(' / '),
+    );
+
+  test('a phrase-closing key word takes its own line and ends the chunk', () => {
+    const { out } = tiered(
+      run(['He', 'wanted', 'you', 'to', 'step', 'into', 'his', 'home.', 'and', 'then', 'left']),
+    );
+    expect(shown(out())).toEqual(['He wanted you to step', 'into his / HOME.', 'and then / LEFT']);
+  });
+
+  test("a number's unit word joins its run; function words never close as key words", () => {
+    const { out } = tiered(
+      run(['uang', 'kita', 'jadi', '80', 'ribu.', 'Nah,', 'tapi', 'menurut', 'gue,', 'gitu']),
+    );
+    expect(shown(out())).toEqual(['uang kita jadi / 80 RIBU.', 'Nah, tapi menurut gue,', 'gitu']);
+  });
+
+  test('a pause closes a phrase; a plain line that is full starts a new chunk', () => {
+    const full = tiered(run(['kita', 'pasti', 'bakal', 'otomatis', 'berkurang', 'jadi']), {
+      maxWords: 10,
+    });
+    // "kita pasti bakal otomatis berkurang" is 35 characters: the plain tier never wraps
+    expect(shown(full.out())).toEqual(['kita pasti bakal otomatis', 'berkurang jadi']);
+    const paused = tiered(run(['lihat', 'rezeki', 'lalu'], [1]));
+    expect(shown(paused.out())).toEqual(['lihat / REZEKI', 'lalu']);
+  });
+
+  test('with one line a chunk, the run is a chunk of its own', () => {
+    const { out } = tiered(run(['on', 'the', 'stadium', 'grass.']), { maxLines: 1 });
+    expect(shown(out())).toEqual(['on the stadium', 'GRASS.']);
+  });
+
+  test('overrides win; without autoEmphasis no key word is picked', () => {
+    const ws = run(['into', 'his', 'home.', 'then', 'the', 'field.']);
+    const { x, out } = tiered(ws);
+    x.p.sequences[0]!.captions!.overrides = [ov(2, { emphasis: false }), ov(4, { emphasis: true })];
+    expect(shown(out())).toEqual(['into his home. then / THE FIELD.']);
+    x.p.sequences[0]!.captions!.overrides = [];
+    x.p.sequences[0]!.captions!.autoEmphasis = false;
+    expect(shown(out())).toEqual(['into his home. then the', 'field.']);
+  });
+
+  test('without the tiered layout chunks are as before', () => {
+    const { x } = tiered(run(['into', 'his', 'home.', 'then']));
+    expect(shown(deriveCaptions(x.p, 'seq_1', x.tOf))).toEqual(['into his home. then']);
+  });
+});
+
 describe('SRT / VTT', () => {
   const chunks: CaptionChunk[] = [
     {

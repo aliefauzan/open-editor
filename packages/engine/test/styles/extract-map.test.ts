@@ -96,6 +96,43 @@ describe('map (step 2)', () => {
     expect(d.styleFile.pacing).toBeUndefined();
   });
 
+  test('measured grain sets the grain token; paper-grain is off below 0.04 (D-93)', () => {
+    const s = userStyles();
+    const grainOf = (sigma: number | null) => {
+      const m = measurements();
+      if (sigma !== null) m.grain = { sigma, frames: 5 };
+      return mapDraftStyle(mapInput(s.reg(), { measurements: m }));
+    };
+    const on = (d: ReturnType<typeof grainOf>) =>
+      d.styleFile.overlays?.find((o) => o.name === 'paper-grain')?.default;
+    // the description says paper and grain 0.3: without a measurement it decides
+    expect(grainOf(null).styleFile.tokens?.texture?.grain).toBe(0.3);
+    expect(grainOf(null).drivers.find((x) => x.token === 'texture.grain')?.from).toBe(
+      'description: texture',
+    );
+    // a clean reference (noise 0.14 levels): grain 0.02, overlay off unless the model saw paper
+    const clean = grainOf(0.14);
+    expect(clean.styleFile.tokens?.texture?.grain).toBe(0.02);
+    expect(clean.drivers.find((x) => x.token === 'texture.grain')?.from).toMatch(/^measured: noise 0.14/);
+    expect(on(clean)).toBe(true);
+    const m = measurements();
+    m.grain = { sigma: 0.14, frames: 5 };
+    const plain = mapDraftStyle(
+      mapInput(s.reg(), {
+        measurements: m,
+        description: { ...description(), texture: { paper: false, grain: 0.5, film: false } },
+      }),
+    );
+    expect(plain.styleFile.tokens?.texture?.grain).toBe(0.02);
+    expect(plain.styleFile.overlays?.find((o) => o.name === 'paper-grain')?.default).toBe(false);
+    // a grainy reference: on, capped at 0.5
+    expect(grainOf(1.8).styleFile.tokens?.texture?.grain).toBe(0.2);
+    expect(grainOf(90).styleFile.tokens?.texture?.grain).toBe(0.5);
+    // without a description the measured grain still applies
+    const nodesc = mapDraftStyle(mapInput(s.reg(), { measurements: m, description: null }));
+    expect(nodesc.styleFile.tokens?.texture?.grain).toBe(0.02);
+  });
+
   test('palette roles: light background, dark ink, vivid accent, a blue', () => {
     const r = paletteRoles(measurements().palette);
     expect(r.background?.hex).toBe('#EDE8DF');

@@ -27,8 +27,17 @@ export interface TemplateInfo {
   minEntranceMs?: number;
 }
 
+/** What a caption preset gives a sequence that takes it (styles spec "Caption presets", D-93). */
+export interface CaptionPresetInfo {
+  position: { yPct: number };
+  track?: { maxWords?: number; maxLines?: number; maxCharsPerLine?: number; autoEmphasis?: boolean };
+  tiered?: boolean;
+}
+
 export interface TemplateLookup {
   get(id: string): TemplateInfo | undefined;
+  /** A caption preset by full id; absent or undefined = unknown (the sequence keeps its settings). */
+  captionPreset?(id: string): CaptionPresetInfo | undefined;
 }
 
 export function mapTemplateLookup(list: readonly TemplateInfo[]): TemplateLookup {
