@@ -1,7 +1,7 @@
 // Steps 6 and 12b (S20, S34, S35; D-14): the ingest source rule, job conflicts, and check_audio
-// with a fixture QA result (numbers, five listen timecodes, qa.png to vision or a text fallback,
-// a FAIL as data).
-import { mkdtempSync, writeFileSync } from 'node:fs';
+// with a fixture QA result (numbers, five listen timecodes, a FAIL as data). qa.png stays on disk
+// for the user and never goes to a model (D-80).
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
@@ -135,7 +135,7 @@ function qaPng(): string {
 }
 
 describe('check_audio (step 12b, D-14)', () => {
-  test('numbers, cues, five listen timecodes; qa.png goes to vision, wrapped as data', async () => {
+  test('numbers, cues, five listen timecodes; qa.png is not sent to vision (D-80)', async () => {
     const f = await fixtureProject();
     const png = qaPng();
     const runJob = vi.fn(() => Promise.resolve(qaResult(true, png)));
@@ -152,7 +152,7 @@ describe('check_audio (step 12b, D-14)', () => {
       checks: { id: string; status: string }[];
       listen: { timecode: string; listenFor: string }[];
       dropped: unknown[];
-      picture: string;
+      picture?: string;
     };
     expect(res).toMatchObject({ pass: true, targetLufs: -14 });
     expect(res.checks.map((c) => c.id)).toEqual([
@@ -170,27 +170,33 @@ describe('check_audio (step 12b, D-14)', () => {
       '00:15.020',
     ]);
     expect(res.dropped).toEqual([]);
-    expect(res.picture).toMatch(/^<data source="vision">\nMarker 1/);
-    expect(describe).toHaveBeenCalledWith(
-      [expect.objectContaining({ label: 'qa.png' })],
-      expect.stringContaining('do not judge how it sounds'),
-      undefined,
-    );
+    expect(res.picture).toBeUndefined();
+    expect(describe).not.toHaveBeenCalled();
     expect(out.images).toBeUndefined();
+    expect(existsSync(png)).toBe(true); // kept for the user
   });
 
-  test('an editor with vision gets qa.png as an image', async () => {
+  test('an editor with vision gets the numbers only, no qa.png image (D-80)', async () => {
     const f = await fixtureProject();
     const png = qaPng();
+    const readImage = vi.fn(() => Promise.resolve(new Uint8Array()));
     const ctx = toolContext(f, {
       runJob: () => Promise.resolve(qaResult(true, png)),
       editorVision: true,
+      readImage,
     });
     const out = await invokeTool(ctx, r, 'check_audio', { sequenceId: f.sequenceId });
-    expect(out.images?.[0]?.label).toBe('qa.png');
+    expect(out.images).toBeUndefined();
+    expect(readImage).not.toHaveBeenCalled();
+    const res = out.result as { pass: boolean; checks: unknown[]; listen: unknown[] };
+    expect(res.pass).toBe(true);
+    expect(res.checks).toHaveLength(5);
+    expect(res.listen).toHaveLength(5);
+    expect(JSON.stringify(res)).not.toContain('qa.png');
+    expect(r.get('check_audio')!.description).toContain('not shown to you');
   });
 
-  test('no vision: a text fallback; a FAIL comes back as data, not a throw', async () => {
+  test('no vision: the same numbers; a FAIL comes back as data, not a throw', async () => {
     const f = await fixtureProject();
     const png = qaPng();
     const ctx = toolContext(f, { runJob: () => Promise.resolve(qaResult(false, png)) });
@@ -198,11 +204,11 @@ describe('check_audio (step 12b, D-14)', () => {
     const res = out.result as {
       pass: boolean;
       checks: { status: string; maxAbsDeltaMs?: number }[];
-      picture: string;
+      picture?: string;
     };
     expect(res.pass).toBe(false);
     expect(res.checks[0]).toMatchObject({ status: 'fail', maxAbsDeltaMs: 140 });
-    expect(res.picture).toContain('no vision model');
+    expect(res.picture).toBeUndefined();
   });
 
   test('a question turn may run it (read kind)', async () => {
