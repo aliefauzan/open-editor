@@ -29,8 +29,10 @@ its default caption preset.
 
 1. Storyboard. Read the transcript (`get_transcript` with the sequence id: it reads only the clip's span,
    one `[startMs-endMs] text` line per sentence in sequence ms) and the templates you plan to use
-   (`get_template`). Split the clip into beats that follow the style guide's pacing. Collage beats are
-   scenes on `V2` that cover the speaker; speaker beats are the gaps between them. Layout `full-collage`
+   (`get_template`). Split the clip into beats that follow the style guide's pacing. Scene beats are
+   scenes on `V2` that cover the speaker; speaker beats are the gaps between them. Pick each scene's
+   template by what its line says (the guide's "Choosing a scene") and use a mix: at most two scenes of
+   one template in a clip. Layout `full-collage`
    keeps the speaker share near the guide's minimum; `hybrid` keeps it near the maximum. Never let two
    scenes on one track overlap.
 2. Fill. For every image or cutout slot: `search_images`, then `fetch_image` on the best candidate, then

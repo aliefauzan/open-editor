@@ -316,3 +316,124 @@ describe('speech sync in a ClipPlan', () => {
     ]);
   });
 });
+
+// D-94 (owner report "that vid still not perfect"): the label "Kesempatan Baru" paraphrases the
+// speech ("kesempatan kerja"), so no run of its words matches; its one rare word places it.
+describe('speech sync: rare-word match (D-94)', () => {
+  test('a label that paraphrases the speech matches on its rare word, said once', () => {
+    expect(matchSpeech('Kesempatan Baru', CLIP, 9200)).toMatchObject({
+      startMs: at('kesempatan'),
+      matched: 1,
+      word: 'kesempatan',
+    });
+  });
+
+  test('a rare word said twice: only the one near the planned time counts', () => {
+    const twice = [...CLIP, ...said('kesempatan lain datang', 40_000)];
+    expect(matchSpeech('Kesempatan Baru', twice, 42_000)?.startMs).toBe(40_000);
+    expect(matchSpeech('Kesempatan Baru', twice, 18_000)?.startMs).toBe(at('kesempatan'));
+    // far from both: no confident match
+    expect(matchSpeech('Kesempatan Baru', twice, 30_000)).toBeUndefined();
+  });
+
+  test('no rare-word match: short or common words, a word under half the text, a long text', () => {
+    // "pintu" (5 letters) and "matematika" in a long label (under half its letters)
+    expect(matchSpeech('Pintu Darurat', CLIP, 0)).toBeUndefined();
+    expect(matchSpeech('belajar matematika dasar di sekolah', CLIP, 0)).toBeUndefined();
+    // a common long word
+    expect(matchSpeech('Sebelumnya Baru', CLIP, 0)).toBeUndefined();
+    // over RARE_WORD_MAX_TEXT_WORDS words
+    expect(matchSpeech('kesempatan yang baru untuk kita semua hari ini', CLIP, 0)).toBeUndefined();
+    // a word not said at all
+    expect(matchSpeech('Kesempatan Baru', CLIP.slice(0, 20), 0)).toBeUndefined();
+  });
+
+  test('the live r3 plan: "Kesempatan Baru" moves to "kesempatan", the word is reported', () => {
+    const r = syncScenesToSpeech([scene(9200, 4600, ['Kesempatan Baru'], 1800)], CLIP, 40_000);
+    expect(r[0]).toEqual({
+      startMs: at('kesempatan') - SPEECH_LEAD_MS,
+      durationMs: 4600,
+      matchedText: 'Kesempatan Baru',
+      matchedWord: 'kesempatan',
+    });
+  });
+
+  test('a run of words in any text wins over a rare word in an earlier text', () => {
+    const r = syncScenesToSpeech(
+      [scene(1000, 3000, ['Kesempatan Baru', 'Allah bukain pintu'])],
+      CLIP,
+      40_000,
+    );
+    expect(r[0]).toMatchObject({
+      startMs: at('Allah') - SPEECH_LEAD_MS,
+      matchedText: 'Allah bukain pintu',
+    });
+    expect(r[0]!.matchedWord).toBeUndefined();
+  });
+});
+
+describe('speech sync: text inside items and objects (D-94)', () => {
+  const collage: TemplateInfo = {
+    id: 'vox/paper-collage',
+    version: '1.0.0',
+    kind: 'scene',
+    durationMs: { min: 1800, default: 3000, max: 5000 },
+    variables: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { media: { type: 'string' }, x: { type: 'number' } },
+            additionalProperties: false,
+          },
+        },
+        label: { type: 'string', maxLength: 28 },
+        labelPos: { enum: ['top', 'center', 'bottom'] },
+        clipping: {
+          type: 'object',
+          properties: { headline: { type: 'string' }, x: { type: 'number' } },
+        },
+      },
+    },
+    slots: { 'items/*/media': 'cutout' },
+  };
+  const templates = mapTemplateLookup([...TEXT_TEMPLATES, collage]);
+
+  test('top-level text first, then item labels and a clipping (schema order)', () => {
+    expect(
+      sceneTexts(
+        collage,
+        {
+          clipping: { headline: 'Rezeki dari mana saja', x: 10 },
+          items: [
+            { media: 'a description that is a slot', x: 10, label: 'kesempatan kerja' },
+            { media: '', x: 50, caption: 'bisnis' },
+          ],
+          label: 'Pintu Rezeki',
+          labelPos: 'top',
+        },
+        templates,
+      ),
+    ).toEqual(['Pintu Rezeki', 'kesempatan kerja', 'bisnis', 'Rezeki dari mana saja']);
+  });
+
+  test('a collage panel of a stack: its item labels are read too', () => {
+    expect(
+      sceneTexts(
+        templates.get('vox/stack')!,
+        {
+          panels: [
+            {
+              template: 'vox/paper-collage',
+              variables: { items: [{ media: '', label: 'kerja' }] },
+            },
+            { template: 'vox/kinetic-serif', variables: { text: 'bisnis berkembang' } },
+          ],
+        },
+        templates,
+      ),
+    ).toEqual(['kerja', 'bisnis berkembang']);
+  });
+});
