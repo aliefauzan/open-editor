@@ -93,6 +93,10 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
     const fm = commands.filter((c) => c.includes('FoundationModels.framework'));
     expect(fm).toHaveLength(1);
     expect(fm[0]).toMatch(/cmd LC_LOAD_WEAK_DYLIB/);
+    // D-75: MediaIntelligence (`--highlights`, macOS 27) is weak-linked too
+    const mi = commands.filter((c) => c.includes('MediaIntelligence.framework'));
+    expect(mi).toHaveLength(1);
+    expect(mi[0]).toMatch(/cmd LC_LOAD_WEAK_DYLIB/);
   });
 
   test(
@@ -117,6 +121,7 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
     else expect(status.status).toBe('unsupportedOS');
     expect(typeof status.vision).toBe('boolean');
     if (macosMajor < 27) expect(status.vision).toBe(false);
+    expect(status.highlights).toBe(macosMajor >= 27);
   });
 
   test('an unknown flag exits 2 with usage on stderr', async () => {

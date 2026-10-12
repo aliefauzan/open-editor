@@ -7,6 +7,7 @@ import { frameMs } from '../model/fps.ts';
 import type { Transcript, TranscriptWord } from '../model/schema.ts';
 import { VoxError } from '../errors.ts';
 import type { Detections } from './facetrack.ts';
+import type { Highlights } from './highlights.ts';
 import type { Shot } from './shots.ts';
 
 /** A gap of at least this long between two spoken words ends a sentence unit. */
@@ -22,6 +23,18 @@ export const ENERGY_WINDOW_MS = 400;
 export const ENERGY_STEP_MS = 100;
 /** dB floor for silent windows in the energy signal. */
 const ENERGY_FLOOR_DB = -60;
+/**
+ * Weight of the video-highlights signal (D-75; macOS 27 MediaIntelligence) in the heuristic: the
+ * same as each of the other four signals. Without highlights the signal is 0 for every candidate,
+ * so the pick is exactly the one without it.
+ */
+export const HIGHLIGHT_WEIGHT = 1;
+/**
+ * A registered scorer (the agent's `fast` model) gets at most max(this, 2 × count) candidates: the
+ * best by heuristic score (highlights included). 30 is the agent's SCORE_BATCH, so one request
+ * usually covers them (D-75).
+ */
+export const SCORER_MIN_CANDIDATES = 30;
 
 /** Words ending a sentence: `.`, `?`, `!`, `…` and the CJK/Arabic/Hindi equivalents, before closing quotes. */
 const SENTENCE_END = /[.?!…。？！؟।]["'”’)\]]*$/u;
@@ -146,6 +159,11 @@ export interface QuickSignals {
   hook: number;
   /** Share of the candidate with a face on screen (facetrack samples). */
   coverage: number;
+  /**
+   * Video highlights (D-75): mean level plus the share inside highlight ranges, scaled 0..1 over
+   * the candidate set; 0 without highlights.
+   */
+  highlight: number;
 }
 
 export interface Peaks {
@@ -191,20 +209,61 @@ function faceCoverage(d: Detections, s: number, e: number): number {
   return inside.filter((x) => x.faces.length > 0).length / inside.length;
 }
 
+/**
+ * Raw highlight signal of [s, e), 0..2: the time-weighted mean of the level steps it overlaps
+ * (÷ the video's highest level) plus the share of it inside the framework's highlight ranges.
+ */
+export function highlightLevel(h: Highlights, s: number, e: number): number {
+  const len = e - s;
+  if (len <= 0) return 0;
+  let level = 0;
+  const top = Math.max(0, ...h.levels.map((l) => l.level));
+  if (top > 0) {
+    let sum = 0;
+    let covered = 0;
+    for (const l of h.levels) {
+      const o = Math.max(0, Math.min(e, l.endMs) - Math.max(s, l.startMs));
+      sum += o * l.level;
+      covered += o;
+    }
+    level = covered > 0 ? sum / covered / top : 0;
+  }
+  let inside = 0;
+  for (const r of h.highlights)
+    inside += Math.max(0, Math.min(e, r.endMs) - Math.max(s, r.startMs));
+  return level + Math.min(1, inside / len);
+}
+
+/** `xs` scaled to 0..1 by the set's min and max; all 0 when they are equal. */
+function minMax(xs: readonly number[]): number[] {
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  return xs.map((x) => (hi > lo ? (x - lo) / (hi - lo) : 0));
+}
+
 export const hasHook = (sentence: string): boolean =>
   /\?["'”’)\]]*$/u.test(sentence.trim()) || /\d/.test(sentence) || NUMBER_WORD.test(sentence);
 
-/** Step 3, the built-in scorer: speech + energy + hook + coverage (equal weights, D-15). */
+/**
+ * Step 3, the built-in scorer: speech + energy + hook + coverage (equal weights, D-15) + highlight
+ * × HIGHLIGHT_WEIGHT (D-75).
+ */
 export function heuristicScores(
   cands: readonly Candidate[],
   t: Transcript,
-  extra: { peaks?: Peaks | undefined; detections?: Detections | undefined } = {},
+  extra: {
+    peaks?: Peaks | undefined;
+    detections?: Detections | undefined;
+    highlights?: Highlights | undefined;
+  } = {},
 ): { scores: number[]; signals: QuickSignals[] } {
   const variances = cands.map((c) =>
     extra.peaks ? loudnessVariance(extra.peaks, c.startMs, c.endMs) : 0,
   );
   const lo = Math.min(...variances);
   const hi = Math.max(...variances);
+  const h = extra.highlights;
+  const levels = minMax(cands.map((c) => (h ? highlightLevel(h, c.startMs, c.endMs) : 0)));
   const signals = cands.map((c, i): QuickSignals => {
     const len = c.endMs - c.startMs;
     return {
@@ -214,26 +273,58 @@ export function heuristicScores(
       energy: hi > lo ? (variances[i]! - lo) / (hi - lo) : 0,
       hook: hasHook(c.firstSentence) ? 1 : 0,
       coverage: extra.detections ? faceCoverage(extra.detections, c.startMs, c.endMs) : 0,
+      highlight: levels[i]!,
     };
   });
-  return { scores: signals.map((g) => g.speech + g.energy + g.hook + g.coverage), signals };
+  return {
+    scores: signals.map(
+      (g) => g.speech + g.energy + g.hook + g.coverage + HIGHLIGHT_WEIGHT * g.highlight,
+    ),
+    signals,
+  };
 }
 
-/** Step 4: best score first (ties: earlier start), skipping overlaps, up to `count`. */
+/** Candidate indices, best score first (ties: earlier start, then earlier end). */
+function ranked(
+  cands: readonly Candidate[],
+  scores: readonly number[],
+  among: readonly number[] = cands.map((_, i) => i),
+): number[] {
+  return [...among].sort(
+    (a, b) =>
+      scores[b]! - scores[a]! ||
+      cands[a]!.startMs - cands[b]!.startMs ||
+      cands[a]!.endMs - cands[b]!.endMs,
+  );
+}
+
+/**
+ * What a registered scorer gets (D-75): the `cap` best candidates by `scores` (the heuristic), in
+ * candidate order. All of them when there are no more than `cap`.
+ */
+export function scorerShortlist(
+  cands: readonly Candidate[],
+  scores: readonly number[],
+  cap: number,
+): number[] {
+  if (cands.length <= cap) return cands.map((_, i) => i);
+  return ranked(cands, scores)
+    .slice(0, cap)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Step 4: best score first (ties: earlier start), skipping overlaps, up to `count`. `among` limits
+ * the pick to those indices; `taken` are picks made before (kept, and nothing may overlap them).
+ */
 export function pickClips(
   cands: readonly Candidate[],
   scores: readonly number[],
   count: number,
+  o: { among?: readonly number[]; taken?: readonly number[] } = {},
 ): number[] {
-  const order = cands
-    .map((_, i) => i)
-    .sort(
-      (a, b) =>
-        scores[b]! - scores[a]! ||
-        cands[a]!.startMs - cands[b]!.startMs ||
-        cands[a]!.endMs - cands[b]!.endMs,
-    );
-  const picked: number[] = [];
+  const order = ranked(cands, scores, o.among);
+  const picked: number[] = [...(o.taken ?? [])];
   for (const i of order) {
     if (picked.length >= count) break;
     const c = cands[i]!;

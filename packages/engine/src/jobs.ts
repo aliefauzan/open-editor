@@ -1,5 +1,7 @@
 // Job runner (engine spec "Library API" → jobs, events; plan phase 04 step 1). In-process, at most
 // `concurrency` jobs at once (default 2) and at most one GPU job (transcription, image generation).
+// A job kind marked `outsidePool` (a light helper process, e.g. video highlights, D-75) starts at
+// once and does not take one of the `concurrency` slots.
 // Cancel aborts the job's signal; handlers pass it to their child processes (py.ts kills the group).
 // Errors are VoxErrors; errors and event payloads go through the redactor (S19).
 // Left for phase 04 step 1b: baseVersion + one `batch` with `jobId`, JOB_CONFLICT (needs 02 applyOp).
@@ -44,6 +46,8 @@ export interface JobHandler<A = unknown, R = unknown> {
   args?: z.ZodType<A>;
   /** Holds the GPU (at most one such job runs at a time). */
   gpu?: boolean | ((args: A) => boolean);
+  /** Starts at once without taking a slot (light work beside the heavy stages; D-75). */
+  outsidePool?: boolean;
   run(args: A, ctx: JobContext): Promise<R>;
 }
 
@@ -199,10 +203,12 @@ export function createJobRunner(opts: JobRunnerOptions = {}): JobRunner {
   }
 
   function pump(): void {
-    for (let i = 0; i < queue.length && running.size < concurrency;) {
+    const pooled = (j: Job) => j.handler.outsidePool !== true;
+    for (let i = 0; i < queue.length;) {
       const job = queue[i] as Job;
+      const full = pooled(job) && [...running].filter(pooled).length >= concurrency;
       const gpuBusy = job.gpu && [...running].some((j) => j.gpu);
-      if (gpuBusy) {
+      if (full || gpuBusy) {
         i++;
         continue;
       }
