@@ -272,6 +272,26 @@
       "sha256": "16aa9fb7300a93637da51fac03a071b2ff08b6bbf65f99c794c25f040b58af6a"
     },
     {
+      "family": "Crimson Pro",
+      "file": "CrimsonPro-Italic-Variable.ttf",
+      "weights": {
+        "min": 200,
+        "max": 900
+      },
+      "classification": "serif",
+      "italic": true,
+      "tags": [
+        "oldstyle",
+        "text",
+        "editorial",
+        "book",
+        "italic"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-crimsonpro.txt",
+      "sha256": "a74dc11dcf2fbb1452064e42395a40a907ca630b49cff86012223785e52b2559"
+    },
+    {
       "family": "DM Mono",
       "file": "DMMono-Regular.ttf",
       "weights": {
@@ -337,6 +357,46 @@
       "licence": "OFL-1.1",
       "licenceFile": "OFL-dmserifdisplay.txt",
       "sha256": "8cc3643535edf039aa5d95440a8542735e9197e4f4b8d9303e980fefbf5ab616"
+    },
+    {
+      "family": "DM Serif Display",
+      "file": "DMSerifDisplay-Italic.ttf",
+      "weights": {
+        "min": 400,
+        "max": 400
+      },
+      "classification": "serif",
+      "italic": true,
+      "tags": [
+        "display",
+        "transitional",
+        "high-contrast",
+        "headline",
+        "editorial",
+        "italic"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-dmserifdisplay.txt",
+      "sha256": "df74c0ac387baeaeb0fe4f2324e1668e6a3ed8c09cd9796fe162c71753e19e45"
+    },
+    {
+      "family": "DotGothic16",
+      "file": "DotGothic16-Regular.ttf",
+      "weights": {
+        "min": 400,
+        "max": 400
+      },
+      "classification": "sans",
+      "tags": [
+        "pixel",
+        "bitmap",
+        "retro",
+        "dot-matrix",
+        "wide"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-dotgothic16.txt",
+      "sha256": "3ad9af88726d42b40f7f365f0dcac785af73cf20ea6f1d5b44e57cc21150b8f1"
     },
     {
       "family": "Fira Sans",
@@ -421,6 +481,46 @@
       "sha256": "3b031aa4216174205bd8471f88a49b91f093169e9e87bd5262242bc5967fe2e3"
     },
     {
+      "family": "Instrument Serif",
+      "file": "InstrumentSerif-Regular.ttf",
+      "weights": {
+        "min": 400,
+        "max": 400
+      },
+      "classification": "serif",
+      "tags": [
+        "condensed",
+        "display",
+        "high-contrast",
+        "editorial",
+        "light"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-instrumentserif.txt",
+      "sha256": "498efd461f6ddfcb7a111bf9a565709d2085d48201d501ead960d93e84ffbb88"
+    },
+    {
+      "family": "Instrument Serif",
+      "file": "InstrumentSerif-Italic.ttf",
+      "weights": {
+        "min": 400,
+        "max": 400
+      },
+      "classification": "serif",
+      "italic": true,
+      "tags": [
+        "condensed",
+        "display",
+        "high-contrast",
+        "editorial",
+        "light",
+        "italic"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-instrumentserif.txt",
+      "sha256": "08939b8bdf534afec24ae0ef5e03f948940cd9a8fe08e7fecbad040e62327385"
+    },
+    {
       "family": "Inter",
       "file": "Inter-Variable.ttf",
       "weights": {
@@ -436,6 +536,25 @@
       "licence": "OFL-1.1",
       "licenceFile": "OFL-inter.txt",
       "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+    },
+    {
+      "family": "Jersey 10",
+      "file": "Jersey10-Regular.ttf",
+      "weights": {
+        "min": 400,
+        "max": 400
+      },
+      "classification": "sans",
+      "tags": [
+        "pixel",
+        "bitmap",
+        "retro",
+        "condensed",
+        "heavy"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-jersey10.txt",
+      "sha256": "db9cbd091617048a145d249daa2b815fe7083be6ab66ac26626e21a4e01c3e82"
     },
     {
       "family": "JetBrains Mono",
@@ -522,6 +641,26 @@
       "sha256": "c11809dbfd5445886293d89b32bfc2584075c80e77750cf1c284113e36b8b3f4"
     },
     {
+      "family": "Libre Caslon Text",
+      "file": "LibreCaslonText-Italic-Variable.ttf",
+      "weights": {
+        "min": 400,
+        "max": 700
+      },
+      "classification": "serif",
+      "italic": true,
+      "tags": [
+        "oldstyle",
+        "text",
+        "book",
+        "editorial",
+        "italic"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-librecaslontext.txt",
+      "sha256": "60ca1a3aade61c8c381800ca85b9b2f0fb341d89ebe065e12cd6ec2ee2e53e54"
+    },
+    {
       "family": "Lora",
       "file": "Lora-Variable.ttf",
       "weights": {
@@ -539,6 +678,25 @@
       "sha256": "822a6621ccbe8d97d20ac88c1c41f5615c9c2c202eaa75f272cd452aac6475a7"
     },
     {
+      "family": "Lora",
+      "file": "Lora-Italic-Variable.ttf",
+      "weights": {
+        "min": 400,
+        "max": 700
+      },
+      "classification": "serif",
+      "italic": true,
+      "tags": [
+        "contemporary",
+        "text",
+        "editorial",
+        "italic"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-lora.txt",
+      "sha256": "22d8d8854b53807aa664ca34f2031a9ed57a1d0dea296b8b96cdd3aad937a2b3"
+    },
+    {
       "family": "Manrope",
       "file": "Manrope-Variable.ttf",
       "weights": {
@@ -554,6 +712,24 @@
       "licence": "OFL-1.1",
       "licenceFile": "OFL-manrope.txt",
       "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6"
+    },
+    {
+      "family": "Micro 5",
+      "file": "Micro5-Regular.ttf",
+      "weights": {
+        "min": 400,
+        "max": 400
+      },
+      "classification": "sans",
+      "tags": [
+        "pixel",
+        "bitmap",
+        "retro",
+        "condensed"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-micro5.txt",
+      "sha256": "08a08c0d10129d2ecd869ff2f8914fcbf32487d3cbee3568b2a2957866dfdac8"
     },
     {
       "family": "Montserrat",
@@ -623,6 +799,23 @@
       "sha256": "0f173b3e6cb6d1af25babf7f0057c5ac4ee11f9992b0469bb817e967ef4ad0fc"
     },
     {
+      "family": "Pixelify Sans",
+      "file": "PixelifySans-Variable.ttf",
+      "weights": {
+        "min": 400,
+        "max": 700
+      },
+      "classification": "sans",
+      "tags": [
+        "pixel",
+        "bitmap",
+        "retro"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-pixelifysans.txt",
+      "sha256": "9ba86cd010a4de309d263ceff8e8044092c9db7efda869620cb9ff1c4389e8a5"
+    },
+    {
       "family": "Playfair Display",
       "file": "PlayfairDisplay-Variable.ttf",
       "weights": {
@@ -640,6 +833,27 @@
       "licence": "OFL-1.1",
       "licenceFile": "OFL-playfairdisplay.txt",
       "sha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6"
+    },
+    {
+      "family": "Playfair Display",
+      "file": "PlayfairDisplay-Italic-Variable.ttf",
+      "weights": {
+        "min": 400,
+        "max": 900
+      },
+      "classification": "serif",
+      "italic": true,
+      "tags": [
+        "didone",
+        "high-contrast",
+        "display",
+        "headline",
+        "editorial",
+        "italic"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-playfairdisplay.txt",
+      "sha256": "a5e26dc5e2e77fb2803a0bf02fd4f81ee136ec8dea863ccdb0c59a263b21378b"
     },
     {
       "family": "Poppins",
@@ -726,6 +940,42 @@
       "sha256": "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88"
     },
     {
+      "family": "Silkscreen",
+      "file": "Silkscreen-Regular.ttf",
+      "weights": {
+        "min": 400,
+        "max": 400
+      },
+      "classification": "sans",
+      "tags": [
+        "pixel",
+        "bitmap",
+        "retro",
+        "wide"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-silkscreen.txt",
+      "sha256": "c845473330b94c2079ce9af01c51ac8ba2d99c24f4d14c039843bbb8e642ebd8"
+    },
+    {
+      "family": "Silkscreen",
+      "file": "Silkscreen-Bold.ttf",
+      "weights": {
+        "min": 700,
+        "max": 700
+      },
+      "classification": "sans",
+      "tags": [
+        "pixel",
+        "bitmap",
+        "retro",
+        "wide"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-silkscreen.txt",
+      "sha256": "768476aa712d4f5c3e18d3bce80f980a8bd3f72b7094d22ec5e768df3acfed61"
+    },
+    {
       "family": "Source Sans 3",
       "file": "SourceSans3-Variable.ttf",
       "weights": {
@@ -792,6 +1042,25 @@
       "licence": "OFL-1.1",
       "licenceFile": "OFL-spacemono.txt",
       "sha256": "405e73d41afb7e5906efce206a326af5c956f38e255f35421c260e861e599c59"
+    },
+    {
+      "family": "VT323",
+      "file": "VT323-Regular.ttf",
+      "weights": {
+        "min": 400,
+        "max": 400
+      },
+      "classification": "mono",
+      "tags": [
+        "pixel",
+        "bitmap",
+        "retro",
+        "terminal",
+        "typewriter"
+      ],
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-vt323.txt",
+      "sha256": "cf4de751ada78ceac033dbe16a687742939995b77bc2a052ae17a4957958594d"
     },
     {
       "family": "Work Sans",

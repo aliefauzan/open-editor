@@ -1,0 +1,9 @@
+{
+  "name": "stuck",
+  "description": "Test preset: base/plain markup whose words stay visible after their chunk is hidden.",
+  "case": "asis",
+  "stripPunctuation": false,
+  "position": {
+    "yPct": 70
+  }
+}

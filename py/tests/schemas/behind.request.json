@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/behind.request",
+  "title": "vox_py.behind request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["captioned", "plain", "output", "beats", "encoder"],
+  "properties": {
+    "captioned": {
+      "type": "string",
+      "minLength": 1
+    },
+    "plain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output": {
+      "type": "string",
+      "pattern": "\\.mp4$"
+    },
+    "beats": {
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["startMs", "endMs"],
+        "properties": {
+          "startMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endMs": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "mode": {
+      "enum": ["auto", "all"]
+    },
+    "encoder": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["codec"],
+          "properties": {
+            "codec": {
+              "const": "libx264"
+            },
+            "crf": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 51
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["codec", "bitrate"],
+          "properties": {
+            "codec": {
+              "const": "h264_videotoolbox"
+            },
+            "bitrate": {
+              "type": "string",
+              "pattern": "^[0-9]+k$"
+            }
+          }
+        }
+      ]
+    },
+    "cacheDir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "matteShortSide": {
+      "type": "integer",
+      "minimum": 128,
+      "maximum": 1080
+    },
+    "ffmpeg": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ffprobe": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

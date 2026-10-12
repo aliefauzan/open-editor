@@ -263,6 +263,13 @@ export interface RenderedFile {
   encoder?: RenderEncoder;
   /** Why the VideoToolbox render failed when it fell back to software (redacted, short). */
   encoderFallback?: string;
+  /**
+   * Captions behind the subject (caption preset `behindSubject`): the beats composited behind the
+   * subject, or why the step was skipped (the captions then stay in front).
+   */
+  behindSubject?:
+    | { beats: number; of: number; mattes: number; cached: number; atMs: number[] }
+    | { skipped: string };
 }
 export interface RenderJobResult {
   files: RenderedFile[];
@@ -347,6 +354,40 @@ function mediaUsedBy(s: Sequence, media: readonly MediaItem[]): Set<string> {
   return used;
 }
 
+const BehindResultSchema = z.strictObject({
+  frames: z.int().nonnegative(),
+  composited: z.int().nonnegative(),
+  beats: z.array(
+    z.strictObject({
+      startMs: z.int().nonnegative(),
+      endMs: z.int().nonnegative(),
+      overlap: z.number(),
+      behind: z.boolean(),
+    }),
+  ),
+  behind: z.int().nonnegative(),
+  mattes: z.strictObject({
+    computed: z.int().nonnegative(),
+    cached: z.int().nonnegative(),
+    msPerMatte: z.number().nonnegative(),
+  }),
+});
+
+/** Caption chunks as beats in render time (the render starts at `range.startMs`), inside the render. */
+export function captionBeats(
+  chunks: readonly Pick<CaptionChunk, 'startMs' | 'endMs'>[],
+  range?: { startMs: number; endMs: number },
+): { startMs: number; endMs: number }[] {
+  const from = range?.startMs ?? 0;
+  const to = range?.endMs ?? Number.POSITIVE_INFINITY;
+  return chunks
+    .map((c) => ({
+      startMs: Math.max(0, Math.round(Math.max(c.startMs, from) - from)),
+      endMs: Math.round(Math.min(c.endMs, to) - from),
+    }))
+    .filter((b) => b.endMs > b.startMs);
+}
+
 export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): ExportApi {
   const hf = deps.hyperframes ?? runHyperframes;
   // read at use: setup may find ffmpeg after the engine opened (a Homebrew prefix not on PATH)
@@ -406,6 +447,21 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
         await hf(software, { signal: ctx.signal });
       }
       if (ctx.signal.aborted) throw cancelled();
+      let behind: RenderedFile['behindSubject'];
+      let shown = picture;
+      if (args.captions === 'burn' && s.captions?.enabled && presetBehind(s)) {
+        // captions behind the subject: a second render without captions gives the subject pixels
+        step(0.6, 'captions behind the subject');
+        try {
+          const done = await behindSubject(args, p, s, build.fps, picture, work, encoder, ctx);
+          shown = done.path;
+          behind = done.info;
+        } catch (e) {
+          if (ctx.signal.aborted) throw e;
+          behind = { skipped: redact(e instanceof Error ? e.message : String(e)).slice(0, 200) };
+          shown = picture;
+        }
+      }
       step(0.8, 'mixing audio');
       const mixWav = join(work, 'mix.wav');
       await deps.mix(p.id, s.id, {
@@ -423,7 +479,7 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
           overwrite: args.overwrite,
         },
         async (tmp, signal) => {
-          await runTool('ffmpeg', muxArgs(picture, mixWav, tmp), {
+          await runTool('ffmpeg', muxArgs(shown, mixWav, tmp), {
             tools: ffTools(),
             redact,
             ...(signal ? { signal } : {}),
@@ -437,10 +493,109 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
         durationMs: build.durationMs,
         encoder,
         ...(encoderFallback ? { encoderFallback } : {}),
+        ...(behind ? { behindSubject: behind } : {}),
       };
     } finally {
       await rm(work, { recursive: true, force: true });
     }
+  }
+
+  /** The sequence's caption preset asks for captions behind the subject. */
+  function presetBehind(s: Sequence): boolean {
+    const id = s.captions?.preset;
+    if (!id) return false;
+    try {
+      const own = deps.style(s.styleId);
+      const preset = own.captionPresets[id] ?? deps.style(id.split('/')[0]!).captionPresets[id];
+      return preset?.behindSubject === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Renders the picture again without captions and composites the subject (Apple Vision matte,
+   * `vox_py.behind`) over the captioned picture on the beats where the subject overlaps the caption.
+   * Mattes are cached per frame content in `cache/mattes`.
+   */
+  async function behindSubject(
+    args: z.output<typeof RenderJobArgsSchema>,
+    p: Project,
+    s: Sequence,
+    fps: Fps,
+    captioned: string,
+    work: string,
+    encoder: RenderEncoder,
+    ctx: JobContext,
+  ): Promise<{
+    path: string;
+    info: { beats: number; of: number; mattes: number; cached: number; atMs: number[] };
+  }> {
+    const dir = deps.dirOf(p.id);
+    const chunks = await deps.captions(p.id, s.id);
+    const beats = captionBeats(chunks, args.range);
+    if (beats.length === 0) throw new VoxError('VALIDATION', 'No caption beats', 'Nothing to do.');
+    const build = await deps.compile(p.id, s.id, {
+      mode: 'render',
+      ...(args.range ? { range: args.range } : {}),
+      captions: false,
+    });
+    const buildDir = writeBuildTo(build, buildDirFor(dir, `${s.id}-render-plain`));
+    const plain = join(work, 'plain.mp4');
+    const bitrate = videotoolboxBitrate(s.canvas.width, s.canvas.height, fps, args.quality);
+    await hf(
+      pictureRenderArgs(
+        buildDir,
+        plain,
+        fps,
+        args.quality,
+        encoder === 'videotoolbox' ? { bitrate } : undefined,
+      ),
+      { signal: ctx.signal },
+    );
+    const out = join(work, 'behind.mp4');
+    const r = await runPyTool(
+      'behind',
+      {
+        captioned,
+        plain,
+        output: out,
+        beats,
+        mode: 'auto',
+        encoder:
+          encoder === 'videotoolbox'
+            ? { codec: 'h264_videotoolbox', bitrate }
+            : {
+                codec: 'libx264',
+                crf: args.quality === 'high' ? 16 : args.quality === 'draft' ? 23 : 18,
+              },
+        cacheDir: join(dir, 'cache', 'mattes'),
+        ...(deps.tools['ffmpeg'] ? { ffmpeg: deps.tools['ffmpeg'] } : {}),
+        ...(deps.tools['ffprobe'] ? { ffprobe: deps.tools['ffprobe'] } : {}),
+      },
+      BehindResultSchema,
+      {
+        pyProject: deps.tools['py'] ?? repoPyProject(),
+        ...(deps.tools['uv'] ? { uv: deps.tools['uv'] } : {}),
+        ...(deps.tools['pyEnv'] && deps.tools['dir'] ? { toolsDir: deps.tools['dir'] } : {}),
+        signal: ctx.signal,
+        redactor: deps.redactor,
+      },
+    );
+    return {
+      path: out,
+      info: {
+        beats: r.behind,
+        of: r.beats.length,
+        mattes: r.mattes.computed,
+        cached: r.mattes.cached,
+        // the middle of each chosen beat, in render time (at most 50)
+        atMs: r.beats
+          .filter((b) => b.behind)
+          .slice(0, 50)
+          .map((b) => Math.round((b.startMs + b.endMs) / 2)),
+      },
+    };
   }
 
   runner.register<z.output<typeof RenderJobArgsSchema>, RenderJobResult>('render', {

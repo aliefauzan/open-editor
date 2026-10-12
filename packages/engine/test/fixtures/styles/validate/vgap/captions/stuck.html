@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .c-layer {
+          position: absolute;
+          inset: 0;
+        }
+        .c-chunk {
+          position: absolute;
+          opacity: 0;
+          text-align: center;
+          white-space: nowrap;
+        }
+        .c-line {
+          display: block;
+        }
+        .c-word {
+          font-family: var(--tok-font-caption);
+          font-weight: var(--tok-font-caption-weight);
+          color: var(--tok-color-caption);
+          -webkit-text-stroke: 0.09em var(--tok-color-caption-stroke);
+          paint-order: stroke fill;
+        }
+        .c-word.c-emph {
+          font-size: 1.2em;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="c-layer"></div>
+      </div>
+      <script>
+        // base/plain (styles spec "Caption presets"): the active word is bold, emphasis words are
+        // 1.2x larger, read and unread words look the same. Lines come from the engine (never
+        // re-wrapped). The box is placed without measuring the DOM: the caption font is monospaced,
+        // so a line of maxCharsPerLine characters has a known width, and a chunk's height is its line
+        // count times the line height. All state changes are timeline sets at word times.
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var v = mount.vars;
+          // chunks go inside the composition's own markup, where its styles apply in a render
+          var layer = root.querySelector('.c-layer');
+          var W = __W__;
+          var H = __H__;
+          var side = (v.safeArea.rightPct / 100) * W;
+          var usable = W - 2 * side;
+          // IBM Plex Mono advance is 0.6 em; leave room for 1.2x emphasis words
+          var size = Math.min(W * 0.065, usable / (Math.max(1, v.maxCharsPerLine) * 0.6 * 1.2));
+          // the line height covers a 1.2x emphasis word's content area (IBM Plex Mono ascent +
+          // descent is 1.3 em), so word boxes never leave the chunk box placed above the safe area
+          var lineH = size * 1.2 * 1.35;
+          var limit = (1 - v.safeArea.bottomPct / 100) * H;
+          var centre = (v.position.yPct / 100) * H;
+          var normal =
+            getComputedStyle(root).getPropertyValue('--tok-font-caption-weight').trim() || '400';
+          var tl = gsap.timeline({ paused: true });
+          for (var i = 0; i < v.chunks.length; i++) {
+            var c = v.chunks[i];
+            var el = document.createElement('div');
+            el.className = 'c-chunk';
+            var h = c.lines.length * lineH;
+            var top = Math.max(0, Math.min(centre - h / 2, limit - h));
+            el.style.left = side + 'px';
+            el.style.width = usable + 'px';
+            el.style.top = top + 'px';
+            el.style.fontSize = size + 'px';
+            el.style.lineHeight = lineH + 'px';
+            for (var l = 0; l < c.lines.length; l++) {
+              var line = document.createElement('div');
+              line.className = 'c-line';
+              var words = c.lines[l].words;
+              for (var k = 0; k < words.length; k++) {
+                var w = words[k];
+                if (k > 0) line.appendChild(document.createTextNode(' '));
+                var span = document.createElement('span');
+                span.className = w.emphasis ? 'c-word c-emph' : 'c-word';
+                span.setAttribute('data-key', w.key);
+                span.textContent = w.text;
+                line.appendChild(span);
+                tl.set(span, { fontWeight: 700 }, w.startMs / 1000);
+                tl.set(span, { fontWeight: normal }, w.endMs / 1000);
+              }
+              el.appendChild(line);
+            }
+            layer.appendChild(el);
+            // the bug under test: the chunk hides by visibility, but a word set visible stays
+            // visible after the chunk is hidden (a visible child shows through a hidden parent)
+            el.style.opacity = 1;
+            el.style.visibility = 'hidden';
+            tl.set(el, { visibility: 'visible' }, c.startMs / 1000);
+            tl.set(el, { visibility: 'hidden' }, c.endMs / 1000);
+            var spans = el.querySelectorAll('.c-word');
+            for (var q = 0; q < spans.length; q++)
+              tl.set(spans[q], { visibility: 'visible' }, c.startMs / 1000);
+          }
+          window.__timelines[mount.key] = mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

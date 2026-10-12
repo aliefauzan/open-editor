@@ -14,6 +14,8 @@ spike/out/
 .venv/
 *.dmg
 docs/evidence/**/reference/
+# GATE 8 round 3 judge sheet: holds frames of the reference video
+docs/evidence/phase-15/ab-round3-sheet.jpg
 docs/reference/
 native/**/.build/
 *.tsbuildinfo
