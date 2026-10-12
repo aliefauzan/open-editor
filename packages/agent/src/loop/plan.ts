@@ -2,12 +2,14 @@
 // plan (a `ClipPlan` or a list of engine ops), zod-validated; invalid plans go back with the zod
 // error (max 2 retries). Code then executes it as one `batch`: slot filling (search → fetch →
 // cutout; generate only when search finds nothing and a provider exists; else a placeholder scene)
-// and small repairs (clamp durations to template bounds and the sequence, drop beats that cannot
-// fit). With `confirmPlan` each validated plan pauses for approval (kind `plan`) before it runs.
+// and small repairs (move scenes to when their words are spoken, D-92; clamp durations to template
+// bounds and the sequence, drop beats that cannot fit). With `confirmPlan` each validated plan pauses for approval (kind `plan`) before it runs.
 import {
   OP_ARGS,
   OP_NAMES,
+  mapWordsToTimeline,
   type Project,
+  type Transcript,
   type TemplateInfo,
   type TemplateLookup,
   validateVariables,
@@ -18,10 +20,11 @@ import { VoxError, isVoxError, toVoxErrorJson } from '../errors.ts';
 import { writingJob } from '../tools/jobs.ts';
 import { applyAsAgent } from '../tools/ops.ts';
 import { invokeTool } from '../tools/registry.ts';
-import { transcriptLines } from '../tools/transcript.ts';
+import { loadTranscript, transcriptLines } from '../tools/transcript.ts';
 import type { AgentRun } from './run.ts';
 import { RunStopped } from './run.ts';
 import { wrapData } from './envelope.ts';
+import { sceneTexts, syncScenesToSpeech, type SpokenWord } from './speech-sync.ts';
 import type { TurnOptions, TurnResult } from './types.ts';
 
 export const MAX_PLAN_RETRIES = 2;
@@ -617,9 +620,23 @@ export async function clipPlanToOps(
     );
     let prevEnd = 0;
     const beats = [...sp.beats].sort((a, b) => a.startMs - b.startMs);
-    for (const [i, b] of beats.entries()) {
-      if (b.kind !== 'scene') continue;
+    // D-92: scenes start when their words are spoken. `synced` holds the new times of the moved
+    // scenes; beats run in their new start order (repair notes keep the planned beat index).
+    const synced = await syncBeatsToSpeech(run, p, seq, beats, templates, end);
+    const order = beats
+      .map((b, i) => ({ b, i, at: synced.get(i)?.startMs ?? b.startMs }))
+      .sort((x, y) => x.at - y.at || x.i - y.i);
+    for (const { b: planned, i } of order) {
+      if (planned.kind !== 'scene') continue;
       const note = (what: string) => repairs.push({ beat: i, sequenceId: sp.sequenceId, what });
+      const moved = synced.get(i);
+      if (moved)
+        note(
+          `scene ${JSON.stringify(moved.text)} moved ${String(planned.startMs)} → ${String(moved.startMs)} ms to match speech`,
+        );
+      const b = moved
+        ? { ...planned, startMs: moved.startMs, endMs: moved.startMs + moved.durationMs }
+        : planned;
       if (b.endMs <= b.startMs) {
         note(`dropped: ends at ${String(b.endMs)}, not after its start ${String(b.startMs)}`);
         continue;
@@ -704,8 +721,10 @@ export async function clipPlanToOps(
       }
       let start = clamp(Math.max(b.startMs, prevEnd), 0, end);
       if (start !== b.startMs) note(`start moved ${String(b.startMs)} → ${String(start)}`);
-      let dur = clamp(b.endMs - b.startMs, t.durationMs.min, t.durationMs.max);
-      if (dur !== b.endMs - b.startMs) note(`duration clamped to ${String(dur)} (template bounds)`);
+      const want = planned.endMs - planned.startMs;
+      let dur = clamp(want, t.durationMs.min, t.durationMs.max);
+      if (dur !== want) note(`duration clamped to ${String(dur)} (template bounds)`);
+      if (moved) dur = clamp(moved.durationMs, t.durationMs.min, t.durationMs.max);
       for (const [s, e] of occupied) {
         if (start < e && start + dur > s) {
           if (start >= s) start = e;
@@ -737,6 +756,92 @@ export async function clipPlanToOps(
       });
   }
   return { ops, repairs };
+}
+
+/** Longest scene text quoted in a speech-sync repair note. */
+const SYNC_NOTE_CHARS = 48;
+
+/**
+ * Spoken words of a sequence in sequence time: the words of every media clip with a transcript,
+ * mapped the way captions map them (pauses left out). Empty when no clip has a readable transcript.
+ */
+async function spokenWords(
+  run: AgentRun,
+  p: Project,
+  seq: Project['sequences'][number],
+): Promise<SpokenWord[]> {
+  const ids = new Set(
+    [...seq.audioTracks, ...seq.videoTracks].flatMap((t) =>
+      t.items.flatMap((it) => (it.type === 'media' ? [it.mediaId] : [])),
+    ),
+  );
+  const transcripts = new Map<string, Transcript>();
+  for (const m of p.media) {
+    if (!ids.has(m.id) || m.transcriptPath === undefined) continue;
+    try {
+      transcripts.set(m.id, await loadTranscript(run.ctx.engine, run.ctx.projectId, m));
+    } catch (err) {
+      if (!isVoxError(err)) throw err;
+    }
+  }
+  if (transcripts.size === 0) return [];
+  const tracks = [...seq.audioTracks, ...seq.videoTracks].map((t) => t.id);
+  const seen = new Set<string>();
+  const out: SpokenWord[] = [];
+  for (const w of mapWordsToTimeline(p, seq, (m) => transcripts.get(m.id), tracks)) {
+    if (w.kind === 'pause' || seen.has(w.key)) continue;
+    seen.add(w.key);
+    out.push({ text: w.text, startMs: w.startMs });
+  }
+  return out;
+}
+
+interface SyncedBeat {
+  startMs: number;
+  durationMs: number;
+  /** The scene text matched (shortened for the repair note). */
+  text: string;
+}
+
+/**
+ * Speech sync of the scene beats of one sequence (D-92): beat index → new start, duration and the
+ * matched text, for the scenes that move. Durations are the planned ones after template clamps.
+ */
+async function syncBeatsToSpeech(
+  run: AgentRun,
+  p: Project,
+  seq: Project['sequences'][number],
+  beats: ClipPlan['sequences'][number]['beats'],
+  templates: TemplateLookup,
+  end: number,
+): Promise<Map<number, SyncedBeat>> {
+  const moved = new Map<number, SyncedBeat>();
+  const scenes = beats.flatMap((b, i) => {
+    const t = b.kind === 'scene' && b.template ? templates.get(b.template) : undefined;
+    if (!t || t.kind !== 'scene' || b.endMs <= b.startMs) return [];
+    return [
+      {
+        i,
+        startMs: b.startMs,
+        durationMs: clamp(b.endMs - b.startMs, t.durationMs.min, t.durationMs.max),
+        minMs: t.durationMs.min,
+        texts: sceneTexts(t, b.variables ?? {}, templates),
+      },
+    ];
+  });
+  if (!scenes.some((s) => s.texts.length > 0)) return moved;
+  const words = await spokenWords(run, p, seq);
+  if (words.length === 0) return moved;
+  for (const [k, r] of syncScenesToSpeech(scenes, words, end).entries()) {
+    const s = scenes[k]!;
+    if (r.matchedText === undefined || r.startMs === s.startMs) continue;
+    const text =
+      r.matchedText.length > SYNC_NOTE_CHARS
+        ? `${r.matchedText.slice(0, SYNC_NOTE_CHARS - 1)}${ELLIPSIS}`
+        : r.matchedText;
+    moved.set(s.i, { startMs: r.startMs, durationMs: r.durationMs, text });
+  }
+  return moved;
 }
 
 /** Why the variables do not fit the template (the engine's own check), or undefined when they do. */
