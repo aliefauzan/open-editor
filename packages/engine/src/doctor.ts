@@ -11,6 +11,7 @@ import { LOCK_FILE, type LockInfo } from './history/lock.ts';
 import { FACE_MODEL, sha256File } from './media-api.ts';
 import type { Project, Transcript } from './model/schema.ts';
 import { PY_ENV_LOCK_FIX, pyEnvLockState } from './py.ts';
+import { checkoutPyEnvSyncEnabled, pyEnvStamp } from './pyenv.ts';
 import { moduleRequire } from './resources.ts';
 import { WHISPER_DIR, WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
 
@@ -227,6 +228,31 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
                 : 'the Python env was synced from a different uv.lock',
             path: lock.pyEnv,
             fix: PY_ENV_LOCK_FIX,
+          },
+    );
+  }
+  // The env's own sources (D-87): which vox_py it was built from, and whether that is this py/.
+  // A warning, not an error: the app re-syncs on launch, the dev CLI before the first Python tool.
+  const stamp = await pyEnvStamp(o.tools);
+  if (stamp) {
+    const short = (h: string | undefined) => (h === undefined ? 'none' : h.slice(0, 12));
+    const match = stamp.src.have === stamp.src.want;
+    add(
+      match
+        ? {
+            name: 'python-env-source',
+            level: 'ok',
+            detail: `built from these Python sources (vox_py ${short(stamp.src.want)})`,
+            path: stamp.pyEnv,
+          }
+        : {
+            name: 'python-env-source',
+            level: 'warn',
+            detail: `built from other Python sources: vox_py ${short(stamp.src.have)}, this py/ is ${short(stamp.src.want)}`,
+            path: stamp.pyEnv,
+            fix: checkoutPyEnvSyncEnabled(o.tools['dir'])
+              ? 'none needed: the next Python tool run syncs it from this checkout first'
+              : PY_ENV_LOCK_FIX,
           },
     );
   }

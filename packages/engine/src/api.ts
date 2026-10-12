@@ -348,6 +348,16 @@ export { TOOL_NAMES, resolveToolPaths, which, type ToolName } from './tools.ts';
 export { resourceDirs, setResourceDirs, type ResourceDirs } from './resources.ts';
 export { repoPyProject } from './py.ts';
 export {
+  checkoutPyEnvSyncEnabled,
+  disableCheckoutPyEnvSync,
+  enableCheckoutPyEnvSync,
+  PY_ENV_STALE_WHAT,
+  pyEnvStamp,
+  pyEnvSyncCommand,
+  type PyEnvStamp,
+  type PyEnvStampState,
+} from './pyenv.ts';
+export {
   FACE_MODEL,
   FacetrackJobArgsSchema,
   HighlightsJobArgsSchema,
