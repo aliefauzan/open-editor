@@ -15,6 +15,7 @@ import { createEmbedder } from '../providers/factory.ts';
 import { PRESETS, type ProviderEntry } from '../providers/presets.ts';
 import type { Embedder } from '../screenplay/match.ts';
 import { isLocalProvider, lookupPrice, type PriceEntry } from '../providers/prices.ts';
+import { promptCacheTarget, withCachePrices } from '../providers/prompt-cache.ts';
 import { selectMode, type AgentMode } from '../providers/roles.ts';
 import { findProvider, providerKey, type AgentConfig, type AgentConfigDeps } from './store.ts';
 
@@ -76,7 +77,8 @@ async function roleModel(
       provider: { ...kind, label },
       modelId: ref.model,
       contextTokens: ctx.contextTokens,
-      price,
+      // Anthropic cache rates filled in where the table has none (D-76)
+      price: withCachePrices(promptCacheTarget({ provider: kind, modelId: ref.model }), price),
       maxOutputTokens: conf.maxOutputTokens[role],
     },
   };

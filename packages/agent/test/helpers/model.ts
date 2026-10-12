@@ -11,7 +11,13 @@ import type { Fixture } from './project.ts';
 export interface ScriptStep {
   text?: string;
   calls?: { name: string; input: string | Record<string, unknown> }[];
-  usage?: { input?: number; output?: number; cacheRead?: number; reasoning?: number };
+  usage?: {
+    input?: number;
+    output?: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    reasoning?: number;
+  };
   /** OpenRouter-style reported cost. */
   costUsd?: number;
   /** Throw this instead of answering. */
@@ -29,9 +35,9 @@ export interface Scripted {
 const usageOf = (u: ScriptStep['usage'] = {}) => ({
   inputTokens: {
     total: u.input ?? 100,
-    noCache: (u.input ?? 100) - (u.cacheRead ?? 0),
+    noCache: (u.input ?? 100) - (u.cacheRead ?? 0) - (u.cacheWrite ?? 0),
     cacheRead: u.cacheRead ?? 0,
-    cacheWrite: 0,
+    cacheWrite: u.cacheWrite ?? 0,
   },
   outputTokens: {
     total: u.output ?? 20,
@@ -40,7 +46,14 @@ const usageOf = (u: ScriptStep['usage'] = {}) => ({
   },
 });
 
-export function scriptedModel(steps: ScriptStep[], opts: { repeatLast?: boolean } = {}): Scripted {
+export function scriptedModel(
+  steps: ScriptStep[],
+  opts: {
+    repeatLast?: boolean;
+    /** Usage from the request instead of the script (e.g. a prompt-cache simulator). */
+    usage?: (o: LanguageModelV4CallOptions) => ReturnType<typeof usageOf>;
+  } = {},
+): Scripted {
   const prompts: LanguageModelV4CallOptions[] = [];
   let i = 0;
   const next = (o: LanguageModelV4CallOptions): ScriptStep => {
@@ -73,7 +86,7 @@ export function scriptedModel(steps: ScriptStep[], opts: { repeatLast?: boolean 
       chunks.push({
         type: 'finish',
         finishReason: { unified: s.calls?.length ? 'tool-calls' : 'stop', raw: 'x' },
-        usage: usageOf(s.usage),
+        usage: opts.usage ? opts.usage(o) : usageOf(s.usage),
         ...(s.costUsd !== undefined && {
           providerMetadata: { openrouter: { usage: { cost: s.costUsd } } },
         }),
@@ -87,7 +100,7 @@ export function scriptedModel(steps: ScriptStep[], opts: { repeatLast?: boolean 
       return {
         content: [{ type: 'text', text }],
         finishReason: { unified: 'stop', raw: 'stop' },
-        usage: usageOf(s.usage),
+        usage: opts.usage ? opts.usage(o) : usageOf(s.usage),
         warnings: [],
         ...(s.costUsd !== undefined && {
           providerMetadata: { openrouter: { usage: { cost: s.costUsd } } },
