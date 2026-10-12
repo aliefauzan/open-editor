@@ -11,6 +11,36 @@ export const SPEECH_LEAD_MS = 200;
 export const SPEECH_SYNC_TOLERANCE_MS = 400;
 /** Share of the text's word weight that must be matched, in order, for a confident match. */
 export const SPEECH_MATCH_MIN_RATIO = 0.6;
+/**
+ * Rare-word match (D-94): a short text (a label, at most RARE_WORD_MAX_TEXT_WORDS words) that
+ * paraphrases the speech matches on one of its words of RARE_WORD_MIN_LETTERS+ letters (not a common
+ * word) that holds at least RARE_WORD_MIN_SHARE of the text's letters, when that word is spoken
+ * exactly once in the clip, or exactly once within RARE_WORD_NEAR_MS of the planned time. Tried only
+ * when no text of the scene matches a run. "Kesempatan Baru" matches "kesempatan" (10 of 14 letters);
+ * "of jobs change" does not match "change" (6 letters).
+ */
+export const RARE_WORD_MIN_LETTERS = 7;
+export const RARE_WORD_MIN_SHARE = 0.5;
+export const RARE_WORD_MAX_TEXT_WORDS = 6;
+export const RARE_WORD_NEAR_MS = 8000;
+
+/** Common words of 7+ letters that say nothing about where a scene belongs (Indonesian, English). */
+const COMMON_WORDS = new Set([
+  'bakalan',
+  'sebenarnya',
+  'sekarang',
+  'seperti',
+  'setelah',
+  'sebelum',
+  'sebelumnya',
+  'akhirnya',
+  'because',
+  'something',
+  'nothing',
+  'another',
+  'through',
+  'actually',
+]);
 
 /** A spoken word in sequence time. */
 export interface SpokenWord {
@@ -91,6 +121,8 @@ export interface SpeechMatch {
   matched: number;
   /** Matched share of the text's word weight (0-1). */
   ratio: number;
+  /** Set for a rare-word match: the one word that placed the text. */
+  word?: string;
 }
 
 interface Token {
@@ -106,15 +138,51 @@ function tokensOfWords(words: readonly SpokenWord[]): Token[] {
 /**
  * The best in-order match of `text` in the spoken words: the run of words that holds the most of
  * the text's words (weighted), starting at a matched word and at most twice the text's length plus
- * three words long. Ties go to the run nearest `nearMs`. Undefined when no match is confident: under
- * SPEECH_MATCH_MIN_RATIO of the text, or one matched word of a longer text, or one short word.
+ * three words long. Ties go to the run nearest `nearMs`. No confident run (under
+ * SPEECH_MATCH_MIN_RATIO of the text, or one matched word of a longer text, or one short word): the
+ * rare-word match (D-94), else undefined.
  */
 export function matchSpeech(
   text: string,
   spoken: readonly SpokenWord[],
   nearMs: number,
 ): SpeechMatch | undefined {
-  return matchTokens(text, tokensOfWords(spoken), nearMs);
+  const toks = tokensOfWords(spoken);
+  return matchTokens(text, toks, nearMs) ?? matchRareWord(text, toks, nearMs);
+}
+
+/**
+ * A short text placed by one rare word (D-94): its words of RARE_WORD_MIN_LETTERS+ letters that are
+ * not common words and hold RARE_WORD_MIN_SHARE of the text's letters, each spoken exactly once in the clip, or else exactly once within
+ * RARE_WORD_NEAR_MS of `nearMs`. The longest such word wins (ties: nearest `nearMs`). Undefined for a
+ * text over RARE_WORD_MAX_TEXT_WORDS words or when no word qualifies.
+ */
+function matchRareWord(
+  text: string,
+  toks: readonly Token[],
+  nearMs: number,
+): SpeechMatch | undefined {
+  const want = speechTokens(text);
+  if (want.length === 0 || want.length > RARE_WORD_MAX_TEXT_WORDS) return undefined;
+  const total = want.map(weightOf).reduce((a, b) => a + b, 0);
+  const letters = want.reduce((n, w) => n + w.length, 0);
+  let best: { w: string; startMs: number } | undefined;
+  for (const w of new Set(want)) {
+    if (w.length < RARE_WORD_MIN_LETTERS || COMMON_WORDS.has(w)) continue;
+    if (w.length < letters * RARE_WORD_MIN_SHARE) continue;
+    const said = toks.filter((t) => sameWord(w, t.w));
+    const near = said.filter((t) => Math.abs(t.startMs - nearMs) <= RARE_WORD_NEAR_MS);
+    const hit = said.length === 1 ? said[0] : near.length === 1 ? near[0] : undefined;
+    if (!hit) continue;
+    const better =
+      !best ||
+      w.length > best.w.length ||
+      (w.length === best.w.length &&
+        Math.abs(hit.startMs - nearMs) < Math.abs(best.startMs - nearMs));
+    if (better) best = { w, startMs: hit.startMs };
+  }
+  if (!best) return undefined;
+  return { startMs: best.startMs, matched: 1, ratio: weightOf(best.w) / total, word: best.w };
 }
 
 function matchTokens(
@@ -172,12 +240,66 @@ interface StringSchema {
   enum?: unknown;
   pattern?: unknown;
   format?: unknown;
+  properties?: Record<string, StringSchema | undefined>;
+  items?: StringSchema;
+}
+
+/** Text keys a weak model writes on array items without the schema declaring them (D-90 run 3). */
+const ITEM_TEXT_KEYS = ['label', 'title', 'text', 'caption'];
+
+const isFreeText = (s: StringSchema | undefined) =>
+  s?.type === 'string' && s.enum === undefined && s.pattern === undefined && s.format === undefined;
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * Free-text strings of an object, in schema order: its own strings first, then those of its object
+ * and array-of-object variables (collage `items/*`, a `clipping`), one level deep. Keys in `skip`
+ * (picture slots) are left out; array items also give their undeclared `label`-like strings (D-94).
+ */
+function objectTexts(
+  props: Record<string, StringSchema | undefined>,
+  value: Record<string, unknown>,
+  skip: (key: string) => boolean,
+  nested: boolean,
+  extraKeys: readonly string[] = [],
+): string[] {
+  const out: string[] = [];
+  const push = (v: unknown) => {
+    if (typeof v === 'string' && v.trim() !== '') out.push(v.trim());
+  };
+  for (const [key, schema] of Object.entries(props)) {
+    if (isFreeText(schema) && !skip(key)) push(value[key]);
+  }
+  for (const key of extraKeys) if (props[key] === undefined) push(value[key]);
+  if (!nested) return out;
+  for (const [key, schema] of Object.entries(props)) {
+    const v = value[key];
+    const inner = (s: StringSchema | undefined) => s?.properties ?? {};
+    if (isObject(v) && schema?.properties)
+      out.push(...objectTexts(inner(schema), v, (k) => skip(`${key}/${k}`), false));
+    if (Array.isArray(v) && schema?.items && !skip(`${key}/*`))
+      for (const el of v)
+        if (isObject(el))
+          out.push(
+            ...objectTexts(
+              inner(schema.items),
+              el,
+              (k) => skip(`${key}/*/${k}`),
+              false,
+              ITEM_TEXT_KEYS,
+            ),
+          );
+  }
+  return out;
 }
 
 /**
  * Display text of a scene in reading order: the template's free-text string variables (schema
- * order; picture slots, enums and patterned codes such as a language left out), then the same for
- * each panel of a `template` slot (stack `panels/*`), in panel order.
+ * order; picture slots, enums and patterned codes such as a language left out), then the texts inside
+ * its objects and arrays (collage item labels, a clipping; D-94), then the same for each panel of a
+ * `template` slot (stack `panels/*`), in panel order.
  */
 export function sceneTexts(
   t: TemplateInfo,
@@ -186,14 +308,7 @@ export function sceneTexts(
   depth = 0,
 ): string[] {
   const props = (t.variables['properties'] ?? {}) as Record<string, StringSchema | undefined>;
-  const out: string[] = [];
-  for (const [key, schema] of Object.entries(props)) {
-    if (schema?.type !== 'string' || schema.enum !== undefined) continue;
-    if (schema.pattern !== undefined || schema.format !== undefined) continue;
-    if (t.slots[key] !== undefined) continue;
-    const v = variables[key];
-    if (typeof v === 'string' && v.trim() !== '') out.push(v.trim());
-  }
+  const out = objectTexts(props, variables, (k) => t.slots[k] !== undefined, true);
   if (depth > 0) return out;
   for (const [path, kind] of Object.entries(t.slots)) {
     const m = /^([A-Za-z0-9_]+)\/\*$/.exec(path);
@@ -227,6 +342,8 @@ export interface SyncedScene {
   durationMs: number;
   /** Set when the scene was moved to its words: the text it matched. */
   matchedText?: string;
+  /** Set when one rare word of the text placed it (D-94). */
+  matchedWord?: string;
 }
 
 /**
@@ -247,13 +364,22 @@ export function syncScenesToSpeech(
   const out: (SyncedScene & { moved: boolean })[] = scenes.map((s) => {
     const keep = { startMs: s.startMs, durationMs: s.durationMs, moved: false };
     if (toks.length === 0) return keep;
-    for (const text of s.texts) {
-      const m = matchTokens(text, toks, s.startMs + SPEECH_LEAD_MS);
-      if (!m) continue;
-      const target = Math.max(0, m.startMs - SPEECH_LEAD_MS);
-      if (Math.abs(target - s.startMs) <= SPEECH_SYNC_TOLERANCE_MS) return keep;
-      return { startMs: target, durationMs: s.durationMs, matchedText: text, moved: true };
-    }
+    const near = s.startMs + SPEECH_LEAD_MS;
+    // a run of words in any text first; only then one rare word of a short text (D-94)
+    for (const match of [matchTokens, matchRareWord])
+      for (const text of s.texts) {
+        const m = match(text, toks, near);
+        if (!m) continue;
+        const target = Math.max(0, m.startMs - SPEECH_LEAD_MS);
+        if (Math.abs(target - s.startMs) <= SPEECH_SYNC_TOLERANCE_MS) return keep;
+        return {
+          startMs: target,
+          durationMs: s.durationMs,
+          matchedText: text,
+          ...(m.word !== undefined && { matchedWord: m.word }),
+          moved: true,
+        };
+      }
     return keep;
   });
   if (!out.some((x) => x.moved)) return out.map(({ moved: _, ...x }) => x);

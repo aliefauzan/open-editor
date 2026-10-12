@@ -2,8 +2,9 @@
 // plan (a `ClipPlan` or a list of engine ops), zod-validated; invalid plans go back with the zod
 // error (max 2 retries). Code then executes it as one `batch`: slot filling (search → fetch →
 // cutout; generate only when search finds nothing and a provider exists; else a placeholder scene)
-// and small repairs (move scenes to when their words are spoken, D-92; clamp durations to template
-// bounds and the sequence, drop beats that cannot fit). With `confirmPlan` each validated plan pauses for approval (kind `plan`) before it runs.
+// and small repairs (at most two scenes of a template, D-94; move scenes to when their words are
+// spoken, D-92; variables fitted to their template, D-94; clamp durations to template bounds and the
+// sequence, drop beats that cannot fit). With `confirmPlan` each validated plan pauses for approval (kind `plan`) before it runs.
 import {
   OP_ARGS,
   OP_NAMES,
@@ -24,7 +25,8 @@ import { loadTranscript, transcriptLines } from '../tools/transcript.ts';
 import type { AgentRun } from './run.ts';
 import { RunStopped } from './run.ts';
 import { wrapData } from './envelope.ts';
-import { sceneTexts, syncScenesToSpeech, type SpokenWord } from './speech-sync.ts';
+import { fitVariables, textLedTemplates, toTextLed, varySceneTemplates } from './plan-repair.ts';
+import { sceneTexts, speechTokens, syncScenesToSpeech, type SpokenWord } from './speech-sync.ts';
 import type { TurnOptions, TurnResult } from './types.ts';
 
 export const MAX_PLAN_RETRIES = 2;
@@ -324,12 +326,99 @@ async function stillOf(
 }
 
 /**
+ * A picture query the run made up for a beat whose model gave none (D-94): the scene's first text
+ * (its label), else the beat's spoken words. One archive search per beat; its candidates fill the
+ * beat's picture slots in order (a collage's items get different pictures). Never generated: the
+ * text is the speaker's language and the model did not ask for a picture.
+ */
+interface AutoQuery {
+  query: string;
+  from: 'scene text' | 'speech';
+  /** Candidate ids left from the one search; undefined until searched. */
+  candidates?: string[];
+  found: number;
+}
+
+/** Longest made-up query, and the most spoken words it takes. */
+const AUTO_QUERY_CHARS = 80;
+const AUTO_QUERY_WORDS = 6;
+
+/** The made-up query of a beat (D-94): its first text, else its spoken words of 4+ letters. */
+function autoQuery(
+  texts: readonly string[],
+  words: readonly SpokenWord[],
+  span: { startMs: number; endMs: number },
+): AutoQuery | undefined {
+  const text = texts.find((x) => speechTokens(x).some((w) => w.length >= 3));
+  if (text !== undefined)
+    return { query: text.slice(0, AUTO_QUERY_CHARS), from: 'scene text', found: 0 };
+  const said = words
+    .filter((w) => w.startMs >= span.startMs && w.startMs < span.endMs)
+    .flatMap((w) => speechTokens(w.text))
+    .filter((w) => w.length >= 4);
+  const unique = [...new Set(said)].slice(0, AUTO_QUERY_WORDS);
+  return unique.length === 0
+    ? undefined
+    : { query: unique.join(' ').slice(0, AUTO_QUERY_CHARS), from: 'speech', found: 0 };
+}
+
+/** The next archive picture of a made-up query: one search, then its candidates in order. */
+async function autoPicture(
+  run: AgentRun,
+  auto: AutoQuery,
+  kind: string,
+): Promise<string | undefined> {
+  try {
+    if (auto.candidates === undefined) {
+      auto.candidates = [];
+      const found = (await planCall(run, 'search_images', { query: auto.query })) as {
+        candidates?: { id?: unknown }[];
+      };
+      for (const c of found.candidates ?? [])
+        if (typeof c.id === 'string') auto.candidates.push(c.id);
+    }
+    const next = auto.candidates.shift();
+    if (next === undefined) return undefined;
+    let mediaId = mediaIdOf(run, await planCall(run, 'fetch_image', { candidateId: next }));
+    if (mediaId && kind === 'cutout')
+      mediaId = mediaIdOf(
+        run,
+        await planCall(run, 'cutout', { mediaId: run.aliases.aliasOf(mediaId) }),
+      );
+    if (mediaId) auto.found++;
+    return mediaId;
+  } catch (err) {
+    if (err instanceof RunStopped) throw err;
+    // a failed search or download ends the made-up query for this beat; stills take over
+    auto.candidates = [];
+    run.record.write({
+      type: 'slotFailed',
+      query: auto.query,
+      error: isVoxError(err) ? toVoxErrorJson(err) : 'error',
+    });
+    return undefined;
+  }
+}
+
+/** A picture slot's result: a picture, or the video a still should be taken of (`makeStill` off). */
+interface Picture {
+  id?: string;
+  q?: string;
+  /** The repair to note when a still filled the slot. */
+  still?: string;
+  /** With `makeStill` off: the video a still would be taken of. */
+  stillVideo?: string;
+}
+
+/**
  * A picture for one slot whose value is not a picture of the project: the next image query, else the
- * description written in the slot. When that finds nothing, a still at the slot's time (D-90) of the
- * video the slot names (weak models write the source clip's id, D-88 live runs), or, for a slot that
- * `needs` a picture and got no query at all (`media: ""`), of the sequence's own video there. A query
- * that finds nothing is never answered with a still of something else: the caller makes a placeholder.
- * `q` is the query used, `still` the repair to note when a still filled the slot.
+ * description written in the slot. A slot that `needs` a picture and got no query and names no media
+ * (`media: ""`) next tries the beat's made-up query (D-94). When that finds nothing, a still at the
+ * slot's time (D-90) of the video the slot names (weak models write the source clip's id, D-88 live
+ * runs), or, for a slot that `needs` a picture and got no query at all, of the sequence's own video
+ * there. A query that finds nothing is never answered with a still of something else: the caller
+ * makes a placeholder. `q` is the query used. With `makeStill` off the still is not made; the caller
+ * gets `stillVideo` and decides (at most two stills of the source in a collage).
  */
 async function pictureFor(
   run: AgentRun,
@@ -339,19 +428,39 @@ async function pictureFor(
   kind: string,
   at: StillAt,
   needs: boolean,
-): Promise<{ id?: string; q?: string; still?: string }> {
+  auto?: AutoQuery,
+  makeStill = true,
+): Promise<Picture> {
   const known = imageNamed(run, p, value);
   if (known) return { id: known };
   const q = queries.shift() ?? describedQuery(value);
   const found = q === undefined ? undefined : await fillSlot(run, q, kind);
   if (found) return { id: found, q };
   const named = mediaNamed(run, p, value);
+  if (needs && q === undefined && named === undefined && auto) {
+    const id = await autoPicture(run, auto, kind);
+    if (id) return { id };
+  }
   const video =
     named?.kind === 'video'
       ? named.id
       : needs && q === undefined && named === undefined
         ? sequenceVideoAt(p, at)
         : undefined;
+  if (video !== undefined && !makeStill)
+    return { stillVideo: video, ...(q !== undefined && { q }) };
+  return stillPicture(run, p, video, at, kind, q);
+}
+
+/** A still of `video` for a slot (D-90), with its repair note; `{ q }` alone when none was made. */
+async function stillPicture(
+  run: AgentRun,
+  p: Project,
+  video: string | undefined,
+  at: StillAt,
+  kind: string,
+  q: string | undefined,
+): Promise<Picture> {
   const s = video === undefined ? undefined : await stillOf(run, p, video, at, kind);
   if (!s) return q === undefined ? {} : { q };
   const still = `still of ${run.aliases.aliasOf(video!)} at ${String(s.srcMs)} ms (${q === undefined ? 'no picture query' : `no picture for ${q}`})`;
@@ -374,7 +483,12 @@ interface BeatSpan {
   sequenceId: string;
   startMs: number;
   endMs: number;
+  /** The beat's made-up picture query (D-94), when its model gave none. */
+  auto?: AutoQuery;
 }
+
+/** At most this many stills of the source video in one collage (D-94): more look the same. */
+export const MAX_STILLS_PER_SCENE = 2;
 const stillAt = (b: BeatSpan, k = 0, n = 1): StillAt => ({
   sequenceId: b.sequenceId,
   atMs: b.startMs + Math.round(((b.endMs - b.startMs) * (k + 1)) / (n + 1)),
@@ -383,8 +497,11 @@ const stillAt = (b: BeatSpan, k = 0, n = 1): StillAt => ({
 /**
  * Pictures inside arrays (paper-collage `items/*\/media`): an entry that does not name a picture of
  * the project gets one from the next image query, or from its own text when the model wrote a
- * description there, or a still of the video it names (D-90). `missing` names the first entry left
- * without a picture.
+ * description there, or from the beat's made-up query (D-94), or a still of the video (D-90).
+ * `missing` names the first entry left without a picture. Stills are made last (D-94): when more
+ * than MAX_STILLS_PER_SCENE entries would show a still of the source and none got another picture,
+ * `textLed()` may turn the scene into a text-led one (`textLed: true`, nothing filled); otherwise
+ * the entries over that many stills are dropped (when the array keeps its minimum), with a note.
  */
 async function fillArrays(
   run: AgentRun,
@@ -394,27 +511,58 @@ async function fillArrays(
   queries: string[],
   span: BeatSpan,
   note: (what: string) => void,
-): Promise<{ variables: Record<string, unknown>; missing?: string }> {
+  textLed?: () => boolean,
+): Promise<{ variables: Record<string, unknown>; missing?: string; textLed?: true }> {
   let out = variables;
+  const props = (t.variables['properties'] ?? {}) as Record<
+    string,
+    { minItems?: unknown } | undefined
+  >;
   for (const [arr, field, kind] of nestedSlots(t)) {
     const list = out[arr];
     if (!Array.isArray(list)) continue;
-    const filled: unknown[] = [];
+    const got: { entry: Record<string, unknown>; pic: Picture }[] = [];
     for (const [k, el] of list.entries()) {
       if (typeof el !== 'object' || el === null) continue;
       const entry = { ...(el as Record<string, unknown>) };
-      const got = await pictureFor(
-        run,
-        p,
-        entry[field],
-        queries,
-        kind,
-        stillAt(span, k, list.length),
-        true,
-      );
-      if (!got.id) return { variables: out, missing: got.q ?? `${arr} ${field}` };
-      if (got.still) note(`${arr} ${String(k)}: ${got.still}`);
-      entry[field] = got.id;
+      const at = stillAt(span, k, list.length);
+      const pic = await pictureFor(run, p, entry[field], queries, kind, at, true, span.auto, false);
+      if (!pic.id && pic.stillVideo === undefined)
+        return { variables: out, missing: pic.q ?? `${arr} ${field}` };
+      got.push({ entry, pic });
+    }
+    const stills = got.filter((g) => !g.pic.id);
+    const minItems = props[arr]?.minItems;
+    const min = typeof minItems === 'number' ? minItems : 1;
+    let keep = got;
+    if (stills.length > MAX_STILLS_PER_SCENE) {
+      if (stills.length === got.length && textLed?.()) return { variables: out, textLed: true };
+      const drop = new Set(stills.slice(MAX_STILLS_PER_SCENE));
+      if (got.length - drop.size >= min) {
+        keep = got.filter((g) => !drop.has(g));
+        const which = got.flatMap((g, k) => (drop.has(g) ? [String(k)] : [])).join(', ');
+        note(
+          `${arr} ${which}: dropped (at most ${String(MAX_STILLS_PER_SCENE)} stills of the source video in a scene)`,
+        );
+      }
+    }
+    const filled: unknown[] = [];
+    for (const [k, { entry, pic }] of keep.entries()) {
+      let id = pic.id;
+      if (!id) {
+        const s = await stillPicture(
+          run,
+          p,
+          pic.stillVideo,
+          stillAt(span, k, keep.length),
+          kind,
+          pic.q,
+        );
+        if (!s.id) return { variables: out, missing: pic.q ?? `${arr} ${field}` };
+        if (s.still) note(`${arr} ${String(k)}: ${s.still}`);
+        id = s.id;
+      }
+      entry[field] = id;
       filled.push(entry);
     }
     out = { ...out, [arr]: filled };
@@ -448,6 +596,7 @@ async function fillTopSlots(
       kind,
       stillAt(span),
       required.has(slot),
+      span.auto,
     );
     if (got.id) {
       if (got.still) note(`${slot}: ${got.still}`);
@@ -603,6 +752,7 @@ export async function clipPlanToOps(
   const ops: PlanOp[] = [];
   const repairs: Repair[] = [];
   for (const sp of plan.sequences) {
+    const textLed = textLedTemplates(styleTemplateIds(run, p, sp.sequenceId, templates), templates);
     const end = sequenceEnd(p, sp.sequenceId);
     const seq = p.sequences.find((s) => s.id === sp.sequenceId)!;
     const free = seq.videoTracks.find(
@@ -619,10 +769,20 @@ export async function clipPlanToOps(
       (it) => [it.startMs, it.startMs + it.durationMs] as const,
     );
     let prevEnd = 0;
-    const beats = [...sp.beats].sort((a, b) => a.startMs - b.startMs);
+    // D-94: at most MAX_SAME_TEMPLATE scenes of one template; the others turn text-led.
+    const varied = varySceneTemplates(
+      [...sp.beats].sort((a, b) => a.startMs - b.startMs),
+      textLed,
+      templates,
+    );
+    const beats = varied.beats;
+    const counts = varied.counts;
+    for (const n of varied.notes)
+      repairs.push({ beat: n.beat, sequenceId: sp.sequenceId, what: n.what });
+    const words = await spokenWords(run, p, seq);
     // D-92: scenes start when their words are spoken. `synced` holds the new times of the moved
     // scenes; beats run in their new start order (repair notes keep the planned beat index).
-    const synced = await syncBeatsToSpeech(run, p, seq, beats, templates, end);
+    const synced = syncBeatsToSpeech(beats, templates, end, words);
     const order = beats
       .map((b, i) => ({ b, i, at: synced.get(i)?.startMs ?? b.startMs }))
       .sort((x, y) => x.at - y.at || x.i - y.i);
@@ -632,7 +792,7 @@ export async function clipPlanToOps(
       const moved = synced.get(i);
       if (moved)
         note(
-          `scene ${JSON.stringify(moved.text)} moved ${String(planned.startMs)} → ${String(moved.startMs)} ms to match speech`,
+          `scene ${JSON.stringify(moved.text)} moved ${String(planned.startMs)} → ${String(moved.startMs)} ms to match speech${moved.word === undefined ? '' : ` (the word ${JSON.stringify(moved.word)})`}`,
         );
       const b = moved
         ? { ...planned, startMs: moved.startMs, endMs: moved.startMs + moved.durationMs }
@@ -650,6 +810,11 @@ export async function clipPlanToOps(
       let variables: Record<string, unknown> = { ...(b.variables ?? {}) };
       const queries = [...(b.imageQueries ?? [])];
       const span: BeatSpan = { sequenceId: sp.sequenceId, startMs: b.startMs, endMs: b.endMs };
+      // D-94: no picture query from the model: one made up from the scene text or the speech
+      if (queries.length === 0) {
+        const auto = autoQuery(sceneTexts(t, variables, templates), words, span);
+        if (auto) span.auto = auto;
+      }
       // Top-level picture slots: a required one with no picture turns the scene into a placeholder;
       // an optional one is left empty with a repair note (D-90: a stat renders without its bgPhoto).
       const top = await fillTopSlots(run, p, t, variables, queries, span, note);
@@ -673,10 +838,25 @@ export async function clipPlanToOps(
       // Scenes inside a `template` slot (stack `panels/*`, D-86): each panel's own picture slots are
       // filled the same way, from the same queue of image queries, in panel order.
       let missing: string | undefined;
+      // D-94: a collage that would show only stills of the source turns text-led when it can
+      const from = t;
+      const conv: { to?: ReturnType<typeof toTextLed> } = {};
+      const toText = () => {
+        conv.to = toTextLed(from, variables, textLed, counts, templates);
+        return conv.to !== undefined;
+      };
       if (template !== PLACEHOLDER_TEMPLATE) {
-        const arrays = await fillArrays(run, p, t, variables, queries, span, note);
+        const arrays = await fillArrays(run, p, t, variables, queries, span, note, toText);
         missing = arrays.missing;
-        if (missing === undefined) {
+        const turned = conv.to;
+        if (arrays.textLed && turned) {
+          note(
+            `${template} would show only stills of the source: ${turned.template} ${JSON.stringify(turned.text)} instead`,
+          );
+          template = turned.template;
+          variables = turned.variables;
+          t = templates.get(template)!;
+        } else if (missing === undefined) {
           const panels = await fillPanels(
             run,
             p,
@@ -706,6 +886,8 @@ export async function clipPlanToOps(
       // whole batch: the scene becomes a placeholder instead, with the reason in the repairs.
       if (template !== PLACEHOLDER_TEMPLATE) {
         variables = shortenTexts(t, variables, note);
+        // D-94: unknown keys and invalid optional values are dropped, not the whole scene
+        variables = fitVariables(t, variables, templates, note);
         const problem = await variablesProblem(run, t, variables, templates);
         const ph = problem === undefined ? undefined : templates.get(PLACEHOLDER_TEMPLATE);
         if (problem !== undefined && !ph) {
@@ -719,6 +901,13 @@ export async function clipPlanToOps(
           t = ph;
         }
       }
+      const auto = span.auto;
+      if (auto?.candidates !== undefined)
+        note(
+          auto.found > 0
+            ? `${String(auto.found)} archive picture(s) for ${JSON.stringify(auto.query)} (query from the ${auto.from}; the plan gave none)`
+            : `no archive picture for ${JSON.stringify(auto.query)} (query from the ${auto.from})`,
+        );
       let start = clamp(Math.max(b.startMs, prevEnd), 0, end);
       if (start !== b.startMs) note(`start moved ${String(b.startMs)} → ${String(start)}`);
       const want = planned.endMs - planned.startMs;
@@ -801,20 +990,20 @@ interface SyncedBeat {
   durationMs: number;
   /** The scene text matched (shortened for the repair note). */
   text: string;
+  /** The one rare word that placed it (D-94). */
+  word?: string;
 }
 
 /**
  * Speech sync of the scene beats of one sequence (D-92): beat index → new start, duration and the
  * matched text, for the scenes that move. Durations are the planned ones after template clamps.
  */
-async function syncBeatsToSpeech(
-  run: AgentRun,
-  p: Project,
-  seq: Project['sequences'][number],
+function syncBeatsToSpeech(
   beats: ClipPlan['sequences'][number]['beats'],
   templates: TemplateLookup,
   end: number,
-): Promise<Map<number, SyncedBeat>> {
+  words: readonly SpokenWord[],
+): Map<number, SyncedBeat> {
   const moved = new Map<number, SyncedBeat>();
   const scenes = beats.flatMap((b, i) => {
     const t = b.kind === 'scene' && b.template ? templates.get(b.template) : undefined;
@@ -829,9 +1018,7 @@ async function syncBeatsToSpeech(
       },
     ];
   });
-  if (!scenes.some((s) => s.texts.length > 0)) return moved;
-  const words = await spokenWords(run, p, seq);
-  if (words.length === 0) return moved;
+  if (!scenes.some((s) => s.texts.length > 0) || words.length === 0) return moved;
   for (const [k, r] of syncScenesToSpeech(scenes, words, end).entries()) {
     const s = scenes[k]!;
     if (r.matchedText === undefined || r.startMs === s.startMs) continue;
@@ -839,9 +1026,33 @@ async function syncBeatsToSpeech(
       r.matchedText.length > SYNC_NOTE_CHARS
         ? `${r.matchedText.slice(0, SYNC_NOTE_CHARS - 1)}${ELLIPSIS}`
         : r.matchedText;
-    moved.set(s.i, { startMs: r.startMs, durationMs: r.durationMs, text });
+    moved.set(s.i, {
+      startMs: r.startMs,
+      durationMs: r.durationMs,
+      text,
+      ...(r.matchedWord !== undefined && { word: r.matchedWord }),
+    });
   }
   return moved;
+}
+
+/**
+ * Scene template ids of the sequence's style, in the style's order (the plan menu's list), for the
+ * text-led alternatives of the variety repair (D-94). Empty when the style cannot be read.
+ */
+function styleTemplateIds(
+  run: AgentRun,
+  p: Project,
+  sequenceId: string,
+  templates: TemplateLookup,
+): string[] {
+  try {
+    const ids = Object.keys(run.ctx.engine.styles.get(styleIdOf(p, [sequenceId])).templates);
+    return ids.filter((id) => templates.get(id)?.kind === 'scene');
+  } catch (err) {
+    if (!isVoxError(err)) throw err;
+    return [];
+  }
 }
 
 /** Why the variables do not fit the template (the engine's own check), or undefined when they do. */
@@ -919,7 +1130,7 @@ async function planContext(
 }
 
 const PLAN_FORMAT = {
-  clip: 'Answer with a ClipPlan: { sequences: [{ sequenceId, beats: [{ startMs, endMs, kind: "speaker" | "scene", template?, variables?, imageQueries? }] }] }. Beat times are sequence time. Leave image slots empty and give imageQueries instead.',
+  clip: 'Answer with a ClipPlan: { sequences: [{ sequenceId, beats: [{ startMs, endMs, kind: "speaker" | "scene", template?, variables?, imageQueries? }] }] }. Beat times are sequence time. Use a mix of scene templates: at most 2 scenes of one template in a clip. Leave image slots empty and give imageQueries instead: one short English query per picture, naming a concrete thing to photograph (archive search); never the source video.',
   ops: 'Answer with { ops: [{ op, args }] }: engine op names (moveItem, trimItem, addScene, …) with the same args as their tools. Use the short ids from the view.',
 } as const;
 
