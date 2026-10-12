@@ -1,8 +1,14 @@
 // The `vox quick` step table: the rows add up to the wall time, a registered scorer's time is a row
 // of its own (taken out of quickClips, not added on top), and repeated steps (one render per clip)
-// add up in one row.
-import { describe, expect, test } from 'vitest';
-import { stepClock, stepTable } from '../src/quick-steps.ts';
+// add up in one row. The highlights wait is capped at the shared 30 s grace (D-85).
+import { HIGHLIGHTS_GRACE_MS } from '@vox/engine';
+import { describe, expect, test, vi } from 'vitest';
+import {
+  HIGHLIGHTS_SKIPPED_NOTE,
+  stepClock,
+  stepTable,
+  waitHighlights,
+} from '../src/quick-steps.ts';
 
 function fakeClock(start = 1000.4) {
   let t = start;
@@ -79,5 +85,52 @@ describe('vox quick step table', () => {
     plain.mark('quickClips');
     plain.split('missing', 'scorer', 10);
     expect(plain.rows()).toEqual([{ step: 'quickClips', ms: 30 }]);
+  });
+});
+
+describe('vox quick highlights wait (D-85)', () => {
+  test('a highlights job still running 30 s after the other steps is cancelled and skipped', async () => {
+    vi.useFakeTimers();
+    try {
+      let settle: (v: string) => void = () => {};
+      // a fake highlights job that never finishes on its own; cancelling settles it
+      const job = new Promise<string>((r) => (settle = r));
+      const cancel = vi.fn(() => settle('cancelled'));
+      const c = fakeClock(0);
+      const clock = stepClock(c.now);
+      const waiting = waitHighlights(job, cancel);
+      let result: Awaited<typeof waiting> | undefined;
+      void waiting.then((r) => (result = r));
+      await vi.advanceTimersByTimeAsync(HIGHLIGHTS_GRACE_MS - 1);
+      expect(result).toBeUndefined();
+      expect(cancel).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ value: 'cancelled', skipped: true });
+      c.tick(HIGHLIGHTS_GRACE_MS);
+      clock.mark('highlights wait');
+      clock.note('highlights wait', HIGHLIGHTS_SKIPPED_NOTE);
+      expect(clock.rows()).toEqual([
+        { step: 'highlights wait', ms: 30_000, note: 'capped at 30 s, highlights skipped' },
+      ]);
+      expect(stepTable(clock.rows(), clock.totalMs())).toBe(
+        'highlights wait  30.0 s  (capped at 30 s, highlights skipped)\ntotal            30.0 s\n',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a highlights job done within 30 s is used and its timer cleared', async () => {
+    vi.useFakeTimers();
+    try {
+      const cancel = vi.fn();
+      const r = await waitHighlights(Promise.resolve('done'), cancel);
+      expect(r).toEqual({ value: 'done', skipped: false });
+      expect(cancel).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -428,6 +428,7 @@ export {
 } from './stages/framecard.ts';
 export {
   HighlightsSchema,
+  HIGHLIGHTS_GRACE_MS,
   highlightsTimeoutMs,
   type Highlights,
   type NativeHelper,
