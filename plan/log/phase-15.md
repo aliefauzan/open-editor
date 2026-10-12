@@ -230,3 +230,9 @@ Verify (worktree, after merging main at 52b4c6b):
   `notSynthesised` and `cleanEdges`), the same on main without this branch, so not from round 3.
 - The old two-tier template fails the new `caption-gap` check ("again" still shown at 1600 ms); the
   new one passes every caption check.
+
+## Demo clip after D-93, D-94, D-95 (2026-10-13)
+Style re-extracted as `attention-compound-r3b` (D-93 preset: `tiered`, track 5 words / 2 lines / 25 characters, auto emphasis, 50 %; grain measured 0.02, paper-grain off). Clipper `--count 1 --length 30-60 --style attention-compound-r3b --yes-sources --yes` on fresh copies of the demo project (ollama qwen3.5, $0), render `--quality standard`, vidprep.
+- Run 1 (main 2710475): 6 scenes; boxed tier 2 shows ("MATEMATIKA,", "80", "20 RIBU"), 50 %, readable on the light wall, no visible grain. Two `vox/paper-collage` scenes planned with `items: []` became striped placeholders (0:23-0:31): fixed in D-95.
+- Run 2 (main c5daeaa): no placeholder; 3 scenes with English labels ("Math & Faith", "Unexpected Blessings"); captions behind the subject hide parts of words on the face (0:16, 0:24).
+- Run 3 (main c5daeaa), sent to the owner: 4 scenes (kinetic-serif twice, newspaper, text-overlay), each starts on its spoken words (moves 2833 → 1040, 11593 → 5351, 19660 → 15533 ms); boxed tier shows ("BERKEMBANG,"). Defects seen: the text-overlay label is English ("Opportunities beyond imagination. ...") on an Indonesian clip and overlaps the boxed caption at 0:26; tier 1 word spaces look too tight ("tuh nggak pernah" reads as one word); scene text and caption repeat the same words at 0:02 and 0:07. The newspaper body columns are the template's seeded greeked text by design.
