@@ -1,7 +1,10 @@
 // Clipper steps 1–2 (agent spec "Workflows" 1; plan D-11, D-15): the job chain, quick clips with
 // the agent's LLM scorer, the ranges checkpoint and Tighten. Stylize then runs on the new sequences.
 // Every job and write carries the run's `runId` (D-50), so "Undo this run" covers the whole run.
-import type { QuickClipsResult } from '@vox/engine';
+// Video highlights (macOS 27, D-75) run beside the job chain as in `vox quick` and the app's Make
+// clips (D-86): the pick waits for them at most HIGHLIGHTS_GRACE_MS after the chain, then goes on
+// without them; they never fail the run.
+import { HIGHLIGHTS_GRACE_MS, type HighlightsJobResult, type QuickClipsResult } from '@vox/engine';
 import { VoxError } from '../errors.ts';
 import { RunStopped, type AgentRun } from '../loop/run.ts';
 import type { TightenRange } from '../loop/types.ts';
@@ -127,6 +130,55 @@ async function tighten(
   return `Tighten ${alias}: cut ${String(ticked.length)} of ${String(raw.length)} pause(s)${mode === 'all' ? ' (--yes)' : ''}.`;
 }
 
+type HighlightsOutcome = { used: true; highlights: number } | { used: false; reason: string };
+
+/**
+ * Starts the `highlights` job on `mediaId` as the agent. `done` never rejects: "not available", a
+ * failure or a cancel is an outcome with its reason. `cancel` stops the job.
+ */
+function startHighlights(run: AgentRun, mediaId: string) {
+  const stop = new AbortController();
+  const signal = run.ctx.signal ? AbortSignal.any([run.ctx.signal, stop.signal]) : stop.signal;
+  const args = { mediaId, actor: 'agent', runId: run.runId };
+  const done: Promise<HighlightsOutcome> = job(run.ctx, 'highlights', args, signal).then(
+    (r) => {
+      const h = r as HighlightsJobResult;
+      return h.available
+        ? { used: true, highlights: h.highlights }
+        : { used: false, reason: h.reason };
+    },
+    (err: unknown) => ({
+      used: false,
+      reason: err instanceof Error ? err.message : String(err),
+    }),
+  );
+  return { done, cancel: () => stop.abort() };
+}
+
+/**
+ * Waits for the highlights at most `graceMs`; still running then, they are cancelled (and waited
+ * for, so nothing is left running). A job that finished as the grace ran out still counts.
+ */
+async function settleHighlights(
+  hl: ReturnType<typeof startHighlights>,
+  graceMs: number,
+): Promise<{ outcome: HighlightsOutcome; skipped: boolean }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = Symbol('late');
+  const first = await Promise.race([
+    hl.done,
+    new Promise<typeof late>((r) => (timer = setTimeout(() => r(late), graceMs))),
+  ]).finally(() => clearTimeout(timer));
+  if (first !== late) return { outcome: first, skipped: false };
+  hl.cancel();
+  const outcome = await hl.done;
+  if (outcome.used) return { outcome, skipped: false };
+  return {
+    outcome: { used: false, reason: `still running after ${String(graceMs / 1000)} s, skipped` },
+    skipped: true,
+  };
+}
+
 /** The first link or path in the message or attachments (the clipper's input). */
 export function sourceIn(message: string, attachments: readonly string[] = []): string | undefined {
   if (attachments[0]) return attachments[0];
@@ -176,9 +228,28 @@ export async function clipperSteps(
   const have = (await run.ctx.engine.getProject(run.ctx.projectId)).media.find(
     (m) => m.id === mediaId,
   );
-  if (!have?.shotsPath) await run.workflowCall('shots', { mediaId });
-  if (!have?.transcriptPath) await run.workflowCall('transcribe', { mediaIds: [mediaId] });
-  if (!have?.facetrackPath) await run.workflowCall('facetrack', { mediaId });
+  // highlights start first and run beside the chain (no job slot, no project change); a cached
+  // result comes back at once
+  const hl = startHighlights(run, mediaId);
+  try {
+    if (!have?.shotsPath) await run.workflowCall('shots', { mediaId });
+    if (!have?.transcriptPath) await run.workflowCall('transcribe', { mediaIds: [mediaId] });
+    if (!have?.facetrackPath) await run.workflowCall('facetrack', { mediaId });
+  } catch (err) {
+    hl.cancel();
+    await hl.done;
+    throw err;
+  }
+  const { outcome, skipped } = await settleHighlights(
+    hl,
+    run.deps.highlightsGraceMs ?? HIGHLIGHTS_GRACE_MS,
+  );
+  run.record.write({ type: 'highlights', mediaId, ...outcome, skipped });
+  notes.push(
+    outcome.used
+      ? `Video highlights: used (${String(outcome.highlights)} ranges).`
+      : `Video highlights: not used (${outcome.reason}).`,
+  );
 
   const fast = run.deps.models.fast;
   // A Stop at the scorer's budget prompt cancels the job (the engine would otherwise fall back to

@@ -184,6 +184,100 @@ describe('run end status', () => {
   }, 120_000);
 });
 
+describe('video highlights (D-75, D-86)', () => {
+  async function oneClip(kit: Kit) {
+    kit.deps.models = { editor: role(dynamicModel(toolsStylist()).model) };
+    return runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'clipper',
+      message: `make 1 vox clip from ${FIXTURE_VIDEO}`,
+      mode: 'tools',
+      ...CLIP,
+      count: 1,
+      tighten: 'all',
+    });
+  }
+
+  test('the clipper starts the highlights job for its media beside the job chain', async () => {
+    const kit = await workflowKit();
+    const r = await oneClip(kit);
+    expect(r.done.status, r.done.summary).toBe('completed');
+    const kinds = kit.jobs.map((j) => j.kind);
+    const hl = kit.jobs.find((j) => j.kind === 'highlights');
+    const quick = kit.jobs.find((j) => j.kind === 'quickClips');
+    expect(hl?.args).toMatchObject({
+      projectId: kit.projectId,
+      mediaId: quick?.args['mediaId'],
+      actor: 'agent',
+      runId: 'run_wftest0001',
+    });
+    // started before the chain it runs beside, and before the pick that reads its output
+    expect(kinds.indexOf('highlights')).toBeLessThan(kinds.indexOf('shots'));
+    expect(kinds.indexOf('highlights')).toBeLessThan(kinds.indexOf('quickClips'));
+    // the test engine has no native helper: the pick goes on without highlights and says so
+    expect(r.done.summary).toMatch(/Video highlights: not used \(/);
+    const line = readRunRecord(r.run.record.path).find((l) => l.type === 'highlights');
+    expect(line).toMatchObject({ mediaId: quick?.args['mediaId'], used: false, skipped: false });
+  }, 120_000);
+
+  test('highlights still running after the grace are cancelled; the clips go on without them', async () => {
+    const kit = await workflowKit({ highlightsGraceMs: 20 });
+    const runJob = kit.deps.runJob!;
+    let cancelled = false;
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'highlights') return runJob(kind, args, signal);
+      // a helper that never answers: only the cancel ends it
+      return new Promise((_, reject) =>
+        signal?.addEventListener('abort', () => {
+          cancelled = true;
+          reject(new VoxError('CANCELLED', 'Highlights were cancelled.', 'x'));
+        }),
+      );
+    };
+    const r = await oneClip(kit);
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(cancelled).toBe(true);
+    expect(r.sequenceIds).toHaveLength(1);
+    expect(r.done.summary).toMatch(/Video highlights: not used \(still running after 0\.02 s/);
+    const line = readRunRecord(r.run.record.path).find((l) => l.type === 'highlights');
+    expect(line).toMatchObject({ used: false, skipped: true });
+  }, 120_000);
+
+  test('a failed highlights job never fails the run', async () => {
+    const kit = await workflowKit();
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'highlights') return runJob(kind, args, signal);
+      throw new VoxError('TOOL_FAILED', 'the analyzer crashed', 'x');
+    };
+    const r = await oneClip(kit);
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(r.done.summary).toContain('Video highlights: not used (the analyzer crashed)');
+  }, 120_000);
+
+  test('highlights the helper found are used and reported', async () => {
+    const kit = await workflowKit();
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'highlights') return runJob(kind, args, signal);
+      const mediaId = args['mediaId'] as string;
+      return {
+        mediaId,
+        available: true,
+        highlightsPath: `cache/highlights/${mediaId}.json`,
+        highlights: 2,
+        keyFrameMs: 1500,
+        cached: false,
+      };
+    };
+    const r = await oneClip(kit);
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(r.done.summary).toContain('Video highlights: used (2 ranges)');
+    const line = readRunRecord(r.run.record.path).find((l) => l.type === 'highlights');
+    expect(line).toMatchObject({ used: true, highlights: 2, skipped: false });
+  }, 120_000);
+});
+
 describe('workflow calls after a Stop', () => {
   test('workflowCall on a stopped run throws RunStopped and runs no tool', async () => {
     const kit = await workflowKit();
