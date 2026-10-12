@@ -33,6 +33,7 @@ single-threaded run.
 
 from __future__ import annotations
 
+import functools
 import itertools
 import json
 import os
@@ -264,12 +265,19 @@ def _cgimage(frame: np.ndarray):
     )
 
 
+@functools.cache
+def _face_revision_supported() -> bool:
+    import Vision
+
+    return VISION_FACE_REVISION in list(Vision.VNDetectFaceRectanglesRequest.supportedRevisions())
+
+
 def face_request():
     """A `VNDetectFaceRectanglesRequest` at `VISION_FACE_REVISION` when the system supports it."""
     import Vision
 
     req = Vision.VNDetectFaceRectanglesRequest.alloc().init()
-    if VISION_FACE_REVISION in list(Vision.VNDetectFaceRectanglesRequest.supportedRevisions()):
+    if _face_revision_supported():
         req.setRevision_(VISION_FACE_REVISION)
     return req
 
