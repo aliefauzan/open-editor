@@ -2,7 +2,7 @@
   "name": "newspaper",
   "version": "1.0.0",
   "kind": "scene",
-  "description": "An aged newspaper clipping slides in on the board: masthead rule with a date, a big serif headline, an optional subhead, an optional halftone photo and columns of grey text lines. Like the \"LA JOCONDE A DISPARU\" front page in the reference reel. `language` sets the language of the headline (hyphenation and quotes), so a French or Indonesian headline breaks correctly.",
+  "description": "An aged front page slides up onto a light board: a masthead line with the date, a big condensed headline, an optional italic subhead, three columns of small type and an optional photo as an engraved oval. Like the \"LA JOCONDE A DISPARU\" front page in the reference reel. `language` sets the language of the headline (hyphenation and quotes), so a French or Indonesian headline breaks correctly.",
   "useWhen": [
     "the speaker quotes a headline, a news report or a front page",
     "an event is introduced as news (a theft, an election, a launch, a disaster)",

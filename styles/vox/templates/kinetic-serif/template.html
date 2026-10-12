@@ -228,13 +228,15 @@
           var root = mount.root;
           var v = mount.vars;
           var W = __W__;
+          // size unit: the width, or the height on a landscape canvas (a `stack` panel, D-71)
+          var U = Math.min(W, __H__);
           var DUR = __DUR__;
           var M = voxMotion.create(root, '__ID__');
           var page = root.querySelector('.v-page');
           page.classList.add('bg-' + (v.bg || 'dark'));
           var box = root.querySelector('.k-box');
           if (v.align === 'left') box.className = 'k-box k-left';
-          box.style.fontSize = Math.round(W * 0.088) + 'px';
+          box.style.fontSize = Math.round(U * 0.088) + 'px';
           var norm = function (s) {
             return String(s)
               .toLowerCase()

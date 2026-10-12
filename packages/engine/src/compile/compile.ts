@@ -266,12 +266,13 @@ function emitInstance(
   vars: unknown,
   durMs: number,
   extra: [string, string][] = [],
+  size: { width: number; height: number } = ctx.seq.canvas,
 ): string {
   let inner = templateInner(htmlPath)
     .replaceAll('__ID__', id)
     .replaceAll('__DUR__', secOf(ctx, durMs))
-    .replaceAll('__W__', String(ctx.seq.canvas.width))
-    .replaceAll('__H__', String(ctx.seq.canvas.height))
+    .replaceAll('__W__', String(size.width))
+    .replaceAll('__H__', String(size.height))
     .replace('<!--vox:tokens-->', () => tokensBlock(ctx, style))
     .replace('<!--vox:vars-->', () => varsBlock(id, vars));
   for (const [k, v] of extra) inner = inner.replace(k, () => v);
@@ -390,6 +391,19 @@ async function sceneVars(
   return vars;
 }
 
+/**
+ * Canvas of a nested panel (D-71): the sequence canvas, or with a template's `panelAspect` ("a:b") the
+ * canvas width and the height of that ratio, rounded to an even number of pixels.
+ */
+export function panelSize(
+  canvas: { width: number; height: number },
+  aspect: string | undefined,
+): { width: number; height: number } {
+  if (aspect === undefined) return { width: canvas.width, height: canvas.height };
+  const [a, b] = aspect.split(':').map(Number) as [number, number];
+  return { width: canvas.width, height: 2 * Math.round((canvas.width * b) / a / 2) };
+}
+
 /** Nested panels of `template` slots (depth 1): one host per panel at `<!--vox:panels-->`. */
 async function panelHosts(
   ctx: Ctx,
@@ -398,8 +412,7 @@ async function panelHosts(
   durMs: number,
 ): Promise<string[]> {
   const hosts: string[] = [];
-  const W = ctx.seq.canvas.width;
-  const H = ctx.seq.canvas.height;
+  const { width: W, height: H } = panelSize(ctx.seq.canvas, def.panelAspect);
   for (const [path, kind] of Object.entries(def.slots).sort(([a], [b]) => cmp(a, b))) {
     if (kind !== 'template') continue;
     const panels: unknown[] = [];
@@ -421,7 +434,16 @@ async function panelHosts(
         (variables ?? {}) as Record<string, unknown>,
         durMs,
       );
-      const src = emitInstance(ctx, id, pdef.htmlPath, tokenStyle(ctx, pdef.styleId), vars, durMs);
+      const src = emitInstance(
+        ctx,
+        id,
+        pdef.htmlPath,
+        tokenStyle(ctx, pdef.styleId),
+        vars,
+        durMs,
+        [],
+        { width: W, height: H },
+      );
       // nested mounts: the path is project-relative like top-level mounts (phase 01 finding)
       hosts.push(
         `<div id="${id}" class="vox-panel" data-vox-panel="${k}" data-composition-id="${id}"${src} data-start="0" data-duration="${secOf(ctx, durMs)}" data-width="${W}" data-height="${H}"></div>`,

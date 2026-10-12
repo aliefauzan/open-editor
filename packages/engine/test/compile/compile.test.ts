@@ -2,7 +2,7 @@
 // hooks, stack panels, token scoping, entrance skip, caption presets, framing, VFR, S9.
 import { describe, expect, test } from 'vitest';
 import { hookSeed, readStyleAsset } from '../../src/compile/hooks.ts';
-import { presetText } from '../../src/compile/compile.ts';
+import { panelSize, presetText } from '../../src/compile/compile.ts';
 import { captionsToSrt } from '../../src/model/captions.ts';
 import type { Project } from '../../src/model/schema.ts';
 import { CAPTION_DEFAULTS } from '../../src/ops/captions.ts';
@@ -196,10 +196,24 @@ describe('stack panels and token scoping (step 9)', () => {
       '<div id="it_s-p0" class="vox-panel" data-vox-panel="0" data-composition-id="it_s-p0" data-composition-src="scenes/it_s-p0.html" data-start="0" data-duration="3"',
     );
     expect(host).toContain('data-composition-src="scenes/it_s-p1.html"');
+    // kit/stack sets panelAspect 16:9 (D-71): panels are 1080x608 in the 1080x1920 sequence
+    expect(host).toContain('data-width="1080" data-height="608"');
+    expect(instance(b, 'it_s-p0')).toContain('data-height="608"');
+    expect(instance(b, 'it_s')).toContain('data-height="1920"');
     expect(varsOf(instance(b, 'it_s-p0'), 'it_s-p0')).toEqual({ label: 'one' });
     expect(varsOf(instance(b, 'it_s-p1'), 'it_s-p1')).toEqual({ title: 'two' });
     const pv = await build(p, { mode: 'preview' }, registry(['kit']));
     expect(index(pv)).toContain('<template id="it_s-p1-template">');
+  });
+
+  test('panelAspect gives panels the canvas width and the height of the ratio (D-71)', () => {
+    expect(panelSize({ width: 1080, height: 1920 }, undefined)).toEqual({
+      width: 1080,
+      height: 1920,
+    });
+    expect(panelSize({ width: 1080, height: 1920 }, '16:9')).toEqual({ width: 1080, height: 608 });
+    expect(panelSize({ width: 1920, height: 1080 }, '16:9')).toEqual({ width: 1920, height: 1080 });
+    expect(panelSize({ width: 720, height: 1280 }, '4:3')).toEqual({ width: 720, height: 540 });
   });
 
   test('an inherited template takes the sequence style tokens; an unrelated style keeps its own', async () => {

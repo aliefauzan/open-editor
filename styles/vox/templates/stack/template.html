@@ -16,38 +16,30 @@
           position: absolute;
           inset: 0;
           overflow: hidden;
-          background-color: var(--tok-color-dark);
+          background-color: #0c0b0a;
         }
-        .v-page::before {
+        .v-page.bg-paper {
+          background-color: var(--tok-color-paper);
+        }
+        .v-page.bg-paper::before {
           content: '';
           position: absolute;
           inset: 0;
           background-image: var(--tok-texture-paper);
           background-size: 50% auto;
           mix-blend-mode: multiply;
-          opacity: 0.4;
-        }
-        .v-page.bg-paper {
-          background-color: var(--tok-color-paper);
-        }
-        .v-page.bg-paper::before {
           opacity: 0.3;
         }
         .v-page.bg-highlight {
           background-color: var(--tok-color-highlight);
         }
-        /* a panel is a full-size scene instance; the script scales it down and crops it to its band */
+        /* a panel is a scene instance at the panel canvas (16:9, D-71), scaled into its band */
         .vox-panel {
           position: absolute;
           left: 0;
           top: 0;
           overflow: hidden;
-        }
-        /* paper edge behind each band */
-        .k-edge {
-          position: absolute;
-          background: var(--tok-color-paper);
-          box-shadow: 0 12px 30px rgb(0 0 0 / 45%);
+          box-shadow: 0 0 0 1px rgb(0 0 0 / 60%);
         }
       </style>
       <div
@@ -204,7 +196,8 @@
         // vox:motion:end
       </script>
       <script>
-        // vox/stack: 2-3 nested scene panels (depth 1) in horizontal bands, sliding in from alternate sides.
+        // vox/stack: 2-3 nested scene panels (depth 1), landscape (panelAspect 16:9, D-71), stacked edge to
+        // edge with thin dark gaps like the reel's split screen, sliding in from alternate sides.
         (function () {
           var mount = vox.mount('__ID__');
           var root = mount.root;
@@ -216,48 +209,33 @@
           root.querySelector('.v-page').classList.add('bg-' + (v.bg || 'dark'));
           var panels = root.querySelectorAll('[data-vox-panel]');
           var n = panels.length;
-          var gut = Math.round(W * 0.018);
-          var edge = Math.round(W * 0.006);
-          var bandH = Math.round((H - (n + 1) * gut) / n);
-          // scenes keep their content in the upper half of a full frame: each band shows that half,
-          // scaled to fit the band (full width with 2 panels, narrower with 3)
-          var s = Math.min(1, bandH / (H * 0.5));
-          var bandW = Math.round(W * s);
-          var left = Math.round((W - bandW) / 2);
+          var gap = Math.round(H * 0.0065);
           var all = [];
           var tl = gsap.timeline({ paused: true });
           for (var k = 0; k < n; k++) {
-            var top = gut + k * (bandH + gut);
             var host = panels[k];
-            host.style.width = W + 'px';
-            host.style.height = H + 'px';
-            host.style.left = left + 'px';
-            host.style.top = top + 'px';
-            host.style.clipPath = 'inset(0 0 ' + (100 - (bandH / s / H) * 100) + '% 0)';
+            var pw = Number(host.getAttribute('data-width')) || W;
+            var ph = Number(host.getAttribute('data-height')) || H;
+            // the reel's panels are 89 % of the frame width; fewer or taller panels fit the height
+            var s = Math.min((W * 0.889) / pw, (H * 0.86 - (n - 1) * gap) / (n * ph));
+            var bw = Math.round(pw * s);
+            var bh = Math.round(ph * s);
+            var top0 = Math.round((H - (n * bh + (n - 1) * gap)) / 2 - H * 0.018);
+            host.style.width = pw + 'px';
+            host.style.height = ph + 'px';
+            host.style.left = Math.round((W - bw) / 2) + 'px';
+            host.style.top = top0 + k * (bh + gap) + 'px';
             gsap.set(host, { transformOrigin: '0 0', scale: s });
-            var rim = root.ownerDocument.createElement('div');
-            rim.className = 'k-edge';
-            rim.style.left = left - edge + 'px';
-            rim.style.top = top - edge + 'px';
-            rim.style.width = bandW + 2 * edge + 'px';
-            rim.style.height = bandH + 2 * edge + 'px';
-            host.parentNode.insertBefore(rim, host);
-            all.push([host, rim, k % 2 === 0 ? -1 : 1]);
+            all.push([host, k % 2 === 0 ? -1 : 1]);
           }
           if (!v.skipEntrance) {
             for (var i = 0; i < all.length; i++) {
-              var dir = all[i][2];
+              var dir = all[i][1];
               var d = 0.45;
               var at = 0.12 * i;
               var from = { x: dir * (W + 40) };
               var to = { x: 0, duration: d, ease: M.held('power3.out', d) };
               tl.fromTo(all[i][0], from, to, at);
-              tl.fromTo(
-                all[i][1],
-                { x: dir * (W + 40) },
-                { x: 0, duration: d, ease: M.held('power3.out', d) },
-                at,
-              );
             }
           }
           tl.set(root, {}, DUR);

@@ -1978,6 +1978,37 @@ model is local Ollama.
 **Why**: measure-first with a deterministic map keeps the draft reproducible and useful without a model; a re-skin needs
 no untrusted code; the repair step makes small local models usable instead of silently dropping their answer.
 
+## D-71 — GATE 6 round 3: real assets, 16:9 `stack` panels, four templates redone against the reel (phase 14a, 2026-10-12)
+**Context**: D-67 reopened GATE 6 ("its not look the same"). Round 3 must make `year-card`, `framed-portrait`,
+`newspaper` and `stack` look like the reference reel (7.5, 8.6 and 9.6 s) with licence-checked assets
+(`docs/evidence/phase-07/reference/asset-candidates/MANIFEST.json`), and the owner judges the new sheet.
+**Decision**:
+- Engine: `template.json` gets an optional `panelAspect` (`"W:H"`, only with a `template` slot). Nested panels render
+  at the canvas width and that ratio, rounded to an even height (`panelSize` in `compile.ts`); without it, panels keep
+  the full canvas. Additive to the frozen R2 `template.json` contract; spec "template.json" and R2 index updated.
+  `vox/stack` sets `"16:9"`: three full-width bands with thin dark gaps, like the reel.
+- Templates 1.1.0. Variables stay backward compatible; one additive variable: `framed-portrait` `empty?: boolean`
+  (the painting leaves the frame before the stamp). `newspaper` slide-in is 80 % over 0.5 s so its move cue peaks on
+  time. `stat`, `kinetic-serif` and `paper-collage` get a landscape mode for bands (portrait output unchanged).
+- Shipped style assets (records in `styles/vox/ASSETS.md`, `assets/fonts/SOURCES.md`; guarded by
+  `early-assets.test.ts`): carved gilt frame `props/frame-rococo.webp` from MET 460353 (CC0; chosen over the
+  French-style and plainer MET frames for the reel's rococo carving); `textures/board-dark.jpg` and `board-light.jpg`
+  from ambientCG Concrete036 (CC0), toned to the reel's boards; `fonts/Anton-subset.woff2` (OFL 1.1, declared as
+  `Vox Condensed`) for the newspaper headline. All are inlined by `scripts/sync-vox-inline.mjs` (now with `.webp`).
+  `vox credits` is unchanged (it lists project media; CC0 and OFL style assets need no credit line).
+- Content pictures are per-project media slots. The evidence inputs are public domain
+  (`docs/evidence/phase-14a/r3-inputs/SOURCES.md`). BnF/Gallica scans are look references only, never shipped; the
+  newspaper page is drawn.
+- `vox style validate` encodes preview GIFs with a Bayer dither (`bayer_scale=5`) so `styles/vox/previews/` stays under
+  the 8 MB test bound (7.58 MB) with the richer textures.
+- The owner decides round 3 on `docs/evidence/phase-14a/side-by-side-r3.jpg`; no delegated pass. Remaining
+  differences are listed in `plan/log/phase-14a.md` "GATE 6 round 3".
+**Why**: the reel's split screen is three landscape scenes, so a crop of a 9:16 scene can never match it; real
+frame, board and font assets close most of the look gap that D-67 named.
+**Alternatives**: scale a 9:16 scene into each band (tiny content, round 2's problem); a `stack`-only layout without an
+engine field (panels would still lay out for 9:16); shipping a Gallica front page (licence and BnF terms); raising the
+8 MB preview bound (weakens a test) or dropping frames from previews (worse motion review).
+
 ## D-72 · 2026-10-12 · feat/native-cutout · Cutout runs Apple Vision subject lift first; u2net is a fallback fetched on demand
 **Context**: `assets.cutout` ran rembg with `u2net.onnx` and the engine downloaded the 176 MB model before every first
 cutout (D-32 "Cutout model"). The macOS-native offload research (`docs/research/2026-10-12-macos-native-offload.md`)

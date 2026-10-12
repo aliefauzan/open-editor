@@ -1,0 +1,16 @@
+# GATE 6 round 3 inputs (phase 14a, plan D-71)
+
+Content pictures for `scripts/vox-gate6-r3.ts`. In a real project these are per-project media slots
+(`photo`, `blueprint`, `media`, `bgPhoto`); they are evidence inputs only and are not shipped with the app or the
+`vox` style. All are public domain. The originals were licence-checked into the gitignored
+`docs/evidence/phase-07/reference/asset-candidates/` (see `MANIFEST.json` there).
+
+| File               | Size     | Source                                                                                                                                                                      | Licence                  | Change                                                                                                                                       | SHA-256                                                            |
+| ------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `comet.jpg`        | 1100x626 | De Havilland Comet prototype at Hatfield, Imperial War Museum ATP 18376C, <https://commons.wikimedia.org/wiki/File:Comet_Prototype_at_Hatfield.jpg>                         | Public domain (UK Crown) | crop 1300x740 from y 20, scaled to 1100 wide                                                                                                 | `20c35838e31ea3132deb8520bde584b0a435a32d683630159353fe2848d7d599` |
+| `comet-lines.png`  | 1600x353 | "De-Havilland-Comet" by charner1963 (Openclipart), <https://commons.wikimedia.org/wiki/File:De-Havilland-Comet.svg>                                                         | Public domain            | rendered with `rsvg-convert` with a stylesheet of no fill and a 0.5 px black stroke on white, cropped to the aircraft                        | `33daa1c6f156f254503aa7d8b2ab344a1d2b653a9b3b5588813fea1e06ab14b2` |
+| `mona.jpg`         | 640x954  | Leonardo da Vinci, Mona Lisa (C2RMF scan, retouched), <https://commons.wikimedia.org/wiki/File:Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg>                   | Public domain            | scaled to 640 wide                                                                                                                           | `1f43fc16f5e23b4fb7b23b12dcfe9db2b2002ff367f4c01c40169aa14b99cb8b` |
+| `coffee-house.jpg` | 1000x720 | S. Ireland after W. Hogarth, Button's Coffee-House (ca. 1720), Wellcome Collection V0006694, <https://wellcomecollection.org/works/h83k3fu5>                                | Public domain            | scaled to 1000 wide                                                                                                                          | `feb4b56d54a0c7749f2934daef38e879874280a85ee8bf06042d7e861f9376db` |
+
+The Gallica (BnF) newspaper scans in the candidates folder were used only as a look reference for the drawn
+`newspaper` template. They are not committed here and are never shipped.

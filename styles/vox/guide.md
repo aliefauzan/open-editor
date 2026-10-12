@@ -21,18 +21,20 @@ Cut from the speaker to a scene when the speech says one of these, and pick the 
 - a list of things, objects or places, or a montage → `vox/paper-collage` (1–6 cutouts, spread over
   the frame, one `label` naming the group);
 - a year, decade or date that anchors an event or invention → `vox/year-card` (`year` short, `tag` names
-  the subject, `photo` an archive picture; an optional `blueprint` line drawing replaces the generic one);
+  the subject, `photo` an archive picture; an optional `blueprint` line drawing (dark lines on a light
+  ground, for example a side view of the machine) replaces the generic one);
 - a named person, portrait or famous artwork → `vox/framed-portrait` (`frame` `gold` for art and
   history, `polaroid` for modern or personal, `none` for a bare photo; `zoomTo` x and y in percent to
   zoom into a detail such as the eyes; `stamp` a short verdict such as GONE or FOUND, at most 14
-  characters, when the story has one);
+  characters, when the story has one; `empty` true when the picture itself went missing, so the frame
+  shows the bare wall before the stamp);
 - a headline, news report or front page, quoted or paraphrased → `vox/newspaper` (`headline` at most 60
   characters, optional `subhead`, `photo` and `date`; `language` is the language of the headline, for
   example `fr`, so it is hyphenated correctly);
 - two or three parallel things said in one breath (a comparison, a before and after, a year plus a number
   plus a person) → `vox/stack` (2–3 `panels`, each `{ template, variables }` with any other scene
   template of this style except `vox/stack`; panels share the stack's duration, so give it 3–5 s and keep
-  each panel short);
+  each panel short; panels are drawn as full-width 16:9 bands, so each scene uses its landscape layout);
 - a punchline, quote or key claim → `vox/kinetic-serif` (at most 60 characters; put the one or two
   words that carry it in `emphasis`).
 

@@ -23,5 +23,6 @@
     "required": ["panels"],
     "additionalProperties": false
   },
-  "slots": { "panels/*": "template" }
+  "slots": { "panels/*": "template" },
+  "panelAspect": "16:9"
 }

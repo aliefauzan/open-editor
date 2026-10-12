@@ -9,7 +9,12 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'styles', 'vox');
-const MIME = { '.woff2': 'font/woff2', '.jpg': 'image/jpeg', '.png': 'image/png' };
+const MIME = {
+  '.woff2': 'font/woff2',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+};
 // group 1: the marker path; group 2: everything up to the data URL on the next line
 export const INLINE = /\/\* vox:inline (\S+) \*\/(\n[^\n]*?url\(')data:[^']*'/g;
 

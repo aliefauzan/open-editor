@@ -284,6 +284,11 @@ export const TemplateSchema = z
       .optional(),
     blendsShots: z.boolean().optional(),
     minEntranceMs: z.int().positive().optional(),
+    // D-71: nested `template` slot panels render at this aspect (canvas width, height from the ratio)
+    panelAspect: z
+      .string()
+      .regex(/^[1-9][0-9]{0,2}:[1-9][0-9]{0,2}$/, 'panelAspect looks like 16:9')
+      .optional(),
   })
   .superRefine((t, ctx) => {
     if (t.blendsShots !== undefined && t.kind !== 'transition') {
@@ -298,6 +303,13 @@ export const TemplateSchema = z
         code: 'custom',
         path: ['minEntranceMs'],
         message: 'only scenes have an entrance',
+      });
+    }
+    if (t.panelAspect !== undefined && !Object.values(t.slots).includes('template')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['panelAspect'],
+        message: 'only templates with a template slot have panels',
       });
     }
     for (const message of variablesProblems(t.variables)) {
