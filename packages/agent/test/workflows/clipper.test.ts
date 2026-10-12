@@ -184,6 +184,126 @@ describe('run end status', () => {
   }, 120_000);
 });
 
+describe('video highlights and sound tags (D-75, D-83, D-86)', () => {
+  async function oneClip(kit: Kit) {
+    kit.deps.models = { editor: role(dynamicModel(toolsStylist()).model) };
+    return runWorkflow(kit.deps, {
+      projectId: kit.projectId,
+      workflow: 'clipper',
+      message: `make 1 vox clip from ${FIXTURE_VIDEO}`,
+      mode: 'tools',
+      ...CLIP,
+      count: 1,
+      tighten: 'all',
+    });
+  }
+
+  test('the clipper starts the highlights and sounds jobs for its media beside the job chain', async () => {
+    const kit = await workflowKit();
+    const r = await oneClip(kit);
+    expect(r.done.status, r.done.summary).toBe('completed');
+    const kinds = kit.jobs.map((j) => j.kind);
+    const quick = kit.jobs.find((j) => j.kind === 'quickClips');
+    const lines = readRunRecord(r.run.record.path);
+    for (const kind of ['highlights', 'sounds']) {
+      expect(kit.jobs.find((j) => j.kind === kind)?.args, kind).toMatchObject({
+        projectId: kit.projectId,
+        mediaId: quick?.args['mediaId'],
+        actor: 'agent',
+        runId: 'run_wftest0001',
+      });
+      // started before the chain it runs beside, and before the pick that reads its output
+      expect(kinds.indexOf(kind), kind).toBeLessThan(kinds.indexOf('shots'));
+      expect(kinds.indexOf(kind), kind).toBeLessThan(kinds.indexOf('quickClips'));
+      const line = lines.find((l) => l.type === kind);
+      expect(line, kind).toMatchObject({
+        mediaId: quick?.args['mediaId'],
+        used: false,
+        skipped: false,
+      });
+    }
+    // the test engine has no native helper: the pick goes on without them and says so
+    expect(r.done.summary).toMatch(/Video highlights: not used \(/);
+    expect(r.done.summary).toMatch(/Sound tags: not used \(/);
+  }, 120_000);
+
+  test('jobs still running after the grace are cancelled; the clips go on without them', async () => {
+    const kit = await workflowKit({ highlightsGraceMs: 20 });
+    const runJob = kit.deps.runJob!;
+    const cancelled: string[] = [];
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'highlights' && kind !== 'sounds') return runJob(kind, args, signal);
+      // a helper that never answers: only the cancel ends it
+      return new Promise((_, reject) =>
+        signal?.addEventListener('abort', () => {
+          cancelled.push(kind);
+          reject(new VoxError('CANCELLED', `${kind} cancelled`, 'x'));
+        }),
+      );
+    };
+    const r = await oneClip(kit);
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(cancelled.sort()).toEqual(['highlights', 'sounds']);
+    expect(r.sequenceIds).toHaveLength(1);
+    expect(r.done.summary).toMatch(/Video highlights: not used \(still running after 0\.02 s/);
+    expect(r.done.summary).toMatch(/Sound tags: not used \(still running after 0\.02 s/);
+    const lines = readRunRecord(r.run.record.path);
+    for (const kind of ['highlights', 'sounds'])
+      expect(
+        lines.find((l) => l.type === kind),
+        kind,
+      ).toMatchObject({ used: false, skipped: true });
+  }, 120_000);
+
+  test('failed highlights and sounds jobs never fail the run', async () => {
+    const kit = await workflowKit();
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (kind, args, signal) => {
+      if (kind !== 'highlights' && kind !== 'sounds') return runJob(kind, args, signal);
+      throw new VoxError('TOOL_FAILED', `the ${kind} analyzer crashed`, 'x');
+    };
+    const r = await oneClip(kit);
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(r.done.summary).toContain(
+      'Video highlights: not used (the highlights analyzer crashed)',
+    );
+    expect(r.done.summary).toContain('Sound tags: not used (the sounds analyzer crashed)');
+  }, 120_000);
+
+  test('highlights and sound tags the helper found are used and reported', async () => {
+    const kit = await workflowKit();
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (kind, args, signal) => {
+      const mediaId = args['mediaId'] as string;
+      if (kind === 'sounds')
+        return {
+          mediaId,
+          available: true,
+          soundsPath: `cache/sounds/${mediaId}.json`,
+          windows: 3,
+          cached: false,
+        };
+      if (kind !== 'highlights') return runJob(kind, args, signal);
+      return {
+        mediaId,
+        available: true,
+        highlightsPath: `cache/highlights/${mediaId}.json`,
+        highlights: 2,
+        keyFrameMs: 1500,
+        cached: false,
+      };
+    };
+    const r = await oneClip(kit);
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(r.done.summary).toContain('Video highlights: used (2 ranges)');
+    const line = readRunRecord(r.run.record.path).find((l) => l.type === 'highlights');
+    expect(line).toMatchObject({ used: true, count: 2, skipped: false });
+    expect(r.done.summary).toContain('Sound tags: used (3 windows with a reaction)');
+    const snd = readRunRecord(r.run.record.path).find((l) => l.type === 'sounds');
+    expect(snd).toMatchObject({ used: true, count: 3, skipped: false });
+  }, 120_000);
+});
+
 describe('workflow calls after a Stop', () => {
   test('workflowCall on a stopped run throws RunStopped and runs no tool', async () => {
     const kit = await workflowKit();
