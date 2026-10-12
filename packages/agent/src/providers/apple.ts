@@ -580,6 +580,8 @@ function embedOnce(
   signal: AbortSignal | undefined,
 ): Promise<{ vectors: number[][]; dim: number; language: string }> {
   signal?.throwIfAborted();
+  // validated before the helper starts: a bad request never leaves a process waiting on stdin
+  const input = JSON.stringify(AppleEmbedRequest.parse(request));
   const timeoutMs = opts.timeoutMs ?? APPLE_DEFAULT_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
     const child = spawn(opts.command, [...(opts.args ?? []), '--embed'], {
@@ -644,7 +646,7 @@ function embedOnce(
         );
       else finish(undefined, a);
     });
-    child.stdin.end(JSON.stringify(AppleEmbedRequest.parse(request)));
+    child.stdin.end(input);
   });
 }
 

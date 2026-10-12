@@ -350,7 +350,7 @@ async function tagFootage(
       } catch (err) {
         if (err instanceof RunStopped) throw err;
         notes.push(
-          `${basename(media.path)}: the vision model failed (${cleanText(String(err instanceof Error ? err.message : err), 120)}); tagged from speech and file name.`,
+          `${basename(media.path)}: the vision model failed (${cleanText(String(err instanceof Error ? err.message : err), 120)}); ${appleVision ? 'tagged from frame cards, else speech and file name' : 'tagged from speech and file name'}.`,
         );
       }
     };

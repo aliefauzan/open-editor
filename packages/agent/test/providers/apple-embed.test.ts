@@ -125,6 +125,12 @@ describe('Apple embedder (fake helper)', () => {
     expect(missing.code).toBe('APPLE_UNAVAILABLE');
   });
 
+  test('a request the schema refuses fails before any helper starts', async () => {
+    await expect(
+      appleEmbed({ command: '/nonexistent/vox-apple-llm' }, ['a'], { language: 'english!' }),
+    ).rejects.toThrow(/BCP 47/);
+  });
+
   test('a cancelled call rejects with the abort reason', async () => {
     const stop = new AbortController();
     stop.abort(new Error('stopped'));
