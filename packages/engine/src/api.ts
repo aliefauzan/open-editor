@@ -43,7 +43,8 @@ import { TranscriptSchema, type Transcript } from './model/schema.ts';
 import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
-import { activeAreaOf, registerMediaJobs, type MediaApi } from './media-api.ts';
+import { activeAreaOf, registerMediaJobs, type MediaApi, type ModelSpec } from './media-api.ts';
+import type { NativeHelper } from './stages/highlights.ts';
 import { registerQuickClipJobs } from './quick-api.ts';
 import type { QuickClipScorer } from './stages/quickClips.ts';
 import {
@@ -74,6 +75,7 @@ import {
   type CreditLine,
   type ExportApi,
   type HyperframesRun,
+  type RenderHost,
 } from './export-api.ts';
 import { doctor, doctorProject, type DoctorReport, type ProjectDoctorReport } from './doctor.ts';
 import { ProjectSchema } from './model/schema.ts';
@@ -346,29 +348,48 @@ export { TOOL_NAMES, resolveToolPaths, which, type ToolName } from './tools.ts';
 export { resourceDirs, setResourceDirs, type ResourceDirs } from './resources.ts';
 export { repoPyProject } from './py.ts';
 export {
+  checkoutPyEnvSyncEnabled,
+  disableCheckoutPyEnvSync,
+  enableCheckoutPyEnvSync,
+  PY_ENV_STALE_WHAT,
+  pyEnvStamp,
+  pyEnvSyncCommand,
+  type PyEnvStamp,
+  type PyEnvStampState,
+} from './pyenv.ts';
+export {
   FACE_MODEL,
   FacetrackJobArgsSchema,
+  HighlightsJobArgsSchema,
   IngestJobArgsSchema,
+  SoundsJobArgsSchema,
   ShotsJobArgsSchema,
   TranscribeJobArgsSchema,
   ensureFaceModel,
   type FacetrackJobResult,
+  type HighlightsJobResult,
   type IngestJobArgs,
   type IngestJobResult,
   type MediaJobArgs,
   type ShotsJobResult,
+  type SoundsJobResult,
   type TranscribeJobArgs,
   type TranscribeJobResult,
 } from './media-api.ts';
 export { classifyUrl, type UrlKind } from './stages/sources.ts';
 export {
   RENDER_QUALITIES,
+  VT_BITS_PER_PIXEL,
   hyperframesEnv,
   muxArgs,
+  pickRenderEncoder,
   pictureRenderArgs,
+  videotoolboxBitrate,
   type AudioQaResult,
   type CreditLine,
   type HyperframesRun,
+  type RenderEncoder,
+  type RenderHost,
   type RenderJobArgs,
   type RenderJobResult,
   type RenderQuality,
@@ -411,6 +432,20 @@ export { SILERO_SHA256 } from './doctor.ts';
 export { LOGIN_REQUIRED_HINT } from './stages/ytdlp.ts';
 export { WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
 export type { TrackPath, TrackPathOptions, ShotFraming } from './stages/facetrack.ts';
+export {
+  FRAME_CARD_VERSION,
+  MAX_FRAME_CARDS,
+  type FrameCard,
+  type FrameCardBody,
+} from './stages/framecard.ts';
+export {
+  HighlightsSchema,
+  HIGHLIGHTS_GRACE_MS,
+  highlightsTimeoutMs,
+  type Highlights,
+  type NativeHelper,
+} from './stages/highlights.ts';
+export { REACTION_CLASSES, SoundsSchema, soundsTimeoutMs, type Sounds } from './stages/sounds.ts';
 
 /** External tool paths (ffmpeg, ffprobe, yt-dlp, deno, uv, py env, Chrome); filled in by phase 04. */
 export type ToolPaths = Readonly<Record<string, string | undefined>>;
@@ -453,11 +488,20 @@ export interface EngineOptions {
     commonsThrottle?: (signal?: AbortSignal) => Promise<void>;
     ca?: string;
     sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+    /** The cutout fallback model (default CUTOUT_MODEL). */
+    cutoutModel?: ModelSpec;
   };
   /** Test seams for the local image model install: free disk space and the environment (HF_TOKEN). */
   imagegen?: { freeBytes?: (dir: string) => number; env?: NodeJS.ProcessEnv };
   /** Test seam: runs the HyperFrames CLI (render, snapshot). */
   hyperframes?: HyperframesRun;
+  /** Test seam: platform, arch and env for the final-render encoder pick (D-78). */
+  renderHost?: RenderHost;
+  /**
+   * The native helper `vox-apple-llm` (D-16), for the `highlights` (D-75) and `sounds` (D-83)
+   * jobs. Absent (e.g. a `pnpm dist:no-apple` build): they finish with `available: false`.
+   */
+  appleHelper?: NativeHelper;
 }
 
 export interface ProjectSummary {
@@ -519,6 +563,7 @@ export interface Engine {
   /** Compiles and writes the preview build; returns the `npx hyperframes play <buildDir>` call. */
   preview: ExportApi['preview'];
   mediaFrames: MediaApi['mediaFrames'];
+  frameCards: MediaApi['frameCards'];
   /** Tool, model and config checks (`vox doctor`); `quick` skips the Python import check. */
   doctor(opts?: { quick?: boolean }): Promise<DoctorReport>;
   /** Project checks (`vox doctor <project>`); `unlock` removes `project.lock`. */
@@ -741,6 +786,7 @@ export function openEngine(opts: EngineOptions): Engine {
     dirOf,
     config: opts.config ?? readConfig,
     ...(opts.net ? { net: opts.net } : {}),
+    ...(opts.appleHelper ? { appleHelper: opts.appleHelper } : {}),
   });
   const imageProviders = createImageProviders();
   if (opts.tools?.['models']) {
@@ -762,6 +808,7 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.assets?.commonsThrottle ? { commonsThrottle: opts.assets.commonsThrottle } : {}),
     ...(opts.assets?.ca ? { ca: opts.assets.ca } : {}),
     ...(opts.assets?.sleep ? { sleep: opts.assets.sleep } : {}),
+    ...(opts.assets?.cutoutModel ? { cutoutModel: opts.assets.cutoutModel } : {}),
   });
   const quick = registerQuickClipJobs(jobs, { store, dirOf });
   // The export jobs call the engine's own compile, mix and captions (bound once `engine` exists).
@@ -777,6 +824,8 @@ export function openEngine(opts: EngineOptions): Engine {
     captions: (projectId, sequenceId) => me().captions(projectId, sequenceId),
     style: (id) => registry().get(id),
     ...(opts.hyperframes ? { hyperframes: opts.hyperframes } : {}),
+    config: opts.config ?? readConfig,
+    ...(opts.renderHost ? { host: opts.renderHost } : {}),
   });
 
   /**
@@ -859,6 +908,7 @@ export function openEngine(opts: EngineOptions): Engine {
       scorers: () => quick.scorers(),
     },
     mediaFrames: (projectId, mediaId, atMs) => media.mediaFrames(projectId, mediaId, atMs),
+    frameCards: (projectId, paths, o) => media.frameCards(projectId, paths, o),
     async doctor(o = {}) {
       return doctor({
         tools: opts.tools ?? {},

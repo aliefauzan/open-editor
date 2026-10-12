@@ -84,15 +84,23 @@ subscription may be used through a gateway is set by that service's terms, not b
   `maxLength`, `oneOf`, `$ref`) are dropped, and the output still passes zod before use.
   `usage` is estimated from the text when the framework reports no token counts.
   `vox-apple-llm --status` prints availability (`ready`, `notEnabled`, `notEligible`,
-  `modelNotReady`, `unsupportedOS`) and the context size.
+  `modelNotReady`, `unsupportedOS`), the context size and `vision` (image input, D-74).
+  On macOS 27 the model accepts images: a user message may carry `images`, absolute paths
+  of image files that `apple.ts` writes to a private temp dir and deletes after the answer
+  (at most 16 per request). Without the `vision` capability such a request gets
+  `visionUnavailable`.
   Exact line shapes (optional echoed `id`, error line and codes, usage fields, `\n`-only
   line splitting, the JSON Schema subset): D-22; the zod schemas in
   `packages/agent/src/providers/apple-protocol.ts` are the contract.
 - The helper exposes no tool calls, so the agent uses it in plan mode, and the probe
   decides its roles. With its context of 4k tokens (8k on macOS 27, D-22) it usually only passes the
   `fast` role (scoring quick-clip candidates, image queries); it can fill `editor` only if
-  it passes the probe. Cost is 0.
-- The helper never reads files or the network; it gets only the request text.
+  it passes the probe. On macOS 27 it can also fill `vision` when the vision probe passes
+  (D-74); before that the probe fails `vision` without sending an image. It can fill `embed`
+  when `--status` reports `embed: true` (`--embed`, NaturalLanguage, any Apple Intelligence state;
+  D-77). Cost is 0.
+- The helper never uses the network; the only files it reads are the image files a request
+  names.
 
 ### Model roles
 
@@ -234,19 +242,30 @@ that `startMs`, `endMs` and `durationMs` are sequence time and `inMs` is source 
 |---|---|
 | `get_project_summary` | media list (id, kind, duration, tags, description), sequences with track/item summaries |
 | `get_sequence(sequenceId, itemIds?)` | the compact view `engine.view(projectId, sequenceId)`: flat `items[]` `{ id, track, startMs, endMs, kind, text \| template \| mediaId }`, caption chunk text and `version`; with `itemIds`, the full state of those items only. The agent never reads the full project. |
-| `get_transcript(mediaId, fromSrcMs?, toSrcMs?, sequenceId?)` | words or segments in a range (max 4k tokens per call; paginates), each with `srcMs`, its `kind` (`word`, `pause`, `repeat`, `filler`) and, when `sequenceId` is given, `seqMs` where that source time is placed in the sequence (`null` if it is not) |
+| `get_transcript(mediaId?, clipId?, sequenceId?, fromSrcMs?, toSrcMs?, cursor?, words?)` | compact lines by default (D-81): one `[startMs-endMs] text` line per sentence or pause-bounded phrase, in sequence ms when a clip or sequence is in scope (words not placed there are left out and counted in `unplacedWords`), else in source ms. `clipId` reads only the source span that media clip plays; `sequenceId` alone reads the span of that sequence's media clips; `fromSrcMs`/`toSrcMs` narrow either. `words: true` returns the per-word page instead: each word with `key`, `srcMs`, its `kind` (`word`, `pause`, `repeat`, `filler`) and, with a sequence, `seqMs` where that source time is placed (`null` if it is not). Max 4k tokens per call; paginates with `nextCursor` |
 | `search_transcript(query, mediaIds?)` | matching segments with times (keyword + fuzzy) |
 | `list_styles`, `get_style(styleId)` | tokens summary, `guide.md`, template list (active styles only) |
 | `get_template(id)` | description, `useWhen`, variables schema, duration bounds |
 | `search_places(query)` | `engine.geo.search` results for `geo` slots |
-| `view_frames(sequenceId, atSeqMs[])` | rendered stills, each with `seqMs`, the `srcMs` of the `V1` media at that point (or `null`) and frame-health flags (below) |
-| `view_media(mediaId, atSrcMs[])` | source stills |
-| `check_audio(sequenceId)` | runs the engine audio QA (job `audioQa`, plan D-14): the check table with numbers, the cue list with drops, the five listen timecodes, and `qa.png` |
+| `view_frames(sequenceId, atSeqMs[], detail?)` | rendered stills (frame cards by default, below), each with `seqMs`, the `srcMs` of the `V1` media at that point (or `null`) and frame-health flags (below) |
+| `view_media(mediaId, atSrcMs[], detail?)` | source stills (frame cards by default, below) |
+| `check_audio(sequenceId)` | runs the engine audio QA (job `audioQa`, plan D-14): the check table with numbers, the cue list with drops, the five listen timecodes. `qa.png` stays on disk for the user and is not sent to any model (plan D-80) |
 
-`view_frames`, `view_media` and the `qa.png` of `check_audio` return images when the `editor` model has vision;
-otherwise the `vision` model describes them and the tool returns text; with neither,
-`view_media` and `check_audio`'s image return an error the agent can report, and
-`view_frames` returns the times and frame-health flags only.
+**Frame cards** (plan D-73): by default (`detail: "card"`) `view_frames` and `view_media` return
+one short Apple Vision text block per still instead of the still: labels with confidence, on-screen
+text with its vertical span, face count and boxes, the salient region and (macOS 15+) the aesthetics
+score, inside `<data source="framecard">` (on-screen text is untrusted). About 90 tokens per still
+against about 1,800 for a 1080p image. The engine (`engine.frameCards`, Python `framecard`) caches
+each card per still content and card version under `<project>/cache/cards/`. Where cards cannot be
+made (not macOS, the Python tool fails) the tool takes the pixels path below.
+
+With `detail: "pixels"`, `view_frames` and `view_media` return images when the `editor` model has
+vision; otherwise the `vision` model describes them and the tool returns text; with neither,
+`view_media` returns an error the agent can report, and `view_frames` returns the times and
+frame-health flags only. The images are scaled to at most 768 px on the long edge (plan D-80; about
+450 tokens per 16:9 still instead of about 1,600); `detail: "full"` sends them at full size, for
+fine detail such as reading caption text letter by letter. Frame health is always read on the
+full-size still.
 
 **Frame health** (plan D-15): `view_frames` runs model-free checks on every still before
 any model sees it and returns `health: ('mostlyBlack' | 'mostlyWhite' | 'blank' |
@@ -334,14 +353,21 @@ design; the settings screen says so next to each provider.
   is built from history entries after the last version the run saw whose `actor` is not
   `agent`, or whose `runId` belongs to another run; it lists the touched items by alias.
   Only the newest injection stays in the context. The agent works from this view, not
-  from the full project.
+  from the full project. With a prompt-caching editor (Anthropic models, D-76) and a full
+  block of at least 1,000 tokens, the state block of each step stays in the history and a
+  step sends only what changed since the previous block (changed or added items, removed item ids, caption lines removed and
+  added); a full block is sent at the start of each (sub-)run, after every compaction and
+  every 8 steps, or when the diff is not shorter (D-81).
 - **Context compaction**: the loop keeps a token budget of 70 % of the model's effective
   context. Tool results older than the last 8 steps are replaced by a one-line stub that
   carries the project version it read
   (`[elided @v42: get_transcript m1 0–60000 srcMs, 812 words]`). A stub older than the
   current version is marked stale (`[stale @v42: …; re-read]`), so the model does not act
   on an old read. If still over budget, the `fast` model summarises the oldest turns into
-  a running notes block.
+  a running notes block. Images in tool results older than the last 8 steps are replaced, once
+  and whatever the budget, by the stills' frame cards (or a note naming the stills where cards
+  cannot be made), so the history does not re-send pixels and the cached prefix changes only
+  once (plan D-80). Images count at their billed size (≈ w × h / 750), not their bytes.
 - **Tool-call repair** (plan D-15): malformed tool-call JSON (for example a trailing
   comma or a missing closing bracket) is repaired before zod validation; if repair fails,
   the parse error goes back as for invalid arguments. A tool call written as plain text
@@ -360,7 +386,8 @@ design; the settings screen says so next to each provider.
 - **Run record**: `<projectsDir>/<id>/runs/<runId>.jsonl` holds the user message, model ids,
   mode, redacted tool calls, tool results truncated to 2 kB, token usage, cost, and
   history versions created, plus the alias table, each `update_todos` list and each
-  sub-run's summary. The UI's activity log reads it.
+  sub-run's summary, and with a caching editor a `state` line per step (`kind` full,
+  diff or unkept, `chars` sent, `fullChars` of the full block; D-81). The UI's activity log reads it.
 - **Restart** (plan D-15): a run that was paused when the app quit is not resumed. On
   the next launch it ends as `stopped` (an `agent.done` line is added to its run record);
   its edits stay and "Undo this run" still works.
@@ -532,6 +559,14 @@ clip only above a bar (LLM score 0.5, embedding cosine 0.3, word overlap 0.2); e
 once (highest score first; ties go to the clip closest in length to the scene). Ranking uses the `embed`
 role, else the `fast` role, else the `editor` role, else word overlap with a note. A clip that already has
 a `description` is not tagged again. Everything lands in one `batch` (one undo entry).
+
+Local signals (plan D-77): tags come from the Apple on-device model when it is the `vision` role, else
+from Apple Vision frame cards of the keyframes (labels, faces, on-screen text), and from a paid `vision`
+model only when neither gives tags. With no `embed` role set, the Apple helper's `--embed`
+(NaturalLanguage contextual embeddings, macOS 14+, no Apple Intelligence needed) is a first pass: a scene
+whose best clip leads the second by 0.3 centred cosine or more is matched without a model call; every
+other scene goes to the LLM with only its 8 best clips. An `embed` role set to another provider ranks
+by embedding alone, as before.
 
 ### 4. Style extract (with styles Part C)
 

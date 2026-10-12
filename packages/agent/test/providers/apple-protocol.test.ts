@@ -41,6 +41,22 @@ describe('apple protocol: request', () => {
     expect(AppleRequest.safeParse(turns).success).toBe(true);
   });
 
+  test('accepts absolute image paths on user messages, up to 16 per request (D-74)', () => {
+    const withImages = {
+      ...minimal,
+      messages: [
+        { role: 'user', content: 'a', images: ['/t/1.png'] },
+        { role: 'assistant', content: 'b' },
+        {
+          role: 'user',
+          content: 'c',
+          images: Array.from({ length: 15 }, (_, i) => `/t/${String(i)}.jpg`),
+        },
+      ],
+    };
+    expect(AppleRequest.safeParse(withImages).success).toBe(true);
+  });
+
   test.each([
     ['no messages', { ...minimal, messages: [] }],
     [
@@ -124,13 +140,15 @@ describe('apple protocol: response', () => {
     if (!result.ok) expect(result.error.length).toBeGreaterThan(0);
   });
 
-  test('error codes are the five the helper can send', () => {
+  test('error codes are the seven the helper can send (assetsMissing: --embed, D-77)', () => {
     expect([...appleErrorCodes]).toEqual([
       'badRequest',
       'unavailable',
       'contextOverflow',
       'guardrail',
       'generation',
+      'visionUnavailable',
+      'assetsMissing',
     ]);
   });
 });
@@ -166,6 +184,35 @@ describe('apple protocol: --status', () => {
     ['not JSON', 'ready'],
   ])('rejects %s', (_name, line) => {
     expect(parseAppleStatusLine(line).ok).toBe(false);
+  });
+
+  test('parses vision when present (D-74) and allows it absent (a helper older than D-74)', () => {
+    expect(parseAppleStatusLine('{"status":"ready","contextSize":8192,"vision":true}')).toEqual({
+      ok: true,
+      value: { status: 'ready', contextSize: 8192, vision: true },
+    });
+    expect(parseAppleStatusLine('{"status":"ready","contextSize":8192,"vision":"yes"}').ok).toBe(
+      false,
+    );
+  });
+
+  test('parses every capability of a D-83 helper; `sounds` is optional (older helpers send none)', () => {
+    const line =
+      '{"status":"ready","contextSize":8192,"vision":true,"highlights":true,"embed":true,"sounds":true}';
+    expect(parseAppleStatusLine(line)).toEqual({
+      ok: true,
+      value: {
+        status: 'ready',
+        contextSize: 8192,
+        vision: true,
+        highlights: true,
+        embed: true,
+        sounds: true,
+      },
+    });
+    expect(parseAppleStatusLine('{"status":"ready","contextSize":8192,"sounds":"yes"}').ok).toBe(
+      false,
+    );
   });
 
   test('tolerates surrounding whitespace and a trailing newline', () => {

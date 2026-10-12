@@ -53,7 +53,7 @@
 - Spawn with an argument array, never through a shell. No string-built command lines.
 - ffmpeg/ffprobe on untrusted input always get `-format_whitelist` and `-protocol_whitelist file,pipe`.
 - yt-dlp always goes through the filtering proxy with the flags in the engine spec "Ingest hardening"
-  (`--no-playlist --playlist-items 1`, `-f "bv*+ba/b" -S "res:1080"`; D-13). `--cookies-from-browser`
+  (`--no-playlist --playlist-items 1`, `-f "bv*+ba/b" -S "res:1080,vcodec:h264"`; D-13, D-78). `--cookies-from-browser`
   only from the user's `ingest.cookiesFromBrowser` setting (S33).
 - Every child process gets an `AbortSignal`; cancel kills it.
 

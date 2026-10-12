@@ -35,7 +35,7 @@ describe('buildYtdlpArgs (S4)', () => {
       '-f',
       'bv*+ba/b',
       '-S',
-      'res:1080',
+      'res:1080,vcodec:h264',
       '--merge-output-format',
       'mp4',
       '--proxy',
@@ -57,7 +57,7 @@ describe('buildYtdlpArgs (S4)', () => {
       '-f',
       'bv*+ba/b',
       '-S',
-      'res:1080',
+      'res:1080,vcodec:h264',
       '--merge-output-format',
       'mp4',
       '--proxy',
@@ -69,6 +69,16 @@ describe('buildYtdlpArgs (S4)', () => {
     ]);
     expect(argv).not.toContain('--no-playlist');
     expect(argv).not.toContain('--playlist-items');
+  });
+
+  test('format sort: the 1080 cap comes first, then H.264 (D-78); the fallback format stays', () => {
+    const argv = buildYtdlpArgs(base);
+    const sort = argv[argv.indexOf('-S') + 1]!.split(',');
+    expect(sort[0]).toBe('res:1080');
+    expect(sort).toContain('vcodec:h264');
+    expect(sort.indexOf('vcodec:h264')).toBeGreaterThan(sort.indexOf('res:1080'));
+    expect(argv[argv.indexOf('-f') + 1]).toBe('bv*+ba/b');
+    expect(argv.filter((a) => a === '-S')).toHaveLength(1);
   });
 
   test('cookies flag appears only when the setting is given (S33 argv part)', () => {

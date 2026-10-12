@@ -2,8 +2,10 @@
 // "Quick clips", plan D-11, D-15): sentence-bounded ranges within the bounds, no overlaps, the same
 // ranges on a second run, fewer clips reported, one sequence per pick (base style, sourceRange, a
 // linked V1/A1 pair with `auto` framing, captions base/plain maxWords 3, no scenes), registered
-// scorers (pick changes, prompt passed, a throwing scorer falls back), one history entry and one
-// undo, and an NTSC source giving a 30000/1001 sequence. The selection rules on crafted inputs are in
+// scorers (pick changes, prompt passed, a throwing scorer falls back, only a shortlist of
+// candidates sent: D-75), video highlights (D-75) and reaction sound tags (D-83) changing the
+// heuristic pick, one history entry
+// and one undo, and an NTSC source giving a 30000/1001 sequence. The selection rules on crafted inputs are in
 // quick-clips-select.test.ts.
 import { join } from 'node:path';
 import { beforeAll, describe, expect, test } from 'vitest';
@@ -19,6 +21,9 @@ import type { JobInfo } from '../src/jobs.ts';
 import { TranscriptSchema, type Sequence, type Transcript } from '../src/model/schema.ts';
 import { tempDir } from './helpers/store.ts';
 import { readFileSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { SCORER_MIN_CANDIDATES } from '../src/stages/quickClips.ts';
+import { REACTION_CLASSES, SOUND_MIN_CONFIDENCE } from '../src/stages/sounds.ts';
 import { REPO_STYLES } from './export/project.ts';
 
 const OPTS = { count: 3, minMs: 4000, maxMs: 8000 };
@@ -175,6 +180,30 @@ describe('quickClips options and scorers (steps 12, 12b)', () => {
     expect('runId' in seen[1]!).toBe(false);
   });
 
+  test('scorerMs: the time spent in a registered scorer, also when it fails; absent without one', async () => {
+    const e2 = newEngine();
+    const o2 = await makeOfflineProject(e2);
+    const args = { projectId: o2.projectId, mediaId: o2.mediaId, ...OPTS, count: 1 };
+    const plain = (await quick(e2, args)).result!;
+    expect(plain.scorerMs).toBeUndefined();
+    const wait = () => new Promise((r) => setTimeout(r, 120));
+    e2.quickClips.registerScorer('slow', async (input) => {
+      await wait();
+      return input.candidates.map((c) => c.startMs);
+    });
+    const slow = (await quick(e2, args)).result!;
+    expect(slow.scorer).toBe('slow');
+    expect(Number.isInteger(slow.scorerMs)).toBe(true);
+    expect(slow.scorerMs).toBeGreaterThanOrEqual(100);
+    e2.quickClips.registerScorer('broken', async () => {
+      await wait();
+      throw new Error('model offline');
+    });
+    const fell = (await quick(e2, args)).result!;
+    expect(fell.scorer).toBe('heuristic');
+    expect(fell.scorerMs).toBeGreaterThanOrEqual(100);
+  }, 60_000);
+
   test('a registered scorer changes the pick and gets the prompt; a throwing one falls back', async () => {
     const e2 = newEngine();
     const o2 = await makeOfflineProject(e2);
@@ -246,6 +275,155 @@ describe('quickClips options and scorers (steps 12, 12b)', () => {
       scorer: 'nope',
     });
     expect(unknown.error?.code).toBe('NOT_FOUND');
+  }, 60_000);
+
+  test('a registered scorer gets only the shortlist: the heuristic best, max(30, 2 × count) (D-75)', async () => {
+    const e2 = newEngine();
+    const o2 = await makeOfflineProject(e2);
+    // 16 one-second sentences: 136 runs of whole sentences
+    const words = Array.from({ length: 16 }, (_, k) => ({
+      text: k % 3 === 0 ? `Point ${k}?` : `Point ${k}.`,
+      startMs: k * 1200,
+      endMs: k * 1200 + 1000,
+      kind: 'word' as const,
+    }));
+    await writeFile(
+      join(o2.dir, 'transcripts', 'many.json'),
+      JSON.stringify({
+        language: 'en',
+        words,
+        speechRegions: words.map((x) => ({ startMs: x.startMs, endMs: x.endMs })),
+      }),
+    );
+    await e2.applyOp(
+      o2.projectId,
+      {
+        op: 'updateMedia',
+        args: {
+          mediaId: o2.mediaId,
+          patch: { transcriptPath: 'transcripts/many.json', transcriptRev: 'many' },
+        },
+      } as never,
+      { actor: 'cli' },
+    );
+    const wide = { projectId: o2.projectId, mediaId: o2.mediaId, minMs: 1000, maxMs: 20_000 };
+    const plain = (await quick(e2, { ...wide, count: 1 })).result!;
+    expect(plain.scorerCandidates).toBeUndefined();
+    expect(plain.candidates).toBeGreaterThan(SCORER_MIN_CANDIDATES * 2);
+    const seen: ScorerInput[] = [];
+    e2.quickClips.registerScorer('fake', (input) => {
+      seen.push(input);
+      return input.candidates.map((c) => c.startMs);
+    });
+    const r = (await quick(e2, { ...wide, count: 1 })).result!;
+    expect(r.scorer).toBe('fake');
+    expect(r.candidates).toBe(plain.candidates);
+    expect(r.scorerCandidates).toBe(SCORER_MIN_CANDIDATES);
+    expect(seen[0]!.candidates).toHaveLength(SCORER_MIN_CANDIDATES);
+    // in candidate order, each with its own index; the heuristic's best is among them
+    const idx = seen[0]!.candidates.map((c) => c.index);
+    expect(idx).toEqual([...idx].sort((a, b) => a - b));
+    expect(plain.clips[0]!.startMs).toBeOneOf(seen[0]!.candidates.map((c) => c.startMs));
+    // the fake prefers the latest start: the pick is the latest start of the shortlist
+    const latest = Math.max(...seen[0]!.candidates.map((c) => c.startMs));
+    expect(r.clips[0]!.startMs).toBe(latest);
+
+    const many = (await quick(e2, { ...wide, count: 20 })).result!;
+    expect(many.scorerCandidates).toBe(Math.min(40, many.candidates));
+    expect(seen[1]!.candidates).toHaveLength(many.scorerCandidates!);
+    // ranges that do not overlap come from the rest when the shortlist has too few
+    for (const a of many.clips)
+      for (const b of many.clips)
+        if (a !== b) expect(a.endMs <= b.startMs || b.endMs <= a.startMs).toBe(true);
+
+    // a failing scorer: the heuristic picks from all candidates, the shortlist is still reported
+    e2.quickClips.registerScorer('broken', () => {
+      throw new Error('model offline');
+    });
+    const fell = (await quick(e2, { ...wide, count: 1 })).result!;
+    expect(fell.scorer).toBe('heuristic');
+    expect(fell.scorerCandidates).toBe(SCORER_MIN_CANDIDATES);
+    expect(fell.clips.map((c) => [c.startMs, c.endMs])).toEqual(
+      plain.clips.map((c) => [c.startMs, c.endMs]),
+    );
+  }, 60_000);
+
+  test('video highlights on the media move the heuristic pick to the highlighted part (D-75)', async () => {
+    const e2 = newEngine();
+    const o2 = await makeOfflineProject(e2);
+    const args = { projectId: o2.projectId, mediaId: o2.mediaId, ...OPTS, count: 1 };
+    const base = (await quick(e2, args)).result!;
+    expect(base.highlights).toBeUndefined();
+    const m = (await e2.getProject(o2.projectId)).media.find((x) => x.id === o2.mediaId)!;
+    // the highest level over the last candidate range of the base run's set that does not
+    // overlap the base pick
+    const all = (await quick(e2, { ...args, count: 20 })).result!.clips;
+    const other = all.find(
+      (c) => c.endMs <= base.clips[0]!.startMs || c.startMs >= base.clips[0]!.endMs,
+    )!;
+    const levels = Array.from({ length: Math.ceil(m.durationMs! / 500) }, (_, k) => ({
+      startMs: k * 500,
+      endMs: (k + 1) * 500,
+      level: k * 500 >= other.startMs && (k + 1) * 500 <= other.endMs ? 10 : 0,
+    }));
+    // what the `highlights` job stores
+    await mkdir(join(o2.dir, 'cache', 'highlights'), { recursive: true });
+    await writeFile(
+      join(o2.dir, 'cache', 'highlights', `${o2.mediaId}.json`),
+      JSON.stringify({ highlights: [], levels, keyFrameMs: null }),
+    );
+    const lifted = (await quick(e2, args)).result!;
+    expect(lifted.highlights).toBe(true);
+    expect([lifted.clips[0]!.startMs, lifted.clips[0]!.endMs]).not.toEqual([
+      base.clips[0]!.startMs,
+      base.clips[0]!.endMs,
+    ]);
+    // inside the highlighted part
+    expect(lifted.clips[0]!.startMs).toBeLessThan(other.endMs);
+    expect(lifted.clips[0]!.endMs).toBeGreaterThan(other.startMs);
+  }, 60_000);
+
+  test('reaction sound tags on the media move the heuristic pick to the applauded part (D-83)', async () => {
+    const e2 = newEngine();
+    const o2 = await makeOfflineProject(e2);
+    const args = { projectId: o2.projectId, mediaId: o2.mediaId, ...OPTS, count: 1 };
+    const base = (await quick(e2, args)).result!;
+    expect(base.sounds).toBeUndefined();
+    const all = (await quick(e2, { ...args, count: 20 })).result!.clips;
+    const other = all.find(
+      (c) => c.endMs <= base.clips[0]!.startMs || c.startMs >= base.clips[0]!.endMs,
+    )!;
+    // what the `sounds` job stores: applause over the whole other range
+    const file = join(o2.dir, 'cache', 'sounds', `${o2.mediaId}.json`);
+    await mkdir(join(o2.dir, 'cache', 'sounds'), { recursive: true });
+    const stored = {
+      windows: [
+        {
+          startMs: other.startMs,
+          endMs: other.endMs,
+          labels: [{ id: 'applause', confidence: 1 }],
+        },
+      ],
+      windowMs: 1500,
+      classes: [...REACTION_CLASSES],
+      minConfidence: SOUND_MIN_CONFIDENCE,
+    };
+    await writeFile(file, JSON.stringify(stored));
+    const lifted = (await quick(e2, args)).result!;
+    expect(lifted.sounds).toBe(true);
+    expect([lifted.clips[0]!.startMs, lifted.clips[0]!.endMs]).not.toEqual([
+      base.clips[0]!.startMs,
+      base.clips[0]!.endMs,
+    ]);
+    expect(lifted.clips[0]!.startMs).toBeLessThan(other.endMs);
+    expect(lifted.clips[0]!.endMs).toBeGreaterThan(other.startMs);
+    // tags asked with other classes (an older engine) are not used
+    await writeFile(file, JSON.stringify({ ...stored, classes: ['laughter'] }));
+    const stale = (await quick(e2, args)).result!;
+    expect(stale.sounds).toBeUndefined();
+    expect(stale.clips.map((c) => [c.startMs, c.endMs])).toEqual(
+      base.clips.map((c) => [c.startMs, c.endMs]),
+    );
   }, 60_000);
 
   test('an NTSC source gives a 30000/1001 sequence', async () => {

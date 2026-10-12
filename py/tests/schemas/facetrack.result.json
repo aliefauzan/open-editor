@@ -20,6 +20,17 @@
         "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
       }
     },
+    "detector": {
+      "description": "D-82: which detector found the faces. Absent in files written before D-82; the engine re-detects a file whose version differs from its own.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "faces", "fallbackSamples"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "faces": { "enum": ["vision", "blazeface"] },
+        "fallbackSamples": { "type": "integer", "minimum": 0 }
+      }
+    },
     "samples": {
       "type": "array",
       "items": {

@@ -1,7 +1,10 @@
 // "Make clips" on the quick-clips start screen (app spec "Quick clips (start screen)"; plan D-11, 10b
 // step 1): after the import job, one app job `makeClips` runs shots → transcribe and, beside them,
-// facetrack, then `quickClips` on the engine, and reports one progress (0..1, each stage weighted
-// by its cost; decision "Quick clips speed"). Two stages on one media item can race for the project
+// facetrack, highlights and sound tags, then `quickClips` on the engine, and reports one progress
+// (0..1, each stage weighted by its cost; decision "Quick clips speed"). Highlights (macOS 27 video
+// highlights, D-75) and sound tags (SoundAnalysis reactions, D-83) take no engine job slot and are
+// optional: "not available", a failure, or still running HIGHLIGHTS_GRACE_MS after the other
+// stages (then cancelled) leave the clips as without them. Two stages on one media item can race for the project
 // version: the one that loses ends JOB_CONFLICT and is run again (its tool output is cached, so only
 // the media update is redone). It runs in the
 // engine host beside the engine's job runner, not inside it: a job that waits on other jobs in the
@@ -19,7 +22,7 @@ import { createReadStream } from 'node:fs';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { withLlmScorer } from '@vox/agent';
-import type { Engine, QuickClipScorer } from '@vox/engine';
+import { HIGHLIGHTS_GRACE_MS, type Engine, type QuickClipScorer } from '@vox/engine';
 import { projectDirFor, resolveProjectPath } from '@vox/engine/paths';
 import type { ErrorData, EventName } from '../shared/api.ts';
 import { toErrorData } from './rpc.ts';
@@ -53,21 +56,33 @@ export interface SeedSource {
 }
 
 const STAGES = ['shots', 'transcribe', 'facetrack'] as const;
-type Stage = (typeof STAGES)[number] | 'quickClips';
+/** Stages that only add a signal to the pick and never block it (D-75, D-83). */
+const OPTIONAL = ['highlights', 'sounds'] as const;
+type Stage = (typeof STAGES)[number] | (typeof OPTIONAL)[number] | 'quickClips';
 
 /**
  * Share of the progress bar per stage, from a 15-min 1080p talk: facetrack (~2 min on 4 threads)
- * and transcribe (~1 min) dominate; shots and the pick take seconds.
+ * and transcribe (~1 min) dominate; highlights (macOS 27 only, D-75; ~0.09 × the video's length)
+ * and sound tags (D-83; about 1 s per 4 min) run beside them; shots and the pick take seconds.
  */
 export const STAGE_WEIGHT: Readonly<Record<Stage, number>> = {
   shots: 0.05,
   transcribe: 0.3,
-  facetrack: 0.6,
+  facetrack: 0.48,
+  highlights: 0.1,
+  sounds: 0.02,
   quickClips: 0.05,
 };
 /** Re-runs of a stage that lost the version race to its sibling (JOB_CONFLICT). */
 const CONFLICT_RETRIES = 3;
-const ORDER: readonly Stage[] = ['shots', 'transcribe', 'facetrack', 'quickClips'];
+const ORDER: readonly Stage[] = [
+  'shots',
+  'transcribe',
+  'facetrack',
+  'highlights',
+  'sounds',
+  'quickClips',
+];
 const FIELD = { shots: 'shotsPath', transcribe: 'transcriptPath', facetrack: 'facetrackPath' };
 const FOLDER = { shots: 'shots', transcribe: 'transcripts', facetrack: 'facetracks' };
 
@@ -91,17 +106,20 @@ export class AppJobs {
   private readonly emit: (name: EventName, payload: unknown) => void;
   private readonly seeds: SeedSource | undefined;
   private readonly llmScorer: (() => Promise<QuickClipScorer | undefined>) | undefined;
+  private readonly highlightsGraceMs: number;
 
   constructor(
     engine: Engine,
     emit: (name: EventName, payload: unknown) => void,
     seeds?: SeedSource,
     llmScorer?: () => Promise<QuickClipScorer | undefined>,
+    opts: { highlightsGraceMs?: number } = {},
   ) {
     this.engine = engine;
     this.emit = emit;
     this.seeds = seeds;
     this.llmScorer = llmScorer;
+    this.highlightsGraceMs = opts.highlightsGraceMs ?? HIGHLIGHTS_GRACE_MS;
   }
 
   has(id: string): boolean {
@@ -246,14 +264,41 @@ export class AppJobs {
           inner.abort();
         }
       };
+      // highlights and sound tags never block a clip: "not available", a failure, a cancel, or
+      // still running HIGHLIGHTS_GRACE_MS after the other stages all leave the pick as it is
+      // without them
+      const hlAbort = new AbortController();
+      const stopHl = () => hlAbort.abort();
+      inner.signal.addEventListener('abort', stopHl);
+      const hl = Promise.all(
+        OPTIONAL.map((k) =>
+          tracked(k, base, hlAbort.signal).then(
+            () => undefined,
+            () => undefined,
+          ),
+        ),
+      );
       try {
         await Promise.all([branch(['shots', 'transcribe']), branch(['facetrack'])]);
+        if (!first) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          await Promise.race([
+            hl,
+            new Promise<void>((r) => (timer = setTimeout(r, this.highlightsGraceMs))),
+          ]);
+          clearTimeout(timer);
+        }
       } finally {
+        hlAbort.abort();
+        await hl;
+        inner.signal.removeEventListener('abort', stopHl);
         job.abort.signal.removeEventListener('abort', stop);
       }
       if (first) throw first.error;
     } else {
-      for (const k of STAGES) done.set(k, 1);
+      // test builds: seeded media skip highlights and sound tags too, so the pick stays the
+      // seeded one
+      for (const k of [...STAGES, ...OPTIONAL]) done.set(k, 1);
     }
     const scorer = await this.llmScorer?.().catch(() => undefined);
     const pick = () =>
@@ -336,11 +381,20 @@ const LABEL: Readonly<Record<Stage, string>> = {
   shots: 'Finding shots',
   transcribe: 'Transcribing',
   facetrack: 'Tracking faces',
+  highlights: 'Finding highlights',
+  sounds: 'Tagging sounds',
   quickClips: 'Picking clips',
 };
 
-/** "Transcribing and tracking faces" for the stages running now (in chain order). */
-function runningLabel(kinds: readonly Stage[]): string {
+/**
+ * "Transcribing and tracking faces" for the stages running now (in chain order). Highlights and
+ * sound tags run beside the others and are named only when nothing else runs, one at a time
+ * (highlights first).
+ */
+function runningLabel(running: readonly Stage[]): string {
+  const optional = (k: Stage) => (OPTIONAL as readonly Stage[]).includes(k);
+  const required = running.filter((k) => !optional(k));
+  const kinds = required.length > 0 ? required : running.slice(0, 1);
   if (kinds.length === 0) return 'Making clips';
   return kinds
     .map((k, i) => (i === 0 ? LABEL[k] : LABEL[k].charAt(0).toLowerCase() + LABEL[k].slice(1)))

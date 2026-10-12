@@ -1,7 +1,8 @@
 // The capability probe for one model (agent spec "Capability probe"; phase 11 step 10): context,
 // tools, loop, vision, plan (one ClipPlan for a fixture sequence and its transcript must validate)
 // and the tool-list cost of the largest list the editor can get (> 25 % of the effective context
-// fails the role, D-15). Apple entries run only the status and plan checks.
+// fails the role, D-15). Apple entries run the status and plan checks, and the vision check when
+// the helper reports image input (macOS 27, D-74).
 import type { LanguageModelV4 } from '@ai-sdk/provider';
 import { ClipPlanSchema } from '../loop/plan.ts';
 import {
@@ -11,7 +12,8 @@ import {
   surfaceNames,
   toolDefinitionsFor,
 } from '../tools/registry.ts';
-import { appleStatus, type AppleModelOptions } from './apple.ts';
+import { APPLE_NO_VISION_REASON, appleStatus, type AppleModelOptions } from './apple.ts';
+import type { AppleStatus } from './apple-protocol.ts';
 import { detectContext, type ContextDeps, type ContextInfo } from './context.ts';
 import type { ProviderEntry } from './presets.ts';
 import {
@@ -98,14 +100,23 @@ export async function probeModel(
       report.plan = { status: 'error', reason: 'APPLE_UNAVAILABLE' };
       return report;
     }
+    let s: AppleStatus;
     try {
-      const s = await appleStatus(deps.apple);
-      report.appleStatus = s.status;
-      report.context = { contextTokens: s.contextSize, source: 'apple' };
-      if (s.status !== 'ready') return report;
+      s = await appleStatus(deps.apple);
     } catch {
       report.plan = { status: 'error', reason: 'APPLE_UNAVAILABLE' };
       return report;
+    }
+    report.appleStatus = s.status;
+    report.context = { contextTokens: s.contextSize, source: 'apple' };
+    // on-device embeddings (D-77) do not need Apple Intelligence: recorded whatever the status
+    report.capabilities = { embeddings: s.embed === true };
+    if (s.status !== 'ready') return report;
+    if (want('vision')) {
+      report.vision =
+        s.vision === true
+          ? await checks.vision(model, opts)
+          : { status: 'fail', reason: APPLE_NO_VISION_REASON };
     }
     if (want('plan')) report.plan = await checks.plan(model, CLIP_PLAN_TASK, opts);
     return report;

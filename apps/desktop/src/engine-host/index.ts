@@ -195,6 +195,10 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
     pyProject: pyDir,
   });
   if (res !== undefined) tools['node'] = process.execPath;
+  // the Apple helper if this build has one: the agent's Apple provider and the engine's video
+  // highlights (D-75) and sound tags (D-83) use it
+  const apple = appleHelperPath(env, res);
+  const appleHelper = readBuildInfo(res)?.appleHelper ?? apple !== undefined;
   const engine = openEngine({
     projectsDir,
     stylesDirs,
@@ -202,6 +206,7 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
     // phase 06 handoff: the app trusts styles through <VOX_HOME>/trust.json, after asking the user
     trustFile: join(home, 'trust.json'),
     config,
+    ...(apple && appleHelper && { appleHelper: apple }),
   });
   // setup events go out once `serve` exists (the handlers need `setup` first)
   const out: { emit?: ReturnType<typeof serve> } = {};
@@ -248,8 +253,6 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
     env,
     redactor: engine.redactor,
   };
-  const apple = appleHelperPath(env, res);
-  const appleHelper = readBuildInfo(res)?.appleHelper ?? apple !== undefined;
   const mock = testBuild && env['VOX_E2E_AGENT'] === 'mock';
   const agentEmit = (n: EventName, p: unknown) => out.emit?.(n, engine.redactor.redact(p));
   // quick clips score with the agent's fast model; the agent host is made after the job runner

@@ -73,10 +73,12 @@ describe('engine.jobs', () => {
       'exportTimeline',
       'facetrack',
       'frames',
+      'highlights',
       'ingest',
       'quickClips',
       'render',
       'shots',
+      'sounds',
       'transcribe',
     ]);
   });

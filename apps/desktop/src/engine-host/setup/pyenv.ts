@@ -6,9 +6,9 @@
 // first (GATE 5: an installed app ran the phase-04 facetrack after many rebuilds). Nothing is written
 // into the bundle: the env, uv cache and Python all live in the tools folder.
 
-import { createHash } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { PY_PACKAGE, pyEnvSyncArgs, pyEnvSyncEnv, sourceHashOf } from '@vox/engine/pyenv';
 import { SetupError } from './errors.ts';
 import { sha256File } from './hash.ts';
 import { withLock } from './lock.ts';
@@ -27,44 +27,9 @@ export async function lockHashOf(lockPath: string): Promise<string> {
   }
 }
 
-/** The package the bundled project builds (pyproject.toml `name`). */
-export const PY_PACKAGE = 'vox_py';
-
-/**
- * SHA-256 over the bundled project's own files: pyproject.toml and every file under vox_py/ (path and
- * bytes, sorted; bytecode left out). The lock hash misses these: a tool fix changes no package pin.
- */
-export async function sourceHashOf(pyDir: string): Promise<string> {
-  const files: string[] = ['pyproject.toml'];
-  const walk = async (rel: string): Promise<void> => {
-    let entries;
-    try {
-      entries = await readdir(join(pyDir, rel), { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
-      if (e.name === '__pycache__' || e.name.endsWith('.pyc')) continue;
-      const r = `${rel}/${e.name}`;
-      if (e.isDirectory()) await walk(r);
-      else if (e.isFile()) files.push(r);
-    }
-  };
-  await walk(PY_PACKAGE);
-  files.sort();
-  const h = createHash('sha256');
-  for (const f of files) {
-    let bytes: Buffer;
-    try {
-      bytes = await readFile(join(pyDir, f));
-    } catch {
-      continue;
-    }
-    h.update(`${f}\0${String(bytes.length)}\0`);
-    h.update(bytes);
-  }
-  return h.digest('hex');
-}
+// The hash, the sync arguments and its environment are shared with the engine's dev-checkout sync
+// (D-87), so both write the same stamps.
+export { PY_PACKAGE, sourceHashOf };
 
 export type PyEnvState = 'missing' | 'stale' | 'current';
 
@@ -118,42 +83,17 @@ export interface SyncOptions {
   onOutput?: (line: string) => void;
 }
 
-/**
- * The exact arguments of the sync, in one place. `--compile-bytecode` (phase 09): the setup pays the
- * one-time bytecode compile, so the first doctor run and the first job do not (minutes otherwise).
- * `--reinstall-package vox_py` rebuilds the project itself from the bundle (uv keys its cached build on
- * pyproject.toml, not on the tool files); the pinned packages stay as they are.
- */
+/** The exact arguments of the sync (`@vox/engine/pyenv` explains each flag). */
 export function syncArgs(pyDir: string): string[] {
-  return [
-    'sync',
-    '--frozen',
-    '--no-editable',
-    '--compile-bytecode',
-    '--reinstall-package',
-    PY_PACKAGE,
-    '--project',
-    pyDir,
-  ];
+  return pyEnvSyncArgs(pyDir);
 }
 
-/** Variables that could redirect the frozen sync to another index, mirror, config or interpreter. */
-const STRIPPED_ENV =
-  /^(UV_(.*INDEX.*|FIND_LINKS|PYTHON(_INSTALL_MIRROR|_DOWNLOADS.*)?|CONFIG_FILE|NO_CONFIG|PROJECT.*|CACHE_DIR|FROZEN|LOCKED)|PIP_.*|PYTHON.*|VIRTUAL_ENV)$/;
-
+/** The sync's environment: uv's env, cache and Pythons in the tools folder, no outside uv config. */
 export function syncEnv(
   toolsDir: string,
   base: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
-  const p = toolPaths(toolsDir);
-  const kept = Object.fromEntries(Object.entries(base).filter(([k]) => !STRIPPED_ENV.test(k)));
-  return {
-    ...kept,
-    UV_NO_CONFIG: '1',
-    UV_PROJECT_ENVIRONMENT: p.pyEnv,
-    UV_CACHE_DIR: p.uvCache,
-    UV_PYTHON_INSTALL_DIR: p.python,
-  };
+  return pyEnvSyncEnv(toolsDir, base);
 }
 
 /** Runs the sync unconditionally. The stored hash is removed first, so a failed or aborted sync reads as `missing`. */

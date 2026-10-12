@@ -1,25 +1,39 @@
 // Job `quickClips` (engine spec "Quick clips", plan D-11, D-15): reads the media's transcript, shots,
-// facetrack detections and peaks, picks the clips (stages/quickClips.ts) and writes one sequence per
-// pick in one `batch` carrying the job's id, so "Undo quick clips" is one history entry.
+// facetrack detections, peaks, (macOS 27, D-75) video highlights and (D-83) reaction sound tags,
+// picks the clips
+// (stages/quickClips.ts) and writes one sequence per pick in one `batch` carrying the job's id, so
+// "Undo quick clips" is one history entry. A registered scorer gets only a shortlist: the best
+// candidates by the heuristic (D-75).
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { VoxError } from './errors.ts';
 import type { ProjectStore } from './history/store.ts';
 import type { JobRunner } from './jobs.ts';
-import { ActorSchema, RunIdSchema, applyJobOps, findMedia } from './media-api.ts';
+import {
+  ActorSchema,
+  RunIdSchema,
+  applyJobOps,
+  findMedia,
+  highlightsPathOf,
+  soundsPathOf,
+} from './media-api.ts';
 import { DEFAULT_FPS, isFpsInSet, type Fps } from './model/fps.ts';
 import { newId } from './model/ids.ts';
 import { TranscriptSchema, type MediaItem, type Transcript } from './model/schema.ts';
 import type { OpCall } from './ops/index.ts';
 import { resolveProjectPath } from './paths.ts';
 import { DetectionsSchema, type Detections } from './stages/facetrack.ts';
+import { HighlightsSchema, type Highlights } from './stages/highlights.ts';
+import { SoundsSchema, soundsMatchRequest, type Sounds } from './stages/sounds.ts';
 import { fpsValue, nearestFixedFps } from './stages/media/analyze.ts';
 import {
   HEURISTIC,
+  SCORER_MIN_CANDIDATES,
   createQuickClipScorers,
   heuristicScores,
   pickClips,
   quickCandidates,
+  scorerShortlist,
   type Candidate,
   type Peaks,
 } from './stages/quickClips.ts';
@@ -58,7 +72,19 @@ export interface QuickClipsResult {
   /** Set when a registered scorer failed and the heuristic was used instead. */
   scorerError?: { scorer: string; message: string };
   requested: number;
+  /** Candidate ranges found. */
   candidates: number;
+  /** How many of them went to a registered scorer (D-75); absent when no scorer was asked. */
+  scorerCandidates?: number;
+  /**
+   * Whole ms spent waiting on a registered scorer, also when it failed (the fast model can take
+   * minutes); absent when no scorer was asked. Reports show it as its own step.
+   */
+  scorerMs?: number;
+  /** Set when the media's video highlights (macOS 27, D-75) were part of the heuristic. */
+  highlights?: true;
+  /** Set when the media's reaction sound tags (D-83) were part of the heuristic. */
+  sounds?: true;
   clips: QuickClip[];
   sequenceIds: string[];
   /** Set when fewer than `count` clips fit. */
@@ -134,6 +160,18 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         DetectionsSchema,
       );
       const peaks: Peaks | undefined = await readJson(dir, media.peaksPath, PeaksSchema);
+      const highlights: Highlights | undefined = await readJson(
+        dir,
+        highlightsPathOf(media.id),
+        HighlightsSchema,
+      );
+      const storedSounds: Sounds | undefined = await readJson(
+        dir,
+        soundsPathOf(media.id),
+        SoundsSchema,
+      );
+      // tags asked with other classes or another bar (an older engine) are not used
+      const sounds = storedSounds && soundsMatchRequest(storedSounds) ? storedSounds : undefined;
       const sourceFps = media.fps ?? DEFAULT_FPS;
 
       ctx.progress(0.1, 'finding sentence ranges');
@@ -144,44 +182,64 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         sourceFps,
       });
       const chosen = scorers.resolve(args.scorer);
+      const heuristic = heuristicScores(cands, transcript, {
+        peaks,
+        detections,
+        highlights,
+        sounds,
+      }).scores;
       let scorer = HEURISTIC;
       let scorerError: QuickClipsResult['scorerError'];
-      let scores: readonly number[] | undefined;
+      let scores: readonly number[] = heuristic;
+      let picks: number[] | undefined;
+      let sent: number[] = [];
+      let scorerMs: number | undefined;
       if (chosen && cands.length > 0) {
         ctx.progress(0.3, `scoring with ${chosen.id}`);
+        sent = scorerShortlist(cands, heuristic, Math.max(SCORER_MIN_CANDIDATES, 2 * args.count));
+        const scoreStart = performance.now();
         try {
           const got = await chosen.fn(
             {
               mediaId: media.id,
               ...(args.prompt !== undefined ? { prompt: args.prompt } : {}),
               ...(args.runId !== undefined ? { runId: args.runId } : {}),
-              candidates: cands.map((c, index) => ({
+              candidates: sent.map((index) => ({
                 index,
-                startMs: c.startMs,
-                endMs: c.endMs,
-                text: c.text,
+                startMs: cands[index]!.startMs,
+                endMs: cands[index]!.endMs,
+                text: cands[index]!.text,
               })),
             },
             { signal: ctx.signal },
           );
           if (
             !Array.isArray(got) ||
-            got.length !== cands.length ||
+            got.length !== sent.length ||
             !got.every((x) => Number.isFinite(x))
           ) {
             throw new Error(
-              `returned ${Array.isArray(got) ? got.length : 'no'} scores for ${cands.length} candidates`,
+              `returned ${Array.isArray(got) ? got.length : 'no'} scores for ${sent.length} candidates`,
             );
           }
-          scores = got;
+          // the scorer's scores for the shortlist; the rest keep the heuristic's, and are picked
+          // only when the shortlist has too few ranges that do not overlap
+          const merged = [...heuristic];
+          sent.forEach((index, k) => (merged[index] = got[k]!));
+          const first = pickClips(cands, merged, args.count, { among: sent });
+          const rest = new Set(cands.map((_, i) => i));
+          for (const i of sent) rest.delete(i);
+          picks = pickClips(cands, heuristic, args.count, { among: [...rest], taken: first });
+          scores = merged;
           scorer = chosen.id;
         } catch (e) {
           if (ctx.signal.aborted) throw e;
           scorerError = { scorer: chosen.id, message: e instanceof Error ? e.message : String(e) };
+        } finally {
+          scorerMs = Math.round(performance.now() - scoreStart);
         }
       }
-      scores ??= heuristicScores(cands, transcript, { peaks, detections }).scores;
-      const picks = pickClips(cands, scores, args.count);
+      picks ??= pickClips(cands, scores, args.count);
 
       const fps = quickClipFps(media);
       const ops: OpCall[] = [];
@@ -251,6 +309,10 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         ...(scorerError ? { scorerError } : {}),
         requested: args.count,
         candidates: cands.length,
+        ...(chosen && cands.length > 0 ? { scorerCandidates: sent.length } : {}),
+        ...(scorerMs !== undefined ? { scorerMs } : {}),
+        ...(highlights ? { highlights: true as const } : {}),
+        ...(sounds ? { sounds: true as const } : {}),
         clips,
         sequenceIds: clips.map((c) => c.sequenceId),
         ...(clips.length < args.count

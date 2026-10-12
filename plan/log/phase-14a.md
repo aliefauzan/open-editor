@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | GATE 6 reopened by the owner (D-67); round 3 sheet waits for the owner (D-71) |
+| Status | done (GATE 6 passed by the owner on the round 3 sheet, D-71) |
 | Started · Finished | 2026-10-12 · 2026-10-12 |
 | Model | Sonnet 5.5 · high (phase agent, parallel run with 14b–14g and 15; self-review (token budget)) |
 | Machine | M5, macOS 27 |
@@ -72,6 +72,9 @@ vs the whole `reel-007.5s` split screen. Stand-in pictures (the test pattern) re
 Branch `phase/14a-gate6-r3`, worktree `.worktrees/phase-14a-r3`. Model Opus 5.5 · self-review (token budget). The
 AI did not pass this gate: the sheet is for the owner.
 
+Owner verdict: 2026-10-12 about 17:40 WITA, the owner replied to `docs/evidence/phase-14a/side-by-side-r3.jpg`
+with "its fine". GATE 6 passed by the owner (not by delegation).
+
 Sheet: `docs/evidence/phase-14a/side-by-side-r3.jpg` (2293x1440, `scripts/vox-side-by-side-v11.sh`; the round 2
 sheet `side-by-side.jpg` is kept). Left: 4 rows of [reel 16:9 band | our `stack` band | our full 9:16 still]:
 year-card (reel 8.6 s top), framed-portrait (reel 7.5 s bottom), framed-portrait gone (reel 8.6 s bottom), newspaper
@@ -126,7 +129,8 @@ safe-area 8, min-entrance 6, blank-frame 30, sfx-kit 1, file-refs 15). Suite, ty
 (full-suite numbers in the handoff report). The impeccable hook flags `broken-image` (empty `src`, set at runtime) and
 `dark-glow` (the clipping's inset edge burn): intentional, as in round 2.
 
-Status: GATE 6 and row 14a stay open in `plan/PROGRESS.md`; the owner judges `side-by-side-r3.jpg`.
+Status (before the verdict): GATE 6 and row 14a stayed open in `plan/PROGRESS.md` until the owner judged
+`side-by-side-r3.jpg`. After the owner's pass both are [x].
 
 ## Review findings (self-review (token budget); no subagents in this run)
 | Agent | Severity | Finding | Fixed? |

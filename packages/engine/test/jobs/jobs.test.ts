@@ -124,6 +124,30 @@ describe('job runner: concurrency', () => {
     expect(infos.map((i) => i.result)).toEqual(['A', 'B', 'C', 'D']);
   });
 
+  it('an outsidePool job starts at once and takes no slot (D-75)', async () => {
+    const jobs = createJobRunner({ concurrency: 1 });
+    const c = controlled();
+    jobs.register('cpu', c.handler);
+    jobs.register('light', { ...c.handler, outsidePool: true });
+    const a = jobs.start('cpu', { name: 'a' });
+    const b = jobs.start('cpu', { name: 'b' });
+    const l = jobs.start('light', { name: 'l' });
+    await tick();
+    expect(c.started).toEqual(['a', 'l']);
+    expect(jobs.get(b).status).toBe('queued');
+    // the light job ending frees no pooled slot; the pooled job ending does
+    c.gates.get('l')!.resolve('L');
+    await jobs.wait(l);
+    await tick();
+    expect(c.started).toEqual(['a', 'l']);
+    c.gates.get('a')!.resolve('A');
+    await jobs.wait(a);
+    await tick();
+    expect(c.started).toEqual(['a', 'l', 'b']);
+    c.gates.get('b')!.resolve('B');
+    await jobs.wait(b);
+  });
+
   it('honours a custom concurrency', async () => {
     const jobs = createJobRunner({ concurrency: 3 });
     const c = controlled();

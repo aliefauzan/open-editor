@@ -120,6 +120,11 @@ export interface RunDeps {
   redactor: Redactor;
   models: RunModels;
   limits: { maxUsdPerRun: number; maxStepsPerRun: number };
+  /**
+   * With a caching editor, full state blocks below this many tokens are sent every step and not
+   * kept (D-81). Default STATE_DIFF_MIN_TOKENS; measurements pass 0 (always diff) or Infinity.
+   */
+  stateDiffMinTokens?: number;
   emit?: (event: AgentEvent) => void;
   /** Called on every pause; the run waits for the decision. Default: stop. */
   onPause?: (pause: PauseInfo) => Promise<PauseDecision>;
@@ -131,6 +136,8 @@ export interface RunDeps {
   /** Reads a still the engine wrote (tests). */
   readImage?: (path: string) => Promise<Uint8Array>;
   sleep?: (ms: number) => Promise<void>;
+  /** How long the clipper waits for video highlights after its job chain (tests); default HIGHLIGHTS_GRACE_MS. */
+  highlightsGraceMs?: number;
   newRunId?: () => string;
   now?: () => Date;
 }

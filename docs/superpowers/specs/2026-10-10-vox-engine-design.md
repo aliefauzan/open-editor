@@ -108,9 +108,9 @@ videoeditor/
     vox_py/transcribe.py     # mlx-whisper
     vox_py/vad.py            # Silero VAD (ONNX, onnxruntime); used by transcribe.py
     vox_py/models/silero_vad.onnx  # vendored, MIT; SHA-256 in plan R5
-    vox_py/facetrack.py      # MediaPipe Tasks FaceDetector + Apple Vision body and
-                             # saliency (pyobjc-framework-Vision)
-    vox_py/cutout.py         # rembg
+    vox_py/facetrack.py      # Apple Vision faces, body and saliency (pyobjc-framework-Vision);
+                             # MediaPipe Tasks FaceDetector as the fallback (D-82)
+    vox_py/cutout.py         # Apple Vision subject lift, rembg fallback (D-72)
     vox_py/timeline.py       # opentimelineio export
   projects/                  # dev scratch only, gitignored (real projects: "Project folder")
   docs/superpowers/specs/
@@ -1046,15 +1046,17 @@ and a rerun with unchanged inputs is a no-op. Stages run as jobs (below).
 |---|---|
 | `vox doctor` | checks ffmpeg, ffprobe, yt-dlp (+ `yt-dlp-ejs` and deno or node, offers `yt-dlp -U`; reports whether `--impersonate` targets exist, which some TikTok pages need), uv env, Chromium for HyperFrames, pinned HyperFrames version, model downloads and their licences; prints fixes |
 | `vox paths [--json]` | prints the resolved projects folder, styles folders and tool paths (see "Project folder") |
-| `vox quick <url\|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]` | quick clips (below): new project, then the chain ingest → shots → transcribe → facetrack → quickClips, `count` captioned 9:16 clips with no style beats and no AI key needed; `--render` also writes MP4 (subtitles burned in) + SRT per clip, into `--out-dir` when given (see "Export targets"), else the project's `renders/` |
+| `vox quick <url\|path> [--count 3] [--length 30-60] [--name n] [--render] [--out-dir dir]` | quick clips (below): new project, then the chain ingest → shots → transcribe → facetrack → highlights (optional, macOS 27) and sound tags (optional, D-83) → quickClips, `count` captioned 9:16 clips with no style beats and no AI key needed; `--render` also writes MP4 (subtitles burned in) + SRT per clip, into `--out-dir` when given (see "Export targets"), else the project's `renders/`; the report ends with a step table (setup, each stage, the wait for highlights and sound tags, quickClips, `scorer` when a registered scorer ran, render, captions) whose rows add up to the wall time (`--json`: `steps` `[{step, ms}]` and `totalMs`; plan D-84) |
 | `vox new <name>` | creates a project with one empty 9:16 sequence; `styleId` is `vox` if installed, else `base` |
 | `vox ingest <project> <url\|path>... [--playlist]` | download (YouTube, Instagram, TikTok or any yt-dlp URL; see "Ingest sources") or copy a local file; content-sniffed type; ffprobe metadata; source fps, VFR check and CFR copy, loudness (see "Ingest analysis"); proxy, extracted audio, thumbs, peaks; `addMedia`. Text files (`.txt`, `.md`, `.fountain`, `.pdf`) become `document` media with plain text at `media/<id>.txt` (`.pdf` text via `pypdf`, BSD, in `py/`). `--no-proxies` (API `{ proxies: false }`) skips proxy, thumbs and peaks; styles Part C uses it for reference videos |
 | `vox transcribe <project> [mediaId...]` | Silero VAD speech gate, then mlx-whisper (pinned repo) with a filler `initial_prompt`, auto language, word timestamps; drops non-speech; computes word kinds (see "Speech gate") |
 | `vox shots <project> <mediaId>` | shot detection with ffmpeg `scdet` on the proxy (else the original, scaled) → `shots/<mediaId>.json` (see "Shots and framing") |
-| `vox facetrack <project> <mediaId>` | MediaPipe Tasks `FaceDetector` (full-range model, downloaded `.tflite`) plus Apple Vision body and saliency, at 12 fps on the proxy scaled to 360p; per-shot subject choice with hysteresis (`faceIndex` overrides) → `{ atMs, x, y, scale }` crop keyframes (see "Shots and framing") |
+| `vox facetrack <project> <mediaId>` | Apple Vision faces (`VNDetectFaceRectanglesRequest`; MediaPipe Tasks `FaceDetector`, full-range model, downloaded `.tflite`, on frames where Vision finds none, D-82) plus Apple Vision body and saliency, at 12 fps on the proxy scaled to 360p; per-shot subject choice with hysteresis (`faceIndex` overrides) → `{ atMs, x, y, scale }` crop keyframes (see "Shots and framing") |
+| `vox highlights <project> <mediaId>` | macOS 27 only (D-75): `vox-apple-llm --highlights` (MediaIntelligence highlight ranges, highlight levels in 0.5 s steps, a key frame) on the H.264 proxy → `cache/highlights/<mediaId>.json` (derived data: no project change, no history entry); elsewhere, without the helper or without a proxy the job finishes with `available: false` and the reason |
+| `vox sounds <project> <mediaId>` | D-83: `vox-apple-llm --sounds` (SoundAnalysis' built-in sound classifier, macOS 12+) on the extracted audio, asking only the reaction classes (laughter, giggling, snicker, belly_laugh, chuckle_chortle, applause, clapping, cheering) in 1.5 s windows at confidence ≥ 0.3 → `cache/sounds/<mediaId>.json` (derived data: no project change, no history entry); without the helper, with a helper older than D-83 or without extracted audio the job finishes with `available: false` and the reason |
 | `vox assets search <project> "<query>" [--source commons,openverse]` | candidates with licence + author, stored in `cache/assets/<queryHash>.json`; the job result returns them |
 | `vox assets fetch <project> <candidateId>` | download, record licence, `addMedia` (origin `archive`) |
-| `vox assets cutout <project> <mediaId>` | rembg (pinned permissive model) → transparent PNG as a new media item; refused for no-derivatives licences |
+| `vox assets cutout <project> <mediaId>` | Apple Vision subject lift (macOS 14+); rembg (pinned permissive model, fetched on demand) only when Vision finds no subject (D-72) → transparent PNG as a new media item; refused for no-derivatives licences |
 | `vox assets generate <project> "<prompt>" [--style id] [--provider id]` | image from a registered `ImageProvider` → new media item (origin `generated`); fails with a hint when none is registered |
 | `vox op <project> <opName> '<json>' [--actor user\|agent\|cli] [--run-id id] [--base-version n] [--coalesce-key k]` | apply an edit operation |
 | `vox undo <project> [--run <runId>]` / `vox redo <project>` / `vox history <project> [--since <version>]` | history (`--run`: `undoRun`) |
@@ -1094,6 +1096,10 @@ one project; an ambiguous name fails and lists the matching ids.
 
 - Whisper gets an `initial_prompt` built from the English filler list, so it keeps more
   fillers (the spike records how many survive).
+- Whisper hears only the speech (D-79): each region is padded by 400 ms, spans less than
+  500 ms apart are merged, the spans are joined and every segment and word time is shifted back
+  to source time. When the spans keep at least 90 % of the file, or the VAD fails, Whisper hears
+  the whole file.
 - Each word is clipped to the speech region it overlaps most; a word that overlaps no
   region by at least 40 ms (or its whole length, if shorter) is dropped (D-21). Whisper segments
   with `no_speech_prob > 0.6` or `compression_ratio > 2.4` are dropped whole. This stops
@@ -1112,10 +1118,11 @@ cuts; it is not built in v1.
 
 **Detection.** `vox_py.facetrack` samples at 12 fps on the proxy scaled to a 360 px short side (D-21; the original
 when there is no proxy). Each
-sample holds the faces (MediaPipe), and the body boxes (Vision
+sample holds the faces (Apple Vision `VNDetectFaceRectanglesRequest`; on a frame where Vision finds no face,
+or without Vision, MediaPipe BlazeFace on the frame and three tiles, D-82), and the body boxes (Vision
 `VNDetectHumanRectanglesRequest`) and attention saliency box (Vision
 `VNGenerateAttentionBasedSaliencyImageRequest`). It writes `facetracks/<mediaId>.json`,
-once per media.
+once per media; a file whose `detector.version` is not the engine's (or that has none) is detected again.
 
 **Path.** The engine turns the detections into crop keyframes `{ atMs, x, y, scale }`:
 
@@ -1146,7 +1153,7 @@ to the tracked path over 300 ms. Compile emits the result as a CSS `transform` (
 The simple path (plan D-11): URL in, captioned clips out, no style work and no AI key.
 `quickClips(projectId, mediaId, { count = 3, minMs = 30000, maxMs = 60000, scorer?, prompt? })`
 runs as job kind `quickClips` at the end of the chain `ingest → shots → transcribe →
-facetrack → quickClips`:
+facetrack → (highlights, optional, macOS 27; sound tags, optional, D-83) → quickClips`:
 
 1. Split the transcript into sentence units at words ending a sentence (`.`, `?`, `!`
    and their equivalents) or at pauses ≥ 700 ms.
@@ -1160,11 +1167,22 @@ facetrack → quickClips`:
    It adds three no-AI signals (plan D-15), each scaled to 0..1 and added with equal
    weight: energy (variance of short-term loudness over the candidate), hook (the first
    sentence is a question or holds a number) and coverage (share of the candidate with a
-   face on screen, from facetrack). Ties go to the earlier start. A
+   face on screen, from facetrack). When the media has video highlights (macOS 27, D-75)
+   a fifth signal adds with the same weight (`HIGHLIGHT_WEIGHT` 1): the candidate's
+   time-weighted mean highlight level, scaled 0..1 over the candidates; without them it
+   is 0 and the scores are unchanged. When the media has reaction sound tags (D-83) a
+   sixth signal adds the same way (`REACTION_WEIGHT` 1): the confidence-weighted time of
+   laughter, applause or cheering inside the candidate ÷ 3 s, at most 1 (absolute, not
+   scaled over the candidates: reactions are rare); without tags it is 0. Ties go to the
+   earlier start. A
    registered scorer (`engine.quickClips.registerScorer(id, fn)`; the agent registers an
-   LLM scorer when a `fast` model exists, spec 3) gets each candidate's text and times,
-   plus `prompt` (e.g. "moments about pricing"), and returns a score per candidate; the
-   heuristic ignores `prompt` and is the fallback when the scorer fails.
+   LLM scorer when a `fast` model exists, spec 3) gets the text and times of a shortlist
+   (D-75): the best max(30, 2 × `count`) candidates by the heuristic, in candidate order,
+   each with its own `index`, plus `prompt` (e.g. "moments about pricing"), and returns a
+   score per shortlisted candidate. The pick takes the shortlist by the scorer's scores
+   and fills up from the other candidates by the heuristic only when the shortlist has
+   too few that do not overlap. The heuristic ignores `prompt` and is the fallback (over
+   all candidates) when the scorer fails.
    `scorer` omitted → the most recently registered scorer, else the heuristic;
    `scorer: 'heuristic'` forces the built-in one.
 4. Pick the top `count` candidates that do not overlap. Fewer fitting candidates means
@@ -1176,8 +1194,9 @@ facetrack → quickClips`:
    to body to saliency to the centre (plan D-15); `A1` speech), captions on (`sourceTrackIds: ['A1']`, preset
    `base/plain`, `maxWords` 3). No scenes, transitions or overlays.
 
-The result lists the sequence ids, the chosen ranges with their text, and the scorer
-used. Selection is deterministic for the same transcript, options and scorer output.
+The result lists the sequence ids, the chosen ranges with their text, the scorer
+used, `candidates` (found), `scorerCandidates` (sent to a registered scorer; absent when
+none was asked), `scorerMs` (whole ms spent waiting on a registered scorer, also when it failed; absent when none was asked; plan D-84), `highlights: true` (only when video highlights were part of the heuristic) and `sounds: true` (only when reaction sound tags were). Selection is deterministic for the same transcript, options and scorer output.
 The `batch` carries the job's `jobId`, so "Undo quick clips" is one history entry. When
 Stylize or the clipper later add transitions at clip edges, they default to cover-style
 ones (see "Transitions").
@@ -1186,7 +1205,10 @@ Styling is a separate, optional step (spec 3 "Stylize"; or by hand in the app).
 Encoding: ffmpeg comes from Homebrew (plan D-05), whose build includes libx264. Proxies
 use libx264 at 540p with `-crf 23` and a keyframe every 0.5 s (`-g` and `-keyint_min` set
 from the source fps). `render` muxes HyperFrames' H.264 output with the audio mix using
-`-c:v copy` and AAC audio, so the picture is encoded only once.
+`-c:v copy` and AAC audio, so the picture is encoded only once. On Apple silicon the render
+passes `--gpu --video-bitrate <w × h × fps × bits per pixel>` so HyperFrames encodes with
+`h264_videotoolbox` (D-78); a failed hardware render is rerun once with libx264, and
+`render.encoder: "software"` in the config or `VOX_RENDER_ENCODER=software` forces libx264.
 
 ### Export targets (plan D-13)
 
@@ -1239,11 +1261,12 @@ Every export (`render`, `exportCaptions`, `exportTimeline`) takes an optional ta
   link-local and multicast addresses, connecting to the IP it checked (no DNS-rebinding
   window). Archive and image downloads by the engine use the same check in-process.
 - yt-dlp runs with `--ignore-config --no-plugin-dirs --no-playlist --playlist-items 1
-  --max-filesize 4G -f "bv*+ba/b" -S "res:1080" --merge-output-format mp4`
+  --max-filesize 4G -f "bv*+ba/b" -S "res:1080,vcodec:h264" --merge-output-format mp4`
   (`--playlist` opt-in removes `--no-playlist` and `--playlist-items 1`), output to an
   engine-generated name, never the remote title. `-S "res:1080"` limits the smaller side,
   so vertical 1080×1920 reels and TikToks keep full quality (a `height<=1080` filter
-  would drop them).
+  would drop them). Among equal sizes H.264 comes first (D-78): VP9 and AV1 decode in
+  software, and MediaIntelligence (D-75) cannot read VP9.
   YouTube needs `yt-dlp-ejs` and a JS runtime: deno is preferred (yt-dlp's default);
   if only node exists, the engine passes `--js-runtimes node` and `vox doctor` warns
   that yt-dlp considers node less safe.

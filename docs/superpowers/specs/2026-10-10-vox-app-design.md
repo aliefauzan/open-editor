@@ -218,7 +218,7 @@ with its size, licence and status, installs them with progress, and can repair o
 | ffmpeg, ffprobe | Homebrew only (plan D-05). Setup checks `brew --prefix ffmpeg`; if it is missing, setup shows the two commands (install Homebrew, then `brew install ffmpeg`) with copy buttons and a "Check again" button | never downloaded or bundled by the app; installing Homebrew needs the user's admin password |
 | yt-dlp + `yt-dlp-ejs`, deno | yt-dlp's official macOS binary and `deno` release; updated with `yt-dlp -U` (yt-dlp verifies its own release checksums) | updates often; Settings has "Update yt-dlp" |
 | Chrome for HyperFrames rendering | HyperFrames' own browser install, run with the bundled pinned CLI | ~250 MB |
-| Models: Whisper large-v3-turbo, MediaPipe face detector, rembg model | downloaded on first use of the stage, size shown first | ~1.7 GB total |
+| Models: Whisper large-v3-turbo, MediaPipe face detector, rembg model (cutout fallback only, D-72) | downloaded on first use of the stage, size shown first | ~1.7 GB total |
 
 The bundled HyperFrames CLI and the `vox` CLI run with the app's Electron as Node, so no
 system Node is needed. Setup ends by running the engine's `doctor` checks and shows a
@@ -278,7 +278,8 @@ the stages that need a missing tool disabled and labelled.
 The start screen leads with one field: "Paste a YouTube, Instagram or TikTok link, or
 drop a video file", a "Choose file…" button (native dialog), plus
 "How many clips" (default 3) and "Length" (default 30–60 s). "Make clips" creates a
-project and runs ingest → shots → transcribe → facetrack → quick clips (engine spec
+project and runs ingest → shots → transcribe (then highlights on macOS 27, optional, D-75)
+and facetrack → quick clips (engine spec
 "Quick clips") with one progress view. The clips enter the project as one history
 entry, so one undo removes them all. A pasted link shows a badge (YouTube, Instagram,
 TikTok, Link) from `media.classifyUrl`; a non-`http(s)` text is refused before any job

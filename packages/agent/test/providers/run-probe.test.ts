@@ -3,6 +3,7 @@
 // cannot be assigned, and a tool list over 25 % of the context fails the editor.
 import { fileURLToPath } from 'node:url';
 import { describe, expect, test, vi } from 'vitest';
+import { APPLE_NO_VISION_REASON } from '../../src/providers/apple.ts';
 import { providerEntryFromPreset, type ProviderEntry } from '../../src/providers/presets.ts';
 import { assertRoleAssignable, roleCheck } from '../../src/providers/roles.ts';
 import { CLIP_PLAN_TASK, largestToolList, probeModel } from '../../src/providers/run-probe.ts';
@@ -133,18 +134,25 @@ describe('probe runner (step 10)', () => {
     expect(CLIP_PLAN_TASK.prompt).toContain('Sequence s1');
   });
 
-  test('Apple: status and plan only; a helper that is not ready skips the plan', async () => {
+  test('Apple: status, plan and vision only; a helper that is not ready skips the plan', async () => {
     const e = providerEntryFromPreset('apple');
     const plan = vi.fn(pass);
+    const vision = vi.fn(pass);
     const ready = await probeModel(e, 'apple/on-device', model, {
       apple: { command: process.execPath, args: [FAKE], env: { VOX_FAKE_APPLE_CONTEXT: '4096' } },
-      checks: { plan, tools: pass },
+      checks: { plan, vision, tools: pass },
     });
+    // a helper that reports no vision (older than D-74, or before macOS 27) fails the vision
+    // check without sending an image
     expect(ready).toEqual({
       appleStatus: 'ready',
       context: { contextTokens: 4096, source: 'apple' },
+      // a helper without the `embed` flag (older than D-77) cannot embed
+      capabilities: { embeddings: false },
+      vision: { status: 'fail', reason: APPLE_NO_VISION_REASON },
       plan: { status: 'pass' },
     });
+    expect(vision).not.toHaveBeenCalled();
     const off = await probeModel(e, 'apple/on-device', model, {
       apple: {
         command: process.execPath,
@@ -159,5 +167,44 @@ describe('probe runner (step 10)', () => {
       roleCheck('fast', { provider: e, model: 'apple/on-device', probe: off, priceTables: [] })
         .failures[0]?.reason,
     ).toMatch(/^notEnabled: Turn on Apple Intelligence/);
+  });
+
+  test('Apple with vision (macOS 27, D-74): the vision check runs and the role can be vision', async () => {
+    const e = providerEntryFromPreset('apple');
+    const vision = vi.fn(pass);
+    const report = await probeModel(e, 'apple/on-device', model, {
+      apple: {
+        command: process.execPath,
+        args: [FAKE],
+        env: { VOX_FAKE_APPLE_CONTEXT: '8192', VOX_FAKE_APPLE_VISION: '1' },
+      },
+      checks: { plan: pass, vision },
+    });
+    expect(vision).toHaveBeenCalledTimes(1);
+    expect(report.vision).toEqual({ status: 'pass' });
+    expect(
+      roleCheck('vision', { provider: e, model: 'apple/on-device', probe: report, priceTables: [] })
+        .assignable,
+    ).toBe(true);
+    const off = await probeModel(e, 'apple/on-device', model, {
+      apple: { command: process.execPath, args: [FAKE], env: { VOX_FAKE_APPLE_VISION: '0' } },
+      checks: { plan: pass, vision },
+    });
+    expect(vision).toHaveBeenCalledTimes(1);
+    expect(() =>
+      assertRoleAssignable('vision', {
+        provider: e,
+        model: 'apple/on-device',
+        probe: off,
+        priceTables: [],
+      }),
+    ).toThrow(expect.objectContaining({ code: 'PROBE_FAILED' }));
+    const planOnly = await probeModel(e, 'apple/on-device', model, {
+      apple: { command: process.execPath, args: [FAKE], env: { VOX_FAKE_APPLE_VISION: '1' } },
+      checks: { plan: pass, vision },
+      only: ['plan'],
+    });
+    expect(planOnly.vision).toBeUndefined();
+    expect(vision).toHaveBeenCalledTimes(1);
   });
 });

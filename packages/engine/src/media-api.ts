@@ -22,10 +22,26 @@ import type { OpCall } from './ops/index.ts';
 import { resolveProjectPath } from './paths.ts';
 import { repoPyProject, runPyTool, type PyBridgeOptions } from './py.ts';
 import type { Redactor } from './redact.ts';
+import { frameCards, type FrameCard } from './stages/framecard.ts';
+import {
+  HighlightsSchema,
+  highlightsTimeoutMs,
+  runHighlights,
+  type Highlights,
+  type NativeHelper,
+} from './stages/highlights.ts';
+import {
+  SoundsSchema,
+  runSounds,
+  soundsMatchRequest,
+  soundsTimeoutMs,
+  type Sounds,
+} from './stages/sounds.ts';
 import {
   DetectionsSchema,
   buildTrackPath,
   facetrackCacheKey,
+  isCurrentDetections,
   type Area,
   type Detections,
   type TrackPath,
@@ -100,6 +116,8 @@ export const TranscribeJobArgsSchema = MediaJobArgs.extend({
 });
 export const ShotsJobArgsSchema = MediaJobArgs;
 export const FacetrackJobArgsSchema = MediaJobArgs;
+export const HighlightsJobArgsSchema = MediaJobArgs;
+export const SoundsJobArgsSchema = MediaJobArgs;
 export type IngestJobArgs = z.infer<typeof IngestJobArgsSchema>;
 export type TranscribeJobArgs = z.infer<typeof TranscribeJobArgsSchema>;
 export type MediaJobArgs = z.infer<typeof MediaJobArgs>;
@@ -142,6 +160,46 @@ export interface FacetrackJobResult {
   input: 'proxy' | 'original';
   version: number;
 }
+/**
+ * `highlights` (D-75): derived data in `cache/highlights/<mediaId>.json`; the job never changes the
+ * project, so it can run beside the other stages without a version race. `available: false` (with
+ * the reason): no macOS 27, no native helper, an old helper or no proxy.
+ */
+export type HighlightsJobResult =
+  | {
+      mediaId: string;
+      available: true;
+      /** Project-relative: `cache/highlights/<mediaId>.json`. */
+      highlightsPath: string;
+      /** Highlight ranges found. */
+      highlights: number;
+      keyFrameMs: number | null;
+      cached: boolean;
+    }
+  | { mediaId: string; available: false; reason: string };
+
+/**
+ * `sounds` (D-83): reaction sound tags in `cache/sounds/<mediaId>.json`, derived data like
+ * highlights (no project op). `available: false` (with the reason): no native helper, an old
+ * helper or media without an audio track.
+ */
+export type SoundsJobResult =
+  | {
+      mediaId: string;
+      available: true;
+      /** Project-relative: `cache/sounds/<mediaId>.json`. */
+      soundsPath: string;
+      /** Windows with at least one reaction label. */
+      windows: number;
+      cached: boolean;
+    }
+  | { mediaId: string; available: false; reason: string };
+
+/** Where the `sounds` job stores a media item's sound tags (project-relative). */
+export const soundsPathOf = (mediaId: string): string => `cache/sounds/${mediaId}.json`;
+
+/** Where the `highlights` job stores a media item's highlights (project-relative). */
+export const highlightsPathOf = (mediaId: string): string => `cache/highlights/${mediaId}.json`;
 
 export interface MediaApiDeps {
   tools: Readonly<Record<string, string | undefined>>;
@@ -151,6 +209,11 @@ export interface MediaApiDeps {
   config(): Promise<Config>;
   /** Test seams for downloads (filtering proxy and the face model fetch). */
   net?: { resolver?: Resolver; dial?: Dial };
+  /**
+   * `vox-apple-llm` for the `highlights` (D-75) and `sounds` (D-83) jobs; absent: they are not
+   * available.
+   */
+  appleHelper?: NativeHelper;
 }
 
 const sha256Hex = (s: string): string => createHash('sha256').update(s).digest('hex');
@@ -307,6 +370,7 @@ export interface EnsureModelOptions {
   net?: { resolver?: Resolver; dial?: Dial };
   /** Test seams. */
   url?: string;
+  ca?: string;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
@@ -338,6 +402,7 @@ export async function ensureModel(
         const res = await fetchPublic(o.url ?? spec.url, {
           ...(o.net?.resolver ? { resolver: o.net.resolver } : {}),
           ...(o.net?.dial ? { dial: o.net.dial } : {}),
+          ...(o.ca ? { ca: o.ca } : {}),
           ...(o.signal ? { signal: o.signal } : {}),
           timeoutMs: 60_000,
         });
@@ -397,6 +462,15 @@ export interface MediaApi {
   facetrackPath(projectId: string, mediaId: string, opts: TrackPathOptions): Promise<TrackPath>;
   /** PNG stills of the source at the given times (cached under `cache/frames/`); absolute paths. */
   mediaFrames(projectId: string, mediaId: string, atMs: readonly number[]): Promise<string[]>;
+  /**
+   * Apple Vision cards of stills inside the project (`frames`, `mediaFrames`; plan D-73), cached
+   * under `cache/cards/` per still content and card version. APPLE_UNAVAILABLE off macOS.
+   */
+  frameCards(
+    projectId: string,
+    paths: readonly string[],
+    opts?: { signal?: AbortSignal },
+  ): Promise<FrameCard[]>;
 }
 
 export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaApi {
@@ -584,6 +658,8 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
       const file = join(dir, facetrackPath);
       const src = await detectionInput(dir, media);
       let det = await readParsed<Detections>(file, DetectionsSchema);
+      // a file from an older detector (D-82: none before Apple Vision faces) is detected again
+      if (!isCurrentDetections(det)) det = undefined;
       const cached = det !== undefined;
       if (!det) {
         const models = tools['models'];
@@ -632,6 +708,83 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         input: src.input,
         version,
       };
+    },
+  });
+
+  runner.register<MediaJobArgs, HighlightsJobResult>('highlights', {
+    args: HighlightsJobArgsSchema,
+    // a helper process on the media engine and Neural Engine, about one CPU core: it runs beside
+    // the stages that hold the job slots
+    outsidePool: true,
+    async run(args, ctx) {
+      const { project, dir } = await begin(args.projectId);
+      const media = findMedia(project, args.mediaId);
+      needVideo(media, 'Video highlights');
+      const highlightsPath = highlightsPathOf(media.id);
+      const file = join(dir, highlightsPath);
+      let h = await readParsed<Highlights>(file, HighlightsSchema);
+      const cached = h !== undefined;
+      if (!h) {
+        // the H.264 proxy only: the analyzer fails on VP9 and other sources it cannot decode
+        if (!media.proxyPath) {
+          return { mediaId: media.id, available: false, reason: 'the media has no preview proxy' };
+        }
+        ctx.progress(0.05, 'finding highlights');
+        const r = await runHighlights(
+          deps.appleHelper,
+          await resolveProjectPath(dir, media.proxyPath),
+          { signal: ctx.signal, timeoutMs: highlightsTimeoutMs(media.durationMs!), redact },
+        );
+        if (!r.available) return { mediaId: media.id, available: false, reason: r.reason };
+        h = r.highlights;
+        await mkdir(join(dir, 'cache', 'highlights'), { recursive: true, mode: 0o700 });
+        await writeAtomic(file, `${JSON.stringify(h)}\n`);
+      }
+      return {
+        mediaId: media.id,
+        available: true,
+        highlightsPath,
+        highlights: h.highlights.length,
+        keyFrameMs: h.keyFrameMs,
+        cached,
+      };
+    },
+  });
+
+  runner.register<MediaJobArgs, SoundsJobResult>('sounds', {
+    args: SoundsJobArgsSchema,
+    // a short helper process (about a second per 4 min of audio): like highlights it takes no slot
+    outsidePool: true,
+    async run(args, ctx) {
+      const { project, dir } = await begin(args.projectId);
+      const media = findMedia(project, args.mediaId);
+      const soundsPath = soundsPathOf(media.id);
+      const file = join(dir, soundsPath);
+      const stored = await readParsed<Sounds>(file, SoundsSchema);
+      // a file asked with other classes or another bar is recomputed
+      let s = stored && soundsMatchRequest(stored) ? stored : undefined;
+      const cached = s !== undefined;
+      if (!s) {
+        // the extracted AAC audio only: SoundAnalysis aborts on some source codecs (Opus)
+        if (!media.audioPath) {
+          return {
+            mediaId: media.id,
+            available: false,
+            reason: 'the media has no extracted audio',
+          };
+        }
+        ctx.progress(0.05, 'tagging sounds');
+        const r = await runSounds(
+          deps.appleHelper,
+          await resolveProjectPath(dir, media.audioPath),
+          { signal: ctx.signal, timeoutMs: soundsTimeoutMs(media.durationMs ?? 0), redact },
+        );
+        if (!r.available) return { mediaId: media.id, available: false, reason: r.reason };
+        s = r.sounds;
+        await mkdir(join(dir, 'cache', 'sounds'), { recursive: true, mode: 0o700 });
+        await writeAtomic(file, `${JSON.stringify(s)}\n`);
+      }
+      return { mediaId: media.id, available: true, soundsPath, windows: s.windows.length, cached };
     },
   });
 
@@ -736,6 +889,22 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         out.push(file);
       }
       return out;
+    },
+
+    frameCards(projectId, paths, opts = {}) {
+      return frameCards(
+        {
+          projectDir: deps.dirOf(projectId),
+          py: {
+            pyProject: tools['py'] ?? repoPyProject(),
+            ...(tools['uv'] ? { uv: tools['uv'] } : {}),
+            ...(tools['pyEnv'] && tools['dir'] ? { toolsDir: tools['dir'] } : {}),
+            ...(opts.signal ? { signal: opts.signal } : {}),
+            redactor: deps.redactor,
+          },
+        },
+        paths,
+      );
     },
   };
 }
