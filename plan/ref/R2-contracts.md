@@ -39,7 +39,7 @@ commit, and every consumer updated in that commit.
 | Agent events `agent.*`, run record | agent "Agent loop" | `agent/src/loop/` | 11 | 12 |
 | `ClipPlan` (plan mode) | agent "Plan mode" | `agent/src/loop/plan.ts` | 11 | 12 |
 | `window.vox` API (one zod schema; 10b adds `exports.chooseTarget`, `exports.lastFolder`, `media.classifyUrl`, D-13) | app "Engine-host API" | `apps/desktop/src/shared/api.ts` | 08 | 08 and 05, frozen 2026-10-11 (it wraps the engine API); grows 09–13 additively |
-| Apple helper protocol (JSON lines: request `{system, messages, schema?, maxTokens, temperature}`, response `{text\|json, usage}`, `--status`) | agent "Apple on-device model" | `native/apple-llm/`, `agent/src/providers/apple.ts` | 11 | 11 |
+| Apple helper protocol (JSON lines: request `{system, messages, schema?, maxTokens, temperature}`, response `{text\|json, usage}`, `--status` with `vision`, `highlights`, `embed`; `--highlights <video>` (D-75); `--embed`: stdin `{texts, language?}` → `{vectors, dim, language}`, error code `assetsMissing` (D-77)) | agent "Apple on-device model" | `native/apple-llm/`, `agent/src/providers/apple.ts` | 11 | 11 |
 | `vox-media://` URL shapes, CSPs | app "Window security", "Untrusted HTML" | `apps/desktop/src/main/protocols/` | 08 | 08 |
 | `preview.updated { kind: 'patch' \| 'reload' }` | app "Preview pipeline" | engine-host | 08/10a | 10a |
 

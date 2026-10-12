@@ -2,8 +2,10 @@
 // one sequence with the right clip in every scene, in screenplay order.
 //
 // 1. Parse the scenes (heading, description, dialogue, estimated duration).
-// 2. Tag the footage: keyframes → `vision` model → `update_media` (tags, description). A clip that
-//    already has a description is not asked again (cached per media item).
+// 2. Tag the footage: keyframes → `update_media` (tags, description). The tags come from the Apple
+//    on-device model when it is the `vision` role, else from Apple Vision frame cards (D-73), and
+//    from a paid `vision` model only when neither gives tags (D-77). A clip that already has a
+//    description is not asked again (cached per media item).
 // 3. Match every scene to a clip: embedding similarity when an embedder is set, else LLM ranking over
 //    the tags, else (a failed call) word overlap. Several matching clips: the best take is used and the
 //    others are noted.
@@ -19,6 +21,7 @@ import {
   projectDirFor,
   resolveProjectPath,
   snap,
+  type FrameCard,
   type MediaItem,
   type Project,
 } from '@vox/engine';
@@ -33,16 +36,22 @@ import {
   MATCH_MIN_EMBED,
   MATCH_MIN_LLM,
   MATCH_MIN_WORDS,
+  LOCAL_TOP_K,
+  localScores,
+  localShortlist,
   rankByEmbedding,
   rankByLlm,
+  rankLocal,
   wordOverlap,
   type Assignment,
   type Embedder,
   type Footage,
+  type LocalRank,
   type RankMethod,
   type Ranked,
 } from '../screenplay/match.ts';
 import { parseScreenplay, type Scene } from '../screenplay/parse.ts';
+import { CARD_TEXT_MIN_CONFIDENCE } from '../tools/cards.ts';
 import { readStill } from '../tools/read.ts';
 import type { Checkpoints } from './checkpoints.ts';
 
@@ -203,6 +212,77 @@ async function findScenes(run: AgentRun, opts: ScreenplayOptions): Promise<{ sce
   return { scenes };
 }
 
+const TAG_PROMPT =
+  'These stills are from one clip of footage. Describe what the clip shows for a video editor in one sentence (place, people, objects, action, mood, time of day). Then a last line "Tags:" with 5 to 8 short lowercase tags, comma separated.';
+
+/** On-screen text lines a card description keeps. */
+const CARD_TEXT_LINES = 3;
+
+/**
+ * Tags and a description from the keyframes' frame cards (D-73): the Vision labels (best
+ * confidence over the stills first), the most faces seen and a little on-screen text. Null when
+ * cards cannot be made here (not macOS, no Python tool) or give no label. Cancellation is rethrown.
+ */
+export async function cardTags(
+  run: AgentRun,
+  paths: readonly string[],
+): Promise<{ description: string; tags: string[] } | null> {
+  let cards: FrameCard[];
+  try {
+    cards = await run.ctx.engine.frameCards(
+      run.ctx.projectId,
+      paths,
+      run.ctx.signal ? { signal: run.ctx.signal } : {},
+    );
+  } catch (err) {
+    if (err instanceof RunStopped || run.ctx.signal?.aborted)
+      throw err instanceof RunStopped ? err : new RunStopped();
+    return null;
+  }
+  return tagsFromCards(cards);
+}
+
+/** The pure part of `cardTags`. */
+export function tagsFromCards(
+  cards: readonly FrameCard[],
+): { description: string; tags: string[] } | null {
+  const best = new Map<string, number>();
+  const text: string[] = [];
+  let faces = 0;
+  for (const c of cards) {
+    if ('error' in c) continue;
+    for (const l of c.labels) {
+      const label = cleanText(l.label.replace(/_/g, ' '), 40).toLowerCase();
+      if (label !== '') best.set(label, Math.max(best.get(label) ?? 0, l.confidence));
+    }
+    faces = Math.max(faces, c.faces.count);
+    for (const t of c.text) {
+      const line = cleanText(t.text, 60);
+      if (
+        t.confidence >= CARD_TEXT_MIN_CONFIDENCE &&
+        /[\p{L}\p{N}]/u.test(line) &&
+        !text.includes(line)
+      )
+        text.push(line);
+    }
+  }
+  const tags = [...best.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([l]) => l)
+    .slice(0, MAX_TAGS);
+  if (tags.length === 0) return null;
+  const parts = [`Shows ${tags.slice(0, 5).join(', ')}`];
+  if (faces > 0) parts.push(`${String(faces)} face${faces === 1 ? '' : 's'}`);
+  if (text.length > 0)
+    parts.push(
+      `on-screen text: ${text
+        .slice(0, CARD_TEXT_LINES)
+        .map((t) => `"${t}"`)
+        .join(' ')}`,
+    );
+  return { description: cleanText(parts.join('; '), 400), tags };
+}
+
 /** Step 2: tags and a description for every clip that has none. */
 async function tagFootage(
   run: AgentRun,
@@ -211,11 +291,10 @@ async function tagFootage(
 ): Promise<{ tagged: number; cached: number }> {
   let tagged = 0;
   let cached = 0;
+  let fromCards = 0;
+  let fallback = 0;
   const vision = run.ctx.vision;
-  if (!vision && videos.some((v) => v.description === undefined))
-    notes.push(
-      'No vision model: untagged clips were tagged from their speech and file names only.',
-    );
+  const appleVision = run.deps.models.vision?.provider.type === 'apple';
   for (const v of videos) {
     if (v.description !== undefined) {
       cached++;
@@ -244,20 +323,29 @@ async function tagFootage(
     const speech = await speechOf(run, media);
     let description = '';
     let tags: string[] = [];
-    if (vision && media.durationMs) {
+    let stills: { at: number[]; paths: string[] } | undefined;
+    if (media.durationMs) {
+      const at = KEYFRAMES.map((f) =>
+        Math.min(Math.round(media.durationMs! * f), media.durationMs! - 1),
+      );
       try {
-        const at = KEYFRAMES.map((f) =>
-          Math.min(Math.round(media.durationMs! * f), media.durationMs! - 1),
+        stills = { at, paths: await run.ctx.engine.mediaFrames(run.ctx.projectId, media.id, at) };
+      } catch (err) {
+        if (err instanceof RunStopped || run.ctx.signal?.aborted)
+          throw err instanceof RunStopped ? err : new RunStopped();
+        notes.push(
+          `${basename(media.path)}: no keyframes (${cleanText(String(err instanceof Error ? err.message : err), 120)}); tagged from speech and file name.`,
         );
-        const paths = await run.ctx.engine.mediaFrames(run.ctx.projectId, media.id, at);
+      }
+    }
+    const describe = async () => {
+      if (!vision || !stills) return;
+      const { at, paths } = stills;
+      try {
         const images = await Promise.all(
-          at.map((ms, i) => readStill(run.ctx, paths[i] as string, `srcMs ${String(ms)}`)),
+          at.map((ms, i) => readStill(run.ctx, paths[i]!, `srcMs ${String(ms)}`)),
         );
-        const text = await vision.describe(
-          images,
-          'These stills are from one clip of footage. Describe what the clip shows for a video editor in one sentence (place, people, objects, action, mood, time of day). Then a last line "Tags:" with 5 to 8 short lowercase tags, comma separated.',
-          run.ctx.signal,
-        );
+        const text = await vision.describe(images, TAG_PROMPT, run.ctx.signal);
         ({ description, tags } = parseDescription(text));
       } catch (err) {
         if (err instanceof RunStopped) throw err;
@@ -265,8 +353,20 @@ async function tagFootage(
           `${basename(media.path)}: the vision model failed (${cleanText(String(err instanceof Error ? err.message : err), 120)}); tagged from speech and file name.`,
         );
       }
+    };
+    // the on-device model first when it is the vision role (free); then frame cards (free); a
+    // paid vision model only when neither gave tags
+    if (appleVision) await describe();
+    if (tags.length === 0 && stills) {
+      const fromCard = await cardTags(run, stills.paths);
+      if (fromCard) {
+        ({ description, tags } = fromCard);
+        fromCards++;
+      }
     }
+    if (tags.length === 0 && !appleVision) await describe();
     if (description === '') {
+      fallback++;
       description = speech;
       tags = [...new Set([...nameWords(media.path), ...parseDescription(speech).tags])].slice(
         0,
@@ -280,6 +380,14 @@ async function tagFootage(
     });
     tagged++;
   }
+  if (fromCards > 0)
+    notes.push(
+      `${String(fromCards)} clip(s) tagged from Apple Vision frame cards (no vision model call).`,
+    );
+  if (!vision && fallback > 0)
+    notes.push(
+      'No vision model: untagged clips were tagged from their speech and file names only.',
+    );
   return { tagged, cached };
 }
 
@@ -297,7 +405,18 @@ async function rank(
   embed: Embedder | undefined,
   notes: string[],
 ): Promise<Ranking> {
-  if (embed) {
+  if (embed?.local) {
+    try {
+      const local = await rankLocal(embed, scenes, footage, run.ctx.signal);
+      return await rankWithLlm(run, scenes, footage, notes, local);
+    } catch (err) {
+      if (err instanceof RunStopped || run.ctx.signal?.aborted)
+        throw err instanceof RunStopped ? err : new RunStopped();
+      notes.push(
+        `The on-device embedding failed (${cleanText(String(err instanceof Error ? err.message : err), 120)}); ranked with the language model.`,
+      );
+    }
+  } else if (embed) {
     try {
       const ranks = await rankByEmbedding(embed, scenes, footage, run.ctx.signal);
       return { ranks, mins: scenes.map(() => MATCH_MIN_EMBED), method: 'embedding' };
@@ -308,13 +427,37 @@ async function rank(
       );
     }
   }
+  return rankWithLlm(run, scenes, footage, notes);
+}
+
+/**
+ * LLM ranking, one scene at a time. With a local first pass (D-77) a sure scene keeps its local
+ * ranking and an unsure one sends only its LOCAL_TOP_K best clips; without one every clip is sent.
+ */
+async function rankWithLlm(
+  run: AgentRun,
+  scenes: readonly Scene[],
+  footage: readonly Footage[],
+  notes: string[],
+  local?: readonly LocalRank[],
+): Promise<Ranking> {
   const role = run.deps.models.fast ?? run.deps.models.editor;
   const ranks: Ranked[][] = [];
   const mins: number[] = [];
   const methods = new Set<RankMethod>();
-  for (const scene of scenes) {
+  let sure = 0;
+  for (const [si, scene] of scenes.entries()) {
+    const first = local?.[si];
+    if (first?.sure) {
+      ranks.push(localScores(first));
+      mins.push(MATCH_MIN_LLM);
+      methods.add('embedding');
+      sure++;
+      continue;
+    }
     try {
-      ranks.push(await rankByLlm(run, role, scene, footage, run.ctx.signal));
+      const sent = first ? localShortlist(first, footage) : footage;
+      ranks.push(await rankByLlm(run, role, scene, sent, run.ctx.signal));
       mins.push(MATCH_MIN_LLM);
       methods.add('llm');
     } catch (err) {
@@ -332,6 +475,10 @@ async function rank(
       methods.add('words');
     }
   }
+  if (local)
+    notes.push(
+      `On-device embeddings matched ${String(sure)} of ${String(scenes.length)} scene(s); ${String(scenes.length - sure)} went to the language model with at most ${String(LOCAL_TOP_K)} clips each.`,
+    );
   return { ranks, mins, method: methods.size > 1 ? 'mixed' : ([...methods][0] ?? 'llm') };
 }
 

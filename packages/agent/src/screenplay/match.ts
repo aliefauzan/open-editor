@@ -3,6 +3,9 @@
 // tags (one JSON call per scene, `fast` role, else the editor). Scores are 0..1. A failed ranking
 // call falls back to a word-overlap score, and the fallback is reported. Then `assign` picks one clip
 // per scene: the best take, noting the other clips that matched the scene too.
+// A `local` embedder (on-device, D-77) is a first pass instead: `rankLocal` scores every scene
+// against every clip in one helper run; a scene whose best clip clearly stands out is matched there,
+// and only the others go to the LLM, each with its LOCAL_TOP_K best clips.
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { wrapData } from '../loop/envelope.ts';
@@ -29,7 +32,13 @@ export interface Ranked {
   score: number;
 }
 
-export type Embedder = (texts: string[], signal?: AbortSignal) => Promise<number[][]>;
+export type Embedder = ((texts: string[], signal?: AbortSignal) => Promise<number[][]>) & {
+  /**
+   * On-device and weaker than an embedding model (Apple NaturalLanguage, D-77): a first pass. Unsure
+   * scenes still go to the LLM, with a shortlist. Absent: the embedding ranking is final.
+   */
+  local?: boolean;
+};
 
 /** A clip must score at least this (0..1) to be used for a scene. */
 export const MATCH_MIN_LLM = 0.5;
@@ -37,6 +46,22 @@ export const MATCH_MIN_EMBED = 0.3;
 export const MATCH_MIN_WORDS = 0.2;
 /** Candidates per ranking call. */
 export const RANK_BATCH = 12;
+/**
+ * Local first pass (D-77): an unsure scene goes to the LLM with only its best LOCAL_TOP_K clips by
+ * local similarity (one call, as RANK_BATCH is larger). On the fixture set the right clip was first
+ * in every scene; 8 leaves room for weaker sets at a third of a 24-clip set's tokens.
+ */
+export const LOCAL_TOP_K = 8;
+/**
+ * A scene is matched locally, with no LLM call, when its best clip leads the second by at least
+ * this much centred cosine. Measured on the fixture set (Apple NaturalLanguage, 512 dimensions):
+ * right clips led by 0.11 to 0.82 (clips tagged by a vision model or by frame cards), and with the
+ * right clip removed the best wrong one led by at
+ * most 0.24, so 0.3 never took a wrong clip there.
+ */
+export const LOCAL_MARGIN = 0.3;
+/** Fewer clips than this give no field to compare against: every scene goes to the LLM. */
+export const LOCAL_MIN_CLIPS = 3;
 
 export const sceneText = (s: Scene): string =>
   [s.heading, s.description, ...s.dialogue.map((d) => `${d.character}: ${d.text}`)]
@@ -102,6 +127,70 @@ export async function rankByEmbedding(
       }))
       .sort(byScore),
   );
+}
+
+/** One scene's local first pass. */
+export interface LocalRank {
+  /** Centred cosine (-1..1) per clip, best first. */
+  ranked: Ranked[];
+  /** The best clip leads by LOCAL_MARGIN or more (and there are enough clips): no LLM call. */
+  sure: boolean;
+  /** Best minus second (0 with one clip). */
+  margin: number;
+}
+
+/**
+ * The local first pass (D-77): one embedder call for all scenes and clips, cosine after
+ * subtracting the mean vector of all texts. Contextual token vectors, mean-pooled, all point
+ * roughly the same way (raw cosines of unrelated sentences are about 0.75 to 0.9); centring spreads
+ * them so related pairs stand out.
+ */
+export async function rankLocal(
+  embed: Embedder,
+  scenes: readonly Scene[],
+  footage: readonly Footage[],
+  signal?: AbortSignal,
+): Promise<LocalRank[]> {
+  const vectors = await embed([...scenes.map(sceneText), ...footage.map(footageText)], signal);
+  if (vectors.length !== scenes.length + footage.length)
+    throw new Error('the embedding model returned the wrong number of vectors');
+  const dim = Math.max(0, ...vectors.map((v) => v.length));
+  const mean = new Array<number>(dim).fill(0);
+  for (const v of vectors) for (let i = 0; i < dim; i++) mean[i]! += (v[i] ?? 0) / vectors.length;
+  const centred = vectors.map((v) => mean.map((m, i) => (v[i] ?? 0) - m));
+  const clipVecs = centred.slice(scenes.length);
+  return scenes.map((_s, i) => {
+    const ranked = footage
+      .map((f, k) => ({ mediaId: f.mediaId, score: cosine(centred[i]!, clipVecs[k]!) }))
+      .sort(byScore);
+    const margin = ranked.length > 1 ? ranked[0]!.score - ranked[1]!.score : 0;
+    return {
+      ranked,
+      margin,
+      sure: footage.length >= LOCAL_MIN_CLIPS && margin >= LOCAL_MARGIN,
+    };
+  });
+}
+
+/**
+ * A sure local scene as scores on the LLM scale (MATCH_MIN_LLM is the bar): the best clip
+ * 0.5 + margin (at most 1), every other clip 0.5 minus its distance to the best, so below the bar.
+ */
+export function localScores(r: LocalRank): Ranked[] {
+  const top = r.ranked[0]?.score ?? 0;
+  return r.ranked.map((x, k) => ({
+    mediaId: x.mediaId,
+    score:
+      k === 0
+        ? Math.min(1, MATCH_MIN_LLM + r.margin)
+        : Math.max(0, MATCH_MIN_LLM - (top - x.score)),
+  }));
+}
+
+/** The LLM shortlist of an unsure scene: its LOCAL_TOP_K best clips by local similarity. */
+export function localShortlist(r: LocalRank, footage: readonly Footage[]): Footage[] {
+  const keep = new Set(r.ranked.slice(0, LOCAL_TOP_K).map((x) => x.mediaId));
+  return footage.filter((f) => keep.has(f.mediaId));
 }
 
 const RankSchema = z.strictObject({

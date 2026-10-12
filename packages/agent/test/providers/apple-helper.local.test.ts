@@ -1,7 +1,8 @@
 // Real `vox-apple-llm` build and smoke test (local tier: never on CI, R3/D-16). Builds the Swift
 // helper in release mode, checks it against the same zod protocol schemas as the fake, and runs
 // one short text request and one schema request when Apple Intelligence is ready, and one image
-// description when the model reports vision (macOS 27, D-74).
+// description when the model reports vision (macOS 27, D-74), and `--embed` in English and
+// Indonesian (D-77).
 // Skipped with the reason on a Mac without a macOS 26+ SDK or on another OS.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -9,8 +10,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { z } from 'zod';
+import { appleEmbed, createAppleEmbedder } from '../../src/providers/apple.ts';
+import { cosine } from '../../src/screenplay/match.ts';
 import {
   encodeAppleRequest,
+  parseAppleEmbedLine,
   parseAppleResponseLine,
   parseAppleStatusLine,
   type AppleResponse,
@@ -122,6 +126,54 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
     expect(typeof status.vision).toBe('boolean');
     if (macosMajor < 27) expect(status.vision).toBe(false);
     expect(status.highlights).toBe(macosMajor >= 27);
+    // NaturalLanguage contextual embeddings exist from macOS 14 (D-77)
+    expect(status.embed).toBe(true);
+  });
+
+  test.each([
+    [
+      'en',
+      'The storm will not stop before dawn, so we wait in the kitchen.',
+      "The storm won't end before morning, so we stay in the kitchen.",
+      'Quarterly revenue grew because of strong software sales.',
+    ],
+    [
+      'id',
+      'Jadi di sini saya mau cerita tentang berbagi dan sedekah.',
+      'Di sini saya ingin bercerita soal sedekah dan berbagi.',
+      'Harga saham turun tajam hari ini di bursa efek.',
+    ],
+  ])(
+    '--embed (%s): two near-duplicate sentences score higher than an unrelated one (D-77)',
+    async (language, a, b, other) => {
+      const embed = createAppleEmbedder({ command: bin });
+      const started = Date.now();
+      // no language: the helper detects it
+      const r = await appleEmbed({ command: bin }, [a, b, other]);
+      expect(r.language).toBe(language);
+      expect(r.dim).toBeGreaterThan(0);
+      const [va, vb, vo] = r.vectors as [number[], number[], number[]];
+      const near = cosine(va, vb);
+      const far = Math.max(cosine(va, vo), cosine(vb, vo));
+      console.info(
+        `--embed ${language}: dim ${String(r.dim)}, near ${near.toFixed(3)}, unrelated ${far.toFixed(3)}, ${String(Date.now() - started)} ms`,
+      );
+      expect(near).toBeGreaterThan(far);
+      // the embedder (with the language passed) gives the same vectors
+      const again = await appleEmbed({ command: bin }, [a, b, other], { language });
+      expect(again.vectors[0]).toEqual(va);
+      expect(await embed([a])).toHaveLength(1);
+    },
+    120_000,
+  );
+
+  test('--embed: a bad request is one badRequest line and exit 1', async () => {
+    const out = await runOnce({ command: bin, args: [] }, ['--embed'], '{"texts":[]}');
+    expect(out.code).toBe(1);
+    expect(parseAppleEmbedLine(out.stdout)).toMatchObject({
+      ok: true,
+      value: { error: { code: 'badRequest' } },
+    });
   });
 
   test('an unknown flag exits 2 with usage on stderr', async () => {
