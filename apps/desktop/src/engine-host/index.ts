@@ -7,6 +7,7 @@ import { delimiter, join } from 'node:path';
 import {
   createSecurityKeychain,
   engineConfigIO,
+  registerStyleExtract,
   setWorkflowsDir,
   type AgentConfigDeps,
   type AppleModelOptions,
@@ -36,6 +37,7 @@ import { chromeDelegate } from './setup/chrome.ts';
 import type { EventName } from '../shared/api.ts';
 import { AgentHost } from './agent.ts';
 import { e2eAgentModel } from './e2e-agent.ts';
+import { e2eStyleSteps, e2eVisionRole } from './e2e-style.ts';
 import { SettingsHost } from './settings.ts';
 
 /** Test builds: keys stay in memory (the user's Keychain is never touched by a test). */
@@ -282,6 +284,13 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
     }),
   });
   late.agent = agent;
+  // style extraction (phase 15): the job runs in this engine with the vision model of Settings;
+  // test builds with the mock agent use the fixture reference and a mock vision model
+  registerStyleExtract(
+    engine,
+    agent.styleExtractHost(mock ? () => Promise.resolve(e2eVisionRole()) : undefined),
+    mock && seeds ? e2eStyleSteps(seeds.dir) : {},
+  );
   const settings = new SettingsHost({
     cfg,
     appleHelper: appleHelper && apple !== undefined,
@@ -301,7 +310,13 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
   }
   const emit = serve(
     port,
-    createHandlers(engine, setup, { preview, appJobs, agent, settings }),
+    createHandlers(engine, setup, {
+      preview,
+      appJobs,
+      agent,
+      settings,
+      styleExtract: { render: !testBuild },
+    }),
     (v) => engine.redactor.redact(v),
   );
   out.emit = emit;

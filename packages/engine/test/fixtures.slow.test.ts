@@ -186,25 +186,24 @@ describe('make.sh', () => {
 
   test('style-extract-10s.mp4 shows each flat shot colour and a caption box at 75 % height', () => {
     // one pixel at (40, 40) in the middle of each shot, and the caption box centre at 1 s
-    const px = (t: number, x: number, y: number) =>
-      [
-        ...execFileSync('ffmpeg', [
-          '-nostdin',
-          '-v',
-          'error',
-          '-ss',
-          String(t),
-          '-i',
-          out('style-extract-10s.mp4'),
-          '-vf',
-          `crop=1:1:${x}:${y},format=rgb24`,
-          '-frames:v',
-          '1',
-          '-f',
-          'rawvideo',
-          '-',
-        ]),
-      ];
+    const px = (t: number, x: number, y: number) => [
+      ...execFileSync('ffmpeg', [
+        '-nostdin',
+        '-v',
+        'error',
+        '-ss',
+        String(t),
+        '-i',
+        out('style-extract-10s.mp4'),
+        '-vf',
+        `crop=1:1:${x}:${y},format=rgb24`,
+        '-frames:v',
+        '1',
+        '-f',
+        'rawvideo',
+        '-',
+      ]),
+    ];
     const near = (a: number[], hex: string) => {
       const b = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
       return a.every((v, i) => Math.abs(v - b[i]!) <= 12);

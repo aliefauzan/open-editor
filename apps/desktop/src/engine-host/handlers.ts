@@ -1,7 +1,7 @@
 // The engine host's window.vox handlers (app spec "Engine-host API"). Arguments were validated by
 // main (zod, S11); handlers map them onto the engine API. Methods of later phases are absent and
 // answer NOT_AVAILABLE (rpc.ts). Main-only methods (dialogs, reveal) never reach the host.
-import { classifyUrl, type Engine, type OpCall } from '@vox/engine';
+import { classifyUrl, VoxError, type Engine, type OpCall } from '@vox/engine';
 import { projectDirFor, resolveProjectPath } from '@vox/engine/paths';
 import { access, readFile } from 'node:fs/promises';
 import type { EventName, Method, MethodArgs, SetupStatusData } from '../shared/api.ts';
@@ -32,6 +32,8 @@ export interface EditorHost {
   agent?: AgentHost;
   /** Provider settings, keys (Keychain), roles, cookies opt-in (phase 13). */
   settings?: SettingsHost;
+  /** `styles.extract` (phase 15): the `style.extract` job is registered; `render: false` in test builds. */
+  styleExtract?: { render: boolean };
 }
 
 type ProjectMedia = Awaited<ReturnType<Engine['getProject']>>['media'][number];
@@ -148,8 +150,16 @@ export function createHandlers(
     },
     'media.search': async (id: A<'media.search'>[0], q: A<'media.search'>[1]) =>
       searchMedia(projectDirFor(engine.projectsDir, id), (await engine.getProject(id)).media, q),
-    'jobs.start': async (kind: A<'jobs.start'>[0], args: A<'jobs.start'>[1]) =>
-      appJobs && isAppKind(kind) ? appJobs.start(kind, args) : engine.jobs.start(kind, args),
+    'jobs.start': async (kind: A<'jobs.start'>[0], args: A<'jobs.start'>[1]) => {
+      // the reference of a style extraction comes from styles.extract (a native dialog or a link)
+      if (kind === 'style.extract')
+        throw new VoxError(
+          'VALIDATION',
+          'Start a style extraction with styles.extract',
+          'Use the style gallery.',
+        );
+      return appJobs && isAppKind(kind) ? appJobs.start(kind, args) : engine.jobs.start(kind, args);
+    },
     'jobs.get': async (id: A<'jobs.get'>[0]) =>
       appJobs?.has(id) ? appJobs.get(id) : engine.jobs.get(id),
     'jobs.cancel': async (id: A<'jobs.cancel'>[0]) =>
@@ -164,6 +174,26 @@ export function createHandlers(
     'styles.get': async (id: A<'styles.get'>[0]) => engine.styles.get(id),
     'styles.accept': async (id: A<'styles.accept'>[0]) => engine.styles.accept(id),
     'styles.remove': async (id: A<'styles.remove'>[0]) => engine.styles.remove(id),
+    ...(editor.styleExtract === undefined
+      ? {}
+      : {
+          'styles.extract': async (o: A<'styles.extract'>[0]) => {
+            const source = o.url ?? o.path;
+            if (!source) {
+              throw new VoxError(
+                'VALIDATION',
+                'No reference video',
+                'Choose a video file or paste a link.',
+              );
+            }
+            const jobId = engine.jobs.start('style.extract', {
+              source,
+              name: o.name,
+              ...(!editor.styleExtract!.render && { render: false }),
+            });
+            return { jobId };
+          },
+        }),
     'geo.search': async (q: A<'geo.search'>[0]) => engine.geo.search(q),
     ...(editor.agent === undefined
       ? {}

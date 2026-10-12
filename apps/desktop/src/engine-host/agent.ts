@@ -10,6 +10,9 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  budgetHost,
+  type RoleModel,
+  type StyleExtractHost,
   buildRunModels,
   CLIPPER_DEFAULTS,
   closeUnfinishedRuns,
@@ -328,6 +331,26 @@ export class AgentHost {
       record: { write: () => undefined },
     };
     return createLlmScorer(host, fast);
+  }
+
+  /**
+   * The host of the `style.extract` job (phase 15): the `vision` model of Settings when the job asks
+   * for it (`vision` overrides it in test builds) and a fresh cost cap per extraction.
+   */
+  styleExtractHost(vision?: () => Promise<RoleModel | undefined>): StyleExtractHost {
+    let budget = budgetHost(undefined, 0);
+    return {
+      vision: async () => {
+        const v = vision
+          ? await vision()
+          : (await this.#models().catch(() => undefined))?.models.vision;
+        const cap = (await loadAgentConfig(this.#d.cfg)).limits.maxUsdPerRun;
+        budget = budgetHost(v, cap);
+        return v;
+      },
+      ensureBudget: (role, tokens) => budget.ensureBudget!(role, tokens),
+      addCost: (role, usage, meta) => budget.addCost!(role, usage, meta),
+    };
   }
 
   /** Waits for every active run (tests, quit). */
