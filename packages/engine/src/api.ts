@@ -54,7 +54,19 @@ import {
   type TrackPath,
   type TrackPathOptions,
 } from './stages/facetrack.ts';
+import { createMfluxProviders, registerImagegenJobs } from './imagegen.ts';
 import { createImageProviders, registerAssetJobs, type ImageProvider } from './assets-api.ts';
+export {
+  IMAGE_MODELS,
+  IMAGE_MODEL_IDS,
+  hfTokenPresent,
+  imagegenStatus,
+  isInstalled as isImageModelInstalled,
+  type ImageModelId,
+  type ImageModelInfo,
+  type ImageModelStatus,
+  type ImagegenInstallResult,
+} from './imagegen.ts';
 import type { GetJson } from './stages/assets.ts';
 import {
   registerExportJobs,
@@ -411,6 +423,8 @@ export interface EngineOptions {
     ca?: string;
     sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   };
+  /** Test seams for the local image model install: free disk space and the environment (HF_TOKEN). */
+  imagegen?: { freeBytes?: (dir: string) => number; env?: NodeJS.ProcessEnv };
   /** Test seam: runs the HyperFrames CLI (render, snapshot). */
   hyperframes?: HyperframesRun;
 }
@@ -698,6 +712,12 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.net ? { net: opts.net } : {}),
   });
   const imageProviders = createImageProviders();
+  if (opts.tools?.['models']) {
+    // Local mflux models (phase 14d): each provider shows up once its model is installed.
+    for (const p of createMfluxProviders({ tools: opts.tools, redactor }))
+      imageProviders.register(p);
+    registerImagegenJobs(jobs, { tools: opts.tools, redactor, ...opts.imagegen });
+  }
   registerAssetJobs(jobs, {
     tools: opts.tools ?? {},
     redactor,

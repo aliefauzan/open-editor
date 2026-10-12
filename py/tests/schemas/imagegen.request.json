@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "vox_py/imagegen.request",
+  "title": "vox_py.imagegen request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "model", "modelDir"],
+  "properties": {
+    "action": { "enum": ["install", "generate"] },
+    "model": { "enum": ["z-image-turbo", "flux1-schnell"] },
+    "modelDir": { "type": "string", "minLength": 1 },
+    "cacheDir": { "type": "string", "minLength": 1 },
+    "prompt": { "type": "string", "minLength": 1 },
+    "width": { "type": "integer", "minimum": 64, "maximum": 4096 },
+    "height": { "type": "integer", "minimum": 64, "maximum": 4096 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "output": { "type": "string", "pattern": "\\.png$" }
+  }
+}

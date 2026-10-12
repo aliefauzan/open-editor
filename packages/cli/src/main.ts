@@ -11,6 +11,8 @@ import { selfTest } from './self-test.ts';
 import {
   isVoxError,
   classifyUrl,
+  IMAGE_MODEL_IDS,
+  imagegenStatus,
   openEngine,
   readConfig,
   resolveProjectsDir,
@@ -124,6 +126,9 @@ const USAGE = `usage:
   vox assets fetch <project> <candidateId>
   vox assets cutout <project> <mediaId>
   vox assets generate <project> "<prompt>" [--style id] [--provider id]
+  vox imagegen status                     local image models: installed, size, licence
+  vox imagegen install [--model z-image-turbo|flux1-schnell]   download + quantize (FLUX needs HF_TOKEN)
+  vox imagegen remove [--model ...]       delete an installed model
   vox compile <project> [--seq id] [--mode preview|render]   writes build/
   vox preview <project> [--seq id]        compile + npx hyperframes play
   vox frames <project> [--seq id] --at-ms <ms>[,<ms>...]     compiled stills (paths)
@@ -201,6 +206,7 @@ const OPTIONS: Record<string, ParseArgsConfig['options']> = {
     style: { type: 'string' },
     provider: { type: 'string' },
   },
+  imagegen: { ...COMMON, model: { type: 'string' } },
   compile: { ...COMMON, seq: { type: 'string' }, mode: { type: 'string' } },
   preview: { ...COMMON, seq: { type: 'string' } },
   frames: { ...COMMON, seq: { type: 'string' }, 'at-ms': { type: 'string' } },
@@ -729,6 +735,46 @@ async function command(cmd: string, args: readonly string[], io: Io): Promise<nu
       }
       out(project ? { ...report, project } : report, lines.join(''));
       return report.ok ? 0 : 1;
+    }
+    case 'imagegen': {
+      need(positionals, 1, '<status|install|remove>');
+      const sub = positionals[0]!;
+      const e = await engineFor(values, io);
+      const model = oneOf(values['model'], 'model', IMAGE_MODEL_IDS) ?? 'z-image-turbo';
+      if (sub === 'status') {
+        const st = await imagegenStatus(e.tools['models']);
+        const gb = (n: number) => `${(n / 1e9).toFixed(1)} GB`;
+        out(
+          st,
+          st
+            .map(
+              (m) =>
+                `${m.id}\t${m.installed ? `installed (${gb(m.sizeOnDisk)})` : `not installed (${gb(m.downloadBytes)} download)`}\t${m.license}${m.gated ? '\tgated on Hugging Face' : ''}\n`,
+            )
+            .join(''),
+        );
+        return 0;
+      }
+      if (sub === 'install') {
+        const r = await runJob<{ providerId: string; bytes: number }>(
+          e,
+          'imagegen.install',
+          { model },
+          io,
+          json,
+        );
+        out(
+          r,
+          `${model} installed; use: vox assets generate <project> "<prompt>" --provider ${r.providerId}\n`,
+        );
+        return 0;
+      }
+      if (sub === 'remove') {
+        const r = await runJob<{ removed: boolean }>(e, 'imagegen.remove', { model }, io, json);
+        out(r, r.removed ? `${model} removed\n` : `${model} was not installed\n`);
+        return 0;
+      }
+      throw new UsageError(`unknown imagegen command ${JSON.stringify(sub)}`);
     }
     case 'assets': {
       need(positionals, 3, '<search|fetch|cutout|generate> <project> <argument>');

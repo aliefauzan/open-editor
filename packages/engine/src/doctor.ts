@@ -12,6 +12,14 @@ import type { Project, Transcript } from './model/schema.ts';
 import { moduleRequire } from './resources.ts';
 import { WHISPER_DIR, WHISPER_REPO, WHISPER_REVISION } from './stages/transcribe.ts';
 
+import {
+  IMAGE_MODEL_IDS,
+  IMAGE_MODELS,
+  hfTokenPresent,
+  isInstalled,
+  modelDir,
+} from './imagegen.ts';
+
 export type CheckLevel = 'ok' | 'warn' | 'error';
 
 export interface DoctorCheck {
@@ -100,6 +108,8 @@ export interface DoctorOptions {
   exec?: Exec;
   /** HOME for caches (HF, puppeteer); default the user's home. */
   home?: string;
+  /** Environment for the Hugging Face token check; default `process.env`. */
+  env?: NodeJS.ProcessEnv;
   /** Skip the Python import check (it takes a few seconds). */
   quick?: boolean;
 }
@@ -373,6 +383,35 @@ export async function doctor(o: DoctorOptions): Promise<DoctorReport> {
           licence: 'MIT',
         },
   );
+
+  // Local image generation (phase 14d): optional, so a missing model is not a warning.
+  for (const id of IMAGE_MODEL_IDS) {
+    const info = IMAGE_MODELS[id];
+    const installed = isInstalled(models, id);
+    const gb = (n: number) => `${Math.round(n / 1e9)} GB`;
+    const base = {
+      name: `image-${id}`,
+      licence: info.license,
+      ...(installed && models ? { path: modelDir(models, id) } : {}),
+    };
+    if (installed) {
+      add({ ...base, level: 'ok', detail: `${info.label} installed (${info.repo})` });
+    } else if (info.gated) {
+      add({
+        ...base,
+        level: 'ok',
+        detail: `${info.label} not installed (optional, ${gb(info.downloadBytes)} download). It is gated on Hugging Face: ${hfTokenPresent(o.env) ? 'a token is set' : 'no HF_TOKEN is set'}`,
+        fix: `accept the terms at ${info.licenseUrl}, create a read token, then: HF_TOKEN=<token> vox imagegen install --model ${id}. Vox never stores the token.`,
+      });
+    } else {
+      add({
+        ...base,
+        level: 'ok',
+        detail: `${info.label} not installed (optional local image generation, ${gb(info.downloadBytes)} download, about ${gb(info.installedBytes)} kept)`,
+        fix: 'vox imagegen install, or turn it on in Settings',
+      });
+    }
+  }
 
   add(
     o.config.contact

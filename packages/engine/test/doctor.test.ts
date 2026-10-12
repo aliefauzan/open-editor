@@ -2,7 +2,7 @@
 // tools, the node-only yt-dlp warning, yt-dlp-ejs and impersonation, contact; project checks for
 // caption-override orphans and --unlock.
 import { createHash } from 'node:crypto';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { doctor, doctorProject, type Exec } from '../src/doctor.ts';
@@ -151,6 +151,43 @@ describe('doctor', () => {
       home: tempDir(),
     });
     expect(by(r2, 'model-silero-vad')).toMatchObject({ level: 'error' });
+  });
+
+  test('local image models (14d): optional, sizes and licences shown; FLUX terms and token explained', async () => {
+    const models = tempDir();
+    const base = {
+      tools: { ...all, models },
+      config: {},
+      exec: fakeExec(),
+      quick: true,
+      home: tempDir(),
+    };
+    const r = await doctor({ ...base, env: {} });
+    const z = r.checks.find((c) => c.name === 'image-z-image-turbo')!;
+    expect(z).toMatchObject({ level: 'ok', licence: 'Apache-2.0' });
+    expect(z.detail).toMatch(/not installed.*33 GB download/);
+    expect(z.fix).toMatch(/vox imagegen install/);
+    const f = r.checks.find((c) => c.name === 'image-flux1-schnell')!;
+    expect(f.level).toBe('ok');
+    expect(f.detail).toMatch(/gated on Hugging Face: no HF_TOKEN is set/);
+    expect(f.fix).toMatch(
+      /accept the terms at https:\/\/huggingface\.co\/black-forest-labs\/FLUX\.1-schnell/,
+    );
+    expect(f.fix).toMatch(/never stores the token/);
+    const withToken = await doctor({ ...base, env: { HF_TOKEN: 'x' } });
+    expect(by(withToken, 'image-flux1-schnell')).toBeDefined();
+    expect(withToken.checks.find((c) => c.name === 'image-flux1-schnell')!.detail).toMatch(
+      /a token is set/,
+    );
+    // installed: shown with its path
+    mkdirSync(join(models, 'mflux', 'z-image-turbo'), { recursive: true });
+    writeFileSync(join(models, 'mflux', 'z-image-turbo', 'vox-model.json'), '{}');
+    const r2 = await doctor({ ...base, env: {} });
+    expect(r2.checks.find((c) => c.name === 'image-z-image-turbo')).toMatchObject({
+      level: 'ok',
+      detail: expect.stringMatching(/installed \(Tongyi-MAI\/Z-Image-Turbo\)/),
+      path: join(models, 'mflux', 'z-image-turbo'),
+    });
   });
 });
 

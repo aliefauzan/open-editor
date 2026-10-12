@@ -426,6 +426,30 @@ export interface SettingsData {
   probes: ProbedData[];
   ingest: { cookiesFromBrowser: (typeof COOKIE_BROWSERS)[number] | null };
   contact: string | null;
+  /** Local image generation (phase 14d); absent in builds without the models folder. */
+  imagegen?: ImageGenData;
+}
+
+/**
+ * Local image models (engine `imagegenStatus`). The toggle in Settings shows the download size and
+ * the licence before the first use, then runs the `imagegen.install` job (`jobs.start`); turning it
+ * off runs `imagegen.remove`.
+ */
+export interface ImageGenModelData {
+  id: string;
+  label: string;
+  license: string;
+  licenseUrl: string;
+  gated: boolean;
+  installed: boolean;
+  /** Bytes fetched from Hugging Face. */
+  downloadBytes: number;
+  /** About what stays on disk once installed. */
+  installedBytes: number;
+  sizeOnDisk: number;
+}
+export interface ImageGenData {
+  models: ImageGenModelData[];
 }
 
 // Agent panel (phase 13; engine host `AgentHost`). Events: `agent.event` carries `{ type, payload }`
