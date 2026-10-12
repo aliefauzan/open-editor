@@ -1,0 +1,91 @@
+{
+  "id": "attention-compound",
+  "name": "Attention Compound",
+  "version": "0.1.0",
+  "description": "Draft style extracted from a reference video (7633685885615115550.mp4): re-skins vox's templates with measured colours, pacing and captions.",
+  "status": "draft",
+  "extends": "vox",
+  "source": {
+    "type": "extracted",
+    "reference": "7633685885615115550.mp4"
+  },
+  "trusted": false,
+  "templates": [],
+  "transitions": [],
+  "tokens": {
+    "colors": {
+      "paper": "#C3B4A1",
+      "ink": "#151517",
+      "accent": "#20395A",
+      "highlight": "#B97F56",
+      "sea": "#20395A",
+      "dark": "#151517",
+      "captionBox": "#1A1A1A"
+    },
+    "fonts": {
+      "display": {
+        "family": "Oswald",
+        "file": "assets/fonts/Oswald-Variable.ttf",
+        "weight": 500
+      },
+      "body": {
+        "family": "Anton",
+        "file": "assets/fonts/Anton-Regular.ttf",
+        "weight": 400
+      },
+      "caption": {
+        "family": "Crimson Pro",
+        "file": "assets/fonts/CrimsonPro-Variable.ttf",
+        "weight": 500
+      }
+    },
+    "texture": {
+      "grain": 0.02
+    },
+    "motion": {
+      "easing": "power2.out",
+      "frameHold": 2,
+      "jitterPx": 2,
+      "entrance": "fade"
+    }
+  },
+  "captions": {
+    "default": "attention-compound/reference",
+    "presets": [
+      "attention-compound/reference",
+      "vox/mono-box",
+      "vox/serif-lower",
+      "vox/word-reveal"
+    ]
+  },
+  "overlays": [
+    {
+      "name": "paper-grain",
+      "default": true
+    },
+    {
+      "name": "film-look",
+      "default": true
+    }
+  ],
+  "pacing": {
+    "beatMs": {
+      "min": 50,
+      "target": 950,
+      "max": 1950
+    },
+    "speakerRatio": {
+      "min": 0.57,
+      "max": 0.77
+    }
+  },
+  "imagery": {
+    "searchHints": [
+      "Close-up eyes",
+      "Wide stadium shots",
+      "Stereoscopic feet",
+      "Archival footage",
+      "Cinematic filters"
+    ]
+  }
+}
