@@ -2188,6 +2188,13 @@ tiles as the main face path (the tiles stay for the fallback).
   Branch clips: 3 of 3 at 1080x1920, no black bands (cropdetect 1080:1920:0:0 on every sampled second), face framed,
   styled captions (vidprep sheets). Clip 2 differs from main's only because the branch checkout's helper had video
   highlights (D-75) and main's did not.
+  Each gate run first re-synced its tools copy's Python env from the checkout under test (`uv sync --frozen
+  --reinstall-package vox_py`, editable install of that checkout's `py/`); main's detections have no `detector`, the
+  branch's have `{ version: 2, faces: "vision", fallbackSamples: 0 }`.
+- Seeds: the test-build seed `fixtures/facetracks/talking-head-20s.json` keeps its BlazeFace boxes (valid without
+  `detector`; seeding bypasses the facetrack job).
+- Verify (after merging main 5f9dced): engine 1504 pass, 0 fail; pytest 198 pass, 1 fail (`test_imagegen`, model not
+  installed), facetrack 30/30; typecheck and lint clean. Review: self-review (token budget).
 **Why**: One Vision handler per frame does the face work the Neural Engine already did half of, with no CPU tiles, and
 finds the small faces BlazeFace needed tiles for. The per-frame fallback keeps recall where Vision misses and keeps
 facetrack working where Vision cannot run. The version fields make every old detection and path rebuild once.
