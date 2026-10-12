@@ -110,7 +110,7 @@ videoeditor/
     vox_py/models/silero_vad.onnx  # vendored, MIT; SHA-256 in plan R5
     vox_py/facetrack.py      # MediaPipe Tasks FaceDetector + Apple Vision body and
                              # saliency (pyobjc-framework-Vision)
-    vox_py/cutout.py         # rembg
+    vox_py/cutout.py         # Apple Vision subject lift, rembg fallback (D-72)
     vox_py/timeline.py       # opentimelineio export
   projects/                  # dev scratch only, gitignored (real projects: "Project folder")
   docs/superpowers/specs/
@@ -1054,7 +1054,7 @@ and a rerun with unchanged inputs is a no-op. Stages run as jobs (below).
 | `vox facetrack <project> <mediaId>` | MediaPipe Tasks `FaceDetector` (full-range model, downloaded `.tflite`) plus Apple Vision body and saliency, at 12 fps on the proxy scaled to 360p; per-shot subject choice with hysteresis (`faceIndex` overrides) → `{ atMs, x, y, scale }` crop keyframes (see "Shots and framing") |
 | `vox assets search <project> "<query>" [--source commons,openverse]` | candidates with licence + author, stored in `cache/assets/<queryHash>.json`; the job result returns them |
 | `vox assets fetch <project> <candidateId>` | download, record licence, `addMedia` (origin `archive`) |
-| `vox assets cutout <project> <mediaId>` | rembg (pinned permissive model) → transparent PNG as a new media item; refused for no-derivatives licences |
+| `vox assets cutout <project> <mediaId>` | Apple Vision subject lift (macOS 14+); rembg (pinned permissive model, fetched on demand) only when Vision finds no subject (D-72) → transparent PNG as a new media item; refused for no-derivatives licences |
 | `vox assets generate <project> "<prompt>" [--style id] [--provider id]` | image from a registered `ImageProvider` → new media item (origin `generated`); fails with a hint when none is registered |
 | `vox op <project> <opName> '<json>' [--actor user\|agent\|cli] [--run-id id] [--base-version n] [--coalesce-key k]` | apply an edit operation |
 | `vox undo <project> [--run <runId>]` / `vox redo <project>` / `vox history <project> [--since <version>]` | history (`--run`: `undoRun`) |

@@ -153,6 +153,20 @@ describe('doctor', () => {
     expect(by(r2, 'model-silero-vad')).toMatchObject({ level: 'error' });
   });
 
+  test('the cutout model u2net is a fallback fetched on demand: missing is not an error (D-72)', async () => {
+    const models = tempDir();
+    const base = { tools: { ...all, models }, config: {}, exec: fakeExec(), quick: true };
+    const r = await doctor({ ...base, home: tempDir() });
+    const missing = by(r, 'model-cutout') as { level: string; detail: string } | undefined;
+    expect(missing).toMatchObject({ level: 'ok', licence: 'Apache-2.0' });
+    expect(missing!.detail).toMatch(/not downloaded: fetched on demand/);
+    mkdirSync(join(models, 'rembg'));
+    writeFileSync(join(models, 'rembg', 'u2net.onnx'), 'damaged');
+    const r2 = await doctor({ ...base, home: tempDir() });
+    expect(by(r2, 'model-cutout')).toMatchObject({ level: 'warn' });
+    expect(by(r2, 'model-cutout')?.fix).toMatch(/fetches it again/);
+  });
+
   test('local image models (14d): optional, sizes and licences shown; FLUX terms and token explained', async () => {
     const models = tempDir();
     const base = {
