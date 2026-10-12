@@ -25,7 +25,12 @@ export interface CaptionChunk {
   startMs: number;
   endMs: number;
   lines: { words: CaptionWord[] }[];
+  /** The burned-in layer only (D-104): a full-frame scene of this tone covers the chunk. */
+  over?: SceneTone;
 }
+
+/** The tone of a full-frame scene behind a caption (D-104): its `bg` is dark, or paper/light. */
+export type SceneTone = 'dark' | 'light';
 
 export type TranscriptOf = (media: MediaItem) => Transcript | undefined;
 
@@ -383,6 +388,13 @@ export interface SceneText {
 
 /** Share of a chunk's words a scene must show for the chunk to be an echo (D-99). */
 export const ECHO_SHARE = 0.6;
+/** Share of a scene's own words the speech under it must hold for a key phrase to quote it (D-105). */
+export const PHRASE_SHARE = 0.8;
+
+/** A scene covers at least half of a chunk's time (D-99). */
+const covers = (s: { startMs: number; endMs: number }, c: CaptionChunk) =>
+  Math.min(c.endMs, s.endMs) - Math.max(c.startMs, s.startMs) >=
+  Math.max(1, c.endMs - c.startMs) / 2;
 
 const echoWords = (t: string) =>
   t
@@ -398,7 +410,9 @@ const echoWords = (t: string) =>
  * of 4+ letters), the caption would repeat the scene's words at the same time, so the chunk is left
  * out. A scene that echoes one chunk quotes the speaker (D-100): every chunk it covers by half is
  * left out too, so the rest of a quoted sentence (cut to the template's limit) never lands on the
- * card's text. Captions files (SRT/VTT) are not affected.
+ * card's text. A scene that shows a key phrase of the speech under it (D-105: two words or
+ * more, PHRASE_SHARE of them spoken in the chunks it covers) quotes the speaker too. Captions files
+ * (SRT/VTT) are not affected.
  */
 export function withoutSceneEchoes(
   chunks: readonly CaptionChunk[],
@@ -406,18 +420,37 @@ export function withoutSceneEchoes(
 ): CaptionChunk[] {
   if (scenes.length === 0) return [...chunks];
   const sets = scenes.map((s) => ({ ...s, words: new Set(s.texts.flatMap(echoWords)) }));
-  const covers = (s: SceneText, c: CaptionChunk) =>
-    Math.min(c.endMs, s.endMs) - Math.max(c.startMs, s.startMs) >=
-    Math.max(1, c.endMs - c.startMs) / 2;
+  const chunkWords = (c: CaptionChunk) =>
+    c.lines.flatMap((l) => l.words.flatMap((w) => echoWords(w.text)));
+  const phrase = (s: (typeof sets)[number]) => {
+    if (s.words.size < 2) return false;
+    const said = new Set(chunks.filter((c) => covers(s, c)).flatMap(chunkWords));
+    return [...s.words].filter((w) => said.has(w)).length / s.words.size >= PHRASE_SHARE;
+  };
   const echoes = (s: (typeof sets)[number], c: CaptionChunk) => {
-    const words = c.lines.flatMap((l) => l.words.flatMap((w) => echoWords(w.text)));
+    const words = chunkWords(c);
     if (words.length === 0) return false;
     if (words.length === 1 && [...words[0]!].length < 4) return false;
     if (!covers(s, c)) return false;
     return words.filter((w) => s.words.has(w)).length / words.length >= ECHO_SHARE;
   };
-  const quotes = sets.filter((s) => chunks.some((c) => echoes(s, c)));
+  const quotes = sets.filter((s) => chunks.some((c) => echoes(s, c)) || phrase(s));
   return chunks.filter((c) => !quotes.some((s) => covers(s, c)));
+}
+
+/**
+ * Burned-in chunks marked with the tone of a full-frame scene that covers them by half (D-104): the
+ * caption preset leaves out its scrim there (a dark blot on flat paper) and, on a light scene, sets
+ * its plain words in ink. Chunks no such scene covers are unchanged.
+ */
+export function overScenes(
+  chunks: readonly CaptionChunk[],
+  scenes: readonly { startMs: number; endMs: number; tone: SceneTone }[],
+): CaptionChunk[] {
+  return chunks.map((c) => {
+    const s = scenes.find((x) => covers(x, c));
+    return s ? { ...c, over: s.tone } : c;
+  });
 }
 
 /** Every string inside a scene's variables (its on-screen text, nested panels and items too). */

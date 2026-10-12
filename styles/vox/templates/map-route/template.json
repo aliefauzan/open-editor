@@ -30,7 +30,7 @@
       "route": { "type": "boolean" },
       "zoom": { "enum": ["world", "region", "city"] },
       "palette": { "enum": ["vox", "paper"] },
-      "bg": { "enum": ["paper", "dark", "highlight"] }
+      "bg": { "enum": ["paper", "dark", "highlight"], "default": "dark" }
     },
     "required": ["places"],
     "additionalProperties": false
