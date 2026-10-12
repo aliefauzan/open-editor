@@ -253,6 +253,33 @@ describe('scene variety (D-94)', () => {
     expect(r.illustrated.size).toBe(0);
     expect(pictureLedTemplate(['vox/kinetic-serif', 'base/title'], templates)).toBeUndefined();
   });
+
+  test('picture-led planned empty (D-103): one centred entry drawn from its label', () => {
+    const pic = pictureLedTemplate(IDS, templates)!;
+    const empty: VaryBeat = {
+      startMs: 0,
+      endMs: 2000,
+      kind: 'scene',
+      template: 'vox/paper-collage',
+      variables: { items: [], label: 'Pintu rezeki' },
+    };
+    const none: VaryBeat = { ...empty, startMs: 3000, endMs: 5000, variables: { items: [] } };
+    const r = varySceneTemplates([empty, none], textLed, templates, pic);
+    expect(r.beats[0]!.variables).toEqual({
+      items: [{ media: '', x: 50, y: 42, scale: 1.8 }],
+      label: 'Pintu rezeki',
+    });
+    // no text to draw: left for the usual repairs; a planned entry: untouched (below)
+    expect(r.beats[1]).toEqual(none);
+    const full = collage(6000, 'Full');
+    expect(varySceneTemplates([full], textLed, templates, pic).beats).toEqual([full]);
+    expect([...r.illustrated]).toEqual([[0, 'Pintu rezeki']]);
+    expect(r.notes).toEqual([
+      { beat: 0, what: 'vox/paper-collage planned with no items: one picture of "Pintu rezeki"' },
+    ]);
+    // no image model: nothing changes
+    expect(varySceneTemplates([empty], textLed, templates).beats).toEqual([empty]);
+  });
 });
 
 describe('text clear of the captions (D-96)', () => {

@@ -12,6 +12,8 @@
 // (g) D-102, demo run 5: the model planned six kinetic-serif cards and no picture at all; with an
 // image model, the first over-used beats turn into paper-collage scenes with one picture drawn from
 // their text (generated before any archive search), the rest text-led.
+// (h) D-103, demo run 6: a collage planned with `items: []` and a label, with an image model: one
+// centred picture drawn from its label, not a text card (without a model, (e) is unchanged).
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -391,5 +393,44 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
     expect(repairs).toContain(
       '1 picture(s) generated for "Kita nggak pernah tahu" in the style\'s look',
     );
+  }, 120_000);
+  test('(h) a collage with no items, an image model is installed: one picture of its label', async () => {
+    const kit = await workflowKit();
+    kit.engine.imageProviders.register({ id: 'fake-gen', generate: async () => '/nowhere.png' });
+    const gen: string[] = [];
+    const args: Record<string, unknown>[] = [];
+    pngJob(kit, 'assets.generate', gen);
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (k, a, signal) => {
+      if (k === 'assets.generate') args.push(a);
+      return runJob(k, a, signal);
+    };
+    const cut: string[] = [];
+    pngJob(kit, 'assets.cutout', cut);
+    const { r, scenes, repairs, searched } = await stylizePlan(
+      kit,
+      scenesStylist([
+        { template: 'vox/paper-collage', variables: { items: [], label: 'Peluang baru' } },
+        { template: 'vox/paper-collage', variables: { items: [], label: 'Pertolongan Allah' } },
+      ]),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(scenes.map((s) => s.template)).toEqual(['vox/paper-collage', 'vox/paper-collage']);
+    for (const [k, s] of scenes.entries()) {
+      const v = s.variables as { items: { media: string }[]; label: string };
+      expect(v.items).toHaveLength(1);
+      expect(v.items[0]).toMatchObject({ x: 50, y: 42, scale: 1.8 });
+      expect(v.label).toBe(['Peluang baru', 'Pertolongan Allah'][k]);
+    }
+    expect(args.map((a) => a['prompt'])).toEqual([
+      'An illustration of: Peluang baru',
+      'An illustration of: Pertolongan Allah',
+    ]);
+    expect(searched).toEqual([]);
+    expect(cut).toHaveLength(2);
+    expect(repairs).toContain(
+      'vox/paper-collage planned with no items: one picture of "Peluang baru"',
+    );
+    expect(repairs.join(' ')).not.toContain('do not fit');
   }, 120_000);
 });
