@@ -15,6 +15,8 @@ const FontEntrySchema = z.strictObject({
   file: z.string().regex(/^[A-Za-z0-9-]+\.ttf$/),
   weights: z.strictObject({ min: z.int().min(1).max(1000), max: z.int().min(1).max(1000) }),
   classification: z.enum(FONT_CLASSES),
+  /** An italic file of a family whose upright file is its own entry (same `family`). */
+  italic: z.boolean().optional(),
   tags: z.array(z.string().regex(/^[a-z-]+$/)),
   licence: z.literal('OFL-1.1'),
   licenceFile: z.string().regex(/^OFL-[a-z0-9]+\.txt$/),
@@ -77,6 +79,7 @@ function score(e: FontEntry, w: FontWish): number {
 export function closestFont(cat: FontCatalogue, wish: FontWish): FontPick {
   let best: FontPick | undefined;
   for (const entry of cat.fonts) {
+    if (entry.italic) continue; // italic files come with their upright sibling (`familyFiles`)
     const s = score(entry, wish);
     if (!best || s > best.score) {
       const weight = Math.round(
@@ -86,4 +89,12 @@ export function closestFont(cat: FontCatalogue, wish: FontWish): FontPick {
     }
   }
   return best!;
+}
+
+/**
+ * Every catalogue file of a family (upright, bold and italic siblings), in catalogue order. A draft
+ * copies them all, so compile finds the real italic or bold face beside the token's file.
+ */
+export function familyFiles(cat: FontCatalogue, family: string): FontEntry[] {
+  return cat.fonts.filter((f) => f.family === family);
 }

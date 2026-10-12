@@ -16,5 +16,5 @@
 
 ## `fonts/` (style extraction font catalogue, `src/styles/extract/catalogue.ts`)
 
-- 39 families from the Google Fonts repository, SIL Open Font License 1.1; sources, commit and file
+- 46 families (64 files) from the Google Fonts repository, SIL Open Font License 1.1; sources, commit and file
   hashes in `fonts/SOURCES.md` and `fonts/catalogue.json`; each family's licence is `fonts/OFL-*.txt`.
