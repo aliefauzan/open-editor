@@ -7,13 +7,12 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import type { FontCatalogue } from './catalogue.ts';
 
-const Box = z.strictObject({
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  w: z.number().min(0).max(1),
-  h: z.number().min(0).max(1),
-});
-type Box = z.infer<typeof Box>;
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 export interface OcrFrame {
   atMs: number;
