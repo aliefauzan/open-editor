@@ -25,7 +25,13 @@ import { loadTranscript, transcriptLines } from '../tools/transcript.ts';
 import type { AgentRun } from './run.ts';
 import { RunStopped } from './run.ts';
 import { wrapData } from './envelope.ts';
-import { fitVariables, textLedTemplates, toTextLed, varySceneTemplates } from './plan-repair.ts';
+import {
+  clearOfCaptions,
+  fitVariables,
+  textLedTemplates,
+  toTextLed,
+  varySceneTemplates,
+} from './plan-repair.ts';
 import { sceneTexts, speechTokens, syncScenesToSpeech, type SpokenWord } from './speech-sync.ts';
 import type { TurnOptions, TurnResult } from './types.ts';
 
@@ -780,6 +786,7 @@ export async function clipPlanToOps(
     for (const n of varied.notes)
       repairs.push({ beat: n.beat, sequenceId: sp.sequenceId, what: n.what });
     const words = await spokenWords(run, p, seq);
+    const captionY = seq.captions?.enabled ? seq.captions.position.yPct : undefined;
     // D-92: scenes start when their words are spoken. `synced` holds the new times of the moved
     // scenes; beats run in their new start order (repair notes keep the planned beat index).
     const synced = syncBeatsToSpeech(beats, templates, end, words);
@@ -899,6 +906,8 @@ export async function clipPlanToOps(
         variables = shortenTexts(t, variables, note);
         // D-94: unknown keys and invalid optional values are dropped, not the whole scene
         variables = fitVariables(t, variables, templates, note);
+        // D-96: a text block with a position choice sits clear of burned-in captions
+        variables = clearOfCaptions(t, variables, captionY, note);
         let problem = await variablesProblem(run, t, variables, templates);
         if (problem !== undefined && textInstead(`variables do not fit (${problem})`)) {
           variables = shortenTexts(t, variables, note);
@@ -1145,7 +1154,7 @@ async function planContext(
 }
 
 const PLAN_FORMAT = {
-  clip: 'Answer with a ClipPlan: { sequences: [{ sequenceId, beats: [{ startMs, endMs, kind: "speaker" | "scene", template?, variables?, imageQueries? }] }] }. Beat times are sequence time. Use a mix of scene templates: at most 2 scenes of one template in a clip. Leave image slots empty and give imageQueries instead: one short English query per picture, naming a concrete thing to photograph (archive search); never the source video.',
+  clip: 'Answer with a ClipPlan: { sequences: [{ sequenceId, beats: [{ startMs, endMs, kind: "speaker" | "scene", template?, variables?, imageQueries? }] }] }. Beat times are sequence time. Use a mix of scene templates: at most 2 scenes of one template in a clip. Leave image slots empty and give imageQueries instead: one short English query per picture, naming a concrete thing to photograph (archive search); never the source video. Write all scene text (labels, headlines, lines) in the language the speaker speaks, in the speaker\'s own words where you can: only imageQueries are English.',
   ops: 'Answer with { ops: [{ op, args }] }: engine op names (moveItem, trimItem, addScene, …) with the same args as their tools. Use the short ids from the view.',
 } as const;
 
