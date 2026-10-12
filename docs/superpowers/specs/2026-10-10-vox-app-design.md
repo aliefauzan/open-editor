@@ -218,7 +218,7 @@ with its size, licence and status, installs them with progress, and can repair o
 | ffmpeg, ffprobe | Homebrew only (plan D-05). Setup checks `brew --prefix ffmpeg`; if it is missing, setup shows the two commands (install Homebrew, then `brew install ffmpeg`) with copy buttons and a "Check again" button | never downloaded or bundled by the app; installing Homebrew needs the user's admin password |
 | yt-dlp + `yt-dlp-ejs`, deno | yt-dlp's official macOS binary and `deno` release; updated with `yt-dlp -U` (yt-dlp verifies its own release checksums) | updates often; Settings has "Update yt-dlp" |
 | Chrome for HyperFrames rendering | HyperFrames' own browser install, run with the bundled pinned CLI | ~250 MB |
-| Models: Whisper large-v3-turbo, MediaPipe face detector, rembg model | downloaded on first use of the stage, size shown first | ~1.7 GB total |
+| Models: Whisper large-v3-turbo, MediaPipe face detector, rembg model (cutout fallback only, D-72) | downloaded on first use of the stage, size shown first | ~1.7 GB total |
 
 The bundled HyperFrames CLI and the `vox` CLI run with the app's Electron as Node, so no
 system Node is needed. Setup ends by running the engine's `doctor` checks and shows a

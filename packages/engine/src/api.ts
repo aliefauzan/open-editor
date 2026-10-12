@@ -43,7 +43,7 @@ import { TranscriptSchema, type Transcript } from './model/schema.ts';
 import { registryTemplateLookup } from './styles/lookup.ts';
 import { readConfig, type Config } from './config.ts';
 import { createJobRunner, type JobEventName, type JobEvents, type JobRunner } from './jobs.ts';
-import { activeAreaOf, registerMediaJobs, type MediaApi } from './media-api.ts';
+import { activeAreaOf, registerMediaJobs, type MediaApi, type ModelSpec } from './media-api.ts';
 import { registerQuickClipJobs } from './quick-api.ts';
 import type { QuickClipScorer } from './stages/quickClips.ts';
 import {
@@ -453,6 +453,8 @@ export interface EngineOptions {
     commonsThrottle?: (signal?: AbortSignal) => Promise<void>;
     ca?: string;
     sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+    /** The cutout fallback model (default CUTOUT_MODEL). */
+    cutoutModel?: ModelSpec;
   };
   /** Test seams for the local image model install: free disk space and the environment (HF_TOKEN). */
   imagegen?: { freeBytes?: (dir: string) => number; env?: NodeJS.ProcessEnv };
@@ -762,6 +764,7 @@ export function openEngine(opts: EngineOptions): Engine {
     ...(opts.assets?.commonsThrottle ? { commonsThrottle: opts.assets.commonsThrottle } : {}),
     ...(opts.assets?.ca ? { ca: opts.assets.ca } : {}),
     ...(opts.assets?.sleep ? { sleep: opts.assets.sleep } : {}),
+    ...(opts.assets?.cutoutModel ? { cutoutModel: opts.assets.cutoutModel } : {}),
   });
   const quick = registerQuickClipJobs(jobs, { store, dirOf });
   // The export jobs call the engine's own compile, mix and captions (bound once `engine` exists).
