@@ -39,6 +39,8 @@ export interface ClipReport {
   skipped: string[];
   /** Media slots that hold a picture the run added (`c22 panels/0/photo`), when any. */
   filled?: string[];
+  /** Plan mode: what the executor repaired in the model's plan (D-90), when anything. */
+  repairs?: string[];
 }
 
 interface PairItem {
@@ -326,6 +328,9 @@ function healthOf(result: unknown): string[] {
   return (frames ?? []).flatMap((f) => (f.health ?? []).map((h) => `${String(f.seqMs)} ms: ${h}`));
 }
 
+/** Repair notes shown per clip in the run summary; the run record has them all. */
+const MAX_REPAIRS_SHOWN = 8;
+
 /** One line per clip for the run summary (never a judgement of how it sounds). */
 export function clipSummary(alias: string, r: ClipReport): string {
   const parts = [
@@ -345,6 +350,12 @@ export function clipSummary(alias: string, r: ClipReport): string {
       );
   } else parts.push('Audio QA not run.');
   if (r.filled?.length) parts.push(`Pictures added by the run: ${r.filled.join(', ')}.`);
+  if (r.repairs?.length) {
+    const more = r.repairs.length - MAX_REPAIRS_SHOWN;
+    parts.push(
+      `Repaired: ${r.repairs.slice(0, MAX_REPAIRS_SHOWN).join('; ')}${more > 0 ? `; and ${String(more)} more (see the run record)` : ''}.`,
+    );
+  }
   if (r.edges.length) parts.push(`Edges: ${r.edges.join('; ')}.`);
   if (r.skipped.length) parts.push(`Skipped: ${r.skipped.join('; ')}.`);
   return parts.join(' ');
@@ -468,6 +479,7 @@ export async function stylizeSequences(
       edges,
       skipped,
       ...(filled.length > 0 && { filled }),
+      ...(turn.repairs?.length && { repairs: turn.repairs }),
     };
     reports.push(report);
     run.addSummary(clipSummary(alias, report));

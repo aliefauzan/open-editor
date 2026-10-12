@@ -146,7 +146,12 @@ describe('audio mix render (steps 13, 13b)', () => {
       [audio('m_pink', PINK), audio('m_sine', SINE)],
       5000,
       'youtube',
-      [{ atMs: 2500, sfx: 'click', type: 'appear', itemId: 'it_x', cueName: 'in' }],
+      // the cue under the speech is lowered under it (D-89), so the stems also sum with a cue gain;
+      // the cue after the speech keeps its file level
+      [
+        { atMs: 2500, sfx: 'click', type: 'appear', itemId: 'it_x', cueName: 'in' },
+        { atMs: 4500, sfx: 'click', type: 'appear', itemId: 'it_x', cueName: 'out' },
+      ],
     );
     const stemsDir = join(dir, 'stems');
     const r = await renderMix(inp, { out: join(dir, 'pre.wav'), normalize: false, stemsDir });
@@ -164,6 +169,8 @@ describe('audio mix render (steps 13, 13b)', () => {
     }
     expect(worst).toBeLessThan(1e-4);
     for (const e of energy) expect(e).toBeGreaterThan(1);
+    expect(r.sfxGainsDb![0]!).toBeLessThan(0);
+    expect(r.sfxGainsDb![1]).toBe(0);
   }, 300_000);
 
   test('two sources whose loudness is 10 LU apart mix within 1 LU of each other', async () => {

@@ -801,7 +801,13 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
           z.looseObject({ mode: z.literal('mix'), pass: z.boolean() }),
           pyOpts,
         );
-        return { ...res, outDir, png: join(outDir, 'qa.png') } as AudioQaResult;
+        // the gain each cue was mixed at under the speech it lands on (D-89), for reports
+        const sfxGains = build.cues.cues.map((c, i) => ({
+          atMs: c.atMs,
+          sfx: c.sfx,
+          gainDb: r.sfxGainsDb?.[i] ?? 0,
+        }));
+        return { ...res, sfxGains, outDir, png: join(outDir, 'qa.png') } as AudioQaResult;
       } finally {
         await rm(work, { recursive: true, force: true });
       }
