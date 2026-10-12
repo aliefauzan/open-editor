@@ -343,6 +343,12 @@ export const CaptionPresetSchema = z.strictObject({
   stripPunctuation: z.boolean(),
   safeArea: SafeArea.optional(),
   position: z.strictObject({ yPct: z.number().min(0).max(100) }),
+  /**
+   * Captions run behind the foreground subject on the beats where the subject overlaps them
+   * (render only: Apple Vision subject matte composited over the burned-in captions). Additive
+   * (GATE 8 round 3); absent = false.
+   */
+  behindSubject: z.boolean().optional(),
 });
 export type CaptionPreset = z.infer<typeof CaptionPresetSchema>;
 

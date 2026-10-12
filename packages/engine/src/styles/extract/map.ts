@@ -7,7 +7,8 @@
 import { join } from 'node:path';
 import type { ResolvedStyle, StyleSummary } from '../registry.ts';
 import type { CaptionPreset, StyleFile } from '../schema.ts';
-import { closestFont, type FontCatalogue } from './catalogue.ts';
+import { twoTierHtml, twoTierLook } from './caption-preset.ts';
+import { closestFont, familyFiles, type FontCatalogue, type FontEntry } from './catalogue.ts';
 import type { StyleDescription } from './description.ts';
 import type { Measurements, PaletteColor } from './measure.ts';
 
@@ -40,8 +41,11 @@ export interface DraftStyle {
   styleFile: StyleFile;
   guide: string;
   files: DraftFile[];
-  /** Own caption preset (`captions/reference.json`), copied from `basedOn` with measured case/position. */
-  captionPreset: { name: string; json: CaptionPreset; basedOn: string } | null;
+  /**
+   * Own caption preset (`captions/reference.json`): copied from `basedOn` with measured case and
+   * position, or (`html`) the measured two-tier preset written from the engine template.
+   */
+  captionPreset: { name: string; json: CaptionPreset; basedOn: string; html?: string } | null;
   matchedLayouts: { name: string; template: string }[];
   unmatchedLayouts: { name: string; description: string }[];
   /** Which measurement or description drove each token (for the report). */
@@ -225,23 +229,58 @@ export function mapDraftStyle(input: MapInput): DraftStyle {
     }
   }
 
-  // fonts
+  // fonts: the measured caption tiers first (tier 1 = body and display, tier 2 = caption), then the
+  // description for the roles left
   const fonts: NonNullable<NonNullable<StyleFile['tokens']>['fonts']> = {};
+  const copyFamily = (entries: readonly FontEntry[]) => {
+    for (const e of entries) {
+      const file = `assets/fonts/${e.file}`;
+      if (!files.some((f) => f.to === file))
+        files.push({ from: join(input.catalogue.dir, e.file), to: file });
+      const lic = `assets/fonts/${e.licenceFile}`;
+      if (!files.some((f) => f.to === lic))
+        files.push({ from: join(input.catalogue.dir, e.licenceFile), to: lic });
+    }
+  };
+  const tiers = m.fonts?.tiers ?? [];
+  for (const t of tiers) {
+    const roles = t.tier === 1 ? (['body', 'display'] as const) : (['caption'] as const);
+    const all = familyFiles(input.catalogue, t.pick.family);
+    // the token names the upright file; the italic file sits beside it (compile adds the face)
+    const upright =
+      all
+        .filter((e) => !e.italic)
+        .sort(
+          (a, b) =>
+            Math.abs(a.weights.min - t.pick.weight) - Math.abs(b.weights.min - t.pick.weight),
+        )[0] ?? all[0];
+    if (!upright) continue;
+    copyFamily(all);
+    const weight = Math.min(upright.weights.max, Math.max(upright.weights.min, t.pick.weight));
+    for (const role of roles) {
+      fonts[role] = { family: upright.family, file: `assets/fonts/${upright.file}`, weight };
+      drivers.push({
+        token: `fonts.${role}`,
+        value: `${upright.family}${t.pick.italic ? ' (italic)' : ''} ${String(weight)}`,
+        from: `measured: tier ${String(t.tier)} caption lines (${String(t.lines)}), glyph match score ${t.pick.score.toFixed(3)}${t.runnersUp[0] ? `; next ${t.runnersUp[0].family}${t.runnersUp[0].italic ? ' italic' : ''} ${t.runnersUp[0].score.toFixed(3)}` : ''}`,
+      });
+    }
+  }
   if (d) {
     for (const role of ['display', 'body', 'caption'] as const) {
+      if (fonts[role]) continue;
       const want = d.fonts[role];
       const pick = closestFont(input.catalogue, {
         classification: want.classification,
         weight: want.weight,
         tags: want.tags.map((t) => plainText(t, 40).toLowerCase()),
       });
-      const file = `assets/fonts/${pick.entry.file}`;
-      fonts[role] = { family: pick.entry.family, file, weight: pick.weight };
-      if (!files.some((f) => f.to === file))
-        files.push({ from: join(input.catalogue.dir, pick.entry.file), to: file });
-      const lic = `assets/fonts/${pick.entry.licenceFile}`;
-      if (!files.some((f) => f.to === lic))
-        files.push({ from: join(input.catalogue.dir, pick.entry.licenceFile), to: lic });
+      fonts[role] = {
+        family: pick.entry.family,
+        file: `assets/fonts/${pick.entry.file}`,
+        weight: pick.weight,
+      };
+      copyFamily([pick.entry]);
       drivers.push({
         token: `fonts.${role}`,
         value: `${pick.entry.family} ${String(pick.weight)}`,
@@ -340,9 +379,57 @@ export function mapDraftStyle(input: MapInput): DraftStyle {
     const base = [...presets].sort(
       (a, b) => presetScore(b, want) - presetScore(a, want) || a.id.localeCompare(b.id),
     )[0];
-    if (base) {
-      // inside the 9:16 caption safe area (bottom 20 %), with room for two lines
-      const yPct = Math.round(clamp(cs.yPct, 12, 74));
+    // inside the 9:16 caption safe area (bottom 20 %), with room for two lines
+    const yPct = Math.round(clamp(cs.yPct, 12, 74));
+    const own = `${input.id}/reference`;
+    if (m.fonts && tiers.length > 0) {
+      const look = twoTierLook(m.fonts);
+      const t1 = tiers.find((t) => t.tier === 1);
+      const t2 = tiers.find((t) => t.tier === 2);
+      const parts = [
+        t1 ? `${t1.pick.family}${t1.pick.italic ? ' italic' : ''} lines` : 'body-font lines',
+        `emphasis words${t2 ? ` in ${t2.pick.family}` : ''} upper case in a ${look.box.knockout ? 'cut-out ' : ''}box`,
+        ...(look.fringe > 0 ? ['a red/cyan fringe'] : []),
+        ...(look.reveal ? ['single words tightening in'] : []),
+        ...(look.behindSubject ? ['behind the subject where it overlaps'] : []),
+      ];
+      const json: CaptionPreset = {
+        name: 'reference',
+        description: `Measured from the reference: two tiers at ${String(Math.round(cs.yPct))} % height: ${parts.join(', ')}.`,
+        case: cs.case,
+        stripPunctuation: false,
+        position: { yPct },
+        ...(look.behindSubject ? { behindSubject: true } : {}),
+      };
+      captionPreset = {
+        name: 'reference',
+        json,
+        basedOn: 'measured two-tier',
+        html: twoTierHtml(look),
+      };
+      captions = { default: own, presets: [own, ...presets.map((p) => p.id)] };
+      drivers.push({
+        token: 'captions',
+        value: `${own} (two tiers), ${String(yPct)} %`,
+        from: `fonts: ${tiers.map((t) => `tier ${String(t.tier)} ${String(t.lines)} lines`).join(', ')}; two tiers in ${String(Math.round(m.fonts.twoTierShare * 100))} % of sampled frames; box ${look.box.fill}${look.box.knockout ? ' cut-out' : ''}${look.box.rule ? ' with edge line' : ''}; fringe ${look.fringe > 0 ? `${String(look.fringe)} px` : 'none'}`,
+      });
+      drivers.push({
+        token: 'captions.behindSubject',
+        value: String(look.behindSubject),
+        from: m.fonts.occlusion.available
+          ? `occlusion: captions behind the subject in ${String(m.fonts.occlusion.behind)} of ${String(m.fonts.occlusion.decided)} frames that could tell (${String(m.fonts.occlusion.frames)} checked)`
+          : 'occlusion: not checked (needs Apple Vision, macOS 14 or later)',
+      });
+      drivers.push({
+        token: 'captions.trackingReveal',
+        value: String(look.reveal),
+        from: `OCR: ${String(m.fonts.trackingReveal.events)} of ${String(m.fonts.trackingReveal.of)} single-word captions change their letter spacing`,
+      });
+      if (yPct !== Math.round(cs.yPct))
+        notes.push(
+          `Captions sit at ${String(Math.round(cs.yPct))} % in the reference; the preset uses ${String(yPct)} % to stay inside the caption safe area.`,
+        );
+    } else if (base) {
       const json: CaptionPreset = {
         name: 'reference',
         description: `Measured from the reference: ${cs.case === 'asis' ? 'mixed' : cs.case}-case captions at ${String(Math.round(cs.yPct))} % height, about ${String(cs.wordsPerCaption)} words each${want.wordByWord ? ', revealed word by word' : ''}. Look of ${base.id}.`,
@@ -353,7 +440,6 @@ export function mapDraftStyle(input: MapInput): DraftStyle {
       };
       captionPreset = { name: 'reference', json, basedOn: base.id };
       files.push({ from: base.htmlPath, to: 'captions/reference.html' });
-      const own = `${input.id}/reference`;
       captions = { default: own, presets: [own, ...presets.map((p) => p.id)] };
       drivers.push({
         token: 'captions',

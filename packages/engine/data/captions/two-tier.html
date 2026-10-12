@@ -1,0 +1,229 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <!--vox:tokens-->
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .c-layer {
+          position: absolute;
+          inset: 0;
+        }
+        .c-chunk {
+          position: absolute;
+          visibility: hidden;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          white-space: nowrap;
+        }
+        .c-line {
+          display: block;
+          text-align: center;
+        }
+        .c-word {
+          font-family: var(--tok-font-body);
+          font-style: @@T1_STYLE@@;
+          font-weight: 400;
+          color: var(--tok-color-caption);
+          opacity: 0;
+        }
+        .c-box {
+          display: inline-block;
+          position: relative;
+          line-height: 1;
+          vertical-align: middle;
+          visibility: hidden;
+        }
+        .c-box .c-word {
+          font-family: var(--tok-font-caption);
+          font-style: normal;
+          font-weight: var(--tok-font-caption-weight);
+          text-transform: uppercase;
+          text-shadow: none;
+          display: inline-block;
+          opacity: 1;
+        }
+      </style>
+      <div
+        id="root"
+        data-composition-id="__ID__"
+        data-width="__W__"
+        data-height="__H__"
+        data-duration="__DUR__"
+      >
+        <!--vox:vars-->
+        <div class="c-layer"></div>
+      </div>
+      <script>
+        // Two-tier captions measured from a reference video (styles spec Part C, GATE 8 round 3).
+        // Tier 1 (plain words): the body face in italic, white, revealed word by word with a soft
+        // glow. Tier 2 (emphasis words): a run of emphasis words on one line becomes one flat box in
+        // the caption face, upper case, with the letters cut out of the box (the footage shows
+        // through), an inner rule and a red/cyan edge fringe. A single-word chunk can arrive with
+        // wide letter spacing that tightens. Lines come from the engine (never re-wrapped); sizes
+        // come from the measured font size and the faces' measured average advance, so the DOM is
+        // never measured; all state changes are timeline sets or tweens at word times.
+        (function () {
+          var mount = vox.mount('__ID__');
+          var root = mount.root;
+          var v = mount.vars;
+          var layer = root.querySelector('.c-layer');
+          var W = __W__;
+          var H = __H__;
+          // measured values (written by the style extraction)
+          var T1 = { size: @@T1_SIZE@@, adv: @@T1_ADV@@, track: @@T1_TRACK@@ };
+          var T2 = { size: @@T2_SIZE@@, adv: @@T2_ADV@@, track: @@T2_TRACK@@, stretch: @@T2_STRETCH@@ };
+          var BOX = { fill: '@@BOX_FILL@@', padX: @@PAD_X@@, padY: @@PAD_Y@@, rule: @@RULE@@, knockout: @@KNOCKOUT@@ };
+          var FRINGE = (@@FRINGE@@ * W) / 1080;
+          var T1_FRINGE = @@T1_FRINGE@@;
+          var GLOW = @@GLOW@@;
+          var REVEAL = @@REVEAL@@;
+          // the text shadow of a read tier 1 word: glow and the red/cyan split
+          var split = T1_FRINGE && FRINGE > 0 ? -FRINGE + 'px 0 0 rgba(255,40,60,0.55), ' + FRINGE + 'px 0 0 rgba(40,220,255,0.55)' : '';
+          var t1Read = [GLOW ? '0 0 0.22em rgba(255,255,255,0.42)' : '', split].filter(Boolean).join(', ') || 'none';
+          var t1Active = ['0 0 0.3em rgba(255,255,255,0.75)', split].filter(Boolean).join(', ');
+          var css = getComputedStyle(root);
+          var white = css.getPropertyValue('--tok-color-caption').trim() || '#ffffff';
+          var side = (v.safeArea.rightPct / 100) * W;
+          var usable = W - 2 * side;
+          var limit = (1 - v.safeArea.bottomPct / 100) * H;
+          var centre = (v.position.yPct / 100) * H;
+          var ink = BOX.knockout ? '#000000' : '#111111';
+          var tl = gsap.timeline({ paused: true });
+          function runs(words) {
+            var out = [];
+            for (var k = 0; k < words.length; k++) {
+              var last = out[out.length - 1];
+              var e = !!words[k].emphasis;
+              if (last && last.emph === e) last.words.push(words[k]);
+              else out.push({ emph: e, words: [words[k]] });
+            }
+            return out;
+          }
+          function chars(ws) {
+            var n = 0;
+            for (var k = 0; k < ws.length; k++) n += ws[k].text.length;
+            return n + Math.max(0, ws.length - 1);
+          }
+          // a line's width at scale 1 (px)
+          function widthOf(rs) {
+            var px = 0;
+            for (var r = 0; r < rs.length; r++) {
+              if (r > 0) px += 0.3 * T1.size * H;
+              var s = rs[r].emph ? T2.size * H : T1.size * H;
+              px += chars(rs[r].words) * (rs[r].emph ? T2.adv : T1.adv) * s;
+              if (rs[r].emph) px += 2 * BOX.padX * s;
+            }
+            return px;
+          }
+          function heightOf(rs) {
+            var h = 0;
+            for (var r = 0; r < rs.length; r++)
+              h = Math.max(h, rs[r].emph ? T2.size * H * (1.4 + 2 * BOX.padY) : T1.size * H * 1.5);
+            return h;
+          }
+          for (var i = 0; i < v.chunks.length; i++) {
+            var c = v.chunks[i];
+            var lines = [];
+            var scale = 1;
+            var total = 0;
+            for (var l = 0; l < c.lines.length; l++) {
+              var rs = runs(c.lines[l].words);
+              lines.push(rs);
+              scale = Math.min(scale, usable / Math.max(1, widthOf(rs)));
+            }
+            var heights = [];
+            for (var l2 = 0; l2 < lines.length; l2++) {
+              heights.push(heightOf(lines[l2]) * scale);
+              total += heights[l2];
+            }
+            var el = document.createElement('div');
+            el.className = GLOW ? 'c-chunk c-glow' : 'c-chunk';
+            var top = Math.max(0, Math.min(centre - total / 2, limit - total));
+            el.style.left = side + 'px';
+            el.style.width = usable + 'px';
+            el.style.top = top + 'px';
+            var single = c.lines.length === 1 && c.lines[0].words.length === 1;
+            for (var l3 = 0; l3 < lines.length; l3++) {
+              var line = document.createElement('div');
+              line.className = 'c-line';
+              line.style.height = heights[l3] + 'px';
+              line.style.lineHeight = heights[l3] + 'px';
+              var rs3 = lines[l3];
+              for (var r = 0; r < rs3.length; r++) {
+                var run = rs3[r];
+                if (r > 0) line.appendChild(document.createTextNode(' '));
+                var host = line;
+                var size = (run.emph ? T2.size : T1.size) * H * scale;
+                if (run.emph) {
+                  var box = document.createElement('span');
+                  box.className = 'c-box';
+                  box.style.fontSize = size + 'px';
+                  box.style.padding = BOX.padY + 'em ' + BOX.padX + 'em';
+                  box.style.background = BOX.fill;
+                  box.style.letterSpacing = T2.track + 'em';
+                  var shadows = [];
+                  if (BOX.rule) shadows.push('inset 0 0 0 0.05em ' + BOX.fill, 'inset 0 0 0 0.09em ' + ink);
+                  if (FRINGE > 0)
+                    shadows.push(-FRINGE + 'px 0 0 rgba(255,40,60,0.75)', FRINGE + 'px 0 0 rgba(40,220,255,0.75)');
+                  if (shadows.length) box.style.boxShadow = shadows.join(', ');
+                  if (BOX.knockout) box.style.mixBlendMode = 'screen';
+                  line.appendChild(box);
+                  host = box;
+                  tl.set(box, { visibility: 'visible' }, run.words[0].startMs / 1000);
+                }
+                for (var k = 0; k < run.words.length; k++) {
+                  var w = run.words[k];
+                  if (k > 0) host.appendChild(document.createTextNode(' '));
+                  var span = document.createElement('span');
+                  span.className = 'c-word';
+                  span.setAttribute('data-key', w.key);
+                  span.textContent = w.text;
+                  if (run.emph) {
+                    span.style.transform = 'scaleX(' + T2.stretch + ')';
+                    span.style.transformOrigin = 'center';
+                    span.style.margin = '0 ' + ((T2.stretch - 1) / 2) * w.text.length * T2.adv / T2.stretch + 'em';
+                    // unread: blank box; active: letters cut out with a red/blue split; read: cut out
+                    span.style.color = BOX.fill;
+                    tl.set(span, { color: ink, textShadow: (-FRINGE) + 'px 0 0 rgba(255,40,60,0.9), ' + FRINGE + 'px 0 0 rgba(40,220,255,0.9)' }, w.startMs / 1000);
+                    tl.set(span, { color: ink, textShadow: 'none' }, w.endMs / 1000);
+                  } else {
+                    span.style.fontSize = size + 'px';
+                    span.style.letterSpacing = T1.track + 'em';
+                    // unread: hidden; active: full white with a stronger glow; read: 90 %
+                    tl.set(span, { opacity: 1, textShadow: t1Active }, w.startMs / 1000);
+                    tl.set(span, { opacity: 0.9, textShadow: t1Read }, w.endMs / 1000);
+                    if (REVEAL && single) {
+                      // one word on its own: the letters arrive wide apart and tighten
+                      tl.fromTo(
+                        span,
+                        { letterSpacing: '0.6em' },
+                        { letterSpacing: T1.track + 'em', duration: Math.min(0.5, Math.max(0.1, (c.endMs - c.startMs) / 2000)), ease: 'power3.out', immediateRender: false },
+                        c.startMs / 1000,
+                      );
+                    }
+                  }
+                  host.appendChild(span);
+                }
+              }
+              el.appendChild(line);
+            }
+            layer.appendChild(el);
+            tl.set(el, { visibility: 'visible' }, c.startMs / 1000);
+            tl.set(el, { visibility: 'hidden' }, c.endMs / 1000);
+          }
+          window.__timelines[mount.key] = mount.register(tl);
+        })();
+      </script>
+    </template>
+  </body>
+</html>

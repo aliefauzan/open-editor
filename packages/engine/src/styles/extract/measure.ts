@@ -2,7 +2,7 @@
 // item of a scratch project (ingested with `{ proxies: false }`), run the engine `shots` stage (no
 // scene detection of its own), `facetrack` for the speaker share, pick keyframes (one per shot plus
 // one per 2 s), write contact sheets, and run the Python `palette` (k-means, k = 8) and `ocr`
-// (Apple Vision, 4 fps) tools. Keyframes and sheets go to `workDir` (the caller decides where; the
+// (Apple Vision, 4 fps) tools, then `fontmatch` (caption fonts and look per tier). Keyframes and sheets go to `workDir` (the caller decides where; the
 // reference is never copied into a style's assets).
 import { mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -16,6 +16,17 @@ import { FORMAT_WHITELIST } from '../../stages/media/ffargs.ts';
 import { runTool } from '../../stages/media/run.ts';
 import { sniffFile } from '../../stages/media/sniff.ts';
 import { ShotListSchema, type Shot } from '../../stages/shots.ts';
+import { loadFontCatalogue, type FontCatalogue } from './catalogue.ts';
+import {
+  captionFonts,
+  CaptionFontsSchema,
+  fontCandidates,
+  FontMatchResultSchema,
+  fontSamples,
+  occlusionSamples,
+  trackingReveals,
+  type CaptionFonts,
+} from './fontmatch.ts';
 
 /** One keyframe every this many ms, besides one per shot. */
 export const KEYFRAME_EVERY_MS = 2000;
@@ -146,6 +157,11 @@ export const MeasurementsSchema = z.strictObject({
     ),
     staticText: z.array(z.string()),
   }),
+  /**
+   * Measured caption fonts and look per caption tier (GATE 8 round 3); absent when no
+   * caption line could be measured.
+   */
+  fonts: CaptionFontsSchema.optional(),
   notes: z.array(z.string()),
 });
 export type Measurements = z.infer<typeof MeasurementsSchema>;
@@ -223,6 +239,8 @@ export interface MeasureOptions {
   /** Run as a sub-step of this agent run (job records). */
   runId?: string;
   actor?: 'user' | 'agent';
+  /** Candidate fonts for the caption font match; default the bundled catalogue. */
+  catalogue?: FontCatalogue;
 }
 
 async function waitJob(
@@ -420,6 +438,33 @@ export async function measureReference(
   );
   if (!ocr.summary.detected)
     notes.push('Caption style not detected: the draft keeps the parent caption preset.');
+  let fonts: CaptionFonts | null = null;
+  const samples = ocr.summary.detected ? fontSamples(ocr.frames) : [];
+  if (samples.length > 0) {
+    progress(0.95, 'matching caption fonts');
+    const cat = o.catalogue ?? loadFontCatalogue();
+    try {
+      const fm = await runPyTool(
+        'fontmatch',
+        {
+          videoPath: src,
+          samples,
+          fonts: fontCandidates(cat),
+          occlusion: occlusionSamples(ocr.frames),
+          ...pyTools,
+        },
+        FontMatchResultSchema,
+        pyOptions(engine, o),
+      );
+      fonts = captionFonts(fm, cat, trackingReveals(ocr.frames));
+      if (!fonts) notes.push('Caption fonts not matched: no caption line could be measured.');
+    } catch (e) {
+      if (o.signal?.aborted) throw e;
+      notes.push(
+        `Caption fonts not matched (${isVoxError(e) ? e.code : 'error'}): the draft picks fonts from the description.`,
+      );
+    }
+  }
   progress(0.97, 'measured');
   return MeasurementsSchema.parse({
     durationMs,
@@ -444,6 +489,7 @@ export async function measureReference(
       })),
       staticText: ocr.static.slice(0, 20).map((t) => t.slice(0, 200)),
     },
+    ...(fonts ? { fonts } : {}),
     notes,
   });
 }
