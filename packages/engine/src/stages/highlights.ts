@@ -43,9 +43,9 @@ const BASE_TIMEOUT_MS = 120_000;
 const MAX_OUTPUT = 8 << 20;
 
 /**
- * How long a quick run (the app's Make clips and `vox quick`) waits for highlights once shots,
- * transcribe and facetrack are done; then it goes on without them (D-75, D-85). On a 667 s talk on an
- * M5 they took 59 s against 46 s for shots → transcribe.
+ * How long a quick run (the app's Make clips and `vox quick`) waits for highlights (and sound
+ * tags, D-83) once shots, transcribe and facetrack are done; then it goes on without them (D-75,
+ * D-85). On a 667 s talk on an M5 they took 59 s against 46 s for shots → transcribe.
  */
 export const HIGHLIGHTS_GRACE_MS = 30_000;
 
@@ -113,7 +113,7 @@ export async function runHighlights(
   return { available: true, highlights: ok.data };
 }
 
-interface ExecOut {
+export interface ExecOut {
   code: number;
   stdout: string;
   stderr: string;
@@ -132,10 +132,14 @@ function helperEnv(): Record<string, string> {
   return env;
 }
 
-function runHelper(
+/**
+ * Runs the helper once with `args` (no shell); `input`, when given, is written to its stdin (the
+ * `--sounds` request, D-83). Also used by stages/sounds.ts.
+ */
+export function runHelper(
   helper: NativeHelper,
   args: readonly string[],
-  o: { signal?: AbortSignal; timeoutMs: number },
+  o: { signal?: AbortSignal; timeoutMs: number; input?: string },
 ): Promise<ExecOut> {
   return new Promise((resolve) => {
     if (o.signal?.aborted) {
@@ -148,9 +152,13 @@ function runHelper(
     let cancelled = false;
     // argument array, no shell
     const child = spawn(helper.command, [...(helper.args ?? []), ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...helperEnv(), ...helper.env },
     });
+    // stdin is the request, or empty; a helper that exits before reading it (an old one, a
+    // crash) is reported by `close`, so a write error here is ignored
+    child.stdin.on('error', () => {});
+    child.stdin.end(o.input ?? '');
     const kill = () => child.kill('SIGKILL');
     const timer = setTimeout(() => {
       timedOut = true;

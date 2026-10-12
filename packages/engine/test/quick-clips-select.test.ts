@@ -1,18 +1,22 @@
 // Quick clips selection rules on crafted inputs (phase 05 step 12b; engine spec "Quick clips", plan
 // D-15): sentence units, the 120 ms lead-in that never cuts into the previous word, the move to a shot
 // cut within 2 frames, edge pauses trimmed, each new heuristic signal (energy, hook, coverage and the
-// D-75 video highlights) changing the pick when everything else is equal, and the shortlist a
-// registered scorer gets.
+// D-75 video highlights, the D-83 reaction sound tags) changing the pick when everything else is
+// equal, and the shortlist a registered scorer gets.
 import { describe, expect, test } from 'vitest';
 import type { Transcript, TranscriptWord } from '../src/model/schema.ts';
 import type { Detections } from '../src/stages/facetrack.ts';
 import type { Highlights } from '../src/stages/highlights.ts';
+import type { Sounds } from '../src/stages/sounds.ts';
 import {
   HIGHLIGHT_WEIGHT,
+  REACTION_FULL_MS,
+  REACTION_WEIGHT,
   clipStart,
   heuristicScores,
   highlightLevel,
   pickClips,
+  reactionLevel,
   quickCandidates,
   scorerShortlist,
   sentenceUnits,
@@ -238,6 +242,89 @@ describe('video highlights (D-75)', () => {
     ]);
     expect(scores[0]).toBeCloseTo(scores[1]!, 5);
     expect(pickClips(cands, scores, 1)).toEqual([0]);
+  });
+});
+
+describe('reaction sound tags (D-83)', () => {
+  const tags = (windows: Sounds['windows']): Sounds => ({
+    windows,
+    windowMs: 1500,
+    classes: ['laughter', 'applause'],
+    minConfidence: 0.3,
+  });
+
+  test('reactionLevel: confidence-weighted reaction time inside the range ÷ REACTION_FULL_MS, at most 1', () => {
+    const s = tags([
+      { startMs: 0, endMs: 1500, labels: [{ id: 'laughter', confidence: 0.8 }] },
+      {
+        startMs: 1500,
+        endMs: 3000,
+        labels: [
+          { id: 'applause', confidence: 0.6 },
+          { id: 'laughter', confidence: 0.4 },
+        ],
+      },
+      // not a reaction class: never counted
+      { startMs: 3000, endMs: 4500, labels: [{ id: 'music', confidence: 0.99 }] },
+    ]);
+    expect(reactionLevel(s, 0, 1500)).toBeCloseTo((1500 * 0.8) / REACTION_FULL_MS, 9);
+    // half a window counts half; the best label of a window counts
+    expect(reactionLevel(s, 750, 2250)).toBeCloseTo((750 * 0.8 + 750 * 0.6) / REACTION_FULL_MS, 9);
+    expect(reactionLevel(s, 3000, 4500)).toBe(0);
+    expect(reactionLevel(s, 5000, 9000)).toBe(0);
+    expect(reactionLevel(s, 1000, 1000)).toBe(0);
+    const loud = tags([
+      { startMs: 0, endMs: 1500, labels: [{ id: 'applause', confidence: 1 }] },
+      { startMs: 1500, endMs: 3000, labels: [{ id: 'applause', confidence: 1 }] },
+      { startMs: 3000, endMs: 4500, labels: [{ id: 'applause', confidence: 1 }] },
+    ]);
+    expect(reactionLevel(loud, 0, 4500)).toBe(1);
+  });
+
+  test('without sound tags (or with no reaction) the scores are the ones before D-83; with a laugh the laughed-at clip wins', () => {
+    const { t, cands } = twoCandidates('Plain words.', 'Plain words.');
+    const plain = heuristicScores(cands, t);
+    expect(plain.signals.map((s) => s.reaction)).toEqual([0, 0]);
+    const none = heuristicScores(cands, t, { sounds: tags([]) });
+    expect(none.scores).toEqual(plain.scores);
+    expect(pickClips(cands, plain.scores, 1)).toEqual([0]);
+    // laughter over the later candidate (B, about 11–12 s)
+    const sounds = tags([
+      { startMs: 11000, endMs: 12000, labels: [{ id: 'laughter', confidence: 0.9 }] },
+    ]);
+    const { scores, signals } = heuristicScores(cands, t, { sounds });
+    expect(signals[0]!.reaction).toBe(0);
+    expect(signals[1]!.reaction).toBeCloseTo((1000 * 0.9) / REACTION_FULL_MS, 9);
+    expect(scores[1]! - scores[0]!).toBeCloseTo(REACTION_WEIGHT * signals[1]!.reaction, 9);
+    expect(pickClips(cands, scores, 1)).toEqual([1]);
+  });
+
+  test('reaction adds to highlights and the other signals; the scorer shortlist uses the blend', () => {
+    // A has a hook (+1); B has full applause (+1) and the highlight (+1): B wins
+    const { t, cands } = twoCandidates('Why does this work?', 'Plain words.');
+    const highlights: Highlights = {
+      highlights: [{ startMs: 10500, endMs: 12500 }],
+      levels: [],
+      keyFrameMs: null,
+    };
+    const sounds = tags([
+      { startMs: 9000, endMs: 13000, labels: [{ id: 'applause', confidence: 1 }] },
+    ]);
+    const withHl = heuristicScores(cands, t, { highlights });
+    expect(withHl.scores[0]).toBeCloseTo(withHl.scores[1]!, 5);
+    const both = heuristicScores(cands, t, { highlights, sounds });
+    expect(both.signals.map((s) => [s.hook, s.highlight, s.reaction])).toEqual([
+      [1, 0, 0],
+      [0, 1, both.signals[1]!.reaction],
+    ]);
+    expect(both.signals[1]!.reaction).toBeCloseTo(
+      (cands[1]!.endMs - cands[1]!.startMs) / REACTION_FULL_MS,
+      9,
+    );
+    expect(both.scores[1]!).toBeGreaterThan(both.scores[0]!);
+    // a one-candidate shortlist: before the tie went to A (earlier start), now B goes to the scorer
+    expect(scorerShortlist(cands, withHl.scores, 1)).toEqual([0]);
+    expect(scorerShortlist(cands, both.scores, 1)).toEqual([1]);
   });
 });
 

@@ -1,7 +1,8 @@
 // The `makeClips` app job's stage plan (decision "Quick clips speed"): facetrack and highlights run
 // beside shots → transcribe, a stage that loses the project-version race (JOB_CONFLICT) is run
-// again (its output is cached, so only the media update is redone), highlights (D-75) never stop
-// the clips and are waited for only a grace time, and progress is weighted by stage cost.
+// again (its output is cached, so only the media update is redone), highlights (D-75) and sound
+// tags (D-83) never stop the clips and are waited for only a grace time, and progress is weighted
+// by stage cost.
 import type { Engine } from '@vox/engine';
 import { describe, expect, it } from 'vitest';
 import { AppJobs, STAGE_WEIGHT } from '../../src/engine-host/quick.ts';
@@ -113,6 +114,30 @@ describe('makeClips stages', () => {
       expect(j.status, code).toBe('done');
       expect(r.runs.get('quickClips'), code).toBe(1);
     }
+  });
+
+  it('sound tags start with the other stages, end before quick clips, and never stop the clips (D-83)', async () => {
+    const r = run({ delay: { shots: 5, transcribe: 10, facetrack: 20, sounds: 60 } });
+    expect((await r.done).status).toBe('done');
+    const at = (s: string) => r.log.indexOf(s);
+    expect(at('start sounds')).toBeLessThan(at('end shots done'));
+    expect(at('start quickClips')).toBeGreaterThan(at('end sounds done'));
+    const messages = new Set(
+      r.events.filter(([n]) => n === 'job.progress').map(([, p]) => p.message),
+    );
+    expect(messages).toContain('Tagging sounds');
+    for (const code of ['TOOL_FAILED', 'CANCELLED', 'JOB_CONFLICT']) {
+      const fail = { status: 'failed' as Status, error: { code, message: 'x' } };
+      const f = run({ outcomes: { sounds: [fail, fail, fail, fail] } });
+      expect((await f.done).status, code).toBe('done');
+      expect(f.runs.get('quickClips'), code).toBe(1);
+    }
+    const slow = run(
+      { delay: { shots: 5, transcribe: 5, facetrack: 5, sounds: 1500 } },
+      { highlightsGraceMs: 30 },
+    );
+    expect((await slow.done).status).toBe('done');
+    expect(slow.log).not.toContain('end sounds done');
   });
 
   it('highlights still running after the grace time are cancelled; the clips go on', async () => {

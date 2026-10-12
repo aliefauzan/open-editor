@@ -128,6 +128,8 @@ describe.skipIf(reason !== null)('vox-apple-llm (real helper, local)', () => {
     expect(status.highlights).toBe(macosMajor >= 27);
     // NaturalLanguage contextual embeddings exist from macOS 14 (D-77)
     expect(status.embed).toBe(true);
+    // SoundAnalysis' sound classifier exists from macOS 12 (D-83)
+    expect(status.sounds).toBe(true);
   });
 
   test.each([

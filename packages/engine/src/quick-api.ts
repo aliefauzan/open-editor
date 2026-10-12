@@ -1,5 +1,6 @@
 // Job `quickClips` (engine spec "Quick clips", plan D-11, D-15): reads the media's transcript, shots,
-// facetrack detections, peaks and (macOS 27, D-75) video highlights, picks the clips
+// facetrack detections, peaks, (macOS 27, D-75) video highlights and (D-83) reaction sound tags,
+// picks the clips
 // (stages/quickClips.ts) and writes one sequence per pick in one `batch` carrying the job's id, so
 // "Undo quick clips" is one history entry. A registered scorer gets only a shortlist: the best
 // candidates by the heuristic (D-75).
@@ -8,7 +9,14 @@ import { z } from 'zod';
 import { VoxError } from './errors.ts';
 import type { ProjectStore } from './history/store.ts';
 import type { JobRunner } from './jobs.ts';
-import { ActorSchema, RunIdSchema, applyJobOps, findMedia, highlightsPathOf } from './media-api.ts';
+import {
+  ActorSchema,
+  RunIdSchema,
+  applyJobOps,
+  findMedia,
+  highlightsPathOf,
+  soundsPathOf,
+} from './media-api.ts';
 import { DEFAULT_FPS, isFpsInSet, type Fps } from './model/fps.ts';
 import { newId } from './model/ids.ts';
 import { TranscriptSchema, type MediaItem, type Transcript } from './model/schema.ts';
@@ -16,6 +24,7 @@ import type { OpCall } from './ops/index.ts';
 import { resolveProjectPath } from './paths.ts';
 import { DetectionsSchema, type Detections } from './stages/facetrack.ts';
 import { HighlightsSchema, type Highlights } from './stages/highlights.ts';
+import { SoundsSchema, soundsMatchRequest, type Sounds } from './stages/sounds.ts';
 import { fpsValue, nearestFixedFps } from './stages/media/analyze.ts';
 import {
   HEURISTIC,
@@ -74,6 +83,8 @@ export interface QuickClipsResult {
   scorerMs?: number;
   /** Set when the media's video highlights (macOS 27, D-75) were part of the heuristic. */
   highlights?: true;
+  /** Set when the media's reaction sound tags (D-83) were part of the heuristic. */
+  sounds?: true;
   clips: QuickClip[];
   sequenceIds: string[];
   /** Set when fewer than `count` clips fit. */
@@ -154,6 +165,13 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         highlightsPathOf(media.id),
         HighlightsSchema,
       );
+      const storedSounds: Sounds | undefined = await readJson(
+        dir,
+        soundsPathOf(media.id),
+        SoundsSchema,
+      );
+      // tags asked with other classes or another bar (an older engine) are not used
+      const sounds = storedSounds && soundsMatchRequest(storedSounds) ? storedSounds : undefined;
       const sourceFps = media.fps ?? DEFAULT_FPS;
 
       ctx.progress(0.1, 'finding sentence ranges');
@@ -168,6 +186,7 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         peaks,
         detections,
         highlights,
+        sounds,
       }).scores;
       let scorer = HEURISTIC;
       let scorerError: QuickClipsResult['scorerError'];
@@ -293,6 +312,7 @@ export function registerQuickClipJobs(runner: JobRunner, deps: QuickApiDeps) {
         ...(chosen && cands.length > 0 ? { scorerCandidates: sent.length } : {}),
         ...(scorerMs !== undefined ? { scorerMs } : {}),
         ...(highlights ? { highlights: true as const } : {}),
+        ...(sounds ? { sounds: true as const } : {}),
         clips,
         sequenceIds: clips.map((c) => c.sequenceId),
         ...(clips.length < args.count

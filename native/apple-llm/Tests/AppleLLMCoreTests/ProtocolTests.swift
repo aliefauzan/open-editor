@@ -84,16 +84,19 @@ struct ProtocolTests {
         == #"{"id":"r2","error":{"code":"contextOverflow","message":"too long"}}"#)
     #expect(
       encodeStatus(.ready, contextSize: 4096, vision: false)
-        == #"{"status":"ready","contextSize":4096,"vision":false,"highlights":false,"embed":false}"#)
+        == #"{"status":"ready","contextSize":4096,"vision":false,"highlights":false,"embed":false,"sounds":false}"#)
     #expect(
       encodeStatus(.ready, contextSize: 8192, vision: true)
-        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":false,"embed":false}"#)
+        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":false,"embed":false,"sounds":false}"#)
     #expect(
       encodeStatus(.ready, contextSize: 8192, vision: true, highlights: true)
-        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":true,"embed":false}"#)
+        == #"{"status":"ready","contextSize":8192,"vision":true,"highlights":true,"embed":false,"sounds":false}"#)
     #expect(
       encodeStatus(.notEnabled, contextSize: 4096, vision: false, embed: true)
-        == #"{"status":"notEnabled","contextSize":4096,"vision":false,"highlights":false,"embed":true}"#)
+        == #"{"status":"notEnabled","contextSize":4096,"vision":false,"highlights":false,"embed":true,"sounds":false}"#)
+    #expect(
+      encodeStatus(.notEnabled, contextSize: 4096, vision: false, embed: true, sounds: true)
+        == #"{"status":"notEnabled","contextSize":4096,"vision":false,"highlights":false,"embed":true,"sounds":true}"#)
   }
 
   @Test("--highlights answer: ranges and levels in whole ms, key frame or null, errors only when set")
@@ -159,6 +162,8 @@ struct ProtocolTests {
     #expect(Command.parse(["--highlights", "/v/a.mp4", "x"]) == .invalid("x"))
     #expect(Command.parse(["--embed"]) == .embed)
     #expect(Command.parse(["--embed", "x"]) == .invalid("x"))
+    #expect(Command.parse(["--sounds"]) == .sounds)
+    #expect(Command.parse(["--sounds", "/a.m4a"]) == .invalid("/a.m4a"))
   }
 
   @Test("a lone surrogate escape in a request becomes U+FFFD, like JavaScript strings allow")

@@ -78,6 +78,7 @@ describe('engine.jobs', () => {
       'quickClips',
       'render',
       'shots',
+      'sounds',
       'transcribe',
     ]);
   });
