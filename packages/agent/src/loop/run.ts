@@ -24,6 +24,7 @@ import {
 } from '../providers/prompt-cache.ts';
 import { estimateTokens } from '../providers/tool-cost.ts';
 import { AliasTable } from '../tools/aliases.ts';
+import { agedImagesText } from '../tools/cards.ts';
 import { VISION_RULE, compactView } from '../tools/read.ts';
 import {
   aiToolSet,
@@ -40,7 +41,7 @@ import type {
   ToolOutput,
   VisionDescriber,
 } from '../tools/types.ts';
-import { COMPACT_AT, Conversation } from './conversation.ts';
+import { COMPACT_AT, Conversation, KEEP_RECENT_STEPS, type ResultMeta } from './conversation.ts';
 import { wrapData } from './envelope.ts';
 import { backoffMs, mapProviderError, PROVIDER_RETRIES } from './provider-errors.ts';
 import { buildSystemPrompt } from './prompt.ts';
@@ -606,6 +607,13 @@ export class AgentRun {
             this.record.write({ type: 'compacted', step, ...r, force });
           return r.stubbed + r.summarised > 0;
         };
+        // images older than the recent window become their frame cards, once each (D-80)
+        await conv.ageImagesThrough(step - KEEP_RECENT_STEPS, (s) =>
+          agedImagesText(this.ctx, s).catch((err: unknown) => {
+            // the card request rethrows only a cancellation
+            throw this.#req.signal?.aborted ? new RunStopped() : err;
+          }),
+        );
         await compactOnce(false);
         // breakpoints on the history only; the state block after them is never cached (D-76)
         const build = () =>
@@ -668,7 +676,7 @@ export class AgentRun {
           });
         }
         const parts: ToolResultPart[] = [];
-        const meta = new Map<string, { label: string; version: number }>();
+        const meta = new Map<string, ResultMeta>();
         for (const call of out.calls) {
           const res = await this.#runCall(call, state, opts);
           parts.push(res.part);
@@ -732,8 +740,8 @@ export class AgentRun {
     call: ModelCall,
     state: TurnState,
     opts: TurnOptions,
-  ): Promise<{ part: ToolResultPart; meta: { label: string; version: number }; stop?: boolean }> {
-    const meta = { label: `${call.toolName} result`, version: this.ctx.seenVersion };
+  ): Promise<{ part: ToolResultPart; meta: ResultMeta; stop?: boolean }> {
+    const meta: ResultMeta = { label: `${call.toolName} result`, version: this.ctx.seenVersion };
     const done = (output: ToolResultPart['output'], extra: Partial<{ stop: boolean }> = {}) => ({
       part: {
         type: 'tool-result' as const,
@@ -915,6 +923,10 @@ export class AgentRun {
       },
     });
     if (output.images && output.images.length > 0) {
+      meta.stills = output.images.map((i) => ({
+        label: i.label,
+        ...(i.path !== undefined && { path: i.path }),
+      }));
       return done({
         type: 'content',
         value: [
