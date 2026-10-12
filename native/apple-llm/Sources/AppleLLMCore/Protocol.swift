@@ -4,9 +4,11 @@
 //   stdin  {"id"?, "system", "messages":[{"role":"user"|"assistant","content","images"?}],
 //           "schema"?, "maxTokens", "temperature"}
 //   stdout {"id"?, "text", "usage"} | {"id"?, "json", "usage"} | {"id"?, "error":{"code","message"}}
-//   --status → {"status", "contextSize", "vision", "highlights"}
+//   --status → {"status", "contextSize", "vision", "highlights", "embed"}
 //   --highlights <videoPath> → {"highlights":[{"startMs","endMs"}], "levels":[{"startMs","endMs",
 //           "level"}], "keyFrameMs", "errors"?} | {"error":{"code","message"}} (D-75)
+//   --embed (stdin {"texts", "language"?}) → {"vectors", "dim", "language"} | {"error"} (D-77,
+//           EmbedProtocol.swift)
 //
 // `images` (user messages only, D-74) lists absolute paths of image files the caller wrote; the
 // helper reads them only when the model can see images (macOS 27, `vision` capability) and
@@ -21,6 +23,8 @@ public enum ErrorCode: String, CaseIterable, Sendable {
   case badRequest, unavailable, contextOverflow, guardrail, generation
   /// The request has images but the model cannot see them (before macOS 27, or no `vision`).
   case visionUnavailable
+  /// `--embed`: the language's embedding model is not on this Mac and could not be downloaded.
+  case assetsMissing
 }
 
 /// Context size reported when the framework gives none (agent spec, plan phase 11).
@@ -194,12 +198,14 @@ public func encodeError(id: String?, code: ErrorCode, message: String) -> String
 }
 
 /// `highlights`: this Mac can run `--highlights` (macOS 27 MediaIntelligence, D-75).
+/// `embed`: this Mac can run `--embed` (NaturalLanguage contextual embeddings, D-77); it does
+/// not need Apple Intelligence, so it can be true whatever `status` says.
 public func encodeStatus(
-  _ status: Status, contextSize: Int, vision: Bool, highlights: Bool = false
+  _ status: Status, contextSize: Int, vision: Bool, highlights: Bool = false, embed: Bool = false
 ) -> String {
   JSONValue.object([
     ("status", .string(status.rawValue)), ("contextSize", .int(contextSize)),
-    ("vision", .bool(vision)), ("highlights", .bool(highlights)),
+    ("vision", .bool(vision)), ("highlights", .bool(highlights)), ("embed", .bool(embed)),
   ]).encoded()
 }
 
@@ -301,6 +307,8 @@ public enum Command: Equatable, Sendable {
   case help
   /// `--highlights <videoPath>`: one MediaIntelligence analysis, one line, exit (D-75).
   case highlights(String)
+  /// `--embed`: one request on stdin, one line of vectors, exit (D-77).
+  case embed
   case invalid(String)
 
   public static func parse(_ args: [String]) -> Command {
@@ -313,6 +321,7 @@ public enum Command: Equatable, Sendable {
     let mode: Command
     switch first {
     case "--status": mode = .status
+    case "--embed": mode = .embed
     case "--help", "-h": mode = .help
     default: return .invalid(first)
     }
@@ -320,10 +329,11 @@ public enum Command: Equatable, Sendable {
   }
 
   public static let usage = """
-    usage: vox-apple-llm [--status | --highlights <videoPath>]
+    usage: vox-apple-llm [--status | --highlights <videoPath> | --embed]
       reads JSON-lines requests on stdin and answers one line each on stdout
-      --status      print {"status","contextSize","vision","highlights"} and exit
+      --status      print {"status","contextSize","vision","highlights","embed"} and exit
       --highlights  print the video's highlight ranges, levels and key frame (macOS 27) and exit
+      --embed       read {"texts","language"?} on stdin, print {"vectors","dim","language"} and exit
 
     """
 }

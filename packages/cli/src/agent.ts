@@ -239,12 +239,16 @@ export async function agentCommand(
     ...(deps.probe.context !== undefined && { context: deps.probe.context }),
   });
   const models = built.models;
-  // screenplay match: the `embed` role ranks scenes and clips by similarity; a failure to build it
-  // is reported and the workflow ranks with the language model instead
+  // screenplay match: the `embed` role ranks scenes and clips by similarity (no role: the Apple
+  // helper's on-device embeddings when it has them, D-77); a failure to build it is reported and
+  // the workflow ranks with the language model instead
   let embed: Awaited<ReturnType<typeof buildEmbedder>>;
   if (workflow === 'screenplay') {
     try {
-      embed = await buildEmbedder(conf, cfg, deps.fetch !== undefined ? { fetch: deps.fetch } : {});
+      embed = await buildEmbedder(conf, cfg, {
+        ...(deps.fetch !== undefined && { fetch: deps.fetch }),
+        ...(deps.apple !== undefined && { apple: deps.apple }),
+      });
     } catch (err) {
       io.stderr(
         clean(

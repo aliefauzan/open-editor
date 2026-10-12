@@ -4,7 +4,9 @@
 // starts a fresh one. The helper has no tool calls, so the agent uses it in plan mode only. On
 // macOS 27 the model also sees images (D-74): image parts of user messages are written to a
 // private temp dir, passed to the helper as file paths and deleted after the answer; `--status`
-// reports `vision`. Cost is 0 (prices.ts treats `apple` as local).
+// reports `vision`. Cost is 0 (prices.ts treats `apple` as local). `createAppleEmbedder` (D-77) runs
+// `vox-apple-llm --embed` once per call: on-device NaturalLanguage sentence vectors for the `embed`
+// role (screenplay match), which need no Apple Intelligence.
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -21,11 +23,16 @@ import {
   type SharedV4Warning,
 } from '@ai-sdk/provider';
 import { VoxError } from '../errors.ts';
+import type { Embedder } from '../screenplay/match.ts';
 import {
+  APPLE_EMBED_MAX_TEXTS,
+  APPLE_EMBED_MAX_TEXT_LENGTH,
   APPLE_MAX_IMAGES,
+  AppleEmbedRequest,
   JsonLineSplitter,
   appleStatusValues,
   encodeAppleRequest,
+  parseAppleEmbedLine,
   parseAppleResponseLine,
   parseAppleStatusLine,
   type AppleMessage,
@@ -327,6 +334,8 @@ function mapHelperError(code: string, message: string): VoxError {
         'Shorten the request; the loop compacts and retries once.',
         { details: { provider: 'apple' } },
       );
+    case 'assetsMissing':
+      return unavailable(`Apple helper: ${message}`, ASSETS_HINT, { status: 'assetsMissing' });
     case 'visionUnavailable':
       return unavailable(
         APPLE_NO_VISION_REASON,
@@ -559,4 +568,125 @@ export function createAppleLanguageModel(opts: AppleModelOptions): AppleLanguage
     close: () => helper.close(),
     pid: () => helper.pid(),
   };
+}
+
+const ASSETS_HINT =
+  'macOS downloads the language model for on-device embeddings on first use; connect to the internet and try again, or set another embed model.';
+
+/** One `--embed` run: at most APPLE_EMBED_MAX_TEXTS texts. */
+function embedOnce(
+  opts: AppleModelOptions,
+  request: AppleEmbedRequest,
+  signal: AbortSignal | undefined,
+): Promise<{ vectors: number[][]; dim: number; language: string }> {
+  signal?.throwIfAborted();
+  // validated before the helper starts: a bad request never leaves a process waiting on stdin
+  const input = JSON.stringify(AppleEmbedRequest.parse(request));
+  const timeoutMs = opts.timeoutMs ?? APPLE_DEFAULT_TIMEOUT_MS;
+  return new Promise((resolve, reject) => {
+    const child = spawn(opts.command, [...(opts.args ?? []), '--embed'], {
+      env: helperEnv(opts.env),
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,
+    });
+    let stdout = '';
+    let settled = false;
+    const finish = (
+      err: unknown,
+      value?: { vectors: number[][]; dim: number; language: string },
+    ) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      if (err !== undefined) reject(err);
+      else resolve(value!);
+    };
+    const timer = setTimeout(() => {
+      finish(
+        appleFailed('timeout', `the Apple helper did not embed within ${String(timeoutMs)} ms`, {
+          timeoutMs,
+        }),
+      );
+    }, timeoutMs);
+    const onAbort = () => finish(signal?.reason ?? new Error('aborted'));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    child.stdout.setEncoding('utf8').on('data', (d: string) => (stdout += d));
+    child.stderr.resume();
+    child.stdin.on('error', () => {
+      // the helper exited before reading (an old helper without --embed); close reports it
+    });
+    child.once('error', (err) => {
+      finish(unavailable('the Apple helper could not run', MISSING_HINT, { error: err.name }));
+    });
+    child.once('close', (code) => {
+      const parsed = parseAppleEmbedLine(stdout);
+      if (!parsed.ok) {
+        // exit 2 with usage: a helper older than D-77
+        finish(
+          code === 2 && stdout.trim() === ''
+            ? unavailable('this Apple helper cannot embed text', MISSING_HINT, {
+                status: 'noEmbed',
+              })
+            : appleFailed('protocol', 'the Apple helper sent an unexpected embed answer', {
+                exitCode: code,
+              }),
+        );
+        return;
+      }
+      const a = parsed.value;
+      if ('error' in a) finish(mapHelperError(a.error.code, a.error.message));
+      else if (a.vectors.length !== request.texts.length)
+        finish(
+          appleFailed('protocol', 'the Apple helper returned the wrong number of vectors', {
+            sent: request.texts.length,
+            got: a.vectors.length,
+          }),
+        );
+      else finish(undefined, a);
+    });
+    child.stdin.end(input);
+  });
+}
+
+/**
+ * Sentence vectors from the helper (D-77), one per text, in order. Texts longer than the helper
+ * takes are cut; more than APPLE_EMBED_MAX_TEXTS go in several runs, all in the language the first
+ * run used. Errors: APPLE_UNAVAILABLE (no helper, an old helper, no model or assets for the
+ * language), APPLE_FAILED (timeout, a bad answer).
+ */
+export async function appleEmbed(
+  opts: AppleModelOptions,
+  texts: readonly string[],
+  options: { language?: string; signal?: AbortSignal } = {},
+): Promise<{ vectors: number[][]; dim: number; language: string }> {
+  let language = options.language;
+  const vectors: number[][] = [];
+  let dim = 0;
+  for (let i = 0; i < texts.length; i += APPLE_EMBED_MAX_TEXTS) {
+    const chunk = texts
+      .slice(i, i + APPLE_EMBED_MAX_TEXTS)
+      .map((t) => t.slice(0, APPLE_EMBED_MAX_TEXT_LENGTH));
+    const r = await embedOnce(
+      opts,
+      { texts: chunk, ...(language !== undefined && { language }) },
+      options.signal,
+    );
+    language = r.language;
+    dim = r.dim;
+    vectors.push(...r.vectors);
+  }
+  return { vectors, dim, language: language ?? 'en' };
+}
+
+/**
+ * The `embed` role on the Apple helper (D-77). It is `local`: the screenplay match uses it as a
+ * free first pass and still asks the language model about scenes it is unsure of.
+ */
+export function createAppleEmbedder(opts: AppleModelOptions): Embedder {
+  const embed: Embedder = async (texts, signal) =>
+    texts.length === 0 ? [] : (await appleEmbed(opts, texts, signal ? { signal } : {})).vectors;
+  embed.local = true;
+  return embed;
 }

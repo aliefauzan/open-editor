@@ -164,9 +164,7 @@ export function buildRegistry(engine: Pick<AgentEngine, 'imageProviders'>): Tool
     if (tools.has(t.name)) throw new Error(`duplicate tool ${t.name}`);
     tools.set(t.name, t);
   };
-  // get_transcript is the compact, scoped D-81 tool; it replaces the per-word one in read.ts
-  const reads = readTools().map((t) => (t.name === 'get_transcript' ? transcriptTool() : t));
-  for (const t of [...reads, ...opTools(), ...jobTools(engine)]) add(t);
+  for (const t of [...readTools(), transcriptTool(), ...opTools(), ...jobTools(engine)]) add(t);
   const schemas = new Map<string, JSONSchema7>();
   const registry: ToolRegistry = {
     get: (n) => tools.get(n),

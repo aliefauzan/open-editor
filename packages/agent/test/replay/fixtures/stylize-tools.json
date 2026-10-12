@@ -408,8 +408,7 @@
             "kind": "loud SFX",
             "listenFor": "one clean hit on the cut"
           }
-        ],
-        "picture": "no vision model: qa.png not described; use the numbers above"
+        ]
       },
       "subRun": 1
     },
@@ -654,8 +653,7 @@
             "kind": "loud SFX",
             "listenFor": "one clean hit on the cut"
           }
-        ],
-        "picture": "no vision model: qa.png not described; use the numbers above"
+        ]
       },
       "subRun": 1
     },

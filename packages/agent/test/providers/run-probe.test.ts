@@ -147,6 +147,8 @@ describe('probe runner (step 10)', () => {
     expect(ready).toEqual({
       appleStatus: 'ready',
       context: { contextTokens: 4096, source: 'apple' },
+      // a helper without the `embed` flag (older than D-77) cannot embed
+      capabilities: { embeddings: false },
       vision: { status: 'fail', reason: APPLE_NO_VISION_REASON },
       plan: { status: 'pass' },
     });

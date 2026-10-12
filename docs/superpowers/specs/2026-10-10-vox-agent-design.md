@@ -96,7 +96,9 @@ subscription may be used through a gateway is set by that service's terms, not b
   decides its roles. With its context of 4k tokens (8k on macOS 27, D-22) it usually only passes the
   `fast` role (scoring quick-clip candidates, image queries); it can fill `editor` only if
   it passes the probe. On macOS 27 it can also fill `vision` when the vision probe passes
-  (D-74); before that the probe fails `vision` without sending an image. Cost is 0.
+  (D-74); before that the probe fails `vision` without sending an image. It can fill `embed`
+  when `--status` reports `embed: true` (`--embed`, NaturalLanguage, any Apple Intelligence state;
+  D-77). Cost is 0.
 - The helper never uses the network; the only files it reads are the image files a request
   names.
 
@@ -247,7 +249,7 @@ that `startMs`, `endMs` and `durationMs` are sequence time and `inMs` is source 
 | `search_places(query)` | `engine.geo.search` results for `geo` slots |
 | `view_frames(sequenceId, atSeqMs[], detail?)` | rendered stills (frame cards by default, below), each with `seqMs`, the `srcMs` of the `V1` media at that point (or `null`) and frame-health flags (below) |
 | `view_media(mediaId, atSrcMs[], detail?)` | source stills (frame cards by default, below) |
-| `check_audio(sequenceId)` | runs the engine audio QA (job `audioQa`, plan D-14): the check table with numbers, the cue list with drops, the five listen timecodes, and `qa.png` |
+| `check_audio(sequenceId)` | runs the engine audio QA (job `audioQa`, plan D-14): the check table with numbers, the cue list with drops, the five listen timecodes. `qa.png` stays on disk for the user and is not sent to any model (plan D-80) |
 
 **Frame cards** (plan D-73): by default (`detail: "card"`) `view_frames` and `view_media` return
 one short Apple Vision text block per still instead of the still: labels with confidence, on-screen
@@ -257,10 +259,13 @@ against about 1,800 for a 1080p image. The engine (`engine.frameCards`, Python `
 each card per still content and card version under `<project>/cache/cards/`. Where cards cannot be
 made (not macOS, the Python tool fails) the tool takes the pixels path below.
 
-With `detail: "pixels"`, `view_frames`, `view_media` and the `qa.png` of `check_audio` return images
-when the `editor` model has vision; otherwise the `vision` model describes them and the tool returns
-text; with neither, `view_media` and `check_audio`'s image return an error the agent can report, and
-`view_frames` returns the times and frame-health flags only.
+With `detail: "pixels"`, `view_frames` and `view_media` return images when the `editor` model has
+vision; otherwise the `vision` model describes them and the tool returns text; with neither,
+`view_media` returns an error the agent can report, and `view_frames` returns the times and
+frame-health flags only. The images are scaled to at most 768 px on the long edge (plan D-80; about
+450 tokens per 16:9 still instead of about 1,600); `detail: "full"` sends them at full size, for
+fine detail such as reading caption text letter by letter. Frame health is always read on the
+full-size still.
 
 **Frame health** (plan D-15): `view_frames` runs model-free checks on every still before
 any model sees it and returns `health: ('mostlyBlack' | 'mostlyWhite' | 'blank' |
@@ -359,7 +364,10 @@ design; the settings screen says so next to each provider.
   (`[elided @v42: get_transcript m1 0–60000 srcMs, 812 words]`). A stub older than the
   current version is marked stale (`[stale @v42: …; re-read]`), so the model does not act
   on an old read. If still over budget, the `fast` model summarises the oldest turns into
-  a running notes block.
+  a running notes block. Images in tool results older than the last 8 steps are replaced, once
+  and whatever the budget, by the stills' frame cards (or a note naming the stills where cards
+  cannot be made), so the history does not re-send pixels and the cached prefix changes only
+  once (plan D-80). Images count at their billed size (≈ w × h / 750), not their bytes.
 - **Tool-call repair** (plan D-15): malformed tool-call JSON (for example a trailing
   comma or a missing closing bracket) is repaired before zod validation; if repair fails,
   the parse error goes back as for invalid arguments. A tool call written as plain text
@@ -551,6 +559,14 @@ clip only above a bar (LLM score 0.5, embedding cosine 0.3, word overlap 0.2); e
 once (highest score first; ties go to the clip closest in length to the scene). Ranking uses the `embed`
 role, else the `fast` role, else the `editor` role, else word overlap with a note. A clip that already has
 a `description` is not tagged again. Everything lands in one `batch` (one undo entry).
+
+Local signals (plan D-77): tags come from the Apple on-device model when it is the `vision` role, else
+from Apple Vision frame cards of the keyframes (labels, faces, on-screen text), and from a paid `vision`
+model only when neither gives tags. With no `embed` role set, the Apple helper's `--embed`
+(NaturalLanguage contextual embeddings, macOS 14+, no Apple Intelligence needed) is a first pass: a scene
+whose best clip leads the second by 0.3 centred cosine or more is matched without a model call; every
+other scene goes to the LLM with only its 8 best clips. An `embed` role set to another provider ranks
+by embedding alone, as before.
 
 ### 4. Style extract (with styles Part C)
 

@@ -7,6 +7,8 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeScreenplaySet, SCENES } from '../../../../scripts/make-screenplay-set.ts';
+import type { FrameCard } from '@vox/engine';
+import { VoxError } from '../../src/errors.ts';
 import type { ScriptStep } from './model.ts';
 import { dynamicModel, role, workflowKit, type Kit } from './workflow.ts';
 
@@ -51,6 +53,13 @@ export function secondTake(dir: string, file: string): string {
 
 export interface SpKit extends Kit {
   dir: string;
+  /**
+   * Frame cards (D-73) for the keyframes of a clip, by its fixture file; default: cards are not
+   * available here (as off macOS), so the tagging uses the vision model.
+   */
+  cards?: (file: string, paths: readonly string[]) => FrameCard[];
+  /** Calls to `frameCards` (media id per call). */
+  cardCalls: string[];
   /** Media id by fixture file (`clips/take-a.mp4`). */
   ids: Map<string, string>;
   documentId: string;
@@ -67,6 +76,25 @@ export async function screenplayKit(): Promise<SpKit> {
     kind === 'transcribe' ? Promise.resolve({}) : inner(kind, args, signal);
   kit.dir = dir;
   kit.ids = new Map();
+  kit.cardCalls = [];
+  // which clip a keyframe belongs to, so a scripted card can describe that clip
+  const stillOf = new Map<string, string>();
+  const mediaFrames = kit.engine.mediaFrames.bind(kit.engine);
+  kit.engine.mediaFrames = async (projectId, mediaId, at) => {
+    const paths = await mediaFrames(projectId, mediaId, at);
+    for (const p of paths) stillOf.set(p, mediaId);
+    return paths;
+  };
+  kit.engine.frameCards = (_projectId, paths) => {
+    const mediaId = stillOf.get(paths[0]!) ?? '';
+    kit.cardCalls.push(mediaId);
+    const file = [...kit.ids].find(([, id]) => id === mediaId)?.[0];
+    if (!kit.cards || file === undefined)
+      return Promise.reject(
+        new VoxError('APPLE_UNAVAILABLE', 'Frame cards need Apple Vision (macOS).', 'test'),
+      );
+    return Promise.resolve(kit.cards(file, paths));
+  };
   kit.load = async (files = tagEntries(dir).map((t) => t.file), extra = []) => {
     const ingest = async (path: string) => {
       const r = (await inner('ingest', {
@@ -135,3 +163,18 @@ export function rankerModel(
 }
 
 export { role };
+
+/** A frame card with the given Vision labels (confidence 0.9 down), no text, faces as given. */
+export function card(path: string, labels: readonly string[], faces = 0): FrameCard {
+  return {
+    path,
+    cached: false,
+    width: 320,
+    height: 240,
+    labels: labels.map((label, i) => ({ label, confidence: 0.9 - i * 0.05 })),
+    text: [],
+    faces: { count: faces, boxes: [] },
+    saliency: null,
+    ms: 1,
+  };
+}

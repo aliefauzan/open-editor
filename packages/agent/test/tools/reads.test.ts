@@ -15,6 +15,8 @@ import type { AgentEngine, ToolContext } from '../../src/tools/types.ts';
 import { solidColourPng } from '../../src/providers/probe.ts';
 import { fixtureProject, toolContext, type Fixture } from '../helpers/project.ts';
 import { noise, rgbPng } from '../helpers/png.ts';
+import { frameHealth } from '../../src/tools/health.ts';
+import { pngSize } from '../../src/tools/png.ts';
 
 const r = buildRegistry({ imageProviders: { list: () => [], register: () => undefined } });
 const run = (ctx: ToolContext, name: string, args: unknown) => invokeTool(ctx, r, name, args);
@@ -489,5 +491,83 @@ describe('frame cards (D-73)', () => {
       run(ctx, 'view_media', { mediaId: f.mediaId, atSrcMs: [0], detail: 'pixels' }),
     ).rejects.toMatchObject({ code: 'PROVIDER_MISSING' });
     expect(engine.frameCards).not.toHaveBeenCalled();
+  });
+});
+
+describe('still size for the model (D-80)', () => {
+  // a 1080p still with a dark band: health is read on this full-size picture
+  const big = rgbPng(1920, 1080, (x, y) =>
+    y < 200 ? [5, 5, 5] : [Math.floor(noise(x % 97, y % 89) * 255), 120, 60],
+  );
+  const pixelsCtx = async () => {
+    const f = await fixtureProject();
+    const engine = withFrames(f, [big]) as AgentEngine & {
+      mediaFrames: AgentEngine['mediaFrames'];
+    };
+    engine.mediaFrames = vi.fn((_p: string, _m: string, at: readonly number[]) =>
+      Promise.resolve(at.map((_, i) => `still-${String(i)}`)),
+    );
+    const ctx = toolContext(f, {
+      engine,
+      editorVision: true,
+      readImage: () => Promise.resolve(big),
+    });
+    return { f, ctx };
+  };
+
+  test('detail "pixels" sends stills at most 768 px on the long edge; health from full size', async () => {
+    const { f, ctx } = await pixelsCtx();
+    const out = await run(ctx, 'view_frames', {
+      sequenceId: f.sequenceId,
+      atSeqMs: [1000, 2000],
+      detail: 'pixels',
+    });
+    expect(out.images).toHaveLength(2);
+    for (const img of out.images ?? [])
+      expect(pngSize(img.data)).toEqual({ width: 768, height: 432 });
+    expect(out.images?.map((i) => i.path)).toEqual(['frame-0', 'frame-1']);
+    const res = out.result as { frames: { health: string[] }[] };
+    expect(res.frames[0]!.health).toEqual(frameHealth(big));
+  });
+
+  test('detail "full" keeps the full size, for fine detail; the tool description says when', async () => {
+    const { f, ctx } = await pixelsCtx();
+    const out = await run(ctx, 'view_frames', {
+      sequenceId: f.sequenceId,
+      atSeqMs: [1000],
+      detail: 'full',
+    });
+    expect(pngSize(out.images![0]!.data)).toEqual({ width: 1920, height: 1080 });
+    const media = await run(ctx, 'view_media', {
+      mediaId: f.mediaId,
+      atSrcMs: [0],
+      detail: 'full',
+    });
+    expect(pngSize(media.images![0]!.data)).toEqual({ width: 1920, height: 1080 });
+    const scaled = await run(ctx, 'view_media', {
+      mediaId: f.mediaId,
+      atSrcMs: [0],
+      detail: 'pixels',
+    });
+    expect(pngSize(scaled.images![0]!.data)).toEqual({ width: 768, height: 432 });
+    for (const name of ['view_frames', 'view_media']) {
+      const d = r.get(name)!.description;
+      expect(d).toContain('768 px on the long edge');
+      expect(d).toContain('detail "full"');
+      expect(d).toContain('caption text');
+    }
+  });
+
+  test('a vision role gets the scaled stills too', async () => {
+    const { f } = await pixelsCtx();
+    const describe = vi.fn((_imgs: readonly { data: Uint8Array }[]) => Promise.resolve('ok'));
+    const ctx = toolContext(f, {
+      engine: withFrames(f, [big]),
+      editorVision: false,
+      vision: { describe },
+      readImage: () => Promise.resolve(big),
+    });
+    await run(ctx, 'view_frames', { sequenceId: f.sequenceId, atSeqMs: [1000], detail: 'pixels' });
+    expect(pngSize(describe.mock.calls[0]![0][0]!.data)).toEqual({ width: 768, height: 432 });
   });
 });
