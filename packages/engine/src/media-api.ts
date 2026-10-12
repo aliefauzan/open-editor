@@ -31,6 +31,13 @@ import {
   type NativeHelper,
 } from './stages/highlights.ts';
 import {
+  SoundsSchema,
+  runSounds,
+  soundsMatchRequest,
+  soundsTimeoutMs,
+  type Sounds,
+} from './stages/sounds.ts';
+import {
   DetectionsSchema,
   buildTrackPath,
   facetrackCacheKey,
@@ -109,6 +116,7 @@ export const TranscribeJobArgsSchema = MediaJobArgs.extend({
 export const ShotsJobArgsSchema = MediaJobArgs;
 export const FacetrackJobArgsSchema = MediaJobArgs;
 export const HighlightsJobArgsSchema = MediaJobArgs;
+export const SoundsJobArgsSchema = MediaJobArgs;
 export type IngestJobArgs = z.infer<typeof IngestJobArgsSchema>;
 export type TranscribeJobArgs = z.infer<typeof TranscribeJobArgsSchema>;
 export type MediaJobArgs = z.infer<typeof MediaJobArgs>;
@@ -169,6 +177,26 @@ export type HighlightsJobResult =
     }
   | { mediaId: string; available: false; reason: string };
 
+/**
+ * `sounds` (D-83): reaction sound tags in `cache/sounds/<mediaId>.json`, derived data like
+ * highlights (no project op). `available: false` (with the reason): no native helper, an old
+ * helper or media without an audio track.
+ */
+export type SoundsJobResult =
+  | {
+      mediaId: string;
+      available: true;
+      /** Project-relative: `cache/sounds/<mediaId>.json`. */
+      soundsPath: string;
+      /** Windows with at least one reaction label. */
+      windows: number;
+      cached: boolean;
+    }
+  | { mediaId: string; available: false; reason: string };
+
+/** Where the `sounds` job stores a media item's sound tags (project-relative). */
+export const soundsPathOf = (mediaId: string): string => `cache/sounds/${mediaId}.json`;
+
 /** Where the `highlights` job stores a media item's highlights (project-relative). */
 export const highlightsPathOf = (mediaId: string): string => `cache/highlights/${mediaId}.json`;
 
@@ -180,7 +208,10 @@ export interface MediaApiDeps {
   config(): Promise<Config>;
   /** Test seams for downloads (filtering proxy and the face model fetch). */
   net?: { resolver?: Resolver; dial?: Dial };
-  /** `vox-apple-llm` for the `highlights` job (D-75); absent: highlights are not available. */
+  /**
+   * `vox-apple-llm` for the `highlights` (D-75) and `sounds` (D-83) jobs; absent: they are not
+   * available.
+   */
   appleHelper?: NativeHelper;
 }
 
@@ -714,6 +745,43 @@ export function registerMediaJobs(runner: JobRunner, deps: MediaApiDeps): MediaA
         keyFrameMs: h.keyFrameMs,
         cached,
       };
+    },
+  });
+
+  runner.register<MediaJobArgs, SoundsJobResult>('sounds', {
+    args: SoundsJobArgsSchema,
+    // a short helper process (about a second per 4 min of audio): like highlights it takes no slot
+    outsidePool: true,
+    async run(args, ctx) {
+      const { project, dir } = await begin(args.projectId);
+      const media = findMedia(project, args.mediaId);
+      const soundsPath = soundsPathOf(media.id);
+      const file = join(dir, soundsPath);
+      const stored = await readParsed<Sounds>(file, SoundsSchema);
+      // a file asked with other classes or another bar is recomputed
+      let s = stored && soundsMatchRequest(stored) ? stored : undefined;
+      const cached = s !== undefined;
+      if (!s) {
+        // the extracted AAC audio only: SoundAnalysis aborts on some source codecs (Opus)
+        if (!media.audioPath) {
+          return {
+            mediaId: media.id,
+            available: false,
+            reason: 'the media has no extracted audio',
+          };
+        }
+        ctx.progress(0.05, 'tagging sounds');
+        const r = await runSounds(
+          deps.appleHelper,
+          await resolveProjectPath(dir, media.audioPath),
+          { signal: ctx.signal, timeoutMs: soundsTimeoutMs(media.durationMs ?? 0), redact },
+        );
+        if (!r.available) return { mediaId: media.id, available: false, reason: r.reason };
+        s = r.sounds;
+        await mkdir(join(dir, 'cache', 'sounds'), { recursive: true, mode: 0o700 });
+        await writeAtomic(file, `${JSON.stringify(s)}\n`);
+      }
+      return { mediaId: media.id, available: true, soundsPath, windows: s.windows.length, cached };
     },
   });
 
