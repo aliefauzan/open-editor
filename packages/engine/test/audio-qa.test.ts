@@ -46,6 +46,7 @@ type Qa = {
   targetLufs: number;
   checks: { id: string; status: string; integratedLufs?: number }[];
   listen: unknown[];
+  sfxGains: { atMs: number; sfx: string; gainDb: number }[];
 };
 
 let fx: Fixture;
@@ -80,6 +81,8 @@ describe('audioQa job', () => {
     const loud = q.checks.find((c) => c.id === 'loudness')!;
     expect(loud.status).toBe('pass');
     expect(Math.abs(loud.integratedLufs! + 14)).toBeLessThanOrEqual(1);
+    // the gain each cue was mixed at (D-89); the base style has no SFX
+    expect(q.sfxGains).toEqual([]);
   }, 120_000);
 
   test('--loudness tiktok checks against -12 LUFS', async () => {
