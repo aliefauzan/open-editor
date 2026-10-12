@@ -32,9 +32,7 @@ describe('pickRenderEncoder', () => {
 
   test('config render.encoder=software or VOX_RENDER_ENCODER=software forces libx264', () => {
     expect(pickRenderEncoder({ ...MAC, setting: 'software' })).toBe('software');
-    expect(pickRenderEncoder({ ...MAC, env: { VOX_RENDER_ENCODER: 'software' } })).toBe(
-      'software',
-    );
+    expect(pickRenderEncoder({ ...MAC, env: { VOX_RENDER_ENCODER: 'software' } })).toBe('software');
     expect(pickRenderEncoder({ ...MAC, env: { VOX_RENDER_ENCODER: 'other' } })).toBe(
       'videotoolbox',
     );
