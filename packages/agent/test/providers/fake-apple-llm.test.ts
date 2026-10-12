@@ -8,6 +8,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   appleStatusValues,
   encodeAppleRequest,
+  parseAppleEmbedLine,
   parseAppleResponseLine,
   parseAppleStatusLine,
   type AppleRequestInput,
@@ -58,6 +59,34 @@ async function answer(s: Session, timeoutMs = 5_000): Promise<AppleResponse> {
   if (!parsed.ok) throw new Error(`invalid response line: ${parsed.error}`);
   return parsed.value;
 }
+
+describe('fake apple helper: --embed (D-77)', () => {
+  test('--status carries embed only when scripted; --embed answers one vector per text', async () => {
+    const st = await runOnce(fake({ VOX_FAKE_APPLE_EMBED: '1' }), ['--status']);
+    expect(parseAppleStatusLine(st.stdout)).toMatchObject({ ok: true, value: { embed: true } });
+    const out = await runOnce(
+      fake({ VOX_FAKE_APPLE_EMBED: '1' }),
+      ['--embed'],
+      JSON.stringify({ texts: ['rain on the window', ''], language: 'en' }),
+    );
+    expect(out.code).toBe(0);
+    const parsed = parseAppleEmbedLine(out.stdout);
+    expect(parsed.ok && 'vectors' in parsed.value && parsed.value.vectors).toHaveLength(2);
+    expect(parsed).toMatchObject({ ok: true, value: { dim: 16, language: 'en' } });
+  });
+
+  test('a bad request is a badRequest line, exit 1; without the flag --embed is unknown', async () => {
+    const bad = await runOnce(fake({ VOX_FAKE_APPLE_EMBED: '1' }), ['--embed'], '{"texts":[]}');
+    expect(bad.code).toBe(1);
+    expect(parseAppleEmbedLine(bad.stdout)).toMatchObject({
+      ok: true,
+      value: { error: { code: 'badRequest' } },
+    });
+    const old = await runOnce(fake(), ['--embed'], '{"texts":["a"]}');
+    expect(old.code).toBe(2);
+    expect(old.stdout).toBe('');
+  });
+});
 
 describe('fake apple helper: --status', () => {
   test.each(appleStatusValues.map((s) => [s]))(

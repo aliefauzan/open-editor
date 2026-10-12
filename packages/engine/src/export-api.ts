@@ -13,6 +13,7 @@ import type { MixRequest } from './api.ts';
 import type { MixResult } from './audio/graph.ts';
 import { LOUDNESS_TARGETS, type LoudnessPreset } from './audio/graph.ts';
 import type { BuildResult, CompileOptions } from './compile/compile.ts';
+import type { Config } from './config.ts';
 import { buildDirFor, writeBuildTo } from './compile/write.ts';
 import { VoxError } from './errors.ts';
 import { prepareExport, writeExport, type ExportTarget } from './export/target.ts';
@@ -94,12 +95,59 @@ export const runHyperframes: HyperframesRun = (args, o) =>
     });
   });
 
+// ---- final-render encoder (D-78) ----
+
+/** `videotoolbox`: HyperFrames `--gpu` (h264_videotoolbox); `software`: libx264 (its default). */
+export type RenderEncoder = 'videotoolbox' | 'software';
+
+/**
+ * VideoToolbox target bits per pixel per frame by quality (D-78). HyperFrames' own `--gpu`
+ * default (0.16 at standard, about 10 Mb/s for 1080×1920 at 30 fps) made files about 2.4× libx264
+ * crf 18. 0.09 (5.6 Mb/s) keeps quick clips at about 1.1× the libx264 size with the same look
+ * (measured in D-78); draft and high keep HyperFrames' own 1 : 2 : 3 ratio.
+ */
+export const VT_BITS_PER_PIXEL: Readonly<Record<RenderQuality, number>> = {
+  draft: 0.045,
+  standard: 0.09,
+  high: 0.135,
+};
+
+/** The `--video-bitrate` for a VideoToolbox render, in kbit/s (e.g. `5599k`). */
+export function videotoolboxBitrate(
+  width: number,
+  height: number,
+  fps: Fps,
+  quality: RenderQuality,
+): string {
+  const bps = width * height * (fps.num / fps.den) * VT_BITS_PER_PIXEL[quality];
+  return `${Math.max(500, Math.round(bps / 1000))}k`;
+}
+
+/** Where the render runs: platform, arch and env (`VOX_RENDER_ENCODER`). */
+export interface RenderHost {
+  platform: string;
+  arch: string;
+  env: Readonly<Record<string, string | undefined>>;
+}
+
+export interface EncoderChoice extends RenderHost {
+  /** `render.encoder` from the user's config. */
+  setting?: 'auto' | 'software' | undefined;
+}
+
+/** VideoToolbox on Apple silicon unless config or `VOX_RENDER_ENCODER=software` forces libx264. */
+export function pickRenderEncoder(o: EncoderChoice): RenderEncoder {
+  if (o.env['VOX_RENDER_ENCODER'] === 'software' || o.setting === 'software') return 'software';
+  return o.platform === 'darwin' && o.arch === 'arm64' ? 'videotoolbox' : 'software';
+}
+
 /** `hyperframes render` arguments for the silent picture (MP4, quality always explicit). */
 export function pictureRenderArgs(
   buildDir: string,
   out: string,
   fps: Fps,
   quality: RenderQuality,
+  hardware?: { bitrate: string },
 ): string[] {
   return [
     'render',
@@ -115,6 +163,7 @@ export function pictureRenderArgs(
     '--strict-all',
     '--frames-cache-dir',
     'off',
+    ...(hardware ? ['--gpu', '--video-bitrate', hardware.bitrate] : []),
   ];
 }
 
@@ -210,6 +259,10 @@ export interface RenderedFile {
   sequenceId: string;
   path: string;
   durationMs: number;
+  /** The picture's encoder (D-78). */
+  encoder?: RenderEncoder;
+  /** Why the VideoToolbox render failed when it fell back to software (redacted, short). */
+  encoderFallback?: string;
 }
 export interface RenderJobResult {
   files: RenderedFile[];
@@ -241,6 +294,10 @@ export interface ExportApiDeps {
   style(styleId: string): ResolvedStyle;
   /** Test seam: the HyperFrames CLI runner. */
   hyperframes?: HyperframesRun;
+  /** User config reader (`render.encoder`, D-78); absent = `auto`. */
+  config?: () => Promise<Config>;
+  /** Test seam: platform, arch and env for the encoder pick; default this process. */
+  host?: RenderHost;
 }
 
 export interface ExportApi {
@@ -296,6 +353,11 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
   const ffTools = () => (deps.tools['ffmpeg'] ? { ffmpeg: deps.tools['ffmpeg'] } : {});
   const redact = (s: string): string => deps.redactor.redact(s);
   const read = async (projectId: string) => (await deps.store(projectId)).read();
+  const encoderPick = async (): Promise<RenderEncoder> =>
+    pickRenderEncoder({
+      ...(deps.host ?? { platform: process.platform, arch: process.arch, env: process.env }),
+      setting: deps.config ? (await deps.config()).render?.encoder : undefined,
+    });
 
   async function renderOne(
     args: z.output<typeof RenderJobArgsSchema>,
@@ -317,9 +379,32 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
       const buildDir = writeBuildTo(build, buildDirFor(dir, `${s.id}-render`));
       const picture = join(work, 'picture.mp4');
       step(0.1, 'rendering picture');
-      await hf(pictureRenderArgs(buildDir, picture, build.fps, args.quality), {
-        signal: ctx.signal,
-      });
+      const software = pictureRenderArgs(buildDir, picture, build.fps, args.quality);
+      let encoder = await encoderPick();
+      let encoderFallback: string | undefined;
+      if (encoder === 'videotoolbox') {
+        const bitrate = videotoolboxBitrate(
+          s.canvas.width,
+          s.canvas.height,
+          build.fps,
+          args.quality,
+        );
+        try {
+          await hf(pictureRenderArgs(buildDir, picture, build.fps, args.quality, { bitrate }), {
+            signal: ctx.signal,
+          });
+        } catch (e) {
+          // one software rerun when the hardware render fails (D-78); a cancel stays a cancel
+          if (ctx.signal.aborted || !(e instanceof VoxError) || e.code !== 'TOOL_FAILED') throw e;
+          encoder = 'software';
+          encoderFallback = redact(e.message).slice(0, 300);
+          step(0.1, 'rendering picture (software encoder)');
+          await rm(picture, { force: true });
+          await hf(software, { signal: ctx.signal });
+        }
+      } else {
+        await hf(software, { signal: ctx.signal });
+      }
       if (ctx.signal.aborted) throw cancelled();
       step(0.8, 'mixing audio');
       const mixWav = join(work, 'mix.wav');
@@ -346,7 +431,13 @@ export function registerExportJobs(runner: JobRunner, deps: ExportApiDeps): Expo
         },
         { signal: ctx.signal },
       );
-      return { sequenceId: s.id, path, durationMs: build.durationMs };
+      return {
+        sequenceId: s.id,
+        path,
+        durationMs: build.durationMs,
+        encoder,
+        ...(encoderFallback ? { encoderFallback } : {}),
+      };
     } finally {
       await rm(work, { recursive: true, force: true });
     }

@@ -1195,7 +1195,10 @@ Styling is a separate, optional step (spec 3 "Stylize"; or by hand in the app).
 Encoding: ffmpeg comes from Homebrew (plan D-05), whose build includes libx264. Proxies
 use libx264 at 540p with `-crf 23` and a keyframe every 0.5 s (`-g` and `-keyint_min` set
 from the source fps). `render` muxes HyperFrames' H.264 output with the audio mix using
-`-c:v copy` and AAC audio, so the picture is encoded only once.
+`-c:v copy` and AAC audio, so the picture is encoded only once. On Apple silicon the render
+passes `--gpu --video-bitrate <w × h × fps × bits per pixel>` so HyperFrames encodes with
+`h264_videotoolbox` (D-78); a failed hardware render is rerun once with libx264, and
+`render.encoder: "software"` in the config or `VOX_RENDER_ENCODER=software` forces libx264.
 
 ### Export targets (plan D-13)
 
@@ -1248,11 +1251,12 @@ Every export (`render`, `exportCaptions`, `exportTimeline`) takes an optional ta
   link-local and multicast addresses, connecting to the IP it checked (no DNS-rebinding
   window). Archive and image downloads by the engine use the same check in-process.
 - yt-dlp runs with `--ignore-config --no-plugin-dirs --no-playlist --playlist-items 1
-  --max-filesize 4G -f "bv*+ba/b" -S "res:1080" --merge-output-format mp4`
+  --max-filesize 4G -f "bv*+ba/b" -S "res:1080,vcodec:h264" --merge-output-format mp4`
   (`--playlist` opt-in removes `--no-playlist` and `--playlist-items 1`), output to an
   engine-generated name, never the remote title. `-S "res:1080"` limits the smaller side,
   so vertical 1080×1920 reels and TikToks keep full quality (a `height<=1080` filter
-  would drop them).
+  would drop them). Among equal sizes H.264 comes first (D-78): VP9 and AV1 decode in
+  software, and MediaIntelligence (D-75) cannot read VP9.
   YouTube needs `yt-dlp-ejs` and a JS runtime: deno is preferred (yt-dlp's default);
   if only node exists, the engine passes `--js-runtimes node` and `vox doctor` warns
   that yt-dlp considers node less safe.

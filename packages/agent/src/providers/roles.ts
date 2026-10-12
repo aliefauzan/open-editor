@@ -115,11 +115,13 @@ export function roleCheck(role: Role, args: RoleCheckArgs): RoleVerdict {
   }
   if (provider.type === 'apple') {
     const status = probe.appleStatus;
-    if (status !== undefined && !appleStatusInfo(status).usable) {
+    // `embed` runs NaturalLanguage, not the Apple Intelligence model (D-77): the model's status
+    // does not matter, only the helper's `embed` flag (checked below as capabilities.embeddings)
+    if (role !== 'embed' && status !== undefined && !appleStatusInfo(status).usable) {
       failures.push({ check: 'apple', reason: `${status}: ${appleStatusInfo(status).hint}` });
     }
     // `vision` is allowed: it passes only when the vision probe ran and passed (macOS 27, D-74).
-    if (role === 'image' || role === 'embed') {
+    if (role === 'image') {
       failures.push({ check: 'apple', reason: `the Apple on-device model cannot fill ${role}` });
     }
   }

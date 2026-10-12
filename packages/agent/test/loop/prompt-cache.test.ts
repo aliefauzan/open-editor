@@ -1,7 +1,9 @@
 // D-76: Anthropic prompt caching in the agent loop. Every other provider must get the same request
 // as before caching existed: the HTTP bodies of a scripted tools run and a plan run, serialised by
 // the real provider packages, are compared with a golden file recorded on the code before D-76.
-// Run with VOX_RECORD_GOLDEN=1 to record the golden file again (only on purpose).
+// Run with VOX_RECORD_GOLDEN=1 to record the golden file again (only on purpose). Re-recorded once
+// for D-81: only the get_transcript tool (schema, description, its compact result) and the plan
+// mode transcript lines changed; the state block and everything else are byte for byte as before.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
