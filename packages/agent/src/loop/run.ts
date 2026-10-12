@@ -15,6 +15,13 @@ import {
 import type { z } from 'zod';
 import { VoxError, isVoxError, toVoxErrorJson } from '../errors.ts';
 import { costFromReported, exceedsBudget, stepUpperBoundUsd } from '../providers/prices.ts';
+import {
+  cachedHistory,
+  cachedSystem,
+  cachedTools,
+  promptCacheTarget,
+  withCachePrices,
+} from '../providers/prompt-cache.ts';
 import { estimateTokens } from '../providers/tool-cost.ts';
 import { AliasTable } from '../tools/aliases.ts';
 import { VISION_RULE, compactView } from '../tools/read.ts';
@@ -263,8 +270,10 @@ export class AgentRun {
    * within the cap (S23); else the run pauses (`budget`). Throws RunStopped when the user stops.
    */
   async ensureBudget(role: RoleModel, inputTokens: number): Promise<void> {
+    // with Anthropic's cache-write rate the bound takes the dearest input rate (D-76)
+    const price = withCachePrices(promptCacheTarget(role), role.price);
     for (let i = 0; i < MAX_PAUSE_LOOPS; i++) {
-      const bound = stepUpperBoundUsd(role.price, inputTokens, role.maxOutputTokens);
+      const bound = stepUpperBoundUsd(price, inputTokens, role.maxOutputTokens);
       if (!exceedsBudget(this.spentUsd, bound, this.#cap)) return;
       const d = await this.pause({
         reason: 'budget',
@@ -276,7 +285,10 @@ export class AgentRun {
   }
 
   addCost(role: RoleModel, usage: Usage, providerMetadata: unknown): number {
-    const usd = costFromReported(reportedCost(providerMetadata), role.price, usage) ?? 0;
+    // Anthropic cache writes and reads at their own rates (D-76); a usage without a breakdown is
+    // all fresh input at the full price
+    const price = withCachePrices(promptCacheTarget(role), role.price);
+    const usd = costFromReported(reportedCost(providerMetadata), price, usage) ?? 0;
     this.spentUsd += usd;
     return usd;
   }
@@ -375,7 +387,8 @@ export class AgentRun {
       try {
         return await generateText({
           model: editor.model,
-          system: opts.system,
+          // the plan system prompt repeats across retries and sub-runs (D-76)
+          system: cachedSystem(promptCacheTarget(editor), opts.system),
           messages: opts.messages,
           maxRetries: 0,
           maxOutputTokens: editor.maxOutputTokens,
@@ -504,7 +517,7 @@ export class AgentRun {
         let captured: unknown;
         const s = streamText({
           model: editor.model,
-          system,
+          system: cachedSystem(promptCacheTarget(editor), system),
           messages: msgs,
           tools,
           maxRetries: 0,
@@ -567,7 +580,8 @@ export class AgentRun {
       mode: 'tools',
       ...(this.ctx.question && { question: true }),
     });
-    const tools = aiToolSet(this.registry, names);
+    const cache = promptCacheTarget(this.#deps.models.editor);
+    const tools = cachedTools(cache, aiToolSet(this.registry, names));
     const toolTokens = estimateTokens(JSON.stringify(toolDefinitionsFor(this.registry, names)));
     const editor = this.#deps.models.editor;
     const cap = this.#deps.limits.maxStepsPerRun;
@@ -593,7 +607,9 @@ export class AgentRun {
           return r.stubbed + r.summarised > 0;
         };
         await compactOnce(false);
-        const build = () => withInjection(conv.messages(inj.version), inj.text);
+        // breakpoints on the history only; the state block after them is never cached (D-76)
+        const build = () =>
+          withInjection(cachedHistory(cache, conv.messages(inj.version)), inj.text);
         const messages = build();
         await this.ensureBudget(editor, fixed() + conv.tokens(inj.version));
         const out = await this.#modelStep(

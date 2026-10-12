@@ -37,7 +37,10 @@ const PROVIDERS: { name: string; entry: ProviderEntry; modelId: string }[] = [
 const TOOLS_SCRIPT: ScriptStep[] = [
   {
     calls: [
-      { name: 'get_transcript', input: { mediaId: 'm_talk0000000001', fromSrcMs: 0, toSrcMs: 3000 } },
+      {
+        name: 'get_transcript',
+        input: { mediaId: 'm_talk0000000001', fromSrcMs: 0, toSrcMs: 3000 },
+      },
     ],
   },
   { calls: [{ name: 'update_clip', input: { sequenceId: 's1', itemId: 'c1', volume: 0.5 } }] },
@@ -74,10 +77,7 @@ async function callOptions(
   const script: ScriptStep[] =
     mode === 'tools' ? TOOLS_SCRIPT : [{ json: {} }, { json: {} }, { json: {} }];
   const m = scriptedModel(script);
-  const { deps } = runDeps(
-    f,
-    roleModel(m.model, { provider: { type, label: type }, modelId }),
-  );
+  const { deps } = runDeps(f, roleModel(m.model, { provider: { type, label: type }, modelId }));
   await runAgent(deps, {
     projectId: f.projectId,
     workflow: 'freeform',
@@ -98,7 +98,8 @@ async function bodies(): Promise<Record<string, unknown[]>> {
       const opts = await callOptions(p.entry.type, p.modelId, mode);
       const list: unknown[] = [];
       for (const o of opts) {
-        const { abortSignal: _a, ...rest } = o;
+        const rest = { ...o };
+        delete rest.abortSignal;
         const r = await captureRequest(
           (fetch) => createLanguageModel(p.entry, p.modelId, { apiKey: 'sk-test', fetch }),
           rest,
@@ -115,7 +116,8 @@ describe('non-Anthropic requests are unchanged by prompt caching (D-76)', () => 
   test('HTTP bodies match the pre-D-76 golden file', async () => {
     const got = await bodies();
     if (RECORD || !existsSync(GOLDEN)) {
-      if (!RECORD) throw new Error(`golden file missing: ${GOLDEN} (record with VOX_RECORD_GOLDEN=1)`);
+      if (!RECORD)
+        throw new Error(`golden file missing: ${GOLDEN} (record with VOX_RECORD_GOLDEN=1)`);
       mkdirSync(dirname(GOLDEN), { recursive: true });
       writeFileSync(GOLDEN, `${JSON.stringify(got, null, 1)}\n`);
       return;
@@ -135,4 +137,3 @@ describe('non-Anthropic requests are unchanged by prompt caching (D-76)', () => 
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   }, 120_000);
 });
-
