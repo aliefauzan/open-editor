@@ -308,6 +308,7 @@ export interface EnsureModelOptions {
   net?: { resolver?: Resolver; dial?: Dial };
   /** Test seams. */
   url?: string;
+  ca?: string;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
@@ -339,6 +340,7 @@ export async function ensureModel(
         const res = await fetchPublic(o.url ?? spec.url, {
           ...(o.net?.resolver ? { resolver: o.net.resolver } : {}),
           ...(o.net?.dial ? { dial: o.net.dial } : {}),
+          ...(o.ca ? { ca: o.ca } : {}),
           ...(o.signal ? { signal: o.signal } : {}),
           timeoutMs: 60_000,
         });

@@ -1,6 +1,8 @@
 // Cutout through `engine.jobs` with the real rembg tool and the pinned U^2-Net model (local tier,
 // never on CI; phase 05 step 3). The model comes from `VOX_TOOLS_DIR` or the default tools folder
 // (`<tools>/models/rembg/u2net.onnx`, SHA-256 pinned); a missing model fails the test.
+// Since D-72 the tool tries Apple Vision first, so on macOS 14+ the model is not used for this
+// portrait; the copy keeps the rembg fallback ready.
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';

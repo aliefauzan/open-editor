@@ -4,7 +4,7 @@
   "title": "vox_py.cutout request",
   "type": "object",
   "additionalProperties": false,
-  "required": ["input", "output", "modelPath"],
+  "required": ["input", "output"],
   "properties": {
     "input": { "type": "string", "minLength": 1 },
     "output": { "type": "string", "pattern": "\\.png$" },
