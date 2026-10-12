@@ -1284,6 +1284,23 @@ models) behind this interface. v1.1 adds `mflux` with Z-Image-Turbo (Apache-2.0,
 gated) as the local default; FLUX.1-schnell is optional and needs the user to accept
 its terms on Hugging Face and supply a token, which `vox doctor` explains.
 
+**Local provider (v1.1, phase 14d, D-68).** The Python tool `vox_py.imagegen` (mflux 0.22, MIT)
+has two actions. `install` downloads the pinned Hugging Face revision of the model into
+`<tools>/models/mflux/.download-<id>/`, quantizes it to 8 bits and saves it in
+`<tools>/models/mflux/<id>/` (the file `vox-model.json` is written last; its presence means
+"installed"); the engine then deletes the download folder. `generate` loads that folder with
+`HF_HUB_OFFLINE=1`, so generation never uses the network. The request size is generated at the
+nearest multiple of 16 with at most 1.2 megapixels and resized to exactly `width × height`.
+Z-Image-Turbo (`Tongyi-MAI/Z-Image-Turbo`, 9 steps, about 33 GB to download, about 10 GB kept) is
+provider `mflux`; FLUX.1-schnell (4 steps, gated, needs `HF_TOKEN` in the environment, never
+stored or asked for by Vox) is provider `mflux-flux1-schnell`. `ImageProvider` gains the optional
+`available()` (a provider whose model is not installed is left out of `imageProviders.list()` and is
+never the default, but `--provider <id>` still reaches it and fails with the install hint) and
+`disposable` (the job deletes the returned temporary file after copying it). Jobs
+`imagegen.install` and `imagegen.remove` (both take `{ model }`, default `z-image-turbo`; install
+refuses when free disk space is below download + kept size); CLI `vox imagegen status|install|remove
+[--model id]`; `vox doctor` lists both models with licence and size and explains the FLUX terms.
+
 ## Library API (for packages agent, cli, desktop)
 
 `src/api.ts` (package entry `@vox/engine`) is the only import other packages use, plus one
