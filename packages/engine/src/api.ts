@@ -66,6 +66,7 @@ export {
   type ImageModelInfo,
   type ImageModelStatus,
   type ImagegenInstallResult,
+  type ImagegenRemoveResult,
 } from './imagegen.ts';
 import type { GetJson } from './stages/assets.ts';
 import {

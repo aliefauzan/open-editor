@@ -296,6 +296,7 @@ async function start(init: HostInit, port: PortLike): Promise<void> {
         downloadBytes: m.downloadBytes,
         installedBytes: m.installedBytes,
         sizeOnDisk: m.sizeOnDisk,
+        partialBytes: m.partialBytes,
       })),
     }),
     appleHelper: appleHelper && apple !== undefined,

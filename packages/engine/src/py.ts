@@ -3,9 +3,13 @@
 // stdin, one JSON result on stdout, JSON-lines progress on stderr. With a tools directory (packaged
 // app) it adds `--no-sync` and keeps uv's env, cache and Pythons in that folder (D-12), so nothing is
 // written into the app bundle and uv.lock is never rewritten. Both sides are validated with zod.
-// Failures carry the last 40 stderr lines in `cause`, redacted (S19). Cancel kills the process group.
+// Failures carry the last 40 stderr lines in `cause`, redacted (S19); without the tool's D-21 error
+// line, the last stderr line (e.g. a ModuleNotFoundError) is also put in the message and
+// `details.stderr` (D-69). Cancel kills the process group.
 
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { z } from 'zod';
 import { pyProjectDir } from './resources.ts';
@@ -364,14 +368,25 @@ export function runPyTool<S extends z.ZodType>(
       }
       if (code !== 0) {
         const te = toolErrorOf(tail);
+        // Without the D-21 error line (python died before the tool's handler ran, e.g. a module
+        // missing from a stale py-env) the last stderr line names the cause: keep it visible.
+        const last = te ? undefined : lastStderrLine(tail);
+        const said = te ? `${te.code}: ${te.message}` : (last ?? '');
         fail(
           'PY_TOOL_FAILED',
           te
-            ? `Python tool ${tool} failed: ${te.code}: ${te.message}`
-            : `Python tool ${tool} failed (${signal ? `signal ${signal}` : `exit code ${code}`})`,
+            ? `Python tool ${tool} failed: ${said}`
+            : `Python tool ${tool} failed (${signal ? `signal ${signal}` : `exit code ${code}`})${last ? `: ${last}` : ''}`,
           (te && TOOL_ERROR_HINTS[te.code]) ??
-            'Run vox doctor to check the Python environment; the error output is in the cause',
-          { exitCode: code, signal, ...(te ? { toolCode: te.code } : {}) },
+            (IMPORT_ERROR.test(said)
+              ? PY_ENV_IMPORT_HINT
+              : 'Run vox doctor to check the Python environment; the error output is in the cause'),
+          {
+            exitCode: code,
+            signal,
+            ...(te ? { toolCode: te.code } : {}),
+            ...(last ? { stderr: last } : {}),
+          },
         );
       }
       let json: unknown;
@@ -413,6 +428,66 @@ export const TOOL_ERROR_HINTS: Readonly<Record<string, string>> = {
   DOC_UNREADABLE: 'The document cannot be read; export it again as PDF or plain text.',
   DOC_ENCRYPTED: 'Remove the password from the PDF, then add it again.',
 };
+
+const IMPORT_ERROR = /\b(ModuleNotFoundError|ImportError)\b|No module named/;
+const MAX_STDERR_LINE = 300;
+/** Hint when a Python package or a vox_py module does not import (D-69). */
+export const PY_ENV_IMPORT_HINT =
+  'A Python package is missing from the Python env, which usually means it was synced from a different uv.lock: open Vox Studio (setup re-syncs it on launch) or Setup → Repair "Python env"; in the repo run `uv sync --project py`. vox doctor shows the state.';
+
+/** The last non-empty, trimmed stderr line, cut to MAX_STDERR_LINE characters (already redacted). */
+export function lastStderrLine(tail: readonly string[]): string | undefined {
+  for (let i = tail.length - 1; i >= 0; i--) {
+    const l = tail[i]!.trim();
+    if (l.length > 0) return l.length > MAX_STDERR_LINE ? `${l.slice(0, MAX_STDERR_LINE)}…` : l;
+  }
+  return undefined;
+}
+
+// ---- the packaged Python env (D-12, D-69) ----
+
+export type PyEnvLockState = 'current' | 'stale' | 'unsynced';
+
+/**
+ * Whether the app-installed env (`tools.pyEnv`) was synced from this build's `py/uv.lock`: setup
+ * stores the lock's SHA-256 in `<pyEnv>/.vox-lock-hash` after each sync. Undefined without such an
+ * env (repo mode: `uv run --frozen` syncs by itself). Same check as `vox doctor` `python-env-lock`.
+ */
+export async function pyEnvLockState(
+  tools: Readonly<Record<string, string | undefined>>,
+): Promise<{ state: PyEnvLockState; pyEnv: string } | undefined> {
+  const env = tools['pyEnv'];
+  const py = tools['py'];
+  if (!env || !py) return undefined;
+  const want = await readFile(join(py, 'uv.lock')).then(
+    (b) => createHash('sha256').update(b).digest('hex'),
+    () => undefined,
+  );
+  const have = (await readFile(join(env, '.vox-lock-hash'), 'utf8').catch(() => '')).trim();
+  const state: PyEnvLockState =
+    have === '' ? 'unsynced' : want !== undefined && have === want ? 'current' : 'stale';
+  return { state, pyEnv: env };
+}
+
+/** Fix line for a stale or unsynced env (doctor `python-env-lock` and the jobs that check it). */
+export const PY_ENV_LOCK_FIX =
+  'open Vox Studio (setup re-syncs it on launch) or Setup → Repair "Python env"';
+
+/** Throws TOOL_MISSING before a Python tool runs on an env from another uv.lock (D-69). */
+export async function assertPyEnvCurrent(
+  tools: Readonly<Record<string, string | undefined>>,
+): Promise<void> {
+  const s = await pyEnvLockState(tools);
+  if (!s || s.state === 'current') return;
+  throw new VoxError(
+    'TOOL_MISSING',
+    s.state === 'unsynced'
+      ? 'The Python env has no lock hash: it was not synced by setup, so its packages may not match this build.'
+      : 'The Python env was synced from a different uv.lock than this build ships, so packages it needs may be missing.',
+    `To fix it, ${PY_ENV_LOCK_FIX}. vox doctor shows the state (python-env-lock).`,
+    { details: { check: 'python-env-lock', state: s.state, pyEnv: s.pyEnv } },
+  );
+}
 
 /** The tool's own error from the stderr tail, if its last line is the D-21 error JSON. */
 export function toolErrorOf(

@@ -50,8 +50,17 @@ process.stdin.on('end', () => {
     case 'tool-error': {
       process.stderr.write('Traceback-like noise\n');
       process.stderr.write(
-        `${JSON.stringify({ error: { code: req.code, message: 'pdf is encrypted' } })}\n`,
+        `${JSON.stringify({ error: { code: req.code, message: req.message ?? 'pdf is encrypted' } })}\n`,
       );
+      process.exitCode = 1;
+      break;
+    }
+    case 'crash': {
+      // python -m on a stale env: a traceback, no D-21 error line
+      process.stderr.write('Traceback (most recent call last):\n');
+      process.stderr.write('  File "<frozen runpy>", line 189, in _run_module_as_main\n');
+      process.stderr.write(`${req.last}\n`);
+      if (req.trailing) process.stderr.write('\n   \n');
       process.exitCode = 1;
       break;
     }

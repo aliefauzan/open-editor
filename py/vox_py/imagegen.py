@@ -4,7 +4,9 @@ Run as `python -I -m vox_py.imagegen`. Two actions (one request, one result, lik
 
 * `install`: download the pinned Hugging Face snapshot of a model into `cacheDir`, quantize it to
   8 bits and save the result in `modelDir` (written beside it and renamed, so a crash never leaves a
-  half model). The engine deletes `cacheDir` afterwards. Z-Image-Turbo (Apache-2.0, not gated) is the
+  half model). The engine deletes `cacheDir` after a successful install; after a failure or cancel it
+  keeps it, and huggingface_hub resumes the download from it next time (D-69). Z-Image-Turbo
+  (Apache-2.0, not gated) is the
   default; FLUX.1-schnell is gated: the user accepts its terms on Hugging Face and sets `HF_TOKEN`
   (the tool never asks for or stores a token).
 * `generate`: load `modelDir` and write a PNG. This action runs with `HF_HUB_OFFLINE=1`, so it never
