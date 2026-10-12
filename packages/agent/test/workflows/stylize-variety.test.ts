@@ -9,6 +9,9 @@
 // template (at least one item); it turns text-led with its label, not a placeholder.
 // (f) D-101: with a local image model, a collage the archive cannot fill gets pictures generated in
 // the style's look (two per beat), not stills of the speaker or a text card.
+// (g) D-102, demo run 5: the model planned six kinetic-serif cards and no picture at all; with an
+// image model, the first over-used beats turn into paper-collage scenes with one picture drawn from
+// their text (generated before any archive search), the rest text-led.
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -324,6 +327,69 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
     expect(p.media.filter((m) => m.tags.includes('still'))).toHaveLength(2);
     expect(repairs).toContain(
       '2 picture(s) generated for "Rezeki Tak Terduga" in the style\'s look',
+    );
+  }, 120_000);
+  test('(g) six text cards, an image model is installed: two turn into drawn pictures', async () => {
+    const kit = await workflowKit();
+    kit.engine.imageProviders.register({ id: 'fake-gen', generate: async () => '/nowhere.png' });
+    const gen: string[] = [];
+    const args: Record<string, unknown>[] = [];
+    pngJob(kit, 'assets.generate', gen);
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (k, a, signal) => {
+      if (k === 'assets.generate') args.push(a);
+      return runJob(k, a, signal);
+    };
+    const cut: string[] = [];
+    pngJob(kit, 'assets.cutout', cut);
+    const texts = [
+      'Tapi menurut gue',
+      'Konsep rezeki itu nggak sederhana',
+      'Kita nggak pernah tahu',
+      'Dijauhkan dari pengeluaran',
+      'Pintu yang lebih besar',
+      'Lebih besar lagi',
+    ];
+    const { r, scenes, repairs, searched } = await stylizePlan(
+      kit,
+      scenesStylist(texts.map((text) => ({ template: 'vox/kinetic-serif', variables: { text } }))),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    // the test clip is about 5 s: the scenes after the third do not fit (dropped, with notes)
+    expect(scenes.map((s) => s.template)).toEqual([
+      'vox/kinetic-serif',
+      'vox/kinetic-serif',
+      'vox/paper-collage',
+    ]);
+    // one centred picture, no label: the captions carry the words
+    for (const s of scenes.slice(2)) {
+      const v = s.variables as { items: { media: string; x: number; y: number }[]; label?: string };
+      expect(v.items).toHaveLength(1);
+      expect(v.items[0]).toMatchObject({ x: 50, y: 42, scale: 1.8 });
+      expect(v.label).toBeUndefined();
+    }
+    // drawn from each beat's own text, square for the cutout, before any archive search
+    expect(args[0]).toMatchObject({
+      prompt: 'An illustration of: Kita nggak pernah tahu',
+      styleId: 'vox',
+      width: 1024,
+      height: 1024,
+    });
+    expect(searched).toEqual([]);
+    expect(cut.length).toBe(gen.length);
+    for (const [k, text] of [
+      [2, 'Kita nggak pernah tahu'],
+      [3, 'Dijauhkan dari pengeluaran'],
+    ] as const)
+      expect(repairs, String(k)).toContain(
+        `vox/kinetic-serif planned 6 times: this one is vox/paper-collage with a picture of "${text}" (at most 2 of a template)`,
+      );
+    // at most two of a template: the other over-used beats turn text-led
+    expect(repairs).toContain(
+      'vox/kinetic-serif planned 6 times: this one is vox/newspaper "Pintu yang lebih besar" (at most 2 of a template)',
+    );
+    expect(repairs).toContain(
+      '1 picture(s) generated for "Kita nggak pernah tahu" in the style\'s look',
     );
   }, 120_000);
 });

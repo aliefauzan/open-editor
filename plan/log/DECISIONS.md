@@ -2500,3 +2500,16 @@ qwen3.5 did not plan a stack with a panel picture query in these runs; the panel
 **Why**: generated pictures in the style's look fill the scenes the archive cannot, offline and at $0; the assembly motion is the pack's look done in the template, without a video model.
 **Alternatives**: the pack's own flow (GPT Image sheet + Seedance video; needs keys and costs per clip); splitting a generated picture into pieces that assemble one by one (needs segmentation of the paper pieces).
 **Open**: a generated picture takes about 2 minutes on this machine; the pack's 9-panel piece-by-piece build is not reproduced (one picture enters as one piece).
+
+## D-102 · 2026-10-13 · fix/paper-scenes · over-used text cards turn into drawn paper pictures
+**Context**: demo run 5 (main 7276c55, attention-compound-r3b with `entrance: "assemble"`): the editor model planned six `vox/kinetic-serif` cards and no picture scene, so D-101's generation never ran. Variety (D-94) turned the four extra cards into newspaper, text overlay, title and newspaper: still all text.
+**Decision**:
+- `pictureLedTemplate` (`packages/agent/src/loop/plan-repair.ts`): the style's first scene template whose one required variable is an array with a picture slot per entry, needing nothing but the picture and `x`/`y` (vox: `paper-collage`).
+- `varySceneTemplates` takes it when an image model is installed (`generate_image` registered): the first over-used beats turn into it (up to `MAX_SAME_TEMPLATE`), with one empty entry centred (`x` 50, `y` 42, `scale` 1.8) and no label (the captions carry the words); the rest turn text-led as before. `illustrated` maps each such beat to its text; a repair note names it.
+- Plan mode gives such a beat a made-up query from that text marked `generateFirst`: one picture is generated (`An illustration of: <text>`, the style's suffix, square, then cut out) before any archive search; the archive and then stills when nothing is made. Without an image model nothing changes.
+- Tests: `plan-repair.test.ts` picture-led (two tests); `stylize-variety.test.ts` (g) six text cards with an image model.
+**Verify** (worktree): `vitest run packages/agent packages/engine apps/desktop/test/renderer` 2540 passed, 1 skipped (a first run in the fresh worktree failed 3 fixture-dependent tests while fixtures were built; rerun clean). `pnpm -r typecheck`, `pnpm lint` clean.
+**Review**: self-review (token budget).
+**Why**: the owner chose generated paper-cut pictures for the scenes; a weak model that plans only text cards should still get them.
+**Alternatives**: telling the model in the prompt to plan collages (weak models ignore it, run 5); converting every scene (one generation is about 1 to 2 minutes).
+**Open**: a converted beat that later does not fit in the sequence (dropped at placement) has already generated its picture.

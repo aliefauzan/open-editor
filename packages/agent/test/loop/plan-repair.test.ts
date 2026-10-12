@@ -8,6 +8,7 @@ import {
   MAX_SAME_TEMPLATE,
   clearOfCaptions,
   fitVariables,
+  pictureLedTemplate,
   textLedTemplates,
   varySceneTemplates,
   type VaryBeat,
@@ -202,6 +203,55 @@ describe('scene variety (D-94)', () => {
     const beats = [collage(0, 'A b'), collage(3000, 'C d'), collage(6000, 'E f')];
     expect(varySceneTemplates(beats, [], templates).beats).toEqual(beats);
     expect(varySceneTemplates(beats.slice(0, 2), textLed, templates).notes).toEqual([]);
+  });
+
+  // D-102, demo run 5: six kinetic-serif cards and no picture; with an image model installed the
+  // first over-used beats turn into the style's picture-led template with one empty, centred entry
+  test('picture-led: the collage of the style, one centred picture per over-used beat', () => {
+    const pic = pictureLedTemplate(IDS, templates);
+    expect(pic).toEqual({ id: 'vox/paper-collage', arr: 'items', field: 'media' });
+    const card = (startMs: number, text: string): VaryBeat => ({
+      startMs,
+      endMs: startMs + 2000,
+      kind: 'scene',
+      template: 'vox/kinetic-serif',
+      variables: { text },
+    });
+    const beats = ['Satu dua', 'Tiga empat', 'Lima enam', 'Tujuh', 'Delapan', 'Sembilan'].map(
+      (text, k) => card(k * 3000, text),
+    );
+    const r = varySceneTemplates(beats, textLed, templates, pic);
+    expect(r.beats.map((b) => b.template)).toEqual([
+      'vox/kinetic-serif',
+      'vox/kinetic-serif',
+      'vox/paper-collage',
+      'vox/paper-collage',
+      'vox/newspaper',
+      'base/text-overlay',
+    ]);
+    expect(r.beats[2]!.variables).toEqual({ items: [{ media: '', x: 50, y: 42, scale: 1.8 }] });
+    expect([...r.illustrated]).toEqual([
+      [2, 'Lima enam'],
+      [3, 'Tujuh'],
+    ]);
+    expect(r.notes[0]).toEqual({
+      beat: 2,
+      what: 'vox/kinetic-serif planned 6 times: this one is vox/paper-collage with a picture of "Lima enam" (at most 2 of a template)',
+    });
+    expect(r.counts.get('vox/paper-collage')).toBe(MAX_SAME_TEMPLATE);
+    // no image model: text-led as before, nothing illustrated
+    const plain = varySceneTemplates(beats, textLed, templates);
+    expect(plain.illustrated.size).toBe(0);
+    expect(plain.beats.map((b) => b.template)).not.toContain('vox/paper-collage');
+  });
+
+  test('picture-led: over-used collages never turn into more collages; none in a text style', () => {
+    const pic = pictureLedTemplate(IDS, templates)!;
+    const beats = [collage(0, 'A b'), collage(3000, 'C d'), collage(6000, 'E f')];
+    const r = varySceneTemplates(beats, textLed, templates, pic);
+    expect(r.beats[2]!.template).toBe('vox/kinetic-serif');
+    expect(r.illustrated.size).toBe(0);
+    expect(pictureLedTemplate(['vox/kinetic-serif', 'base/title'], templates)).toBeUndefined();
   });
 });
 

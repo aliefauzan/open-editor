@@ -280,20 +280,81 @@ export function toTextLed(
 }
 
 /**
+ * A picture-led scene template (D-102): its one required variable is an array whose entries hold a
+ * picture slot and need nothing but the picture and its place (`x`, `y`): vox paper-collage. An
+ * over-used beat turns into one entry of it, centred, when an image model can make the picture.
+ */
+export interface PictureLed {
+  id: string;
+  /** The array and the picture field of its entries. */
+  arr: string;
+  field: string;
+}
+
+/** Size of the one picture a picture-led scene shows (D-102), when the entries take a `scale`. */
+const PICTURE_LED_SCALE = 1.8;
+
+/** The style's first picture-led scene template (D-102), in list order. */
+export function pictureLedTemplate(
+  ids: readonly string[],
+  templates: TemplateLookup,
+): PictureLed | undefined {
+  for (const id of ids) {
+    const t = templates.get(id);
+    if (!t || t.kind !== 'scene' || id === PLACEHOLDER) continue;
+    const required = Array.isArray(t.variables['required'])
+      ? (t.variables['required'] as string[])
+      : [];
+    if (required.length !== 1) continue;
+    const arr = required[0]!;
+    const slot = Object.entries(t.slots).find(
+      ([path, kind]) => path.startsWith(`${arr}/*/`) && (kind === 'image' || kind === 'cutout'),
+    );
+    if (!slot) continue;
+    const field = slot[0].slice(arr.length + 3);
+    const item = (((t.variables['properties'] ?? {}) as Record<string, Schema | undefined>)[arr]
+      ?.items ?? {}) as Schema;
+    const needs = Array.isArray(item.required) ? (item.required as unknown[]) : [];
+    if (needs.every((k) => k === field || k === 'x' || k === 'y')) return { id, arr, field };
+  }
+  return undefined;
+}
+
+/** The variables of a picture-led scene with one centred picture, left empty for the run to fill. */
+function pictureLedVariables(p: PictureLed, templates: TemplateLookup): Record<string, unknown> {
+  const t = templates.get(p.id);
+  const item = (((t?.variables['properties'] ?? {}) as Record<string, Schema | undefined>)[p.arr]
+    ?.items ?? {}) as Schema;
+  const scaled = item.properties?.['scale'] !== undefined;
+  return {
+    [p.arr]: [{ [p.field]: '', x: 50, y: 42, ...(scaled && { scale: PICTURE_LED_SCALE }) }],
+  };
+}
+
+/**
  * Scene variety of one sequence's beats (D-94): a template used more than MAX_SAME_TEMPLATE times
  * keeps its beats with image queries first, then the earliest; each other beat turns into a text-led
- * template of the style with the beat's first text (`toTextLed`). Beats with no text, or when every
- * text-led template is used up, stay as planned. Returns the beats (input order) and the notes by
- * beat index.
+ * template of the style with the beat's first text (`toTextLed`). With `pictureLed` (D-102: an image
+ * model is installed), the first of those beats turn into it instead (one picture, no text, up to
+ * MAX_SAME_TEMPLATE of it); `illustrated` maps each such beat to its text, which the run draws.
+ * Beats with no text, or when every template is used up, stay as planned. Returns the beats (input
+ * order) and the notes by beat index.
  */
 export function varySceneTemplates<B extends VaryBeat>(
   beats: readonly B[],
   textLed: readonly TextLed[],
   templates: TemplateLookup,
-): { beats: B[]; notes: { beat: number; what: string }[]; counts: Map<string, number> } {
+  pictureLed?: PictureLed,
+): {
+  beats: B[];
+  notes: { beat: number; what: string }[];
+  counts: Map<string, number>;
+  illustrated: Map<number, string>;
+} {
   const out = [...beats];
   const notes: { beat: number; what: string }[] = [];
   const counts = templateCounts(beats);
+  const illustrated = new Map<number, string>();
   for (const [id, n] of [...counts.entries()]) {
     if (n <= MAX_SAME_TEMPLATE || id === PLACEHOLDER) continue;
     const from = templates.get(id);
@@ -309,6 +370,29 @@ export function varySceneTemplates<B extends VaryBeat>(
           x.i - y.i,
       );
     for (const { b, i } of mine.slice(MAX_SAME_TEMPLATE)) {
+      const text = sceneTexts(from, b.variables ?? {}, templates)[0];
+      if (
+        pictureLed &&
+        text !== undefined &&
+        pictureLed.id !== id &&
+        (counts.get(pictureLed.id) ?? 0) < MAX_SAME_TEMPLATE
+      ) {
+        counts.set(id, Math.max(0, (counts.get(id) ?? 1) - 1));
+        counts.set(pictureLed.id, (counts.get(pictureLed.id) ?? 0) + 1);
+        const rest: VaryBeat = { ...b };
+        delete rest.imageQueries;
+        out[i] = {
+          ...rest,
+          template: pictureLed.id,
+          variables: pictureLedVariables(pictureLed, templates),
+        } as B;
+        illustrated.set(i, text);
+        notes.push({
+          beat: i,
+          what: `${id} planned ${String(n)} times: this one is ${pictureLed.id} with a picture of ${JSON.stringify(text)} (at most ${String(MAX_SAME_TEMPLATE)} of a template)`,
+        });
+        continue;
+      }
       const to = toTextLed(from, b.variables ?? {}, textLed, counts, templates);
       if (!to) continue;
       const rest: VaryBeat = { ...b };
@@ -320,7 +404,7 @@ export function varySceneTemplates<B extends VaryBeat>(
       });
     }
   }
-  return { beats: out, notes, counts };
+  return { beats: out, notes, counts, illustrated };
 }
 
 /**

@@ -28,6 +28,7 @@ import { wrapData } from './envelope.ts';
 import {
   clearOfCaptions,
   fitVariables,
+  pictureLedTemplate,
   textLedTemplates,
   toTextLed,
   varySceneTemplates,
@@ -384,6 +385,8 @@ interface AutoQuery {
   found: number;
   /** Pictures generated for it (D-101), at most AUTO_GENERATED_PER_BEAT. */
   generated?: number;
+  /** Generate before searching the archive (D-102: a beat turned picture-led draws its text). */
+  generateFirst?: true;
 }
 
 /** Generated pictures one made-up query may take (D-101): a collage's other entries take stills. */
@@ -420,6 +423,19 @@ async function autoPicture(
   styleId?: string,
 ): Promise<string | undefined> {
   try {
+    // D-102: a picture-led beat draws its text in the style's look; the archive when none is made
+    if (auto.generateFirst && (auto.generated ?? 0) < AUTO_GENERATED_PER_BEAT) {
+      let made = await generated(run, `An illustration of: ${auto.query}`, kind, styleId);
+      if (made !== undefined) {
+        auto.generated = (auto.generated ?? 0) + 1;
+        if (kind === 'cutout')
+          made = mediaIdOf(
+            run,
+            await planCall(run, 'cutout', { mediaId: run.aliases.aliasOf(made) }),
+          );
+        return made;
+      }
+    }
     if (auto.candidates === undefined) {
       auto.candidates = [];
       const found = (await planCall(run, 'search_images', { query: auto.query })) as {
@@ -811,7 +827,12 @@ export async function clipPlanToOps(
   const ops: PlanOp[] = [];
   const repairs: Repair[] = [];
   for (const sp of plan.sequences) {
-    const textLed = textLedTemplates(styleTemplateIds(run, p, sp.sequenceId, templates), templates);
+    const ids = styleTemplateIds(run, p, sp.sequenceId, templates);
+    const textLed = textLedTemplates(ids, templates);
+    // D-102: with an image model, over-used beats turn into pictures drawn in the style's look
+    const pictureLed = run.registry.get('generate_image')
+      ? pictureLedTemplate(ids, templates)
+      : undefined;
     const end = sequenceEnd(p, sp.sequenceId);
     const seq = p.sequences.find((s) => s.id === sp.sequenceId)!;
     const free = seq.videoTracks.find(
@@ -828,11 +849,13 @@ export async function clipPlanToOps(
       (it) => [it.startMs, it.startMs + it.durationMs] as const,
     );
     let prevEnd = 0;
-    // D-94: at most MAX_SAME_TEMPLATE scenes of one template; the others turn text-led.
+    // D-94: at most MAX_SAME_TEMPLATE scenes of one template; the others turn text-led
+    // (D-102: or picture-led first, when an image model is installed).
     const varied = varySceneTemplates(
       [...sp.beats].sort((a, b) => a.startMs - b.startMs),
       textLed,
       templates,
+      pictureLed,
     );
     const beats = varied.beats;
     const counts = varied.counts;
@@ -870,8 +893,17 @@ export async function clipPlanToOps(
       let variables: Record<string, unknown> = { ...(b.variables ?? {}) };
       const queries = [...(b.imageQueries ?? [])];
       const span: BeatSpan = { sequenceId: sp.sequenceId, startMs: b.startMs, endMs: b.endMs };
+      // D-102: a beat turned picture-led draws its own text in the style's look
+      const drawn = varied.illustrated.get(i);
+      if (drawn !== undefined)
+        span.auto = {
+          query: drawn.slice(0, AUTO_QUERY_CHARS),
+          from: 'scene text',
+          found: 0,
+          generateFirst: true,
+        };
       // D-94: no picture query from the model: one made up from the scene text or the speech
-      if (queries.length === 0) {
+      else if (queries.length === 0) {
         const auto = autoQuery(sceneTexts(t, variables, templates), words, span);
         if (auto) span.auto = auto;
       }
