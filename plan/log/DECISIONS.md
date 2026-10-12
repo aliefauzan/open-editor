@@ -2513,3 +2513,12 @@ qwen3.5 did not plan a stack with a panel picture query in these runs; the panel
 **Why**: the owner chose generated paper-cut pictures for the scenes; a weak model that plans only text cards should still get them.
 **Alternatives**: telling the model in the prompt to plan collages (weak models ignore it, run 5); converting every scene (one generation is about 1 to 2 minutes).
 **Open**: a converted beat that later does not fit in the sequence (dropped at placement) has already generated its picture.
+
+## D-103 · 2026-10-13 · fix/empty-collage · an empty collage gets one drawn picture of its label
+**Context**: demo run 6 (main 68ada0d): the model planned three scenes, none over-used, so D-102 did not apply; its one `vox/paper-collage` came with `items: []` and a label ("pintu rezeki") and turned text-led (D-95). The clip had no picture again.
+**Decision**: with an image model installed, `varySceneTemplates` gives a picture-led beat planned with its array empty or left out the one centred entry of D-102 and draws it from the beat's own text (its label); the label stays. A repair note names it. A beat with no text, or without an image model, keeps the D-95 path (text-led).
+**Tests**: `plan-repair.test.ts` "picture-led planned empty (D-103)"; `stylize-variety.test.ts` (h). Test (e) (no image model) is unchanged.
+**Verify** (worktree): `vitest run packages/agent packages/engine apps/desktop/test/renderer` 2542 passed, 1 skipped (a first run in the fresh worktree failed 3 fixture-dependent tests while fixtures were built; rerun clean). `pnpm -r typecheck`, `pnpm lint` clean.
+**Review**: self-review (token budget).
+**Why**: the model asked for a collage of something; with a local model the run can draw it instead of dropping the picture.
+**Open**: whether a clip gets pictures still depends on the model planning a collage or over-using a template.

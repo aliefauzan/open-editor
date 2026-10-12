@@ -337,6 +337,8 @@ function pictureLedVariables(p: PictureLed, templates: TemplateLookup): Record<s
  * template of the style with the beat's first text (`toTextLed`). With `pictureLed` (D-102: an image
  * model is installed), the first of those beats turn into it instead (one picture, no text, up to
  * MAX_SAME_TEMPLATE of it); `illustrated` maps each such beat to its text, which the run draws.
+ * D-103: a picture-led beat planned with its array empty or left out (run 6: `items: []` and a
+ * label) gets the one centred entry too, drawn from its own text, instead of turning text-led.
  * Beats with no text, or when every template is used up, stay as planned. Returns the beats (input
  * order) and the notes by beat index.
  */
@@ -404,6 +406,24 @@ export function varySceneTemplates<B extends VaryBeat>(
       });
     }
   }
+  if (pictureLed)
+    for (const [i, b] of out.entries()) {
+      if (b.kind !== 'scene' || b.template !== pictureLed.id || illustrated.has(i)) continue;
+      const list = b.variables?.[pictureLed.arr];
+      if (Array.isArray(list) && list.length > 0) continue;
+      const t = templates.get(pictureLed.id);
+      const text = t ? sceneTexts(t, b.variables ?? {}, templates)[0] : undefined;
+      if (text === undefined) continue;
+      out[i] = {
+        ...b,
+        variables: { ...b.variables, ...pictureLedVariables(pictureLed, templates) },
+      };
+      illustrated.set(i, text);
+      notes.push({
+        beat: i,
+        what: `${pictureLed.id} planned with no ${pictureLed.arr}: one picture of ${JSON.stringify(text)}`,
+      });
+    }
   return { beats: out, notes, counts, illustrated };
 }
 
