@@ -12,7 +12,7 @@ import {
   type CaptionTrack,
   type Project,
 } from '../model/schema.ts';
-import { fail, findSeq } from './core.ts';
+import { fail, findSeq, type OpContext } from './core.ts';
 
 export const setCaptionsArgs = z.strictObject({
   sequenceId: SequenceIdSchema,
@@ -53,9 +53,24 @@ function isLive(p: Project, key: string): boolean {
   return m !== undefined && m.transcriptRev === rev;
 }
 
-export function setCaptions(p: Project, a: z.infer<typeof setCaptionsArgs>): void {
+export function setCaptions(
+  p: Project,
+  a: z.infer<typeof setCaptionsArgs>,
+  ctx?: Pick<OpContext, 'templates'>,
+): void {
   const s = findSeq(p, a.sequenceId);
   const c: CaptionTrack = s.captions ?? { ...structuredClone(CAPTION_DEFAULTS), overrides: [] };
+  // A new preset brings its own position and track settings (styles spec "Caption presets",
+  // D-93); fields the call gives itself win.
+  const preset =
+    a.preset !== undefined && (!s.captions || s.captions.preset !== a.preset)
+      ? ctx?.templates.captionPreset?.(a.preset)
+      : undefined;
+  if (preset) {
+    c.position = { ...preset.position };
+    for (const [k, v] of Object.entries(preset.track ?? {}))
+      if (v !== undefined) (c as Record<string, unknown>)[k] = v;
+  }
   const fields = [
     'enabled',
     'sourceTrackIds',

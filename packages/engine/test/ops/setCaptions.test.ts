@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { ap, expectCode, seq } from '../helpers/ops.ts';
+import { ap, expectCode, seq, testCtx } from '../helpers/ops.ts';
+import { templates } from '../helpers/templates.ts';
 import { baseProject, richProject } from '../helpers/project.ts';
 
 const set = (args: Record<string, unknown>, p = richProject()) =>
@@ -47,6 +48,50 @@ describe('setCaptions', () => {
       autoEmphasis: true,
       position: { yPct: 60 },
     });
+  });
+  test('a new preset brings its position and track settings; given fields win (D-93)', () => {
+    const ctx = testCtx({
+      templates: {
+        get: (id) => templates.get(id),
+        captionPreset: (id) =>
+          id === 'x/two-tier'
+            ? {
+                position: { yPct: 50 },
+                track: { maxWords: 5, maxLines: 2, maxCharsPerLine: 26, autoEmphasis: true },
+                tiered: true,
+              }
+            : id === 'x/plain'
+              ? { position: { yPct: 80 } }
+              : undefined,
+      },
+    });
+    const p = ap(baseProject(), 'setCaptions', { sequenceId: 'seq_1', preset: 'x/two-tier' }, ctx);
+    expect(caps(p)).toMatchObject({
+      preset: 'x/two-tier',
+      position: { yPct: 50 },
+      maxWords: 5,
+      maxLines: 2,
+      maxCharsPerLine: 26,
+      autoEmphasis: true,
+    });
+    // the same preset again leaves the user's own settings alone
+    const moved = ap(p, 'setCaptions', { sequenceId: 'seq_1', position: { yPct: 30 } }, ctx);
+    const again = ap(moved, 'setCaptions', { sequenceId: 'seq_1', preset: 'x/two-tier' }, ctx);
+    expect(caps(again).position).toEqual({ yPct: 30 });
+    // a preset without track settings changes only the position
+    const plain = ap(again, 'setCaptions', { sequenceId: 'seq_1', preset: 'x/plain' }, ctx);
+    expect(caps(plain)).toMatchObject({ position: { yPct: 80 }, maxWords: 5, maxLines: 2 });
+    // fields in the same call win
+    const own = ap(
+      baseProject(),
+      'setCaptions',
+      { sequenceId: 'seq_1', preset: 'x/two-tier', position: { yPct: 65 }, maxWords: 3 },
+      ctx,
+    );
+    expect(caps(own)).toMatchObject({ position: { yPct: 65 }, maxWords: 3, maxLines: 2 });
+    // an unknown preset (or a lookup without presets) keeps the sequence's settings
+    const unknown = ap(baseProject(), 'setCaptions', { sequenceId: 'seq_1', preset: 'x/none' }, ctx);
+    expect(caps(unknown)).toMatchObject({ position: { yPct: 75 }, maxWords: 3 });
   });
   test('source tracks must be audio tracks of the sequence', () => {
     expectCode(() => set({ sourceTrackIds: ['A9'] }), 'NOT_FOUND');

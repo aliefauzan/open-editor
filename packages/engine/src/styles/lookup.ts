@@ -1,5 +1,5 @@
 // The registry as the ops' template lookup (replaces phase 02's fixture lookup).
-import type { TemplateInfo, TemplateLookup } from '../ops/templates.ts';
+import type { CaptionPresetInfo, TemplateInfo, TemplateLookup } from '../ops/templates.ts';
 import type { StyleRegistry, TemplateDef } from './registry.ts';
 
 export function templateInfo(t: TemplateDef): TemplateInfo {
@@ -30,5 +30,25 @@ export function registryTemplateLookup(registry: () => StyleRegistry): TemplateL
       }
       return info;
     },
+    captionPreset(id) {
+      return presetInfo(registry(), id);
+    },
+  };
+}
+
+/** A caption preset of the style its id names (`<styleId>/<preset>`); undefined when unknown. */
+export function presetInfo(registry: StyleRegistry, id: string): CaptionPresetInfo | undefined {
+  const styleId = id.split('/')[0] ?? '';
+  let def;
+  try {
+    def = registry.get(styleId).captionPresets[id];
+  } catch {
+    return undefined;
+  }
+  if (!def) return undefined;
+  return {
+    position: { ...def.position },
+    ...(def.track ? { track: { ...def.track } } : {}),
+    ...(def.tiered === undefined ? {} : { tiered: def.tiered }),
   };
 }

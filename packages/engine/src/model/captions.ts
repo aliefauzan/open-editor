@@ -34,6 +34,36 @@ export const CHUNK_PAUSE_MS = 300;
 /** Languages written without spaces: chunked by character count (`maxWords × 4`). */
 const NO_SPACE = new Set(['ja', 'zh', 'yue', 'th', 'lo', 'km', 'my', 'bo']);
 const SENTENCE_END = /[.!?…。！？]["')\]]*$/u;
+/** A phrase ends at a sentence end or a clause mark (two-tier key words, D-93). */
+const CLAUSE_END = /[.!?…。！？,;:，、；：–—]["')\]]*$/u;
+
+/**
+ * How the caption preset lays chunks out (styles spec "Caption presets", D-93). `tiered`: auto
+ * emphasis also marks each phrase's closing key word, and an emphasis run takes its own line after
+ * the plain words and ends the chunk.
+ */
+export interface CaptionLayout {
+  tiered?: boolean;
+}
+
+/**
+ * Words that never close a phrase as its key word (English and Indonesian function words and
+ * particles of 4+ letters; shorter words never count). Lower case, no punctuation.
+ */
+const NOT_KEY = new Set(
+  (
+    'this that these those with have from they them then than what when were been into your ' +
+    'just like also very some there their about would could should because which where while ' +
+    'really going gonna wanna thing things something anything everything here does doing done ' +
+    'yang juga gitu kita kami kalian mereka saya kamu nggak enggak ngga tidak bukan tapi jadi ' +
+    'kalau karena dari pada untuk sama dengan atau bisa akan udah sudah lagi saja banget dong ' +
+    'kayak kaya emang memang masih harus pernah tahu bahwa punya semua para oleh agar supaya ' +
+    'biar terus trus lalu kemudian setelah sebelum sambil begitu gimana bagaimana kenapa mengapa ' +
+    'siapa dimana kapan banyak sangat lebih paling cuma hanya yaitu yakni adalah ialah nanti ' +
+    'sekarang tadi pasti mungkin bahkan sebenarnya benar bakal bakalan mana buat dalam seperti ' +
+    'kita-kita dirinya sendiri gini begini sini situ yaudah okay oke'
+  ).split(' '),
+);
 
 export function isNoSpaceLanguage(language: string): boolean {
   return NO_SPACE.has(language.toLowerCase().split(/[-_]/)[0] ?? '');
@@ -169,14 +199,45 @@ function units(p: Project, s: Sequence, cap: CaptionTrack, transcriptOf: Transcr
   return split;
 }
 
-function emphasise(units: Unit[], auto: boolean): boolean[] {
+const core = (t: string) => t.toLowerCase().replace(/^[^\p{L}\p{Nd}]+|[^\p{L}\p{Nd}]+$/gu, '');
+const isNumber = (t: string) => /\p{Nd}/u.test(t);
+/** A content word: 4+ letters and not a function word. */
+const isKey = (t: string) => {
+  const c = core(t);
+  return !isNumber(c) && [...c.replace(/[^\p{L}]/gu, '')].length >= 4 && !NOT_KEY.has(c);
+};
+
+/** Phrase ends: a pause over CHUNK_PAUSE_MS, a clip change, a manual break or a clause mark. */
+function phraseEnds(units: Unit[]): boolean[] {
   return units.map((u, i) => {
-    if (u.emphasis !== undefined) return u.emphasis;
+    const next = units[i + 1];
+    return (
+      next === undefined ||
+      next.startMs - u.endMs > CHUNK_PAUSE_MS ||
+      next.itemId !== u.itemId ||
+      u.breakAfter ||
+      CLAUSE_END.test(u.text)
+    );
+  });
+}
+
+function emphasise(units: Unit[], auto: boolean, tiered: boolean): boolean[] {
+  const rule = units.map((u, i) => {
     if (!auto) return false;
-    if (/\p{Nd}/u.test(u.text)) return true;
+    if (isNumber(u.text)) return true;
     const first = i === 0 || SENTENCE_END.test(units[i - 1]!.text);
     return !first && /^\p{Lu}/u.test(u.text.replace(/^["'([¿¡]+/u, ''));
   });
+  if (auto && tiered) {
+    // two tiers (D-93): each phrase's closing key word, and the word after a number in the same
+    // phrase (its unit: "80 ribu", "20 percent")
+    const ends = phraseEnds(units);
+    units.forEach((u, i) => {
+      if (ends[i] && isKey(u.text)) rule[i] = true;
+      if (i > 0 && !ends[i - 1] && isNumber(units[i - 1]!.text) && isKey(u.text)) rule[i] = true;
+    });
+  }
+  return units.map((u, i) => u.emphasis ?? rule[i]!);
 }
 
 /**
@@ -187,15 +248,17 @@ export function deriveCaptions(
   p: Project,
   sequenceId: string,
   transcriptOf: TranscriptOf,
+  layout: CaptionLayout = {},
 ): CaptionChunk[] {
   const s = p.sequences.find((x) => x.id === sequenceId);
   const cap = s?.captions;
   if (!s || !cap?.enabled) return [];
   const us = units(p, s, cap, transcriptOf);
-  const emph = emphasise(us, cap.autoEmphasis === true);
+  const tiered = layout.tiered === true;
+  const emph = emphasise(us, cap.autoEmphasis === true, tiered);
 
   type Line = { words: CaptionWord[]; chars: number; full: boolean };
-  const chunks: { lines: Line[]; count: number; chars: number }[] = [];
+  const chunks: { lines: Line[]; count: number; chars: number; emph: number }[] = [];
   let cur: (typeof chunks)[number] | undefined;
   let prev: Unit | undefined;
   for (let i = 0; i < us.length; i++) {
@@ -208,34 +271,46 @@ export function deriveCaptions(
       emphasis: emph[i]!,
     };
     const len = [...u.text].length;
+    // two tiers: plain words and the emphasis run count apart; a plain word after the run starts
+    // a new chunk
+    const counted = cur ? (tiered ? (word.emphasis ? cur.emph : cur.count - cur.emph) : cur.count) : 0;
     const limitHit = cur
       ? u.noSpace
         ? cur.chars + len > cap.maxWords * 4
-        : cur.count >= cap.maxWords
+        : counted >= cap.maxWords
       : false;
     const newChunk =
       !cur ||
       limitHit ||
+      (tiered && !word.emphasis && cur.emph > 0) ||
       (prev !== undefined &&
         (u.startMs - prev.endMs > CHUNK_PAUSE_MS || u.itemId !== prev.itemId || prev.breakAfter));
     const place = (c: NonNullable<typeof cur>): boolean => {
       const line = c.lines[c.lines.length - 1];
       const sep = u.noSpace ? 0 : 1;
+      if (tiered && line && line.words[line.words.length - 1]!.emphasis !== word.emphasis) {
+        // the emphasis run takes its own line
+        if (c.lines.length >= cap.maxLines) return false;
+        c.lines.push({ words: [word], chars: len, full: len >= cap.maxCharsPerLine });
+        return true;
+      }
       if (line && !line.full && line.chars + sep + len <= cap.maxCharsPerLine) {
         line.words.push(word);
         line.chars += sep + len;
         return true;
       }
-      if (line && c.lines.length >= cap.maxLines) return false;
+      // two tiers: one line a tier; a full line starts a new chunk
+      if (line && (tiered || c.lines.length >= cap.maxLines)) return false;
       c.lines.push({ words: [word], chars: len, full: len >= cap.maxCharsPerLine });
       return true;
     };
     if (newChunk || !place(cur!)) {
-      cur = { lines: [], count: 0, chars: 0 };
+      cur = { lines: [], count: 0, chars: 0, emph: 0 };
       chunks.push(cur);
       place(cur);
     }
     cur!.count++;
+    if (word.emphasis) cur!.emph++;
     cur!.chars += len;
     prev = u;
   }

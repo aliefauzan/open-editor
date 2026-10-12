@@ -60,6 +60,13 @@ export const PaletteColorSchema = z.strictObject({
 });
 export type PaletteColor = z.infer<typeof PaletteColorSchema>;
 
+/** py/tests/schemas/grain.result.json (D-93). */
+export const GrainResultSchema = z.strictObject({
+  sigma: z.number().nonnegative(),
+  frames: z.int().min(1),
+  perFrame: z.array(z.number().nonnegative().nullable()),
+});
+
 export const PaletteResultSchema = z.strictObject({
   colors: z.array(PaletteColorSchema).min(1).max(16),
   frames: z.int().min(1),
@@ -162,6 +169,11 @@ export const MeasurementsSchema = z.strictObject({
    * caption line could be measured.
    */
   fonts: CaptionFontsSchema.optional(),
+  /**
+   * Grain: the median noise level of flat mid-tone areas (8-bit levels at 720 px short side,
+   * `vox_py.grain`, D-93); absent when it could not be measured.
+   */
+  grain: z.strictObject({ sigma: z.number().nonnegative(), frames: z.int().min(1) }).optional(),
   notes: z.array(z.string()),
 });
 export type Measurements = z.infer<typeof MeasurementsSchema>;
@@ -426,6 +438,21 @@ export async function measureReference(
     PaletteResultSchema,
     pyOptions(engine, o),
   );
+  let grain: { sigma: number; frames: number } | null = null;
+  try {
+    const g = await runPyTool(
+      'grain',
+      { videoPath: src, atMs: times.map((t) => t.atMs), ...pyTools },
+      GrainResultSchema,
+      pyOptions(engine, o),
+    );
+    grain = { sigma: g.sigma, frames: g.frames };
+  } catch (e) {
+    if (o.signal?.aborted) throw e;
+    notes.push(
+      `Grain not measured (${isVoxError(e) ? e.code : 'error'}): the draft takes it from the description.`,
+    );
+  }
   progress(0.6, 'reading on-screen text');
   const ocr = await runPyTool(
     'ocr',
@@ -490,6 +517,7 @@ export async function measureReference(
       staticText: ocr.static.slice(0, 20).map((t) => t.slice(0, 200)),
     },
     ...(fonts ? { fonts } : {}),
+    ...(grain ? { grain } : {}),
     notes,
   });
 }

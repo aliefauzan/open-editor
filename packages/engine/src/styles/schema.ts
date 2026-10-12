@@ -349,6 +349,24 @@ export const CaptionPresetSchema = z.strictObject({
    * (GATE 8 round 3, D-91); absent = false.
    */
   behindSubject: z.boolean().optional(),
+  /**
+   * Caption track settings a sequence takes with the preset (with `position`), unless the call
+   * that sets the preset gives its own. Additive (D-93); absent = the sequence keeps its settings.
+   */
+  track: z
+    .strictObject({
+      maxWords: z.int().min(1).max(20).optional(),
+      maxLines: z.int().min(1).max(4).optional(),
+      maxCharsPerLine: z.int().min(1).max(200).optional(),
+      autoEmphasis: z.boolean().optional(),
+    })
+    .optional(),
+  /**
+   * Two tiers (D-93): auto emphasis also marks each phrase's closing key word (and a number's
+   * unit word), and an emphasis run takes its own line after the plain words and ends the chunk.
+   * Additive; absent = false.
+   */
+  tiered: z.boolean().optional(),
 });
 export type CaptionPreset = z.infer<typeof CaptionPresetSchema>;
 

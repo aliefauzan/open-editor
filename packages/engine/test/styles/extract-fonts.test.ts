@@ -9,6 +9,7 @@ import {
   BEHIND_MIN_FRAMES,
   twoTierHtml,
   twoTierLook,
+  twoTierTrack,
 } from '../../src/styles/extract/caption-preset.ts';
 import { familyFiles, loadFontCatalogue } from '../../src/styles/extract/catalogue.ts';
 import {
@@ -231,6 +232,9 @@ describe('map with measured fonts', () => {
     expect(CaptionPresetSchema.parse(p.json)).toMatchObject({
       name: 'reference',
       behindSubject: true,
+      // two tiers: key words boxed on their own line, chunk size from the events (D-93)
+      tiered: true,
+      track: { maxLines: 2, autoEmphasis: true },
     });
     expect(d.drivers.find((x) => x.token === 'fonts.body')?.from).toMatch(
       /measured: tier 1.*0\.661/,
@@ -241,6 +245,33 @@ describe('map with measured fonts', () => {
     const { dir } = writeDraftStyle(s.dirs, d);
     expect(readFileSync(join(dir, 'captions', 'reference.html'), 'utf8')).toBe(p.html);
     expect(s.reg().get('ref-look').captionPresets['ref-look/reference']?.behindSubject).toBe(true);
+  });
+
+  test('the track of a two-tier preset: tier 1 words and characters a line (90th percentile)', () => {
+    const ev = (text: string) => ({ text });
+    const events = [
+      ev('at first'),
+      ev('this looked like a'),
+      ev('He wanted you to step INTO HIS HOME'),
+      ev('performing on the BIGGEST STAGE'),
+      ev('REAL VOWS'),
+      ev('Because he didn\'t want you'),
+      ev('that people see themselves'),
+      ev('on the turf'),
+      ev('Then he passes his GRAMMY'),
+      ev('a real couple gets MARRIED'),
+    ];
+    // nine events with tier 1 words: 2, 4, 5, 3, 5, 4, 3, 4, 4 words; 8 to 26 characters
+    expect(twoTierTrack(events)).toEqual({
+      maxWords: 5,
+      maxLines: 2,
+      maxCharsPerLine: 26,
+      autoEmphasis: true,
+    });
+    // nothing to measure: the reference's usual line; clamped to 2-8 words, 12-40 characters
+    expect(twoTierTrack([ev('ONLY CAPS')])).toMatchObject({ maxWords: 5, maxCharsPerLine: 26 });
+    expect(twoTierTrack([ev('a b c d e f g h i j k l')])).toMatchObject({ maxWords: 8 });
+    expect(twoTierTrack([ev('hi')])).toMatchObject({ maxWords: 2, maxCharsPerLine: 12 });
   });
 
   test('without measured fonts the preset is still copied from the parent', () => {
