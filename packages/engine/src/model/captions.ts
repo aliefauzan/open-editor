@@ -396,7 +396,9 @@ const echoWords = (t: string) =>
  * Burned-in chunks without the ones a scene already shows (D-99): while a scene covers at least half
  * of a chunk's time and its text holds ECHO_SHARE of the chunk's words (two words or more, or one word
  * of 4+ letters), the caption would repeat the scene's words at the same time, so the chunk is left
- * out. Captions files (SRT/VTT) are not affected.
+ * out. A scene that echoes one chunk quotes the speaker (D-100): every chunk it covers by half is
+ * left out too, so the rest of a quoted sentence (cut to the template's limit) never lands on the
+ * card's text. Captions files (SRT/VTT) are not affected.
  */
 export function withoutSceneEchoes(
   chunks: readonly CaptionChunk[],
@@ -404,18 +406,18 @@ export function withoutSceneEchoes(
 ): CaptionChunk[] {
   if (scenes.length === 0) return [...chunks];
   const sets = scenes.map((s) => ({ ...s, words: new Set(s.texts.flatMap(echoWords)) }));
-  return chunks.filter((c) => {
+  const covers = (s: SceneText, c: CaptionChunk) =>
+    Math.min(c.endMs, s.endMs) - Math.max(c.startMs, s.startMs) >=
+    Math.max(1, c.endMs - c.startMs) / 2;
+  const echoes = (s: (typeof sets)[number], c: CaptionChunk) => {
     const words = c.lines.flatMap((l) => l.words.flatMap((w) => echoWords(w.text)));
-    if (words.length === 0) return true;
-    if (words.length === 1 && [...words[0]!].length < 4) return true;
-    const span = Math.max(1, c.endMs - c.startMs);
-    return !sets.some((s) => {
-      const over = Math.min(c.endMs, s.endMs) - Math.max(c.startMs, s.startMs);
-      if (over < span / 2) return false;
-      const hit = words.filter((w) => s.words.has(w)).length;
-      return hit / words.length >= ECHO_SHARE;
-    });
-  });
+    if (words.length === 0) return false;
+    if (words.length === 1 && [...words[0]!].length < 4) return false;
+    if (!covers(s, c)) return false;
+    return words.filter((w) => s.words.has(w)).length / words.length >= ECHO_SHARE;
+  };
+  const quotes = sets.filter((s) => chunks.some((c) => echoes(s, c)));
+  return chunks.filter((c) => !quotes.some((s) => covers(s, c)));
 }
 
 /** Every string inside a scene's variables (its on-screen text, nested panels and items too). */

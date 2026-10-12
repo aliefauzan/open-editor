@@ -471,7 +471,7 @@ describe('SRT / VTT', () => {
   });
 });
 
-describe('captions that repeat a scene (D-99)', () => {
+describe('captions that repeat a scene (D-99, D-100)', () => {
   // owner demo run 3: the scene text and the caption showed the same words at the same time
   const chunk = (startMs: number, endMs: number, text: string): CaptionChunk => ({
     startMs,
@@ -496,8 +496,11 @@ describe('captions that repeat a scene (D-99)', () => {
   ];
 
   test('a chunk whose words the scene shows over most of its time is left out', () => {
-    const scenes = [{ startMs: 900, endMs: 4000, texts: ['PINTU Rezeki', 'Térbuka', 'itu'] }];
-    // one word under 4 letters is never an echo
+    const scenes = [
+      { startMs: 900, endMs: 2100, texts: ['PINTU Rezeki', 'Térbuka'] },
+      // one word under 4 letters is never an echo
+      { startMs: 3000, endMs: 4000, texts: ['itu'] },
+    ];
     expect(withoutSceneEchoes(chunks, scenes).map((c) => c.startMs)).toEqual([0, 2000, 3000]);
   });
 
@@ -514,6 +517,21 @@ describe('captions that repeat a scene (D-99)', () => {
     const scenes = [{ startMs: 0, endMs: 4000, texts: ['arah baru'] }];
     expect(withoutSceneEchoes(chunks, scenes)).toEqual(chunks);
     expect(withoutSceneEchoes(chunks, [])).toEqual(chunks);
+  });
+
+  test('a scene that quotes the speaker hides every chunk it covers (D-100)', () => {
+    // run 4 at 0:29: the title card showed the sentence cut to 60 characters; the speech ran on
+    const quote = [
+      chunk(0, 1000, 'Atau bisnis yang'),
+      chunk(1000, 2000, 'tiba-tiba berkembang'),
+      chunk(2000, 3000, 'atau bahkan'),
+      chunk(3000, 4000, 'dijauhkan dari'),
+    ];
+    const card = [{ startMs: 0, endMs: 3300, texts: ['Atau bisnis yang tiba-tiba berkembang…'] }];
+    expect(withoutSceneEchoes(quote, card).map((c) => c.startMs)).toEqual([3000]);
+    // a scene with no echo keeps its captions
+    const label = [{ startMs: 0, endMs: 3300, texts: ['Rezeki'] }];
+    expect(withoutSceneEchoes(quote, label)).toEqual(quote);
   });
 
   test('scene strings are read from nested variables', () => {
