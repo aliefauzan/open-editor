@@ -155,7 +155,7 @@ function sequenceEnd(p: Project, sequenceId: string): number {
   return end;
 }
 
-/** Media slots the executor fills: top-level image/cutout slots (nested paths stay with the model). */
+/** Top-level image/cutout slots of a template (arrays and panels are filled by their own helpers). */
 const fillableSlots = (t: TemplateInfo) =>
   Object.entries(t.slots).filter(
     ([path, kind]) => /^[A-Za-z0-9_]+$/.test(path) && (kind === 'image' || kind === 'cutout'),
@@ -208,6 +208,112 @@ async function fillSlot(run: AgentRun, query: string, kind: string): Promise<str
     });
     return undefined;
   }
+}
+
+/** A picture of the project in a slot value (the model was told to leave slots empty). */
+const isImage = (p: Project, v: unknown) =>
+  typeof v === 'string' && p.media.some((m) => m.id === v.trim() && m.kind === 'image');
+
+/** The text the model wrote in a slot when it is a description (has a space), as a query. */
+const describedQuery = (v: unknown) =>
+  typeof v === 'string' && /\s/.test(v.trim()) ? v.trim().slice(0, 120) : undefined;
+
+/**
+ * Pictures inside arrays (paper-collage `items/*\/media`): an entry that does not name a picture of
+ * the project gets one from the next image query, or from its own text when the model wrote a
+ * description there. `missing` names the first entry left without a picture.
+ */
+async function fillArrays(
+  run: AgentRun,
+  p: Project,
+  t: TemplateInfo,
+  variables: Record<string, unknown>,
+  queries: string[],
+): Promise<{ variables: Record<string, unknown>; missing?: string }> {
+  let out = variables;
+  for (const [arr, field, kind] of nestedSlots(t)) {
+    const list = out[arr];
+    if (!Array.isArray(list)) continue;
+    const filled: unknown[] = [];
+    for (const el of list) {
+      if (typeof el !== 'object' || el === null) continue;
+      const entry = { ...(el as Record<string, unknown>) };
+      if (isImage(p, entry[field])) {
+        filled.push(entry);
+        continue;
+      }
+      const q = queries.shift() ?? describedQuery(entry[field]);
+      const id = q === undefined ? undefined : await fillSlot(run, q, kind);
+      if (!id) return { variables: out, missing: q ?? `${arr} ${field}` };
+      entry[field] = id;
+      filled.push(entry);
+    }
+    out = { ...out, [arr]: filled };
+  }
+  return { variables: out };
+}
+
+/** `template` slots of a scene (stack `panels/*`): the array variable holding the panels. */
+const panelSlots = (t: TemplateInfo) =>
+  Object.entries(t.slots).flatMap(([path, kind]) => {
+    const m = /^([A-Za-z0-9_]+)\/\*$/.exec(path);
+    return m && kind === 'template' ? [m[1]!] : [];
+  });
+
+/**
+ * Pictures inside the panels of a `template` slot (D-86). A panel's picture slot that does not name
+ * a picture of the project gets one from the next image query (or the description written there).
+ * An optional slot with no picture is left empty, with a repair note when a picture was asked for
+ * (the panel renders without it); a required one is `missing`, and the scene becomes a placeholder.
+ * Panels with an unknown template are left as they are: the engine's variable check decides.
+ */
+async function fillPanels(
+  run: AgentRun,
+  p: Project,
+  t: TemplateInfo,
+  variables: Record<string, unknown>,
+  queries: string[],
+  templates: TemplateLookup,
+  note: (what: string) => void,
+): Promise<{ variables: Record<string, unknown>; missing?: string }> {
+  let out = variables;
+  for (const arr of panelSlots(t)) {
+    const list = out[arr];
+    if (!Array.isArray(list)) continue;
+    const panels: unknown[] = [];
+    for (const [i, el] of list.entries()) {
+      const panel = el as { template?: unknown; variables?: unknown } | null;
+      const inner = typeof panel?.template === 'string' ? templates.get(panel.template) : undefined;
+      if (!panel || !inner || inner.kind !== 'scene') {
+        panels.push(el);
+        continue;
+      }
+      let vars: Record<string, unknown> =
+        typeof panel.variables === 'object' && panel.variables !== null
+          ? { ...(panel.variables as Record<string, unknown>) }
+          : {};
+      const required = new Set((inner.variables['required'] ?? []) as string[]);
+      for (const [slot, kind] of fillableSlots(inner)) {
+        if (isImage(p, vars[slot])) continue;
+        const q = queries.shift() ?? describedQuery(vars[slot]);
+        const id = q === undefined ? undefined : await fillSlot(run, q, kind);
+        if (id) {
+          vars[slot] = id;
+          continue;
+        }
+        if (required.has(slot)) return { variables: out, missing: q ?? `${arr} ${slot}` };
+        if (vars[slot] !== undefined || q !== undefined)
+          note(`panel ${String(i)}: no picture for ${q ?? slot}, ${slot} left empty`);
+        delete vars[slot];
+      }
+      const arrays = await fillArrays(run, p, inner, vars, queries);
+      if (arrays.missing !== undefined) return { variables: out, missing: arrays.missing };
+      vars = arrays.variables;
+      panels.push({ ...panel, variables: vars });
+    }
+    out = { ...out, [arr]: panels };
+  }
+  return { variables: out };
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -279,45 +385,29 @@ export async function clipPlanToOps(
       // slots empty, so an entry that does not name a picture of the project gets one from the beat's
       // next image query, or from its own text when the model wrote a description there. No picture
       // for an entry → the scene becomes a placeholder, as for a top-level slot.
-      for (const [arr, field, kind] of template === PLACEHOLDER_TEMPLATE ? [] : nestedSlots(t)) {
-        const list = variables[arr];
-        if (!Array.isArray(list)) continue;
-        const filled: unknown[] = [];
-        let missing: string | undefined;
-        for (const el of list) {
-          if (typeof el !== 'object' || el === null) continue;
-          const entry = { ...(el as Record<string, unknown>) };
-          const v = typeof entry[field] === 'string' ? (entry[field] as string).trim() : '';
-          if (p.media.some((m) => m.id === v && m.kind === 'image')) {
-            filled.push(entry);
-            continue;
-          }
-          const q = queries.shift() ?? (/\s/.test(v) ? v.slice(0, 120) : undefined);
-          const id = q === undefined ? undefined : await fillSlot(run, q, kind);
-          if (!id) {
-            missing = q ?? `${arr} ${field}`;
-            break;
-          }
-          entry[field] = id;
-          filled.push(entry);
-        }
+      // Scenes inside a `template` slot (stack `panels/*`, D-86): each panel's own picture slots are
+      // filled the same way, from the same queue of image queries, in panel order.
+      let missing: string | undefined;
+      if (template !== PLACEHOLDER_TEMPLATE) {
+        const arrays = await fillArrays(run, p, t, variables, queries);
+        missing = arrays.missing;
         if (missing === undefined) {
-          variables = { ...variables, [arr]: filled };
-          continue;
+          const panels = await fillPanels(run, p, t, arrays.variables, queries, templates, note);
+          missing = panels.missing;
+          variables = panels.variables;
         }
+      }
+      if (missing !== undefined) {
         const ph = templates.get(PLACEHOLDER_TEMPLATE);
         if (!ph) {
           note(`dropped: no picture for ${missing} and no placeholder template`);
-          t = undefined;
-          break;
+          continue;
         }
         note(`placeholder: no picture for ${missing}`);
         template = PLACEHOLDER_TEMPLATE;
         variables = { label: `Picture: ${missing}`.slice(0, 120) };
         t = ph;
-        break;
       }
-      if (!t) continue;
       // Variables that still do not fit the template (a required array left out) would fail the
       // whole batch: the scene becomes a placeholder instead, with the reason in the repairs.
       if (template !== PLACEHOLDER_TEMPLATE) {
