@@ -71,7 +71,7 @@ async function versionNow(ctx: ToolContext): Promise<number> {
 }
 
 /** Runs a job that may write to the project; reports the version it created, if any. */
-async function writingJob(
+export async function writingJob(
   ctx: ToolContext,
   kind: string,
   args: Record<string, unknown>,
