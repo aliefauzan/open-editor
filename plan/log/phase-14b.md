@@ -95,3 +95,12 @@ stable run to run; the workflow shows the placeholder rather than a wrong clip, 
 - `WorkflowDeps.embed` and `createEmbedder` are new; the app host and the CLI build the embedder from `roles.embed`.
 - Fixture set output folder: `packages/engine/test/fixtures/out/screenplay` (ignored by git); tests build it into a temp dir.
 - Ranking with small local models is flaky near the 0.5 bar; a larger model or an embedding model is steadier.
+
+## Follow-up 2026-10-12: local signals (D-77, feat/screenplay-local)
+- The Apple helper's `--embed` (NaturalLanguage, macOS 14+) is the default `embed` when no role is set: a first
+  pass that matches sure scenes without a model call and sends the rest to the LLM with their 8 best clips.
+  Tagging uses the Apple vision role, else frame cards, and a paid vision model only when neither gives tags.
+- Fixture set: before 6 vision + 6 ranking calls (about 33,350 input tokens), after 0 + 1 (about 560); with the
+  real helper 4 of 6 scenes matched locally. Details in DECISIONS.md D-77.
+- Review: self-review (token budget). `pnpm dist:no-apple` built; its CLI cannot add the Apple provider (no
+  helper), so screenplay ranks as before.
