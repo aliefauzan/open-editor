@@ -124,6 +124,21 @@ describe('the py-env stamp (D-12, D-87)', () => {
     enableCheckoutPyEnvSync(f.tools);
     const dev = (await report()).checks.find((c) => c.name === 'python-env-source');
     expect(dev?.fix).toMatch(/next Python tool/);
+    // a lock from another build: an error in the app, a warning where the next tool syncs it
+    writeFileSync(join(f.pyEnv, '.vox-lock-hash'), 'f'.repeat(64));
+    const devLock = await report();
+    expect(devLock.checks.find((c) => c.name === 'python-env-lock')).toMatchObject({
+      level: 'warn',
+      fix: expect.stringMatching(/next Python tool/),
+    });
+    disableCheckoutPyEnvSync(f.tools);
+    const appLock = await report();
+    expect(appLock.checks.find((c) => c.name === 'python-env-lock')).toMatchObject({
+      level: 'error',
+    });
+    expect(appLock.ok).toBe(false);
+    enableCheckoutPyEnvSync(f.tools);
+    writeFileSync(join(f.pyEnv, '.vox-lock-hash'), sha('lock v1\n'));
     writeFileSync(join(f.pyEnv, '.vox-src-hash'), await sourceHashOf(f.py));
     const ok = (await report()).checks.find((c) => c.name === 'python-env-source');
     expect(ok).toMatchObject({ level: 'ok' });
