@@ -2522,3 +2522,36 @@ qwen3.5 did not plan a stack with a panel picture query in these runs; the panel
 **Review**: self-review (token budget).
 **Why**: the model asked for a collage of something; with a local model the run can draw it instead of dropping the picture.
 **Open**: whether a clip gets pictures still depends on the model planning a collage or over-using a template.
+
+## D-104 · 2026-10-13 · fix/clip-polish · no caption scrim over a full-frame scene
+**Context**: demo run 7 (main 99acd72): the two-tier preset's dark scrim showed as a grey blob behind the captions on paper-collage and newspaper scenes.
+**Decision**:
+- `CaptionChunk.over?: 'dark' | 'light'`: `overScenes` (`packages/engine/src/model/captions.ts`) marks each burned-in chunk covered at least half by a full-frame scene with that scene's tone.
+- `sceneTone` (`compile.ts`) reads the scene's `bg` variable (its value, else the schema default): `dark` is dark, any other value light, no `bg` none (an overlay). vox templates now give `bg` a default: dark for framed-portrait, kinetic-serif, map-route, stack, year-card; paper for newspaper, paper-collage, stat.
+- The two-tier preset (`data/captions/two-tier.html`) draws no scrim for a chunk with `over`; over a light scene its plain tier 1 words are set in the style's ink (`--tok-color-ink`) with the split shadow only.
+- Tests: `captions.test.ts` "chunks over a full-frame scene carry its tone"; `compile.test.ts` "a caption chunk over a full-frame scene carries its tone; an overlay leaves none"; `two-tier-scene.slow.test.ts` in Chrome (fails against the old preset).
+**Verify** (worktree): see D-106.
+**Review**: self-review (token budget).
+**Why**: the scrim exists to lift words off busy footage; over a flat designed scene it only shows as a smudge.
+**Alternatives**: hiding captions under every scene (the speech still needs them over picture scenes); a lighter scrim (still a smudge on paper).
+**Open**: the attention-compound-r3b style keeps its own copy of the preset; it was regenerated from the template with its measured values for demo run 8 (a style made before D-104 needs the same).
+
+## D-105 · 2026-10-13 · fix/clip-polish · a scene showing a key phrase of the speech hides its captions
+**Context**: D-99 left out a chunk that repeats the scene; a short card made of a few words of the sentence (D-106) does not repeat any one chunk, so the card and the caption under it showed the same words.
+**Decision**: in `withoutSceneEchoes`, a scene of at least 2 words, `PHRASE_SHARE` (80 %) of them spoken in the chunks it covers, counts as a quote: those chunks are left out as for D-100. SRT/VTT keep them.
+**Tests**: `captions.test.ts` "a scene showing a key phrase of the speech under it quotes the speaker (D-105)".
+**Verify** (worktree): see D-106.
+**Review**: self-review (token budget).
+**Why**: the card is the caption for that moment; two copies of the same words compete.
+
+## D-106 · 2026-10-13 · fix/clip-polish · concrete picture subjects, key-phrase cards, at least 2 pictures
+**Context**: demo run 7: the two generated pictures were abstract because their prompts were filler phrases of the speech ("Tapi menurut gue"); text cards carried whole spoken sentences; pictures came only when the model over-used a template or planned a collage (D-102, D-103).
+**Decision**:
+- `varySceneTemplates`: with an image model, after the over-use and empty passes, text-led beats turn picture-led until `MIN_PICTURE_LED` (= `MAX_SAME_TEMPLATE`, 2: the style has one picture-led template) are planned. Never the first scene (the hook); beats long enough for the picture-led template first, then the longest text, then the earliest. A repair note names each.
+- `clipPlanToOps` makes one structured call (`sceneWords`, `plan.ts`) after variety: for each picture-led beat a concrete English `subject` to draw (3 to 12 words, no text in the picture), for each text-led card of more than 5 words a `phrase` of 2 to 5 of its own words. The transcript goes in as data. The answer is checked with its schema; a phrase with a word not in its line, or not shorter than the line, is refused. The subject becomes the generation prompt; the phrase replaces the card text (a repair note). Any failure leaves the beats as planned; the call and its answer go to the run record (`sceneWords`).
+- Tests: `plan-repair.test.ts` "picture-led minimum (D-106)"; `stylize-variety.test.ts` (i) key phrase and refused phrase, (j) subjects in the generation prompts.
+**Verify** (worktree): `vitest run packages/agent packages/engine apps/desktop/test/renderer` 2544 passed, 1 skipped, 4 failed (framing-provider.local, config concurrent writes, media-chain.local x2, under load); those 3 files rerun alone: 23 passed. `VOX_SLOW=1` two-tier-scene: passed. `pnpm -r typecheck`, `pnpm lint` clean.
+**Review**: self-review (token budget).
+**Why**: a local image model draws what it is told; a subject it can draw beats a sentence fragment. A card is read in a second: a few words of the line, not the line.
+**Alternatives**: asking the planner for subjects in the clip plan (weak models leave them out, runs 5 to 7); taking the rarest words as the phrase (no sense of the point).
+**Open**: a converted beat that does not fit at placement has still generated its picture (D-102).

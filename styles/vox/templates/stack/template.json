@@ -37,7 +37,8 @@
         }
       },
       "bg": {
-        "enum": ["paper", "dark", "highlight"]
+        "enum": ["paper", "dark", "highlight"],
+        "default": "dark"
       }
     },
     "required": ["panels"],

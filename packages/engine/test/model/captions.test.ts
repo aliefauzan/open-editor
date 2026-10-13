@@ -4,6 +4,7 @@ import {
   captionsToVtt,
   deriveCaptions,
   sceneStrings,
+  overScenes,
   withoutSceneEchoes,
   type CaptionChunk,
 } from '../../src/model/captions.ts';
@@ -532,6 +533,36 @@ describe('captions that repeat a scene (D-99, D-100)', () => {
     // a scene with no echo keeps its captions
     const label = [{ startMs: 0, endMs: 3300, texts: ['Rezeki'] }];
     expect(withoutSceneEchoes(quote, label)).toEqual(quote);
+  });
+
+  test('a scene showing a key phrase of the speech under it quotes the speaker (D-105)', () => {
+    // run 7: text cards carried whole sentences; a card now shows a short phrase of what is said
+    const said = [
+      chunk(0, 1000, 'Allah tuh bakalan'),
+      chunk(1000, 2000, 'bukain pintu rezeki'),
+      chunk(2000, 3000, 'yang mana buat kita'),
+      chunk(3000, 4000, 'dari arah lain'),
+    ];
+    const card = [{ startMs: 0, endMs: 3000, texts: ['Pintu rezeki Allah'] }];
+    expect(withoutSceneEchoes(said, card).map((c) => c.startMs)).toEqual([3000]);
+    // one word, or a phrase mostly not spoken under it, keeps the captions
+    expect(withoutSceneEchoes(said, [{ startMs: 0, endMs: 3000, texts: ['Rezeki'] }])).toEqual(
+      said,
+    );
+    expect(
+      withoutSceneEchoes(said, [
+        { startMs: 0, endMs: 3000, texts: ['Rezeki terbuka lebar sekali'] },
+      ]),
+    ).toEqual(said);
+  });
+
+  test('chunks over a full-frame scene carry its tone (D-104)', () => {
+    const marked = overScenes(chunks, [
+      { startMs: 900, endMs: 2100, tone: 'light' },
+      { startMs: 2900, endMs: 4000, tone: 'dark' },
+    ]);
+    expect(marked.map((c) => c.over)).toEqual([undefined, 'light', undefined, 'dark']);
+    expect(overScenes(chunks, [])).toEqual(chunks);
   });
 
   test('scene strings are read from nested variables', () => {

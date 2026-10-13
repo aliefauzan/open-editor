@@ -37,7 +37,8 @@
         "maxLength": 64
       },
       "bg": {
-        "enum": ["paper", "dark", "highlight"]
+        "enum": ["paper", "dark", "highlight"],
+        "default": "dark"
       }
     },
     "required": ["year", "tag", "photo"],

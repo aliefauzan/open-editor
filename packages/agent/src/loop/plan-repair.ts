@@ -291,6 +291,13 @@ export interface PictureLed {
   field: string;
 }
 
+/**
+ * Pictures a clip gets at least when an image model is installed (D-106): text cards turn into
+ * drawn pictures until this many picture-led scenes are planned. The style has one picture-led
+ * template, so this is the variety cap.
+ */
+export const MIN_PICTURE_LED = MAX_SAME_TEMPLATE;
+
 /** Size of the one picture a picture-led scene shows (D-102), when the entries take a `scale`. */
 const PICTURE_LED_SCALE = 1.8;
 
@@ -339,6 +346,8 @@ function pictureLedVariables(p: PictureLed, templates: TemplateLookup): Record<s
  * MAX_SAME_TEMPLATE of it); `illustrated` maps each such beat to its text, which the run draws.
  * D-103: a picture-led beat planned with its array empty or left out (run 6: `items: []` and a
  * label) gets the one centred entry too, drawn from its own text, instead of turning text-led.
+ * D-106: then text-led beats turn picture-led until MIN_PICTURE_LED are planned: never the first
+ * scene (the hook), beats long enough for the picture-led template first, then the longest text.
  * Beats with no text, or when every template is used up, stay as planned. Returns the beats (input
  * order) and the notes by beat index.
  */
@@ -424,6 +433,47 @@ export function varySceneTemplates<B extends VaryBeat>(
         what: `${pictureLed.id} planned with no ${pictureLed.arr}: one picture of ${JSON.stringify(text)}`,
       });
     }
+  if (pictureLed) {
+    const pic = templates.get(pictureLed.id);
+    const led = new Set(textLed.map((x) => x.id));
+    const scenes = out
+      .map((b, i) => ({ b, i }))
+      .filter(({ b }) => b.kind === 'scene' && b.endMs > b.startMs)
+      .sort((x, y) => x.b.startMs - y.b.startMs || x.i - y.i);
+    const minMs = pic?.durationMs.min ?? 0;
+    const open = scenes
+      .slice(1)
+      .flatMap(({ b, i }) => {
+        const from = b.template ? templates.get(b.template) : undefined;
+        if (!from || !led.has(from.id)) return [];
+        const text = sceneTexts(from, b.variables ?? {}, templates)[0];
+        return text === undefined ? [] : [{ b, i, text, fits: b.endMs - b.startMs >= minMs }];
+      })
+      .sort(
+        (x, y) =>
+          Number(y.fits) - Number(x.fits) ||
+          y.text.length - x.text.length ||
+          x.b.startMs - y.b.startMs,
+      );
+    for (const { b, i, text } of open) {
+      if ((counts.get(pictureLed.id) ?? 0) >= MIN_PICTURE_LED) break;
+      const id = b.template!;
+      counts.set(id, Math.max(0, (counts.get(id) ?? 1) - 1));
+      counts.set(pictureLed.id, (counts.get(pictureLed.id) ?? 0) + 1);
+      const rest: VaryBeat = { ...b };
+      delete rest.imageQueries;
+      out[i] = {
+        ...rest,
+        template: pictureLed.id,
+        variables: pictureLedVariables(pictureLed, templates),
+      } as B;
+      illustrated.set(i, text);
+      notes.push({
+        beat: i,
+        what: `${id} ${JSON.stringify(text)}: ${pictureLed.id} with a picture of it instead (at least ${String(MIN_PICTURE_LED)} pictures with an image model)`,
+      });
+    }
+  }
   return { beats: out, notes, counts, illustrated };
 }
 

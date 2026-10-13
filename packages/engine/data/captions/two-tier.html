@@ -100,9 +100,11 @@
         // through), an inner rule and a red/cyan edge fringe. A single-word chunk can arrive with
         // wide letter spacing that tightens. A soft dark shade under tier 1 words and a soft dark
         // scrim behind each chunk keep white text readable on light footage (D-93); on dark footage
-        // they vanish into the picture. Lines come from the engine (never re-wrapped); sizes
-        // come from the measured font size and the faces' measured average advance, so the DOM is
-        // never measured; all state changes are timeline sets or tweens at word times.
+        // they vanish into the picture. Over a full-frame scene (D-104: chunk `over`) there is no
+        // scrim, and on a light one (paper) the plain words are set in ink. Lines come from the
+        // engine (never re-wrapped); sizes come from the measured font size and the faces' measured
+        // average advance, so the DOM is never measured; all state changes are timeline sets or
+        // tweens at word times.
         (function () {
           var mount = vox.mount('__ID__');
           var root = mount.root;
@@ -140,6 +142,9 @@
           var t1Read = [GLOW ? '0 0 0.22em rgba(255,255,255,0.42)' : '', split, SHADE].filter(Boolean).join(', ');
           var t1Active = ['0 0 0.3em rgba(255,255,255,0.45)', split, SHADE].filter(Boolean).join(', ');
           var css = getComputedStyle(root);
+          // over a light full-frame scene (D-104: chunk `over`), plain words are ink with the split only
+          var t1Light = split || 'none';
+          var inkColor = css.getPropertyValue('--tok-color-ink').trim() || '#151517';
           var white = css.getPropertyValue('--tok-color-caption').trim() || '#ffffff';
           var side = (v.safeArea.rightPct / 100) * W;
           var usable = W - 2 * side;
@@ -202,7 +207,9 @@
             el.style.left = side + 'px';
             el.style.width = usable + 'px';
             el.style.top = top + 'px';
-            if (SCRIM > 0) {
+            var light = c.over === 'light';
+            // no scrim over a full-frame scene (D-104): a dark blot on flat paper or a dark card
+            if (SCRIM > 0 && !c.over) {
               // an ellipse past the text block, darkest in the middle
               var scrim = document.createElement('div');
               var pad = T1.size * H * scale;
@@ -267,9 +274,10 @@
                   } else {
                     span.style.fontSize = size + 'px';
                     span.style.letterSpacing = T1.track + 'em';
+                    if (light) span.style.color = inkColor;
                     // unread: hidden; active: full white with a stronger glow; read: 90 %
-                    tl.set(span, { opacity: 1, textShadow: t1Active }, w.startMs / 1000);
-                    tl.set(span, { opacity: 0.9, textShadow: t1Read }, w.endMs / 1000);
+                    tl.set(span, { opacity: 1, textShadow: light ? t1Light : t1Active }, w.startMs / 1000);
+                    tl.set(span, { opacity: 0.9, textShadow: light ? t1Light : t1Read }, w.endMs / 1000);
                     if (REVEAL && single) {
                       // one word on its own: the letters arrive wide apart and tighten
                       tl.fromTo(

@@ -35,7 +35,8 @@
         "maxLength": 32
       },
       "bg": {
-        "enum": ["paper", "dark", "highlight"]
+        "enum": ["paper", "dark", "highlight"],
+        "default": "paper"
       }
     },
     "required": ["value"],

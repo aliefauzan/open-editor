@@ -18,8 +18,10 @@ import {
   captionsToSrt,
   deriveCaptions,
   sceneStrings,
+  overScenes,
   withoutSceneEchoes,
   type CaptionChunk,
+  type SceneTone,
   type TranscriptOf,
 } from '../model/captions.ts';
 import { blendHalf, frame, type Fps } from '../model/fps.ts';
@@ -35,6 +37,7 @@ import type {
 } from '../model/schema.ts';
 import { checkRelativePath } from '../paths.ts';
 import { cropSize } from '../stages/facetrack.ts';
+import type { TemplateLookup } from '../ops/templates.ts';
 import { registryTemplateLookup } from '../styles/lookup.ts';
 import type { ResolvedStyle, StyleRegistry, TemplateDef } from '../styles/registry.ts';
 import { captionSafeArea, variablesValidator } from '../styles/schema.ts';
@@ -698,6 +701,30 @@ function overlayLayer(ctx: Ctx, durMs: number): string[] {
 const PUNCT = /[\p{P}]+/gu;
 
 /** The preset's `case` / `stripPunctuation` applied to word text (D-15); SRT never gets this. */
+/**
+ * The tone of a full-frame scene (D-104): a template whose variables have a `bg` choice fills the
+ * frame; `dark` is dark, any other value (paper, highlight) light. The value or the schema default;
+ * undefined for a template without `bg` (an overlay on the footage) or with no value and no default.
+ */
+export function sceneTone(
+  lookup: TemplateLookup,
+  template: string,
+  variables: Record<string, unknown> | undefined,
+): SceneTone | undefined {
+  let info;
+  try {
+    info = lookup.get(template);
+  } catch {
+    return undefined;
+  }
+  const props = (info?.variables['properties'] ?? {}) as Record<string, { default?: unknown }>;
+  const bg = props['bg'];
+  if (!bg) return undefined;
+  const v = variables?.['bg'] ?? bg.default;
+  if (typeof v !== 'string') return undefined;
+  return v === 'dark' ? 'dark' : 'light';
+}
+
 export function presetText(
   chunks: readonly CaptionChunk[],
   preset: { case: 'asis' | 'upper' | 'lower'; stripPunctuation: boolean },
@@ -911,21 +938,24 @@ export async function compileSequence(
   });
   // D-99: the burned-in layer leaves out a chunk that repeats the words a scene shows at the same
   // time; the build's captions and its SRT keep every chunk
+  const sceneItems = original.videoTracks.flatMap((t) =>
+    t.items.flatMap((it) => (it.type === 'scene' ? [it] : [])),
+  );
   let burned = withoutSceneEchoes(
     captions,
-    original.videoTracks.flatMap((t) =>
-      t.items.flatMap((it) =>
-        it.type === 'scene'
-          ? [
-              {
-                startMs: it.startMs,
-                endMs: it.startMs + it.durationMs,
-                texts: sceneStrings(it.variables),
-              },
-            ]
-          : [],
-      ),
-    ),
+    sceneItems.map((it) => ({
+      startMs: it.startMs,
+      endMs: it.startMs + it.durationMs,
+      texts: sceneStrings(it.variables),
+    })),
+  );
+  // D-104: chunks over a full-frame scene (a template with a `bg` choice) carry its tone
+  burned = overScenes(
+    burned,
+    sceneItems.flatMap((it) => {
+      const tone = sceneTone(lookup, it.template, it.variables);
+      return tone ? [{ startMs: it.startMs, endMs: it.startMs + it.durationMs, tone }] : [];
+    }),
   );
   if (opts.range) {
     captions = shiftChunks(captions, opts.range.startMs, opts.range.endMs);

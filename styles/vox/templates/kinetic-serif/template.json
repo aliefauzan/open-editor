@@ -34,7 +34,8 @@
         "enum": ["left", "center"]
       },
       "bg": {
-        "enum": ["paper", "dark", "highlight"]
+        "enum": ["paper", "dark", "highlight"],
+        "default": "dark"
       }
     },
     "required": ["text"],

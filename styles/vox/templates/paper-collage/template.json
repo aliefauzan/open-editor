@@ -62,7 +62,8 @@
         "enum": ["top", "center", "bottom"]
       },
       "bg": {
-        "enum": ["paper", "dark", "highlight"]
+        "enum": ["paper", "dark", "highlight"],
+        "default": "paper"
       },
       "clipping": {
         "type": "object",

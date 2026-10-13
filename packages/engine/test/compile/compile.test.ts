@@ -373,6 +373,28 @@ describe('D-15 compile details (step 9b)', () => {
     ]);
   });
 
+  test('a caption chunk over a full-frame scene carries its tone; an overlay leaves none (D-104)', async () => {
+    const tones = async (template: string, variables: Record<string, unknown>) => {
+      const p = mainProject('kit');
+      p.sequences[0]!.captions = { ...CAPTION_DEFAULTS, preset: 'kit/loud', overrides: [] };
+      const overlay = p.sequences[0]!.videoTracks[1]!.items[1]!;
+      if (overlay.type !== 'scene') throw new Error('fixture: it_o1 is a scene');
+      // over the speech "It has 42 clips!" (2000-3500 ms, two chunks), with text that repeats none of it
+      Object.assign(overlay, { startMs: 2000, durationMs: 1500, template, variables });
+      const b = await build(p, { mode: 'render' }, registry(['kit']));
+      const vars = varsOf(instance(b, 'captions'), 'captions') as { chunks: { over?: string }[] };
+      return vars.chunks.map((c) => c.over ?? '-');
+    };
+    expect(await tones('vox/kinetic-serif', { text: 'Rotterdam', bg: 'paper' })).toEqual([
+      '-',
+      'light',
+      'light',
+    ]);
+    // the template's default (kinetic-serif: dark)
+    expect(await tones('vox/kinetic-serif', { text: 'Rotterdam' })).toEqual(['-', 'dark', 'dark']);
+    expect(await tones('base/text-overlay', { text: 'Rotterdam' })).toEqual(['-', '-', '-']);
+  });
+
   test('facetrack, auto and manual keyframes become a transform; cover/contain use object-fit', async () => {
     const kfs = [
       { atMs: 0, x: 0.5, y: 0.5, scale: 1 },

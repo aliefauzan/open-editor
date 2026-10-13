@@ -6,6 +6,7 @@ import { mapTemplateLookup, type TemplateInfo } from '@vox/engine';
 import { describe, expect, test } from 'vitest';
 import {
   MAX_SAME_TEMPLATE,
+  MIN_PICTURE_LED,
   clearOfCaptions,
   fitVariables,
   pictureLedTemplate,
@@ -252,6 +253,42 @@ describe('scene variety (D-94)', () => {
     expect(r.beats[2]!.template).toBe('vox/kinetic-serif');
     expect(r.illustrated.size).toBe(0);
     expect(pictureLedTemplate(['vox/kinetic-serif', 'base/title'], templates)).toBeUndefined();
+  });
+
+  // D-106, demo run 7: pictures only came when the model over-used a template; with an image
+  // model a varied text-only plan still gets MIN_PICTURE_LED pictures, never on the hook scene
+  test('picture-led minimum (D-106): the longest text cards after the hook turn into pictures', () => {
+    const pic = pictureLedTemplate(IDS, templates)!;
+    const beat = (startMs: number, template: string, variables: Record<string, unknown>) =>
+      ({ startMs, endMs: startMs + 4000, kind: 'scene', template, variables }) as VaryBeat;
+    const beats = [
+      beat(0, 'vox/kinetic-serif', { text: 'Hook yang paling panjang sekali' }),
+      beat(4000, 'vox/newspaper', { headline: 'Rezeki' }),
+      beat(8000, 'vox/kinetic-serif', { text: 'Pintu yang lebih besar' }),
+      beat(12000, 'vox/newspaper', { headline: 'Dijauhkan dari pengeluaran' }),
+    ];
+    const r = varySceneTemplates(beats, textLed, templates, pic);
+    expect(r.beats.map((b) => b.template)).toEqual([
+      'vox/kinetic-serif',
+      'vox/newspaper',
+      'vox/paper-collage',
+      'vox/paper-collage',
+    ]);
+    expect([...r.illustrated].sort()).toEqual([
+      [2, 'Pintu yang lebih besar'],
+      [3, 'Dijauhkan dari pengeluaran'],
+    ]);
+    expect(r.notes.map((n) => n.beat).sort()).toEqual([2, 3]);
+    expect(r.notes.find((n) => n.beat === 3)!.what).toBe(
+      'vox/newspaper "Dijauhkan dari pengeluaran": vox/paper-collage with a picture of it instead (at least 2 pictures with an image model)',
+    );
+    expect(r.counts.get('vox/paper-collage')).toBe(MIN_PICTURE_LED);
+    // a beat shorter than the collage's minimum goes last
+    const short = beats.map((b, i) => (i === 3 ? { ...b, endMs: b.startMs + 500 } : b));
+    const s = varySceneTemplates(short, textLed, templates, pic);
+    expect([...s.illustrated.keys()].sort()).toEqual([1, 2]);
+    // no image model: the plan is kept
+    expect(varySceneTemplates(beats, textLed, templates).beats).toEqual(beats);
   });
 
   test('picture-led planned empty (D-103): one centred entry drawn from its label', () => {
