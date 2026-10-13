@@ -338,6 +338,35 @@ function pictureLedVariables(p: PictureLed, templates: TemplateLookup): Record<s
   };
 }
 
+/** Where the one drawn picture sits over captions burned in mid-frame (D-107). */
+export const PICTURE_ABOVE = { y: 25, scale: 1.5 } as const;
+
+/**
+ * D-107, demo run 8: the centred picture (y 42, 1.8) spans about 21 to 63 % of a 9:16 frame, so
+ * captions at 50 % ran across it. With captions between 35 and 70 % the one entry moves up and
+ * shrinks (PICTURE_ABOVE: about 7 to 43 %); otherwise, or with more entries, nothing changes.
+ */
+export function pictureAboveCaptions(
+  p: PictureLed,
+  variables: Record<string, unknown>,
+  captionY: number | undefined,
+  note: (what: string) => void,
+): Record<string, unknown> {
+  if (captionY === undefined || captionY < 35 || captionY > 70) return variables;
+  const arr = variables[p.arr];
+  if (!Array.isArray(arr) || arr.length !== 1) return variables;
+  const e = arr[0] as Record<string, unknown>;
+  note(
+    `picture moved up to ${String(PICTURE_ABOVE.y)} % (clear of the captions at ${String(captionY)} %)`,
+  );
+  return {
+    ...variables,
+    [p.arr]: [
+      { ...e, y: PICTURE_ABOVE.y, ...(e['scale'] !== undefined && { scale: PICTURE_ABOVE.scale }) },
+    ],
+  };
+}
+
 /**
  * Scene variety of one sequence's beats (D-94): a template used more than MAX_SAME_TEMPLATE times
  * keeps its beats with image queries first, then the earliest; each other beat turns into a text-led
