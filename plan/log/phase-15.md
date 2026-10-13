@@ -254,3 +254,6 @@ Style re-extracted as `attention-compound-r3b` (D-93 preset: `tiered`, track 5 w
   - The card at 0:14 still carries the whole sentence: the model gave the whole line back as its phrase and the check refused it.
   - The "job" picture has the word "JOB" lettered over the people.
   - The captions at 50 % run across the centred picture (picture about 21 to 63 % of the frame).
+- Run 9 (main 593e790, after D-107), sent to the owner: 3 scenes (a kinetic-serif card, the model's own `paper-collage`, one more), speaker 59 %, audio QA PASS (-14.15 LUFS, true peak -1.82 dBTP). Checked with vidprep (6-frame sheet). Fixed against run 8: the card shows a key phrase ("nggak sesederhana matematika", 0:08) after one retry (the first answer was the whole line), and its captions are hidden under it; over the collage the captions are ink with no backing and sit clear of the pictures (0:25). Still open:
+  - The model planned its own collage with image queries ("1930s vintage engraving of handshake ..."); those pictures are generated from the raw query, without the D-107 no-text wording, and one item is a still of the speaker.
+  - The first scene is the only text card, so the picture minimum (never the hook) found nothing more to turn: one picture scene in the clip.
