@@ -333,7 +333,7 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
     expect(gen).toHaveLength(2);
     for (const a of args) {
       expect(a).toMatchObject({
-        prompt: 'An illustration of: Rezeki Tak Terduga',
+        prompt: 'An illustration of: Rezeki Tak Terduga. No text, letters or signs.',
         styleId: 'vox',
         width: 1024,
         height: 1024,
@@ -380,12 +380,13 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
     for (const s of scenes.slice(2)) {
       const v = s.variables as { items: { media: string; x: number; y: number }[]; label?: string };
       expect(v.items).toHaveLength(1);
-      expect(v.items[0]).toMatchObject({ x: 50, y: 42, scale: 1.8 });
+      // D-107: the test clip's captions sit mid-frame, so the picture moves up clear of them
+      expect(v.items[0]).toMatchObject({ x: 50, y: 25, scale: 1.5 });
       expect(v.label).toBeUndefined();
     }
     // drawn from each beat's own text, square for the cutout, before any archive search
     expect(args[0]).toMatchObject({
-      prompt: 'An illustration of: Kita nggak pernah tahu',
+      prompt: 'An illustration of: Kita nggak pernah tahu. No text, letters or signs.',
       styleId: 'vox',
       width: 1024,
       height: 1024,
@@ -432,12 +433,13 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
     for (const [k, s] of scenes.entries()) {
       const v = s.variables as { items: { media: string }[]; label: string };
       expect(v.items).toHaveLength(1);
-      expect(v.items[0]).toMatchObject({ x: 50, y: 42, scale: 1.8 });
+      // D-107: the test clip's captions sit mid-frame, so the picture moves up clear of them
+      expect(v.items[0]).toMatchObject({ x: 50, y: 25, scale: 1.5 });
       expect(v.label).toBe(['Peluang baru', 'Pertolongan Allah'][k]);
     }
     expect(args.map((a) => a['prompt'])).toEqual([
-      'An illustration of: Peluang baru',
-      'An illustration of: Pertolongan Allah',
+      'An illustration of: Peluang baru. No text, letters or signs.',
+      'An illustration of: Pertolongan Allah. No text, letters or signs.',
     ]);
     expect(searched).toEqual([]);
     expect(cut).toHaveLength(2);
@@ -515,11 +517,37 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
     expect(scenes.map((s) => s.template)).toEqual(['vox/kinetic-serif', 'vox/paper-collage']);
     expect(repairs).toContain('dropped: does not fit in the sequence');
     const prompts = args.map((a) => a['prompt']);
-    expect(prompts).toContain('An illustration of: a closed wooden door in a dark hallway');
-    expect(prompts).toContain('An illustration of: a hand pushing away a pile of bills');
+    expect(prompts).toContain(
+      'An illustration of: a closed wooden door in a dark hallway. No text, letters or signs.',
+    );
+    expect(prompts).toContain(
+      'An illustration of: a hand pushing away a pile of bills. No text, letters or signs.',
+    );
     expect(searched).toEqual([]);
     expect(repairs).toContain(
       'vox/newspaper "Kita nggak pernah tahu": vox/paper-collage with a picture of it instead (at least 2 pictures with an image model)',
     );
+  }, 120_000);
+
+  test('(k) the whole line given back as the phrase: one retry names it (D-107)', async () => {
+    const kit = await workflowKit();
+    const line = 'kita nggak pernah tahu dari 20 ribu yang dikeluarkan';
+    const stylist = scenesStylist([{ template: 'vox/kinetic-serif', variables: { text: line } }]);
+    const asked: string[] = [];
+    const { r, scenes, repairs, lines } = await stylizePlan(kit, (o) => {
+      const text = JSON.stringify(o.prompt);
+      if (!text.includes('Scenes:')) return stylist(o);
+      asked.push(text);
+      const phrase = asked.length === 1 ? line : 'nggak pernah tahu';
+      return { json: { scenes: [{ beat: 1, subject: '', phrase }] } };
+    });
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(asked).toHaveLength(2);
+    expect(asked[1]).toContain('has 9 words; give 2 to 5 words copied from the line');
+    expect(scenes[0]!.variables).toEqual({ text: 'nggak pernah tahu' });
+    expect(repairs).toContain(
+      `vox/kinetic-serif ${JSON.stringify(line)}: the key phrase "nggak pernah tahu"`,
+    );
+    expect(lines.filter((l) => l.type === 'sceneWords').map((l) => l['attempt'])).toEqual([0, 1]);
   }, 120_000);
 });

@@ -246,3 +246,11 @@ Style re-extracted as `attention-compound-r3b` (D-93 preset: `tiered`, track 5 w
   - The pictures are abstract (a grid of torn swatches, a paper pinwheel): their prompts are filler phrases ("tapi menurut gue,", "konsep rezeki itu nggak sesederhana matematika") with no visual subject. Without a fast model there is no step that turns a phrase into a subject.
   - The caption preset's dark backing shows as a grey blob over paper and newspaper scenes (5.6, 10.4 s).
   - Text cards still carry whole spoken sentences (title at 0:18); `lowLuma` at 766 and 2083 ms (the dark kinetic-serif card).
+- Run 8 (main f5842f6, after D-104, D-105, D-106; the r3b caption preset regenerated from the template with its measured values): 6 scenes (kinetic-serif 6 times planned), speaker 32 %, audio QA PASS (-14.14 LUFS, true peak -2.31 dBTP). Not sent; fixed in D-107 first. Checked with vidprep (6-frame sheet) and frames at 15.5, 18.6, 19.4, 25 and 30.5 s. Fixed against run 7:
+  - The scene-words call gave concrete subjects: "a hand pushing open a glowing door" (a hand and a door, 0:18) and "people walking through an unimagined job opening" (four people walking, 0:21).
+  - Over the paper scenes the captions have no backing and plain words are ink (0:18, 0:21); over the footage the backing stays (0:17).
+  - The newspaper headline quotes the speech and its captions are hidden (0:25).
+  Still open (D-107):
+  - The card at 0:14 still carries the whole sentence: the model gave the whole line back as its phrase and the check refused it.
+  - The "job" picture has the word "JOB" lettered over the people.
+  - The captions at 50 % run across the centred picture (picture about 21 to 63 % of the frame).

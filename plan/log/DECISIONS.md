@@ -2555,3 +2555,15 @@ qwen3.5 did not plan a stack with a panel picture query in these runs; the panel
 **Why**: a local image model draws what it is told; a subject it can draw beats a sentence fragment. A card is read in a second: a few words of the line, not the line.
 **Alternatives**: asking the planner for subjects in the clip plan (weak models leave them out, runs 5 to 7); taking the rarest words as the phrase (no sense of the point).
 **Open**: a converted beat that does not fit at placement has still generated its picture (D-102).
+
+## D-107 · 2026-10-13 · fix/clip-polish2 · picture above mid-frame captions, no lettering, one phrase retry
+**Context**: demo run 8 (main f5842f6): the centred picture (`y` 42, scale 1.8: about 21 to 63 % of a 9:16 frame) sat under the captions at 50 %; the subject "people walking through an unimagined job opening" came out with "JOB" lettered on it; the model gave a card's whole line back as its phrase, so the check refused it and the card kept the sentence.
+**Decision**:
+- `pictureAboveCaptions` (`plan-repair.ts`): with burned-in captions between 35 and 70 %, the one entry of a drawn picture-led scene moves to `y` 25 and scale 1.5 (about 7 to 43 %); a repair note names it. Captions elsewhere, none, or several entries: unchanged.
+- Generated pictures are asked for with `An illustration of: <query>. No text, letters or signs.`; the scene-words prompt asks for things to see only, no abstract nouns a painter would letter as a sign, and a phrase never the whole line.
+- `sceneWords` retries once for refused card phrases, naming each (its word count, words not in the line) and asking again for those scenes only. Each attempt is in the run record.
+- Tests: `plan-repair.test.ts` "the drawn picture moves above captions burned in mid-frame (D-107)"; `stylize-variety.test.ts` (k) retry; (f) to (j) expect the new prompt, (g) and (h) the new placement (the test clip's captions sit at 50 %).
+**Verify** (worktree): `vitest run packages/agent packages/engine apps/desktop/test/renderer` 2547 passed, 1 skipped, 3 failed (framing-provider.local, media-chain.local x2, a fresh worktree under load); those 2 files rerun alone: 4 passed. `pnpm -r typecheck`, `pnpm lint` clean.
+**Review**: self-review (token budget).
+**Why**: the captions carry the speech over a picture scene, so the picture has to make room; a weak model often gets a second chance right when told what was wrong.
+**Open**: the no-text wording reduces lettering but a diffusion model can still draw some.

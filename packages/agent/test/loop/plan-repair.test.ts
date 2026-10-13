@@ -9,6 +9,7 @@ import {
   MIN_PICTURE_LED,
   clearOfCaptions,
   fitVariables,
+  pictureAboveCaptions,
   pictureLedTemplate,
   textLedTemplates,
   varySceneTemplates,
@@ -289,6 +290,20 @@ describe('scene variety (D-94)', () => {
     expect([...s.illustrated.keys()].sort()).toEqual([1, 2]);
     // no image model: the plan is kept
     expect(varySceneTemplates(beats, textLed, templates).beats).toEqual(beats);
+  });
+
+  test('the drawn picture moves above captions burned in mid-frame (D-107)', () => {
+    const pic = pictureLedTemplate(IDS, templates)!;
+    const one = { items: [{ media: 'm1', x: 50, y: 42, scale: 1.8 }] };
+    const notes: string[] = [];
+    const moved = pictureAboveCaptions(pic, one, 50, (w) => notes.push(w));
+    expect(moved).toEqual({ items: [{ media: 'm1', x: 50, y: 25, scale: 1.5 }] });
+    expect(notes).toEqual(['picture moved up to 25 % (clear of the captions at 50 %)']);
+    // captions low or high, none, or several entries: unchanged
+    for (const y of [80, 20, undefined])
+      expect(pictureAboveCaptions(pic, one, y, () => {})).toBe(one);
+    const two = { items: [...one.items, { media: 'm2', x: 20, y: 70 }] };
+    expect(pictureAboveCaptions(pic, two, 50, () => {})).toBe(two);
   });
 
   test('picture-led planned empty (D-103): one centred entry drawn from its label', () => {
