@@ -14,6 +14,10 @@
 // their text (generated before any archive search), the rest text-led.
 // (h) D-103, demo run 6: a collage planned with `items: []` and a label, with an image model: one
 // centred picture drawn from its label, not a text card (without a model, (e) is unchanged).
+// (i) D-106, demo run 7: text cards carried whole spoken sentences; one structured call gives a long
+// card a key phrase of its own words (a phrase with other words is refused, the card kept).
+// (j) D-106: pictures drawn from filler phrases came out abstract; the same call gives each drawn
+// beat a concrete subject, and a varied text-only plan still gets two pictures.
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -59,6 +63,15 @@ function scenesStylist(scenes: readonly SceneBeat[]) {
       },
     };
   };
+}
+
+/** The stylist, answering the scene-words call (D-106) with `answer` for its beats. */
+function withSceneWords(
+  stylist: ReturnType<typeof scenesStylist>,
+  answer: { beat: number; subject: string; phrase: string }[],
+) {
+  return (o: LanguageModelV4CallOptions): ScriptStep =>
+    JSON.stringify(o.prompt).includes('Scenes:') ? { json: { scenes: answer } } : stylist(o);
 }
 
 async function stylizePlan(kit: Kit, next: ReturnType<typeof scenesStylist>) {
@@ -432,5 +445,81 @@ describe('plan-mode scene variety and pictures (D-94)', () => {
       'vox/paper-collage planned with no items: one picture of "Peluang baru"',
     );
     expect(repairs.join(' ')).not.toContain('do not fit');
+  }, 120_000);
+
+  test('(i) a long text card shows its key phrase; a phrase not from the line is refused', async () => {
+    const kit = await workflowKit();
+    const { r, scenes, repairs, lines } = await stylizePlan(
+      kit,
+      withSceneWords(
+        scenesStylist([
+          { template: 'vox/kinetic-serif', variables: { text: 'Tapi menurut gue' } },
+          {
+            template: 'vox/kinetic-serif',
+            variables: { text: 'Konsep rezeki itu nggak sesederhana matematika kita' },
+          },
+          {
+            template: 'vox/newspaper',
+            variables: { headline: 'Allah bukain pintu rezeki yang mana buat kita' },
+          },
+        ]),
+        [
+          { beat: 2, subject: '', phrase: 'nggak sesederhana matematika' },
+          { beat: 3, subject: '', phrase: 'pintu rezeki surga' },
+        ],
+      ),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    expect(scenes.map((s) => s.variables)).toEqual([
+      { text: 'Tapi menurut gue' },
+      { text: 'nggak sesederhana matematika' },
+      expect.objectContaining({ headline: expect.stringMatching(/^Allah bukain/) }),
+    ]);
+    expect(repairs).toContain(
+      'vox/kinetic-serif "Konsep rezeki itu nggak sesederhana matematika kita": the key phrase "nggak sesederhana matematika"',
+    );
+    // the short hook is not asked about
+    const asked = lines.find((l) => l.type === 'sceneWords')!;
+    expect((asked['asks'] as { beat: number }[]).map((a) => a.beat)).toEqual([2, 3]);
+    expect(asked['valid']).toBe(true);
+  }, 120_000);
+
+  test('(j) an image model is installed: two text cards become pictures of concrete subjects', async () => {
+    const kit = await workflowKit();
+    kit.engine.imageProviders.register({ id: 'fake-gen', generate: async () => '/nowhere.png' });
+    const gen: string[] = [];
+    const args: Record<string, unknown>[] = [];
+    pngJob(kit, 'assets.generate', gen);
+    const runJob = kit.deps.runJob!;
+    kit.deps.runJob = async (k, a, signal) => {
+      if (k === 'assets.generate') args.push(a);
+      return runJob(k, a, signal);
+    };
+    pngJob(kit, 'assets.cutout', []);
+    const { r, scenes, repairs, searched } = await stylizePlan(
+      kit,
+      withSceneWords(
+        scenesStylist([
+          { template: 'vox/kinetic-serif', variables: { text: 'Tapi menurut gue' } },
+          { template: 'vox/newspaper', variables: { headline: 'Kita nggak pernah tahu' } },
+          { template: 'vox/kinetic-serif', variables: { text: 'Dijauhkan dari pengeluaran' } },
+        ]),
+        [
+          { beat: 2, subject: 'a closed wooden door in a dark hallway', phrase: '' },
+          { beat: 3, subject: 'a hand pushing away a pile of bills', phrase: '' },
+        ],
+      ),
+    );
+    expect(r.done.status, r.done.summary).toBe('completed');
+    // the test clip is about 5 s: the third scene does not fit (dropped, with a note)
+    expect(scenes.map((s) => s.template)).toEqual(['vox/kinetic-serif', 'vox/paper-collage']);
+    expect(repairs).toContain('dropped: does not fit in the sequence');
+    const prompts = args.map((a) => a['prompt']);
+    expect(prompts).toContain('An illustration of: a closed wooden door in a dark hallway');
+    expect(prompts).toContain('An illustration of: a hand pushing away a pile of bills');
+    expect(searched).toEqual([]);
+    expect(repairs).toContain(
+      'vox/newspaper "Kita nggak pernah tahu": vox/paper-collage with a picture of it instead (at least 2 pictures with an image model)',
+    );
   }, 120_000);
 });
